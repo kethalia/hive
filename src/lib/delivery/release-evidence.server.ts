@@ -24,13 +24,16 @@ export async function verifyReleaseEvidence(
      * verifies the entire task, including production acceptance. */
     milestone?: "implementation_preview" | "task_complete";
   },
+  /** Internal receipt projection only. Never pass this at an execution boundary. */
+  history?: { pausedReceiptOnly: true },
 ) {
   try {
     const task = await tx.deliveryTask.findUnique({
       where: { ownerId_id: { ownerId: scope.ownerId, id: scope.taskId } },
       include: { project: true, steps: { orderBy: { id: "asc" } } },
     });
-    if (!task || task.pauseRequested || task.schedulingPaused) return false;
+    if (!task || (!history?.pausedReceiptOnly && (task.pauseRequested || task.schedulingPaused)))
+      return false;
     const source = await resolveTaskSource(tx, scope.ownerId, scope.taskId);
     if (
       !source.context ||

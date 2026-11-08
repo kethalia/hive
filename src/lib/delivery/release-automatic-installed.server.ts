@@ -221,6 +221,11 @@ export function createAutomaticReleaseController(
         }
       }
       if (row.phase !== "observed") return "waiting" as const;
+      const task = await db.deliveryTask.findUnique({
+        where: { ownerId_id: { ownerId: report.ownerId, id: report.taskId } },
+        select: { pauseRequested: true, schedulingPaused: true },
+      });
+      if (!task || task.pauseRequested || task.schedulingPaused) return "checkpointed" as const;
       await controller.checkpointDatabase(report.ownerId, row.release_id, signal);
       return "checkpointed" as const;
     },

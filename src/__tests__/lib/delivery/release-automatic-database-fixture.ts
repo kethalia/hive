@@ -23,7 +23,10 @@ import { approveInstalledDatabasePlan } from "../../../../services/migrate/src/d
 import { runInstalledDatabaseJob } from "../../../../services/migrate/src/delivery/installed-job.mjs";
 import { deriveSourceBuildApproval } from "../../../../services/migrate/src/delivery/source-build-approval.mjs";
 import { sourcePlanIntent } from "../../../../services/migrate/src/delivery/source-plan-intent.mjs";
-import { databaseCatalogSchema } from "../../../../services/migrate/src/delivery/wire.mjs";
+import {
+  databaseCatalogSchema,
+  databaseOidcAudience,
+} from "../../../../services/migrate/src/delivery/wire.mjs";
 import { acceptanceFixtureKey } from "./acceptance-fixture";
 import { verifiedEpicPreviewFixture } from "./epic-readiness-fixture";
 import { automaticReleaseProviderFixture } from "./release-automatic-provider-fixture";
@@ -218,6 +221,8 @@ export async function automaticDatabaseFixture(
     servingBaseline: false,
     droppedDispatch: false,
     stallLookup: false,
+    pauseBeforeReport: false,
+    lastReport: null as Record<string, unknown> | null,
     droppedReport: false,
     reportCalls: 0,
     expireWorkloadRead: false,
@@ -278,6 +283,13 @@ export async function automaticDatabaseFixture(
     if (u.origin === p.config.target.origin && path.startsWith("/api/delivery/database-jobs/")) {
       const request = new Request(String(raw), init),
         body = JSON.parse(await request.clone().text());
+      if (body.operation === "report") {
+        state.lastReport = body;
+        if (state.pauseBeforeReport) {
+          state.pauseBeforeReport = false;
+          await db.deliveryTask.update({ where: { id: f.taskId }, data: { pauseRequested: true } });
+        }
+      }
       // Explicit historical-workflow fixture: only the original approval's
       // insertion timestamp is old. No existing immutable row is modified.
       const historicalDb = approvalHistoryMs
@@ -645,6 +657,21 @@ export async function automaticDatabaseFixture(
     followups,
     state,
     runJob,
+    async sendJobRequest(job: Job, body: Record<string, unknown>) {
+      state.activeJob = job;
+      try {
+        return await fetcher(`${catalog.authorityOrigin}/api/delivery/database-jobs/authorize`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Hive-Database-OIDC": workloadToken(databaseOidcAudience(body)),
+          },
+          body: JSON.stringify(body),
+        });
+      } finally {
+        state.activeJob = null;
+      }
+    },
     table,
   };
 }

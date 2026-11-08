@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@hive/db";
 import { signedHostProjectRequest } from "@/lib/projects/host.server";
+import {
+  databaseActionHasReportedHistory,
+  hasDatabaseSqlHistory,
+} from "./database-job-history.server";
 import { epicMergeRpcResultSchema } from "./epic-merge-contracts";
 import { githubSourceDigest } from "./github-evidence.server";
 import {
@@ -59,13 +63,39 @@ export async function automaticReleaseForTask(
     source = bound?.task.currentSourceRevision,
     binding = bound?.task.managerBinding;
   const owner = await db.user.findUnique({ where: { id: scope.ownerId } });
+  const databaseOperation = operation.operation === "database" ? operation : null;
+  const paused = !!bound && (bound.task.pauseRequested || bound.task.schedulingPaused);
+  const historyOnly =
+    paused &&
+    databaseOperation !== null &&
+    (await db.$transaction(async (tx) => {
+      if (
+        databaseOperation.command.action === "workload" &&
+        databaseOperation.command.request.operation === "report"
+      )
+        return hasDatabaseSqlHistory(
+          tx,
+          repositoryPolicyStore(db),
+          databaseOperation.command.request,
+          databaseOperation.catalog,
+        );
+      if (databaseOperation.command.action === "lookup")
+        return databaseActionHasReportedHistory(
+          tx,
+          repositoryPolicyStore(db),
+          scope.ownerId,
+          scope.taskId,
+          databaseOperation.command.identity.request.dispatchId as string,
+          databaseOperation.catalog,
+        );
+      return false;
+    }));
   if (
     !bound ||
     !source ||
     !binding ||
     !owner ||
-    bound.task.pauseRequested ||
-    bound.task.schedulingPaused ||
+    (paused && !historyOnly) ||
     binding.blockedReason ||
     config.policy.ownerId !== scope.ownerId ||
     source.repositoryId !== config.policy.repositoryId ||

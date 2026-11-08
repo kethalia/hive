@@ -427,6 +427,233 @@ describe.skipIf(!url)("controlled automatic source-build database delivery", () 
     expect(f.jobs).toHaveLength(2);
     expect(f.remote.writes).toBe(0);
   }, 30000);
+  it("records only a pre-pause authorized SQL outcome and settles its exact completed job without granting new paused work", async () => {
+    const f = await automaticDatabaseFixture(db, url!, mocks.host);
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const approval = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    await f.runJob(f.jobs[0]);
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    f.followups.length = 0;
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const advance = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, advance.id, f.signal);
+    f.state.pauseBeforeReport = true;
+    await f.runJob(f.jobs[1]);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "database_sql_authorized" },
+      }),
+    ).toBeGreaterThan(0);
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_job_observed" } }),
+    ).toBe(1);
+    expect(
+      (await db.deliveryTask.findUniqueOrThrow({ where: { id: f.taskId } })).pauseRequested,
+    ).toBe(true);
+    const report = f.state.lastReport!;
+    const unauthorized: Record<string, unknown> = {
+      ...report,
+      requestId: randomUUID(),
+      operation: "authorize",
+      action: "certificate",
+    };
+    delete unauthorized.observation;
+    expect((await f.sendJobRequest(f.jobs[1], unauthorized)).status).not.toBe(200);
+    const wrongDispatch = { ...report, requestId: randomUUID(), dispatchId: randomUUID() };
+    expect((await f.sendJobRequest(f.jobs[1], wrongDispatch)).status).not.toBe(200);
+    const wrongRun = { ...report, requestId: randomUUID(), githubRunAttempt: 2 };
+    expect((await f.sendJobRequest(f.jobs[1], wrongRun)).status).not.toBe(200);
+    const read = {
+      ...unauthorized,
+      requestId: randomUUID(),
+      operation: "read_plan",
+      action: "read",
+    };
+    expect((await f.sendJobRequest(f.jobs[1], read)).status).not.toBe(200);
+    expect((await f.sendJobRequest(f.jobs[1], report)).status).toBe(200);
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_job_observed" } }),
+    ).toBe(1);
+    await f.followups.shift()!();
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: advance.id } })).phase,
+    ).toBe("observed");
+    expect(f.jobs).toHaveLength(2);
+    expect(f.remote.writes).toBe(0);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "release_test_grant_renewed" },
+      }),
+    ).toBe(0);
+    expect(
+      await db.deliveryReleaseAction.count({ where: { releaseId: f.release.id, kind: "merge" } }),
+    ).toBe(0);
+    expect(
+      await db.$transaction((tx) =>
+        verifyReleaseEvidence(tx, repositoryPolicyStore(db), {
+          ownerId: f.user.id,
+          taskId: f.taskId,
+          sourceSha: f.source.headSha,
+          milestone: "implementation_preview",
+        }),
+      ),
+    ).toBe(false);
+  }, 30000);
+  it("keeps a paused workload with no original SQL authorization unknown despite a successful GitHub run", async () => {
+    const f = await automaticDatabaseFixture(db, url!, mocks.host);
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const approval = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    await f.runJob(f.jobs[0]);
+    await f.controller.step(f.user.id, approval.id, f.signal);
+    f.followups.length = 0;
+    await f.controller.lifecycle.advance(f.user.id, f.release.id);
+    const advance = await db.deliveryReleaseAction.findFirstOrThrow({
+      where: { releaseId: f.release.id, phase: "prepared" },
+    });
+    await f.controller.step(f.user.id, advance.id, f.signal);
+    const job = f.jobs[1],
+      base = {
+        ...JSON.parse(job.inputs["database-job-json"]),
+        schemaVersion: 1,
+        purpose: "database_job",
+        operation: "read_plan",
+        action: "read",
+        requestId: randomUUID(),
+        githubRunId: String(job.id),
+        githubRunAttempt: 1,
+      };
+    const response = await f.sendJobRequest(job, base);
+    expect(response.status).toBe(200);
+    const approved = (await response.json()).data;
+    expect(
+      await db.deliveryEvent.count({
+        where: {
+          taskId: f.taskId,
+          type: "database_workload_bound",
+          payload: { path: ["runId"], equals: String(job.id) },
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "database_sql_authorized" },
+      }),
+    ).toBe(0);
+    let acquired!: () => void, releasePause!: () => void;
+    const locked = new Promise<void>((resolve) => {
+        acquired = resolve;
+      }),
+      continuePause = new Promise<void>((resolve) => {
+        releasePause = resolve;
+      });
+    let blockerPid = 0;
+    const pause = db.$transaction(
+      async (tx) => {
+        blockerPid = (await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`)[0].pid;
+        await tx.$queryRaw`SELECT id FROM delivery_tasks WHERE id=${f.taskId}::uuid FOR UPDATE`;
+        acquired();
+        await continuePause;
+        await tx.deliveryTask.update({ where: { id: f.taskId }, data: { pauseRequested: true } });
+      },
+      { timeout: 10000 },
+    );
+    await locked;
+    const competing = f.sendJobRequest(job, {
+      ...base,
+      requestId: randomUUID(),
+      operation: "authorize",
+      action: "begin",
+    });
+    let blocked = false;
+    try {
+      for (let poll = 0; poll < 100; poll++) {
+        const rows = await db.$queryRaw<
+          { blocked: boolean }[]
+        >`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ${blockerPid}::int=ANY(pg_blocking_pids(pid))) AS blocked`;
+        if (rows[0].blocked) {
+          blocked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    } finally {
+      releasePause();
+    }
+    await pause;
+    expect((await competing).status).not.toBe(200);
+    expect(blocked).toBe(true);
+    expect(
+      await db.deliveryEvent.count({
+        where: { taskId: f.taskId, type: "database_sql_authorized" },
+      }),
+    ).toBe(0);
+    const observation = {
+      runId: base.planEventId,
+      phase: "pending",
+      version: 0,
+      cursor: "0",
+      highWater: "0",
+      changedRows: "0",
+      checkpointDigest: "0".repeat(64),
+      planDigest: approved.planDigest,
+      scopeDigest: "0".repeat(64),
+      sourceSha: f.source.headSha,
+      beforeSchemaDigest: f.plan.beforeSchemaDigest,
+      afterSchemaDigest: f.plan.afterSchemaDigest,
+      oldAppDigest: f.plan.oldAppDigest,
+      newAppDigest: f.plan.newAppDigest,
+      compatibilityDigest: f.plan.compatibilityDigest,
+      compatibilityReceiptDigest: null,
+      integrity: null,
+      activationReceiptDigest: null,
+      contractAuthorized: false,
+      executionAuthorized: false,
+    };
+    expect(
+      (
+        await f.sendJobRequest(job, {
+          ...base,
+          requestId: randomUUID(),
+          operation: "report",
+          observation,
+        })
+      ).status,
+    ).not.toBe(200);
+    job.status = "completed";
+    job.conclusion = "success";
+    job.protected = "success";
+    expect(await f.controller.step(f.user.id, advance.id, f.signal)).toBe("not_found");
+    expect(
+      (await db.deliveryReleaseAction.findUniqueOrThrow({ where: { id: advance.id } })).phase,
+    ).toBe("held");
+    expect(
+      await db.deliveryEvent.count({ where: { taskId: f.taskId, type: "database_job_observed" } }),
+    ).toBe(0);
+    expect(f.remote.writes).toBe(0);
+    expect(f.jobs).toHaveLength(2);
+    await db.deliveryRepositoryPolicyVersion.updateMany({
+      where: { ownerId: f.user.id, projectId: f.project.id },
+      data: { revokedAt: new Date() },
+    });
+    expect(
+      (
+        await f.sendJobRequest(job, {
+          ...base,
+          requestId: randomUUID(),
+          operation: "report",
+          observation,
+        })
+      ).status,
+    ).not.toBe(200);
+  }, 30000);
   it("cancels a stalled callback provider within its work budget and closes its own SQL client", async () => {
     const f = await automaticDatabaseFixture(db, url!, mocks.host);
     await f.controller.lifecycle.advance(f.user.id, f.release.id);

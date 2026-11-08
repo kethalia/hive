@@ -13,6 +13,7 @@ import {
   verifyDatabaseResponse,
   verifySourceBuildApproval,
 } from "../../../services/migrate/src/delivery/wire.mjs";
+import { hasDatabaseSqlHistory, recordDatabaseSqlAuthority } from "./database-job-history.server";
 import { verifyDatabaseJobIdentity } from "./database-job-identity.server";
 import { githubSourceDigest } from "./github-evidence.server";
 import { automaticDatabaseActionSchema } from "./release-database-actions";
@@ -187,21 +188,32 @@ export class DatabaseJobStore {
     tx: Tx,
     request: { ownerId: string; taskId: string; sourceSha: string },
     catalog: Catalog,
+    receipt?: Request,
   ) {
     const rows = await tx.$queryRaw<
-      { source_sha: string; repository_id: string; owner_id: string }[]
-    >`SELECT t.source_sha,p.provider_repository_id AS repository_id,t.owner_id FROM delivery_tasks t JOIN delivery_projects p ON p.id=t.project_id AND p.owner_id=t.owner_id WHERE t.id=${request.taskId}::uuid AND t.owner_id=${request.ownerId}::uuid FOR UPDATE OF t`;
+      { source_sha: string; repository_id: string; owner_id: string; paused: boolean }[]
+    >`SELECT t.source_sha,p.provider_repository_id AS repository_id,t.owner_id,(t.pause_requested OR t.scheduling_paused) AS paused FROM delivery_tasks t JOIN delivery_projects p ON p.id=t.project_id AND p.owner_id=t.owner_id WHERE t.id=${request.taskId}::uuid AND t.owner_id=${request.ownerId}::uuid FOR UPDATE OF t`;
+    const receiptHistory =
+      rows[0]?.paused &&
+      receipt?.operation === "report" &&
+      (await hasDatabaseSqlHistory(tx, this.repositoryPolicies, receipt, catalog));
     if (
       rows.length !== 1 ||
+      (rows[0].paused && !receiptHistory) ||
       request.ownerId !== catalog.ownerId ||
       rows[0].source_sha !== request.sourceSha ||
       rows[0].repository_id !== catalog.repositoryId ||
       // Approval and the migration job precede production verification. Current
       // release/target/plan authorization remains a separate job() requirement.
-      !(await verifyReleaseEvidence(tx, this.repositoryPolicies, {
-        ...request,
-        milestone: "implementation_preview",
-      }))
+      !(await verifyReleaseEvidence(
+        tx,
+        this.repositoryPolicies,
+        {
+          ...request,
+          milestone: "implementation_preview",
+        },
+        receiptHistory ? { pausedReceiptOnly: true } : undefined,
+      ))
     )
       return fail();
   }
@@ -583,7 +595,7 @@ export class DatabaseJobStore {
           githubSourceDigest(this.catalog(catalog.id, now)) !== githubSourceDigest(catalog)
         )
           return fail();
-        await this.source(tx, request, catalog);
+        await this.source(tx, request, catalog, request);
         if (request.dispatchStage)
           await this.automaticAction(tx, request, catalog, request.dispatchStage);
         const accepted = await acceptedDatabasePlan(tx, request, catalog),
@@ -728,7 +740,23 @@ export class DatabaseJobStore {
         }
         const end = await clock(tx);
         if (signal.aborted || authorityExpiry <= end || catalog.expiresAt <= end) return fail();
-        return this.response(request, catalog, end, authorityExpiry, data);
+        const response = this.response(request, catalog, end, authorityExpiry, data);
+        if (
+          compatibility &&
+          "kind" in compatibility &&
+          compatibility.kind === "automatic-source-build" &&
+          request.operation === "authorize"
+        )
+          await recordDatabaseSqlAuthority(tx, this.repositoryPolicies, request, catalog, response);
+        const finalNow = await clock(tx);
+        if (
+          signal.aborted ||
+          authorityExpiry <= finalNow ||
+          catalog.expiresAt <= finalNow ||
+          response.expiresAt <= finalNow
+        )
+          return fail();
+        return response;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 10000 },
     );

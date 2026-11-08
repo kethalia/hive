@@ -40,8 +40,8 @@ database, disabled catalogs, production semantic completion and historical evide
 after deployment-fence release. Deployment health alone does not complete semantic
 requirements or release the writer, session, archive or checkout.
 
-The fixed reviewed recipe contains a public authority enrollment manifest, empty
-by default. Both protected entrypoints check its origin, signing key, target database
+The fixed reviewed recipe contains a public authority enrollment manifest with an
+inactive future-production entry. Both protected entrypoints check its origin, signing key, target database
 and owner/repository scope before requesting OIDC or reading SQL credentials.
 Workflow/catalog inputs cannot select that manifest or executable recipe: the
 reusable workflow pins a literal source SHA. Source, wrapper and caller are separate
@@ -80,3 +80,27 @@ transaction bodies reject after expiry. The native-wrapper workerd scenario also
 verifies both versions share disposable crypto identities and the new version can
 decrypt an old-version ciphertext persisted in the isolated fixture database.
 These remain local/provider-double checks, with production execution disabled.
+
+
+A separately reviewed inactive future-production entry enrolls only the existing
+production owner/repository, fixed `https://hive.kethalia.com` origin, public signing
+key, target digest and exact Neon endpoint/database. No matching private signing
+binding, active catalog, protected database job or production activation is enabled
+by this source entry. Final cutover must recheck the captured owner and target
+identity. The old immutable source/wrapper/caller pins remain historical; final
+combined source receives a new reviewed pin chain.
+
+Paused maintenance may record only an already authorized SQL result. The existing
+append-only event ledger pins the original short SQL-authorize request, run/attempt,
+source, dispatch, plan, repository/release policy, binding, response hash and expiry.
+The pause and authorization commits serialize on the task row. A fresh authenticated
+report may use that exact grant as history, never as another SQL grant; correlated
+GET lookup then corroborates the completed run. A workload bind or GitHub success
+without the original SQL-authority event remains unknown and keeps the maintenance
+hold. Paused callbacks record no continuation grant, merge or additional job.
+
+The final receipt extension passes all 17 composed PostgreSQL cases, 18 focused
+provider/deadline units and four public-authority/workflow contracts. Its pause-race
+case observes an actual blocked SQL backend, commits the owner pause, and verifies
+that no SQL-authority event is created by the waiter. Full generated-package parity
+and replacement source/wrapper/caller pins follow coordinated combined integration.

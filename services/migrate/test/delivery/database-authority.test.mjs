@@ -3,7 +3,10 @@ import { generateKeyPairSync, randomUUID } from "node:crypto";
 import test from "node:test";
 import { approveInstalledDatabasePlan } from "../../src/delivery/approve-plan.mjs";
 import { digest } from "../../src/delivery/contracts.mjs";
-import { assertDatabaseAuthority } from "../../src/delivery/database-authority.mjs";
+import {
+  assertDatabaseAuthority,
+  readDatabaseAuthorities,
+} from "../../src/delivery/database-authority.mjs";
 import { runInstalledDatabaseJob } from "../../src/delivery/installed-job.mjs";
 import { sourcePlanIntent } from "../../src/delivery/source-plan-intent.mjs";
 import { databaseCatalogSchema } from "../../src/delivery/wire.mjs";
@@ -170,7 +173,7 @@ test("source-owned authority enrollment rejects caller origin/key/target/owner/r
   }
   assert.equal(fetches, 0);
   assert.equal(credentials, 0);
-  // Installed CLI/default behavior uses only the source-owned empty manifest.
+  // Installed CLI/default behavior uses only the source-owned manifest, which does not enroll this unrelated fixture.
   const env = {
     HIVE_DELIVERY_DATABASE_ENABLED: "true",
     HIVE_DATABASE_TRUSTED_RECIPE_SHA: recipe,
@@ -188,4 +191,41 @@ test("source-owned authority enrollment rejects caller origin/key/target/owner/r
     /authority_not_enrolled/,
   );
   assert.equal(fetches, 0);
+});
+
+test("inactive production public enrollment binds only its exact scope and grants no execution opt-in", () => {
+  const { catalog, recipe } = fixture(),
+    [entry, ...rest] = readDatabaseAuthorities();
+  assert.equal(rest.length, 0);
+  assert.deepEqual(
+    Object.keys(entry).sort(),
+    [
+      "ownerId",
+      "repositoryId",
+      "origin",
+      "publicKeyPem",
+      "targetDigest",
+      "databaseHost",
+      "databasePort",
+      "databaseName",
+    ].sort(),
+  );
+  const matched = databaseCatalogSchema.parse({
+    ...catalog,
+    ownerId: entry.ownerId,
+    repositoryId: entry.repositoryId,
+    targetDigest: entry.targetDigest,
+    authorityOrigin: entry.origin,
+    authorityPublicKeyPem: entry.publicKeyPem,
+    databaseHost: entry.databaseHost,
+    databasePort: entry.databasePort,
+    databaseName: entry.databaseName,
+    automaticExecutionEnabled: false,
+  });
+  assert.doesNotThrow(() => assertDatabaseAuthority(matched, recipe));
+  assert.equal(matched.automaticExecutionEnabled, false);
+  assert.throws(
+    () => assertDatabaseAuthority({ ...matched, databaseName: "unrelated" }, recipe),
+    /authority_not_enrolled/,
+  );
 });

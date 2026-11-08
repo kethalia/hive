@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "ownerId": "8f57b771-0a31-4f0b-8c0f-4b5551f1a874",
+    "repositoryId": "1183966024",
+    "origin": "https://hive.kethalia.com",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAOqxSthj/I0JOJc/oSz3lbjxzuWfVWTeyONhbiXrRp0U=\n-----END PUBLIC KEY-----\n",
+    "targetDigest": "f69434b84ce32dc87537f9a112dc382d0c8c102129ba5e6b660355d7404d856e",
+    "databaseHost": "ep-icy-sound-b7250ikz.c-13.us-east-1.aws.neon.tech",
+    "databasePort": 5432,
+    "databaseName": "neondb"
+  }
+]

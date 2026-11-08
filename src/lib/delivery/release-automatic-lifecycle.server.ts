@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { sourcePlanIntent } from "../../../services/migrate/src/delivery/source-plan-intent.mjs";
+import { databaseActionHasReportedHistory } from "./database-job-history.server";
 import { epicPreviewReadiness } from "./epic-readiness.server";
 import { canonicalGitHubSource, githubSourceDigest } from "./github-evidence.server";
 import { isGitHubSerializationConflict } from "./github-persistence.server";
@@ -167,7 +168,13 @@ export class AutomaticReleaseLifecycle {
       createdAt: row.created_at.getTime(),
     };
   }
-  private async current(tx: Tx, row: Row, fresh: boolean, historical = false) {
+  private async current(
+    tx: Tx,
+    row: Row,
+    fresh: boolean,
+    historical = false,
+    pausedReceiptOnly = false,
+  ) {
     const parsed = snapshotSchema.safeParse(row.snapshot),
       p = this.config.policy;
     if (
@@ -201,12 +208,17 @@ export class AutomaticReleaseLifecycle {
     if (
       (!historical && !ready) ||
       (historical &&
-        !(await verifyReleaseEvidence(tx, this.store, {
-          ownerId: row.owner_id,
-          taskId: row.task_id,
-          sourceSha: s.sourceSha,
-          milestone: "implementation_preview",
-        }))) ||
+        !(await verifyReleaseEvidence(
+          tx,
+          this.store,
+          {
+            ownerId: row.owner_id,
+            taskId: row.task_id,
+            sourceSha: s.sourceSha,
+            milestone: "implementation_preview",
+          },
+          pausedReceiptOnly ? { pausedReceiptOnly: true } : undefined,
+        ))) ||
       !bound ||
       !source ||
       s.policyVersionId !== p.versionId ||
@@ -624,10 +636,31 @@ export class AutomaticReleaseLifecycle {
   private async authorizeDatabase(tx: Tx, identity: ReleaseActionIdentity) {
     const row = await this.locked(tx, this.config.policy.ownerId, identity.releaseId);
     if (!row || row.phase !== "active") return false;
-    const current = await this.current(tx, row, false);
+    const task = await tx.deliveryTask.findUnique({
+      where: { ownerId_id: { ownerId: row.owner_id, id: row.task_id } },
+      select: { pauseRequested: true, schedulingPaused: true },
+    });
+    const paused = !!task && (task.pauseRequested || task.schedulingPaused);
+    const request = automaticDatabaseActionSchema.safeParse(identity.request);
+    const catalog = request.success ? this.databaseCatalog(request.data.sourceSha) : null;
+    if (
+      paused &&
+      (!request.success ||
+        !catalog ||
+        !(await databaseActionHasReportedHistory(
+          tx,
+          this.store,
+          row.owner_id,
+          row.task_id,
+          request.data.dispatchId,
+          catalog,
+        )))
+    )
+      return false;
+    const current = await this.current(tx, row, false, paused, paused);
     if (!current?.snapshot.database) return false;
     const scope = await this.databaseState(tx, row, current.snapshot),
-      r = automaticDatabaseActionSchema.safeParse(identity.request);
+      r = request;
     if (
       !r.success ||
       r.data.ownerId !== row.owner_id ||
@@ -646,6 +679,11 @@ export class AutomaticReleaseLifecycle {
     const actions = await tx.$queryRaw<{ id: string; request_digest: string; phase: string }[]>`
       SELECT id,request_digest,phase FROM delivery_release_actions WHERE release_id=${row.id}::uuid AND kind='database_job' FOR UPDATE`;
     if (!actions.some((a) => a.id === identity.id && a.request_digest === identity.requestDigest))
+      return false;
+    if (
+      paused &&
+      !actions.some((a) => a.id === identity.id && ["effect_started", "held"].includes(a.phase))
+    )
       return false;
     if (r.data.stage === "approve")
       return (
@@ -670,7 +708,13 @@ export class AutomaticReleaseLifecycle {
       if (!(await this.authorizeDatabase(tx, identity))) return deny();
       const row = await this.locked(tx, this.config.policy.ownerId, identity.releaseId);
       if (!row) return deny();
-      const current = await this.current(tx, row, false);
+      const task = await tx.deliveryTask.findUnique({
+        where: { ownerId_id: { ownerId: row.owner_id, id: row.task_id } },
+        select: { pauseRequested: true, schedulingPaused: true },
+      });
+      const paused = !!task && (task.pauseRequested || task.schedulingPaused);
+      if (paused && freshDispatch) return deny();
+      const current = await this.current(tx, row, false, paused, paused);
       if (!current) return deny();
       const state = await this.databaseState(tx, row, current.snapshot),
         request = automaticDatabaseActionSchema.parse(identity.request);
