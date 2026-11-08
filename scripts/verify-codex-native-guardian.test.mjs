@@ -645,3 +645,23 @@ test("a completed terminal helper does not revoke another active root", async ()
     await cleanAbort(g);
   }
 });
+
+test("sole host guardian pins its own cwd before activation makes metadata private", async () => {
+  const config = configuration({ projects: [] }),
+    events = [];
+  config.roots = [{ ...config.roots[0], role: "host", workerChannel: true }];
+  assert.notEqual(realpathSync(process.cwd()), realpathSync(scratch));
+  const ready = config.journal.ready;
+  config.journal.ready = async (value) => {
+    assert.equal(realpathSync(`/proc/${value.guardianIdentity.pid}/cwd`), realpathSync(scratch));
+    events.push("cwd-verified-before-activation");
+    await ready(value);
+  };
+  const guardian = await openNativeGuardian(config);
+  try {
+    assert.deepEqual(events, ["cwd-verified-before-activation"]);
+    assert.equal(guardian.state.phase, "open");
+  } finally {
+    await cleanAbort(guardian);
+  }
+});

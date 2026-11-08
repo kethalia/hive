@@ -214,6 +214,9 @@ static bool bootstrap(struct input *in) {
   if (in->bad || in->at != in->n) return false;
   // No ambient descriptor may be retained beyond the explicitly pinned set.
   if (syscall(SYS_close_range, 4 + root_count * 2 + channels, UINT_MAX, 0)) return false;
+  // The sole installed host root pins our own cwd before nondumpability. Its
+  // existing launch-set digest binds the opened directory, not a later lookup.
+  if (roots[0].role == 4 && fchdir(roots[0].cwd)) return false;
   state = READY; return true;
 }
 static void child_error(int fd) {
