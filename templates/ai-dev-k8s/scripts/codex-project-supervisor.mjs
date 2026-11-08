@@ -234,6 +234,33 @@ export async function openSupervisor(raw, dependencies = {}) {
       "metadata_mode_downgrade_rejected",
     );
     const save = () => atomic(statePath, { state, signature: sign(state) });
+    if (dependencies.maintenanceResume) {
+      const resume = dependencies.maintenanceResume;
+      check(
+        state.accountMaintenance?.id === resume.id &&
+          /^[a-f0-9]{64}$/.test(resume.nativeRegistryDigest) &&
+          hash(JSON.stringify({ state, signature: sign(state) })) === resume.nativeRegistryDigest &&
+          id(resume.ownerIntentRuntimeId) &&
+          id(resume.ownerIntentEventId) &&
+          id(resume.requestId) &&
+          state.metadataLaunch?.phase === "started" &&
+          state.buildId === config.buildId,
+        "account_maintenance_resume_unverified",
+      );
+      state.accountMaintenanceHistory ??= {};
+      check(!state.accountMaintenanceHistory[resume.id], "account_maintenance_resume_consumed");
+      state.accountMaintenanceHistory[resume.id] = {
+        metadataLaunch: structuredClone(state.metadataLaunch),
+        guardianBarrier: structuredClone(state.guardianBarrier),
+        controllerRegistration: structuredClone(state.controllerRegistration),
+        nativeRegistryDigest: resume.nativeRegistryDigest,
+      };
+      state.maintenanceResume = structuredClone(resume);
+      delete state.metadataLaunch; // Exact owner rebind only; original reservation retained above AND in signed park archive.
+      delete state.guardianBarrier;
+      delete state.controllerRegistration;
+      save();
+    }
     state.serverInstanceId = randomUUID();
     state.buildId = config.buildId;
     state.status = "starting";
@@ -301,7 +328,10 @@ export async function openSupervisor(raw, dependencies = {}) {
     runtime.setClosureReadAuthority?.((barrier, method, params) => {
       supervisor.executionAuthority?.assertClosed(barrier);
       check(
-        ["thread/turns/list", "thread/items/list", "thread/loaded/list"].includes(method),
+        ["thread/turns/list", "thread/items/list", "thread/loaded/list"].includes(method) ||
+          (supervisor.state.accountMaintenance &&
+            method === "thread/read" &&
+            params.includeTurns === false),
         "guardian_closure_read_denied",
       );
       if (method !== "thread/loaded/list")
@@ -310,7 +340,11 @@ export async function openSupervisor(raw, dependencies = {}) {
             (entry) =>
               entry.threadId === params.threadId ||
               Object.hasOwn(entry.children ?? {}, params.threadId),
-          ),
+          ) ||
+            (supervisor.state.accountMaintenance &&
+              supervisor.acceptanceRuntime
+                ?.maintenanceInventory?.()
+                .threadIds.includes(params.threadId)),
           "guardian_closure_read_denied",
         );
     });
@@ -465,6 +499,541 @@ export class ProjectSupervisor {
     );
     this.assertSourceApplicationRead(scope, method, params);
     return result;
+  }
+  assertAccountMaintenanceStart(maintenanceRejoin = false) {
+    check(
+      !this.state.accountMaintenance ||
+        (maintenanceRejoin === true &&
+          this.state.maintenanceResume?.id === this.state.accountMaintenance.id),
+      "account_maintenance_pending",
+    );
+  }
+  async rejoinAccountMaintenanceProject(projectId) {
+    const authority = this.state.maintenanceResume;
+    check(
+      authority &&
+        authority.id === this.state.accountMaintenance?.id &&
+        id(authority.ownerIntentRuntimeId) &&
+        id(authority.ownerIntentEventId),
+      "account_maintenance_resume_unverified",
+    );
+    return this.command({ operation: "rejoin", projectId }, authority);
+  }
+  async verifyAccountMaintenanceResumeHistory(scope) {
+    check(
+      this.state.maintenanceResume?.id === scope.id &&
+        this.state.accountMaintenance?.id === scope.id &&
+        this.state.maintenanceResume.ownerIntentRuntimeId === scope.ownerIntentRuntimeId &&
+        this.state.maintenanceResume.ownerIntentEventId === scope.ownerIntentEventId &&
+        Array.isArray(scope.historyThreads),
+      "account_maintenance_resume_unverified",
+    );
+    const histories = new Map(),
+      ids = [...new Set(scope.historyThreads.flatMap((p) => p.threadIds))];
+    check(
+      ids.length > 0 && ids.length <= 64 && ids.every(id),
+      "account_maintenance_history_unverified",
+    );
+    const until = Date.now() + 10000;
+    const read = async (method, params) => {
+      check(Date.now() < until, "account_maintenance_history_unverified");
+      this.executionAuthority?.assert();
+      const value = await this.runtime.call(method, params);
+      this.executionAuthority?.assert();
+      check(Date.now() < until, "account_maintenance_history_unverified");
+      return value;
+    };
+    const before = this.runtime.inspectManagerRouting();
+    check(
+      before.activeHandlers === 0 &&
+        before.pendingObservers === 0 &&
+        before.observerFailures?.length === 0,
+      "account_maintenance_waiting",
+    );
+    const loaded = await read("thread/loaded/list", { limit: 64 });
+    check(
+      Array.isArray(loaded?.data) &&
+        !loaded.nextCursor &&
+        loaded.data.every((threadId) => ids.includes(threadId)),
+      "account_maintenance_history_unverified",
+    );
+    let bytes = 0;
+    for (const threadId of ids) {
+      const thread = await read("thread/read", { threadId, includeTurns: false });
+      check(
+        thread?.thread?.id === threadId &&
+          (thread.thread.status?.type === "idle" ||
+            (!scope.projects.some((p) => p.nativeThreadId === threadId) &&
+              thread.thread.status?.type === "notLoaded" &&
+              !loaded.data.includes(threadId))),
+        "account_maintenance_waiting",
+      );
+      const history = await read("thread/turns/list", {
+        threadId,
+        limit: 100,
+        sortDirection: "asc",
+        itemsView: "full",
+      });
+      check(
+        Array.isArray(history?.data) &&
+          !history.nextCursor &&
+          history.data.length <= 100 &&
+          history.data.every(
+            (turn) =>
+              id(turn.id) &&
+              turn.itemsView === "full" &&
+              !turn.truncated &&
+              Array.isArray(turn.items) &&
+              ["completed", "failed", "interrupted"].includes(turn.status),
+          ),
+        "account_maintenance_history_unverified",
+      );
+      bytes += Buffer.byteLength(JSON.stringify(history));
+      check(bytes <= 2 * 1024 * 1024, "account_maintenance_history_unverified");
+      histories.set(threadId, history);
+    }
+    const proofs = {};
+    for (const expected of scope.projects) {
+      const project = this.config.projects.find(
+          (p) => this.state.projects[p.projectId]?.threadId === expected.nativeThreadId,
+        ),
+        threadSet = scope.historyThreads.find((p) => p.projectId === project?.projectId);
+      check(
+        project &&
+          threadSet &&
+          this.state.projects[project.projectId].firstPrompt?.requestId ===
+            expected.firstPromptRequestId &&
+          this.state.projects[project.projectId].firstPrompt.digest === expected.firstPromptDigest,
+        "account_maintenance_history_unverified",
+      );
+      const historyDigest = hash(
+        JSON.stringify(
+          threadSet.threadIds
+            .slice()
+            .sort()
+            .map((threadId) => ({ threadId, history: histories.get(threadId) })),
+        ),
+      );
+      check(historyDigest === expected.historyDigest, "account_maintenance_history_unverified");
+      const turns = histories.get(expected.nativeThreadId).data,
+        last = turns.at(-1);
+      check(last && id(last.id), "account_maintenance_history_unverified");
+      proofs[project.projectId] = {
+        historyDigest,
+        lastTurnId: last.id,
+        resumeClass:
+          last.status === "completed"
+            ? "completed"
+            : last.status === "interrupted"
+              ? "interrupted"
+              : last.status === "failed" && last.error?.codexErrorInfo === "unauthorized"
+                ? "auth-failed"
+                : "unavailable",
+      };
+    }
+    const after = this.runtime.inspectManagerRouting();
+    check(
+      after.receiveSequence === before.receiveSequence &&
+        after.activeHandlers === 0 &&
+        after.pendingObservers === 0 &&
+        after.observerFailures?.length === 0,
+      "account_maintenance_waiting",
+    );
+    this.state.maintenanceResume.historyProof = proofs;
+    this.save();
+  }
+  async finishAccountMaintenanceResume(scope, authorized) {
+    const resume = this.state.maintenanceResume;
+    check(
+      !this.busy &&
+        !this.closed &&
+        resume?.id === scope.id &&
+        authorized?.ready === true &&
+        authorized.maintenanceId === scope.id &&
+        authorized.ownerIntentRuntimeId === resume.ownerIntentRuntimeId &&
+        authorized.ownerIntentEventId === resume.ownerIntentEventId &&
+        id(authorized.runtimeId) &&
+        Array.isArray(authorized.authorizations) &&
+        authorized.authorizations.length === this.config.projects.length,
+      "account_maintenance_resume_unverified",
+    );
+    this.busy = true;
+    try {
+      if (resume.phase !== "ready") {
+        check(
+          this.state.accountMaintenance?.id === scope.id && resume.historyProof,
+          "account_maintenance_resume_unverified",
+        );
+        resume.authorized = structuredClone(authorized);
+        resume.phase = "ready";
+        delete this.state.accountMaintenance;
+        this.save(); // Fresh owner/native/epoch authority precedes any new input.
+      } else
+        check(
+          JSON.stringify(resume.authorized) === JSON.stringify(authorized),
+          "account_maintenance_authority_changed",
+        );
+      for (const project of this.config.projects) {
+        const entry = this.state.projects[project.projectId],
+          proof = resume.historyProof[project.projectId],
+          permit = authorized.authorizations.find((a) => a.projectId === project.projectId);
+        check(
+          proof &&
+            permit &&
+            id(permit.nativeReceiptEventId) &&
+            typeof permit.completed === "boolean" &&
+            Array.isArray(permit.taskState) &&
+            permit.taskState.length <= 32 &&
+            (permit.claimContinuation === null ||
+              (exact(permit.claimContinuation, [
+                "ownerIntentRuntimeId",
+                "ownerIntentEventId",
+                "epochRuntimeId",
+                "nativeReceiptEventId",
+                "epochResumeEventId",
+                "epochVersion",
+                "inputRequestId",
+              ]) &&
+                permit.claimContinuation.ownerIntentRuntimeId === resume.ownerIntentRuntimeId &&
+                permit.claimContinuation.ownerIntentEventId === resume.ownerIntentEventId &&
+                permit.claimContinuation.epochRuntimeId === authorized.runtimeId &&
+                permit.claimContinuation.nativeReceiptEventId === permit.nativeReceiptEventId &&
+                id(permit.claimContinuation.epochResumeEventId) &&
+                permit.claimContinuation.epochVersion === permit.executionEpochVersion &&
+                permit.claimContinuation.epochVersion > 0 &&
+                permit.claimContinuation.inputRequestId === scope.requestId)),
+          "account_maintenance_resume_unverified",
+        );
+        if (permit.completed === true) continue; // Completed TASKS need no new turn.
+        if (
+          !permit.runnable ||
+          !["auth-failed", "interrupted", "completed"].includes(proof.resumeClass)
+        )
+          continue;
+        entry.accountMaintenanceInputs ??= {};
+        const existing = entry.accountMaintenanceInputs[scope.requestId];
+        if (existing) {
+          check(
+            existing.ownerIntentRuntimeId === resume.ownerIntentRuntimeId &&
+              existing.ownerIntentEventId === resume.ownerIntentEventId &&
+              existing.nativeReceiptEventId === permit.nativeReceiptEventId &&
+              existing.serverInstanceId === this.state.serverInstanceId,
+            "account_maintenance_input_changed",
+          );
+          if (existing.phase !== "started") {
+            const history = await this.runtime.call("thread/turns/list", {
+              threadId: entry.threadId,
+              limit: 100,
+              sortDirection: "asc",
+              itemsView: "full",
+            });
+            check(
+              Array.isArray(history?.data) && !history.nextCursor,
+              "account_maintenance_input_uncertain",
+            );
+            const found = history.data.filter((t) =>
+              t.items?.some(
+                (i) =>
+                  i.type === "userMessage" &&
+                  i.clientId === scope.requestId &&
+                  i.content?.[0]?.type === "text" &&
+                  hash(i.content[0].text) === existing.inputDigest,
+              ),
+            );
+            check(found.length === 1 && id(found[0].id), "account_maintenance_input_uncertain");
+            existing.phase = "started";
+            existing.turnId = found[0].id;
+            this.save();
+          }
+          continue; // Read-only reconciliation, NEVER another turn/start.
+        }
+        const text =
+          "Continue the existing task after the owner's account maintenance. Use the original task and history above; do not repeat the original prompt or create a duplicate task. Before running tools, spawning children, or changing files, obtain fresh Hive delivery authorization for the same task. A prior claim or replay is history, not runnable authority. If fresh authorization is unavailable, stop and report the hold.";
+        await this.executionAuthority?.fence();
+        this.executionAuthority?.assert();
+        this.lease(project);
+        this.assertSourceInputOpen();
+        const pending = {
+          purpose: "account-maintenance",
+          maintenanceId: scope.id,
+          requestId: scope.requestId,
+          ownerIntentRuntimeId: resume.ownerIntentRuntimeId,
+          ownerIntentEventId: resume.ownerIntentEventId,
+          runtimeId: authorized.runtimeId,
+          nativeReceiptEventId: permit.nativeReceiptEventId,
+          managerBindingId: permit.managerBindingId,
+          executionEpochVersion: permit.executionEpochVersion,
+          claimContinuation: structuredClone(permit.claimContinuation ?? null),
+          taskState: structuredClone(permit.taskState ?? []),
+          serverInstanceId: this.state.serverInstanceId,
+          priorTurnId: proof.lastTurnId,
+          inputDigest: hash(text),
+          phase: "start-uncertain",
+        };
+        entry.accountMaintenanceInputs[scope.requestId] = pending;
+        this.save(); // Input reservation is durable before the one native effect.
+        const result = await this.runtime.call("turn/start", {
+          threadId: entry.threadId,
+          clientUserMessageId: scope.requestId,
+          input: [{ type: "text", text, text_elements: [] }],
+        });
+        check(
+          id(result?.turn?.id) &&
+            result.turn.id !== proof.lastTurnId &&
+            (!pending.observedTurnId || pending.observedTurnId === result.turn.id),
+          "account_maintenance_input_uncertain",
+        );
+        pending.turnId = result.turn.id;
+        this.save(); // Retain ACK even when a subsequent authority check fails.
+        this.executionAuthority?.assert();
+        pending.phase = "started";
+        this.save();
+      }
+      return { resumed: true };
+    } finally {
+      this.busy = false;
+    }
+  }
+  // Only the receipt-bound owner input may cross the old claim's lifetime fence.
+  // This does not make that old claim runnable or expose a model-selected epoch.
+  accountMaintenanceDeliveryContext(threadId, turnId) {
+    const entry = Object.values(this.state.projects).find((p) => p.threadId === threadId);
+    const resume = this.state.maintenanceResume;
+    if (!entry || resume?.phase !== "ready" || this.state.accountMaintenance) return null;
+    const input = entry.accountMaintenanceInputs?.[resume.requestId];
+    if (
+      !input ||
+      input.serverInstanceId !== this.state.serverInstanceId ||
+      ![input.turnId, input.observedTurnId].includes(turnId) ||
+      !id(turnId) ||
+      input.ownerIntentRuntimeId !== resume.ownerIntentRuntimeId ||
+      input.ownerIntentEventId !== resume.ownerIntentEventId
+    )
+      return null;
+    return structuredClone({
+      claimContinuation: input.claimContinuation,
+      taskState: input.taskState,
+    });
+  }
+  observeAccountMaintenanceInput(notification) {
+    const p = notification?.params,
+      item = p?.item;
+    if (
+      !["item/started", "item/completed"].includes(notification?.method) ||
+      item?.type !== "userMessage"
+    )
+      return;
+    const entry = Object.values(this.state.projects).find((e) => e.threadId === p.threadId);
+    const resume = this.state.maintenanceResume,
+      input = entry?.accountMaintenanceInputs?.[resume?.requestId];
+    if (
+      !input ||
+      input.serverInstanceId !== this.state.serverInstanceId ||
+      !id(p.turnId) ||
+      item.clientId !== input.requestId ||
+      item.content?.length !== 1 ||
+      item.content[0].type !== "text" ||
+      hash(item.content[0].text) !== input.inputDigest
+    )
+      return;
+    check(
+      !input.observedTurnId || input.observedTurnId === p.turnId,
+      "account_maintenance_input_changed",
+    );
+    check(!input.turnId || input.turnId === p.turnId, "account_maintenance_input_changed");
+    input.observedTurnId = p.turnId;
+    this.save();
+  }
+  async beginAccountMaintenance(maintenanceId) {
+    check(
+      typeof maintenanceId === "string" &&
+        /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(maintenanceId),
+      "account_maintenance_invalid",
+    );
+    check(!this.closed && this.state.status === "ready", "native_lifetime_revoked");
+    const previous = this.state.accountMaintenance;
+    check(!previous || previous.id === maintenanceId, "account_maintenance_changed");
+    this.state.accountMaintenance = { id: maintenanceId, phase: "waiting-boundary" };
+    this.save(); // Input/start fence precedes any awaited CLI/evaluator closure.
+    await this.acceptanceRuntime?.closeAdmission(); // Does not interrupt active evaluators.
+    for (const [projectId, entry] of Object.entries(this.state.projects)) {
+      if (entry.attached) {
+        await this.runtime.detach(projectId); // Only the fixed input CLI, never native turns.
+        entry.attached = false;
+      }
+    }
+    this.save();
+  }
+  async accountMaintenanceBoundary(maintenanceId, closureBarrier) {
+    check(
+      this.state.accountMaintenance?.id === maintenanceId &&
+        !this.closed &&
+        this.state.status === "ready",
+      "account_maintenance_changed",
+    );
+    const evaluators = this.acceptanceRuntime?.maintenanceInventory?.() ?? {
+      pending: Boolean(this.acceptanceRuntime?.active()),
+      unknown: false,
+      threadIds: [],
+    };
+    check(
+      !this.busy &&
+        !evaluators.pending &&
+        !evaluators.unknown &&
+        Array.isArray(evaluators.threadIds),
+      "account_maintenance_waiting",
+    );
+    const before = this.runtime.inspectManagerRouting();
+    check(
+      before.activeHandlers === 0 &&
+        before.pendingObservers === 0 &&
+        Array.isArray(before.observerFailures) &&
+        before.observerFailures.length === 0,
+      "account_maintenance_waiting",
+    );
+    const projects = this.config.projects.map((p) => ({
+      projectId: p.projectId,
+      entry: this.state.projects[p.projectId],
+    }));
+    check(
+      projects.length > 0 &&
+        projects.length <= 32 &&
+        projects.every(
+          ({ entry }) => entry?.threadId && entry.serverInstanceId === this.state.serverInstanceId,
+        ),
+      "account_maintenance_inventory_unknown",
+    );
+    const projectThreads = projects.flatMap(({ entry }) => [
+      entry.threadId,
+      ...Object.entries(entry.children ?? {})
+        .filter(([, child]) => child.serverInstanceId === this.state.serverInstanceId)
+        .map(([threadId]) => threadId),
+    ]);
+    const known = [...projectThreads, ...evaluators.threadIds];
+    check(
+      known.length <= 64 && known.every(id) && new Set(known).size === known.length,
+      "account_maintenance_inventory_unknown",
+    );
+    const read = (method, params) =>
+      closureBarrier
+        ? this.runtime.readClosureBoundary(closureBarrier, method, params)
+        : this.runtime.call(method, params);
+    const loaded = await read("thread/loaded/list", { limit: 64 });
+    check(
+      Array.isArray(loaded?.data) &&
+        loaded.data.length <= 64 &&
+        !loaded.nextCursor &&
+        loaded.data.every((threadId) => known.includes(threadId)) &&
+        new Set(loaded.data).size === loaded.data.length,
+      "account_maintenance_inventory_unknown",
+    );
+    const histories = new Map();
+    let bytes = 0;
+    for (const threadId of known) {
+      const thread = await read("thread/read", { threadId, includeTurns: false });
+      check(
+        thread?.thread?.id === threadId &&
+          (thread.thread.status?.type === "idle" ||
+            (!projects.some((p) => p.entry.threadId === threadId) &&
+              thread.thread.status?.type === "notLoaded" &&
+              !loaded.data.includes(threadId))),
+        "account_maintenance_waiting",
+      );
+      const history = await read("thread/turns/list", {
+        threadId,
+        limit: 100,
+        sortDirection: "asc",
+        itemsView: "full",
+      });
+      check(
+        Array.isArray(history?.data) &&
+          history.data.length <= 100 &&
+          !history.nextCursor &&
+          history.data.every(
+            (turn) =>
+              id(turn.id) &&
+              turn.itemsView === "full" &&
+              !turn.truncated &&
+              Array.isArray(turn.items) &&
+              turn.items.length <= 512 &&
+              ["completed", "failed", "interrupted"].includes(turn.status),
+          ),
+        "account_maintenance_inventory_unknown",
+      );
+      for (const turn of history.data)
+        for (const item of turn.items) {
+          check(
+            item && typeof item.type === "string" && item.status !== "inProgress",
+            "account_maintenance_waiting",
+          );
+          if (item.type === "commandExecution")
+            check(
+              ["completed", "failed", "declined"].includes(item.status) &&
+                (item.status === "declined" ? !item.processId : Number.isInteger(item.exitCode)),
+              "account_maintenance_waiting",
+            );
+        }
+      bytes += Buffer.byteLength(JSON.stringify(history));
+      check(bytes <= 2 * 1024 * 1024, "account_maintenance_inventory_unknown");
+      histories.set(threadId, history);
+    }
+    for (const { projectId } of projects) {
+      const inputs = this.runtime.inspectCliInputs(projectId);
+      check(inputs.activeCli === 0 && inputs.unknownInputs === 0, "account_maintenance_waiting");
+    }
+    const after = this.runtime.inspectManagerRouting();
+    check(
+      after.receiveSequence === before.receiveSequence &&
+        after.activeHandlers === 0 &&
+        after.pendingObservers === 0 &&
+        Array.isArray(after.observerFailures) &&
+        after.observerFailures.length === 0 &&
+        !this.acceptanceRuntime?.maintenanceInventory?.().pending,
+      "account_maintenance_waiting",
+    );
+    return projects.map(({ projectId, entry }) => {
+      const threads = [
+        entry.threadId,
+        ...Object.entries(entry.children ?? {})
+          .filter(([, child]) => child.serverInstanceId === this.state.serverInstanceId)
+          .map(([threadId]) => threadId),
+        ...evaluators.threadIds,
+      ].sort();
+      const history = threads.map((threadId) => ({ threadId, history: histories.get(threadId) }));
+      const first = histories.get(entry.threadId).data[0],
+        prompt = entry.firstPrompt;
+      const inputs = first?.items?.filter((item) => item.type === "userMessage");
+      check(
+        prompt?.phase === "accepted" &&
+          id(prompt.requestId) &&
+          /^[a-f0-9]{64}$/.test(prompt.digest) &&
+          first?.id === prompt.turnId &&
+          Array.isArray(inputs) &&
+          inputs.length === 1 &&
+          inputs[0].clientId === prompt.requestId &&
+          inputs[0].content?.[0]?.type === "text" &&
+          typeof inputs[0].content[0].text === "string" &&
+          hash(inputs[0].content[0].text) === prompt.digest,
+        "account_maintenance_history_unverified",
+      );
+      return {
+        projectId,
+        managerThreadId: entry.threadId,
+        firstPromptRequestId: prompt.requestId,
+        firstPromptDigest: prompt.digest,
+        observedAt: new Date().toISOString(),
+        historyDigest: hash(JSON.stringify(history)),
+        loadedInventoryDigest: hash(JSON.stringify([...loaded.data].sort())),
+        fullHistory: true,
+        historyBytes: Buffer.byteLength(JSON.stringify(history)),
+        rootTurns: histories.get(entry.threadId).data.length,
+        pendingHandlers: 0,
+        pendingObservers: 0,
+        unknownFacts: 0,
+        activeRoots: 0,
+        threadIds: threads,
+      };
+    });
   }
   onRevoked(listener) {
     this.revocationListeners.add(listener);
@@ -909,8 +1478,10 @@ export class ProjectSupervisor {
             const project = this.config.projects.find(
               (p) => this.state.projects[p.projectId]?.threadId === threadId,
             );
-            if (project && this.registrationBinding(project.projectId).threadId === threadId)
+            if (project && this.registrationBinding(project.projectId).threadId === threadId) {
+              this.observeAccountMaintenanceInput(notification);
               return adapter.observe(notification);
+            }
             if (
               !(
                 adapter.progressionProtocol === 1
@@ -1438,6 +2009,7 @@ export class ProjectSupervisor {
       );
       this.save(); // Durable before the only native start; never blind-resubmit.
       this.deliveryProgressionProject(request); // Recheck after fsync, immediately before native admission.
+      this.assertAccountMaintenanceStart();
       const result = await this.runtime.call("turn/start", {
         threadId: request.managerThreadId,
         clientUserMessageId: request.requestId,
@@ -1549,7 +2121,12 @@ export class ProjectSupervisor {
     }
     throw new Error("session_binding_denied");
   }
-  async command(request) {
+  async command(request, maintenanceAuthority) {
+    const maintenanceRejoin =
+      request?.operation === "rejoin" &&
+      maintenanceAuthority === this.state.maintenanceResume &&
+      maintenanceAuthority?.id === this.state.accountMaintenance?.id &&
+      Boolean(maintenanceAuthority);
     if (request?.operation !== "inspect") this.assertSourceInputOpen();
     await this.executionAuthority?.fence();
     this.executionAuthority?.assert();
@@ -1559,7 +2136,7 @@ export class ProjectSupervisor {
         id(request.projectId),
       "invalid_command",
     );
-    if (this.managerAdapter?.progressionProtocol === 1)
+    if (this.managerAdapter?.progressionProtocol === 1 && !maintenanceRejoin)
       check(!["attach", "rejoin"].includes(request.operation), "manager_cli_attachment_forbidden");
     const fields = {
       inspect: [],
@@ -1583,6 +2160,8 @@ export class ProjectSupervisor {
     try {
       if (!["refresh", "rejoin"].includes(request.operation)) this.lease(project);
       let entry = this.state.projects[project.projectId];
+      if (!["refresh"].includes(request.operation))
+        this.assertAccountMaintenanceStart(maintenanceRejoin);
       if (request.operation === "ensureProject") {
         check(id(request.creationIntentId), "invalid_creation_intent");
         if (entry) {

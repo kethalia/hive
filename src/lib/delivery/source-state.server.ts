@@ -74,6 +74,7 @@ export class DeliverySourceStateService {
             );
             const host = await lockManagerCheckout(tx, input, authenticated, {
               allowBlocked: true,
+              maintenanceObservation: true,
               guardianPolicy: this.dependencies.guardianPolicy,
             });
             const found = await tx.$queryRaw<

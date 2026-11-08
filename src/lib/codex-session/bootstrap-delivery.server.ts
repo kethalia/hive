@@ -73,6 +73,7 @@ export type HostProjectPath =
   | "/guardian/identity"
   | "/guardian/bootstrap"
   | "/guardian/recover-empty-close"
+  | "/guardian/account-maintenance"
   | "/projects/discover"
   | "/projects/resolve"
   | "/projects/resolve-ref"
@@ -116,6 +117,7 @@ async function exchangeAppCookie(
     "/guardian/identity",
     "/guardian/bootstrap",
     "/guardian/recover-empty-close",
+    "/guardian/account-maintenance",
   ].includes(fixedPath);
   const deadline =
     Date.now() +
@@ -253,6 +255,7 @@ export async function postToVerifiedWorkspaceApp(
       "/guardian/identity",
       "/guardian/bootstrap",
       "/guardian/recover-empty-close",
+      "/guardian/account-maintenance",
       "/projects/discover",
       "/projects/resolve",
       "/projects/resolve-ref",
@@ -495,6 +498,27 @@ export async function requestGuardianEmptyClose(
     binding,
     {
       path: "/guardian/recover-empty-close",
+      body: JSON.stringify({ grant }),
+      expiresAt: Math.floor(Date.now() / 1000) + 30,
+      ...(signal ? { signal } : {}),
+    },
+    fetchApp,
+  );
+}
+/** Owner-only, fixed signed account-maintenance control; no arbitrary app path. */
+export async function requestGuardianAccountMaintenance(
+  coder: AppAuthCoder,
+  binding: AppBinding,
+  grant: string,
+  fetchApp: typeof fetch = fetch,
+  signal?: AbortSignal,
+) {
+  if (grant.length < 100 || grant.length > 16384) reject();
+  return postToVerifiedWorkspaceApp(
+    coder,
+    binding,
+    {
+      path: "/guardian/account-maintenance",
       body: JSON.stringify({ grant }),
       expiresAt: Math.floor(Date.now() / 1000) + 30,
       ...(signal ? { signal } : {}),

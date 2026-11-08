@@ -1,4 +1,5 @@
 import type { Prisma } from "@hive/db";
+import { maintenanceResumeScopeSchema } from "@/lib/codex-session/account-maintenance-contracts";
 import { currentRepairReservation } from "./acceptance-repair.server";
 import type { ManagerEnvelope } from "./manager-contracts";
 import { NATIVE_OBSERVER_PRODUCER } from "./native-contracts";
@@ -40,6 +41,66 @@ export async function authorizeProgressionClaim(
       sequence: receipt.sequence,
       continuing: false,
       replayed: true,
+    };
+  }
+  if (input.maintenanceContinuation) {
+    const c = input.maintenanceContinuation;
+    if (
+      binding.executionEpochVersion !== c.epochVersion ||
+      binding.executionEpochRuntimeId !== c.epochRuntimeId ||
+      binding.executionEpochEventId !== c.nativeReceiptEventId ||
+      binding.executionEpochResumeEventId !== c.epochResumeEventId ||
+      !binding.currentAttemptId ||
+      !binding.activeAttemptId
+    )
+      throw new DeliveryConflict("maintenance_claim_scope_changed");
+    const event = await tx.deliveryEvent.findUniqueOrThrow({
+      where: { ownerId_id: { ownerId, id: c.epochResumeEventId } },
+    });
+    const scope = maintenanceResumeScopeSchema.parse(event.payload);
+    const old = await tx.deliveryAttempt.findUniqueOrThrow({
+      where: { id: binding.currentAttemptId },
+      include: { step: true },
+    });
+    const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
+    if (
+      event.type !== "account_maintenance_resume_requested" ||
+      scope.managerBindingId !== binding.id ||
+      scope.ownerIntentRuntimeId !== c.ownerIntentRuntimeId ||
+      scope.ownerIntentEventId !== c.ownerIntentEventId ||
+      scope.ownerRequestId !== c.inputRequestId ||
+      scope.currentAttemptId !== old.id ||
+      scope.cursorVersion !== binding.cursorVersion ||
+      scope.nativeSequence !== binding.nativeSequence ||
+      old.ownerId !== ownerId ||
+      old.managerBindingId !== binding.id ||
+      old.step.taskId !== input.command.payload.taskId ||
+      !["reported", "succeeded"].includes(old.outcome) ||
+      old.step.state !== old.outcome ||
+      old.leaseExpiresAt <= now ||
+      Date.parse(scope.leaseValidUntil) <= now.getTime()
+    )
+      throw new DeliveryConflict("maintenance_previous_attempt_held");
+    if (
+      await tx.deliveryEvent.findUnique({
+        where: {
+          ownerId_aggregateKey_aggregateVersion: {
+            ownerId,
+            aggregateKey: `maintenance-claim/${c.epochResumeEventId}`,
+            aggregateVersion: 1,
+          },
+        },
+      })
+    )
+      throw new DeliveryConflict("maintenance_claim_consumed");
+    await resolveAttemptSource(tx, ownerId, input.command.payload.taskId, old.id);
+    return {
+      cursorVersion: binding.cursorVersion + 1,
+      sequence: binding.nativeSequence,
+      continuing: true,
+      replayed: false,
+      maintenanceResumeEventId: c.epochResumeEventId,
+      priorAttemptId: old.id,
     };
   }
   if (!binding.activeAttemptId) {
@@ -136,4 +197,41 @@ export async function authorizeProgressionClaim(
     continuing: true,
     replayed: false,
   };
+}
+
+/** Recheck after claim/consumption SQL, so a lock or trigger wait cannot turn an
+ * expired owner input or retained writer into a fresh executable reservation. */
+export async function recheckMaintenanceClaimDeadline(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  input: ManagerEnvelope,
+) {
+  const c = input.maintenanceContinuation;
+  if (!c) return;
+  const event = await tx.deliveryEvent.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId, id: c.epochResumeEventId } },
+  });
+  const scope = maintenanceResumeScopeSchema.parse(event.payload);
+  if (!scope.currentAttemptId || !scope.writerAttemptId)
+    throw new DeliveryConflict("maintenance_previous_attempt_held");
+  const prior = await tx.deliveryAttempt.findUniqueOrThrow({
+    where: { id: scope.currentAttemptId },
+  });
+  const writer = await tx.deliveryAttempt.findUniqueOrThrow({
+    where: { id: scope.writerAttemptId },
+  });
+  const now = (await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`)[0].now;
+  if (
+    prior.ownerId !== ownerId ||
+    writer.ownerId !== ownerId ||
+    prior.managerBindingId !== scope.managerBindingId ||
+    writer.managerBindingId !== scope.managerBindingId ||
+    writer.runtimeVersion !== scope.writerRuntimeVersion ||
+    !["reported", "succeeded"].includes(prior.outcome) ||
+    prior.leaseExpiresAt <= now ||
+    writer.leaseExpiresAt <= now ||
+    Date.parse(scope.leaseValidUntil) <= now.getTime() ||
+    input.expiresAt <= now.getTime()
+  )
+    throw new DeliveryConflict("maintenance_previous_attempt_held");
 }

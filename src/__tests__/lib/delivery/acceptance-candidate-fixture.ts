@@ -23,6 +23,11 @@ export async function acceptanceCandidateFixture(
     baseBranch?: string;
     pullRequestId?: string;
     pullNumber?: number;
+    beforeImplementation?(stage: {
+      fixture: Awaited<ReturnType<typeof acceptanceGuardianFixture>>;
+      manager: DeliveryManagerService;
+      preludeStepId: string;
+    }): Promise<{ claimOverrides: Record<string, unknown> }>;
   } = {},
 ) {
   let material: AcceptanceMaterialResolver;
@@ -148,6 +153,7 @@ export async function acceptanceCandidateFixture(
         }
       : {}),
   });
+  const preludeStepId = randomUUID();
   await manager.execute(
     f.managerEnvelope({
       operation: "create_task",
@@ -155,6 +161,16 @@ export async function acceptanceCandidateFixture(
         ...f.definition,
         ...(options.epic ? { epicId: options.epic.id } : {}),
         steps: [
+          ...(options.beforeImplementation
+            ? [
+                {
+                  id: preludeStepId,
+                  kind: "understand",
+                  criterionIds: ["acceptance:behavior"],
+                  requiredEvidenceKinds: ["analysis"],
+                },
+              ]
+            : []),
           {
             id: f.stepId,
             kind: "implement",
@@ -179,6 +195,7 @@ export async function acceptanceCandidateFixture(
   await db.$transaction((tx) =>
     f.policies.bindCreatedTask(tx, f.user.id, f.taskId, f.context.preparationIntentId),
   );
+  const stage = await options.beforeImplementation?.({ fixture: f, manager, preludeStepId });
   const claim = z
     .object({
       attemptId: z.string(),
@@ -189,18 +206,24 @@ export async function acceptanceCandidateFixture(
     })
     .parse(
       await manager.execute(
-        f.managerEnvelope({
-          operation: "claim_step",
-          payload: {
-            taskId: f.taskId,
-            stepId: f.stepId,
-            expectedVersion: 0,
-            requestedModel: "gpt-6.1-sol",
-            requestedEffort: "low",
+        f.managerEnvelope(
+          {
+            operation: "claim_step",
+            payload: {
+              taskId: f.taskId,
+              stepId: f.stepId,
+              expectedVersion: 0,
+              requestedModel: "gpt-6.1-sol",
+              requestedEffort: "low",
+            },
           },
-        }),
+          stage?.claimOverrides,
+        ),
       ),
     );
+  const sequenceBase = (
+    await db.deliveryManagerBinding.findUniqueOrThrow({ where: { id: claim.managerBindingId } })
+  ).nativeSequence;
   await f.native.ingest(
     f.sourceEnvelope(
       claim,
@@ -212,11 +235,15 @@ export async function acceptanceCandidateFixture(
         effectiveModel: "gpt-6.1-sol",
         effectiveEffort: "low",
       },
-      1,
+      sequenceBase + 1,
     ),
   );
   await f.native.ingest(
-    f.sourceEnvelope(claim, { ...f.source, kind: "turn_completed", status: "completed" }, 2),
+    f.sourceEnvelope(
+      claim,
+      { ...f.source, kind: "turn_completed", status: "completed" },
+      sequenceBase + 2,
+    ),
   );
   const blobSha = createHash("sha1")
     .update(`blob ${Buffer.byteLength(text)}\0`)
@@ -238,6 +265,9 @@ export async function acceptanceCandidateFixture(
     contents: [{ path: "src/behavior.ts", text }],
   };
   const operationId = randomUUID();
+  const publicationCursor = (
+    await db.deliveryManagerBinding.findUniqueOrThrow({ where: { id: claim.managerBindingId } })
+  ).cursorVersion;
   const publication = {
     schemaVersion: 1,
     operationId,
@@ -251,8 +281,8 @@ export async function acceptanceCandidateFixture(
     checkoutBinding: f.context,
     expectedSourceVersion: 0,
     expectedRevisionId: null as string | null,
-    expectedCursorVersion: 1,
-    expectedNativeSequence: 2,
+    expectedCursorVersion: publicationCursor,
+    expectedNativeSequence: sequenceBase + 2,
     leaseGeneration: claim.leaseGeneration,
     parentSha: f.context.revision,
     headSha: options.headSha ?? "b".repeat(40),

@@ -353,6 +353,8 @@ export async function createInstalledDeliveryRuntime({
       currentRegistration,
       currentProjectContext,
       currentServerInstanceId: () => supervisor.state.serverInstanceId,
+      maintenanceContext: (thread, turn) =>
+        supervisor.accountMaintenanceDeliveryContext(thread, turn),
       registerChild: (root, child, call) => supervisor.registerChild(root, child, call),
       readNativeHistory: (value) => supervisor.readNativeHistory(value),
       drainNativeRouting: (value) => supervisor.runtime.drainManagerRouting(value),

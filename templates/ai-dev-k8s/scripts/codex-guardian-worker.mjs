@@ -91,9 +91,12 @@ export function createGuardianOwnerHandler({ appOrigin, guardian }) {
   return async (request, response) => {
     check(
       request.method === "POST" &&
-        ["/guardian/identity", "/guardian/bootstrap", "/guardian/recover-empty-close"].includes(
-          request.url,
-        ) &&
+        [
+          "/guardian/identity",
+          "/guardian/bootstrap",
+          "/guardian/recover-empty-close",
+          "/guardian/account-maintenance",
+        ].includes(request.url) &&
         request.headers.host === host &&
         !request.headers.origin &&
         request.headers["content-type"]?.split(";")[0] === "application/json" &&
@@ -116,13 +119,16 @@ export function createGuardianOwnerHandler({ appOrigin, guardian }) {
       }
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")),
         identity = request.url === "/guardian/identity",
-        close = request.url === "/guardian/recover-empty-close";
+        close = request.url === "/guardian/recover-empty-close",
+        maintenance = request.url === "/guardian/account-maintenance";
       check(Object.keys(body ?? {}).join() === (identity ? "nonce" : "grant"));
       const answer = identity
         ? await guardian.identity(body.nonce)
-        : close
-          ? await guardian.recoverEmptyClose(body.grant)
-          : await guardian.bootstrap(body.grant);
+        : maintenance
+          ? await guardian.accountMaintenance(body.grant)
+          : close
+            ? await guardian.recoverEmptyClose(body.grant)
+            : await guardian.bootstrap(body.grant);
       check(guardian.state.phase === "open" && !request.aborted && !response.destroyed);
       response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       response.end(JSON.stringify(answer));
@@ -241,7 +247,14 @@ export function guardianWire(stream, handlers, onLost) {
               timeoutMs > 0 &&
               (timeoutMs <= 10000 ||
                 (timeoutMs <= 25000 &&
-                  ["identity", "bootstrap", ...admissionMethods].includes(method))),
+                  [
+                    "identity",
+                    "bootstrap",
+                    "accountMaintenance",
+                    "beginAccountMaintenance",
+                    "resumeAccountMaintenance",
+                    ...admissionMethods,
+                  ].includes(method))),
           );
           const id = ++sequence;
           const timer = setTimeout(stop, timeoutMs);
@@ -262,6 +275,8 @@ export async function connectGuardianWorker({
   startup,
   onCloseAdmission,
   onFinishClose,
+  onAccountMaintenance,
+  onResumeAccountMaintenance,
   onLost,
 }) {
   check(
@@ -314,6 +329,24 @@ export async function connectGuardianWorker({
   wire = guardianWire(
     new Socket({ fd, readable: true, writable: true }),
     {
+      async beginAccountMaintenance(value) {
+        check(
+          phase === "open" &&
+            Object.keys(value ?? {}).join() === "maintenanceId" &&
+            uuid.test(value.maintenanceId) &&
+            typeof onAccountMaintenance === "function",
+        );
+        return onAccountMaintenance(value.maintenanceId);
+      },
+      async resumeAccountMaintenance(value) {
+        check(
+          phase === "open" &&
+            Object.keys(value ?? {}).join() === "scope" &&
+            value.scope &&
+            typeof onResumeAccountMaintenance === "function",
+        );
+        return onResumeAccountMaintenance(value.scope);
+      },
       async closeAdmission(value) {
         guardianBinding(value);
         check(
@@ -412,11 +445,25 @@ export async function connectGuardianWorker({
     get state() {
       return structuredClone({ phase, ...binding, projects: [...projects.values()] });
     },
-    async requestDrain() {
+    async requestDrain(maintenanceId) {
       check(phase === "open");
-      const result = await wire.request("requestDrain", {});
+      check(maintenanceId === undefined || uuid.test(maintenanceId));
+      const result = await wire.request("requestDrain", maintenanceId ? { maintenanceId } : {});
       check(phase === "open" && typeof result?.ready === "boolean");
       return result.ready;
+    },
+    async maintenanceResumeReady() {
+      check(phase === "open");
+      return wire.request("maintenanceResumeReady", {}, 5000);
+    },
+    async accountMaintenance(grant) {
+      check(
+        phase === "open" &&
+          typeof grant === "string" &&
+          grant.length >= 100 &&
+          grant.length <= 16384,
+      );
+      return wire.request("accountMaintenance", { grant }, 25000);
     },
     async recoverEmptyClose(grant) {
       check(phase === "open");

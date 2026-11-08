@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maintenanceClaimContinuationSchema } from "@/lib/codex-session/account-maintenance-contracts";
 import {
   attemptFailureSchema,
   completionSchema,
@@ -92,6 +93,7 @@ export const managerEnvelopeSchema = z
     nativeCallId: nativeId,
     // Installed host field, signed outside model-controlled command/payload.
     continuation: continuationSchema.optional(),
+    maintenanceContinuation: maintenanceClaimContinuationSchema.optional(),
     sourceContext: sourceContextSchema.optional(),
     issuedAt: z.number().int().nonnegative(),
     expiresAt: z.number().int().positive(),
@@ -101,8 +103,13 @@ export const managerEnvelopeSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    if (value.continuation && value.command.operation !== "claim_step")
+    if (
+      (value.continuation || value.maintenanceContinuation) &&
+      value.command.operation !== "claim_step"
+    )
       ctx.addIssue({ code: "custom", message: "Continuation is claim-only" });
+    if (value.continuation && value.maintenanceContinuation)
+      ctx.addIssue({ code: "custom", message: "Conflicting continuation" });
   });
 export type ManagerEnvelope = z.infer<typeof managerEnvelopeSchema>;
 function canonical(value: unknown): unknown {

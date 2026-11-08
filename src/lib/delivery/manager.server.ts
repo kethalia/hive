@@ -19,10 +19,10 @@ import { isGitHubSerializationConflict } from "./github-persistence.server";
 import {
   authenticateCheckoutHost,
   lockManagerCheckout,
-  managerCheckoutIdentity,
+  managerCheckoutReference,
 } from "./manager-binding.server";
 import { managerEnvelopeSchema, managerProofPayload } from "./manager-contracts";
-import { authorizeProgressionClaim } from "./progression.server";
+import { authorizeProgressionClaim, recheckMaintenanceClaimDeadline } from "./progression.server";
 import { DeliveryRepository, type EvidencePolicy } from "./repository";
 import { repositoryPolicyStore } from "./repository-policy.server";
 import { resolveAttemptSource, resolveTaskSource } from "./source-resolver.server";
@@ -118,7 +118,7 @@ async function loadPolicyScope(
     !task ||
     !step ||
     task.projectId !== host.thread.projectId ||
-    task.conversationId !== host.thread.conversationId ||
+    task.conversationId !== host.binding.conversationId ||
     task.managerBindingId !== host.binding.id ||
     task.project.provider !== "github"
   )
@@ -178,7 +178,8 @@ export class DeliveryManagerService {
     const conversation = await this.db.deliveryConversation.findUniqueOrThrow({
       where: { ownerId_id: { ownerId, id: thread.conversationId } },
     });
-    const expected = managerCheckoutIdentity(
+    const expected = await managerCheckoutReference(
+      this.db,
       {
         ownerId,
         conversationId: conversation.id,
@@ -209,7 +210,7 @@ export class DeliveryManagerService {
           if (
             !task ||
             task.projectId !== host.thread.projectId ||
-            task.conversationId !== host.thread.conversationId ||
+            task.conversationId !== host.binding.conversationId ||
             task.managerBindingId !== host.binding.id
           )
             throw new RegistrationRejected();
@@ -308,6 +309,7 @@ export class DeliveryManagerService {
             async (tx) => {
               const host = await lockManagerCheckout(tx, input, registered, {
                 guardianPolicy: this.dependencies.guardianPolicy,
+                maintenanceObservation: true,
                 allowBlocked: input.command.operation === "fail_attempt",
               });
               const scope = await loadPolicyScope(
@@ -345,6 +347,9 @@ export class DeliveryManagerService {
       async (tx) => {
         const scope = await lockManagerCheckout(tx, input, registered, {
           guardianPolicy: this.dependencies.guardianPolicy,
+          maintenanceObservation: ["report_step", "complete_step", "fail_attempt"].includes(
+            input.command.operation,
+          ),
           create: input.command.operation === "create_task",
           allowBlocked: input.command.operation === "fail_attempt",
           progressionProtocol: this.dependencies.progressionProtocol,
@@ -358,7 +363,7 @@ export class DeliveryManagerService {
           if (
             !task ||
             task.projectId !== scope.thread.projectId ||
-            task.conversationId !== scope.thread.conversationId ||
+            task.conversationId !== scope.binding.conversationId ||
             task.managerBindingId !== scope.binding.id
           )
             throw new RegistrationRejected();
@@ -451,7 +456,7 @@ export class DeliveryManagerService {
           if (scope.binding.progressionProtocol === 1) {
             progression = await authorizeProgressionClaim(tx, ownerId, scope.binding, input);
             nativeSequence = progression.sequence;
-          } else if (input.continuation) {
+          } else if (input.continuation || input.maintenanceContinuation) {
             throw new DeliveryConflict("progression_disabled");
           } else if (scope.binding.activeAttemptId) {
             const prior = await tx.deliveryEvent.findUnique({
@@ -525,7 +530,7 @@ export class DeliveryManagerService {
         if (progression) {
           if (
             input.command.operation !== "claim_step" ||
-            (progression.continuing && !input.continuation)
+            (progression.continuing && !input.continuation && !input.maintenanceContinuation)
           )
             throw new DeliveryConflict("invalid_continuation");
           const continuation = input.continuation;
@@ -556,7 +561,11 @@ export class DeliveryManagerService {
               blockedReason: null,
               cursorVersion: progression.cursorVersion - 1,
               ...(progression.continuing
-                ? { currentAttemptId: continuation?.priorAttemptId }
+                ? {
+                    currentAttemptId:
+                      continuation?.priorAttemptId ??
+                      ("priorAttemptId" in progression ? progression.priorAttemptId : undefined),
+                  }
                 : { activeAttemptId: null, currentAttemptId: null }),
             },
             data: {
@@ -566,6 +575,28 @@ export class DeliveryManagerService {
             },
           });
           if (changed.count !== 1) throw new DeliveryConflict("checkout_writer_busy");
+          if ("maintenanceResumeEventId" in progression && progression.maintenanceResumeEventId)
+            await tx.deliveryEvent.create({
+              data: {
+                id: randomUUID(),
+                ownerId,
+                taskId: input.command.payload.taskId,
+                stepId: input.command.payload.stepId,
+                attemptId: attempt.id,
+                aggregateKey: `maintenance-claim/${progression.maintenanceResumeEventId}`,
+                aggregateVersion: 1,
+                type: "account_maintenance_claim_consumed",
+                policyVersion: "account-maintenance-v1",
+                requestDigest: githubSourceDigest({
+                  claimEventId: input.eventId,
+                  maintenanceContinuation: input.maintenanceContinuation,
+                }),
+                payload: {
+                  claimEventId: input.eventId,
+                  maintenanceContinuation: input.maintenanceContinuation,
+                },
+              },
+            });
           if (progression.continuing && continuation)
             await tx.deliveryEvent.create({
               data: {
@@ -589,6 +620,7 @@ export class DeliveryManagerService {
                 },
               },
             });
+          await recheckMaintenanceClaimDeadline(tx, ownerId, input);
           return;
         }
         const changed = await tx.deliveryManagerBinding.updateMany({
@@ -765,6 +797,9 @@ export class DeliveryManagerService {
                     cursorVersion: progression.cursorVersion,
                     sequence: progression.sequence,
                     ...(input.continuation ? { continuation: input.continuation } : {}),
+                    ...(input.maintenanceContinuation
+                      ? { maintenanceContinuation: input.maintenanceContinuation }
+                      : {}),
                     ...(currentSourceContext ? { sourceContext: currentSourceContext } : {}),
                   }
                 : undefined,

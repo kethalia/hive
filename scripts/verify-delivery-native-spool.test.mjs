@@ -493,3 +493,48 @@ test("typed command work before a protocol-one claim cannot escape raw-event adm
   assert.equal(spool.inspect().violations, 1);
   assert.equal(f.sent.length, 0);
 });
+
+test("maintenance creates a new claim in a fresh lifetime without rewriting the old physical anchor", async (t) => {
+  const f = fixture(t),
+    { spool, receipt } = protocolOne(f);
+  const oldServer = f.options.currentServerInstanceId();
+  const before = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "source.json"), "utf8"),
+  ).state;
+  f.changeLifetime();
+  assert.equal(spool.currentClaim(f.managerThreadId), null);
+  assert.throws(() => spool.assertAvailable(f.managerThreadId), /lifetime/);
+  const proof = {
+    ownerIntentRuntimeId: randomUUID(),
+    ownerIntentEventId: randomUUID(),
+    epochRuntimeId: randomUUID(),
+    nativeReceiptEventId: randomUUID(),
+    epochResumeEventId: randomUUID(),
+    epochVersion: 1,
+    inputRequestId: randomUUID(),
+  };
+  const request = { ...f.request, turnId: randomUUID(), callId: randomUUID() };
+  const command = { ...f.command, payload: { ...f.command.payload, stepId: randomUUID() } };
+  const authority = {
+    registrationId: f.options.currentRegistration().id,
+    serverInstanceId: f.options.currentServerInstanceId(),
+    maintenanceContinuation: proof,
+  };
+  spool.assertAvailable(f.managerThreadId, false, proof);
+  spool.beginClaim(request, command, randomUUID(), f.context, undefined, authority);
+  spool.recordClaim(
+    request,
+    command,
+    { ...receipt, attemptId: randomUUID(), cursorVersion: 2 },
+    f.context,
+  );
+  const after = JSON.parse(
+    readFileSync(join(f.options.stateDirectory, "source.json"), "utf8"),
+  ).state;
+  assert.deepEqual(after.claims[f.managerThreadId], before.claims[f.managerThreadId]);
+  assert.deepEqual(after.attempts[receipt.attemptId], before.attempts[receipt.attemptId]);
+  assert.equal(after.attempts[receipt.attemptId].serverInstanceId, oldServer);
+  assert.notEqual(spool.currentClaim(f.managerThreadId).serverInstanceId, oldServer);
+  assert.equal(spool.currentClaim(f.managerThreadId).cursorVersion, 2);
+  spool.assertAvailable(f.managerThreadId);
+});

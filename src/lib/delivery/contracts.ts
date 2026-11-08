@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { maintenanceClaimContinuationSchema } from "@/lib/codex-session/account-maintenance-contracts";
 
 export const sourceShaSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const sourceContextSchema = z
@@ -124,6 +125,7 @@ export const leaseRequestSchema = z
         cursorVersion: z.number().int().positive().optional(),
         sequence: z.number().int().nonnegative().optional(),
         continuation: continuationSchema.optional(),
+        maintenanceContinuation: maintenanceClaimContinuationSchema.optional(),
         sourceContext: sourceContextSchema.optional(),
       })
       .strict()

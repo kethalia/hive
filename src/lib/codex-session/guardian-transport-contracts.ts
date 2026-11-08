@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { epicLeaseReleaseSchema } from "@/lib/delivery/epic-closure-contracts";
+import {
+  accountMaintenanceIdleSnapshotSchema,
+  maintenanceNativeRebindSchema,
+} from "./account-maintenance-contracts";
 import { guardianApplicationActions } from "./guardian-application-contracts";
 import { guardianTreeReceiptSchema } from "./guardian-closure-contracts";
 import {
@@ -169,6 +173,7 @@ const guardianOperationEnvelopes = [
       registrationId: uuid,
       managerThreadId: boundedId,
       metadata: guardianMetadataEvidenceSchema,
+      maintenanceRebind: maintenanceNativeRebindSchema.optional(),
     })
     .strict(),
   z
@@ -189,6 +194,31 @@ export const guardianOperationEnvelopeSchema = z.discriminatedUnion(
 export type GuardianOperationEnvelope = z.infer<typeof guardianOperationEnvelopeSchema>;
 
 export const guardianTransportEnvelopeSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("maintenance_resume_ready"),
+      maintenanceId: uuid,
+      ownerIntentRuntimeId: uuid,
+      ownerIntentEventId: uuid,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      ...generation,
+      action: z.literal("maintenance_close"),
+      maintenanceId: uuid,
+      barrierId: uuid,
+      ownershipDigest: guardianDigestSchema,
+      projectBindings: z
+        .array(z.object({ projectId: uuid, bindingDigest: guardianDigestSchema }).strict())
+        .min(1)
+        .max(32),
+      snapshots: z.array(accountMaintenanceIdleSnapshotSchema).min(1).max(32),
+    })
+    .strict(),
   z
     .object({
       ...common,

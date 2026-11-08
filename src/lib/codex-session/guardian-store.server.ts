@@ -1,9 +1,27 @@
 import { createHash, createPublicKey, randomUUID } from "node:crypto";
 import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
+import { commitMaintenanceNativeReceipt } from "@/lib/delivery/account-maintenance-epoch.server";
 import { epicConfig } from "@/lib/delivery/epic-config.server";
 import { epicNativeAdmission } from "@/lib/delivery/epic-native-admission.server";
+import { currentExecutionActor } from "@/lib/delivery/execution-authority.server";
+import { dependencySatisfied } from "@/lib/delivery/state";
 import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
 import { assertTaskRecoveryOperation } from "@/lib/projects/task-recovery-store.server";
+import {
+  type AccountMaintenanceIdleSnapshot,
+  accountMaintenanceIdleSnapshotSchema,
+  type MaintenanceNativeRebind,
+  maintenanceNativeRebindSchema,
+  maintenanceOwnerResumeSchema,
+  maintenanceResumeScopeSchema,
+} from "./account-maintenance-contracts";
+import {
+  accountMaintenanceTreeClosed,
+  assertAccountMaintenanceAdmission,
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+  updateAccountMaintenanceState,
+} from "./account-maintenance-store.server";
 import { type GuardianTreeReceipt, guardianTreeReceiptSchema } from "./guardian-closure-contracts";
 import {
   type GuardianCheckout,
@@ -253,6 +271,15 @@ async function databaseNow(tx: Tx) {
   return row.now;
 }
 async function lockGuardianSlot(tx: Tx, ownerId: string, slotId: string) {
+  const hint = await tx.codexHostSlot.findUnique({
+    where: { ownerId_id: { ownerId, id: slotId } },
+  });
+  requireGuardian(hint);
+  await lockAccountMaintenanceWorkspace(tx, {
+    hiveUserId: ownerId,
+    coderOrigin: hint.coderOrigin,
+    workspaceId: hint.workspaceId,
+  });
   const rows = await tx.$queryRaw<
     { id: string }[]
   >`SELECT id FROM codex_host_slots WHERE owner_id=${ownerId}::uuid AND id=${slotId}::uuid FOR UPDATE`;
@@ -443,6 +470,12 @@ export class GuardianAdmissionStore {
               ${response.runtimeGeneration},${response.admissionGeneration},${JSON.stringify(response.json)}::jsonb,
               ${guardianDigest(response.json)},${receiptRuntime.lifetimeId}::uuid,${receiptRuntime.buildId}::uuid,
               ${receiptRuntime.configSha256},${receiptRuntime.outerKeyFingerprint})`;
+            if (operation.action === "native")
+              await commitMaintenanceNativeReceipt(tx, {
+                ownerId: operation.ownerId,
+                runtimeId: operation.runtimeId,
+                eventId: operation.eventId,
+              });
             // Receipt-enabled service calls return JSON wire data: model dates are
             // ISO strings here, exactly as in the response retained for readback.
             result = response.json as T;
@@ -492,6 +525,10 @@ export class GuardianAdmissionStore {
       requireGuardian(
         user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
       );
+      await assertAccountMaintenanceAdmission(tx, binding, {
+        kind: "enroll",
+        empty: binding.projects.length === 0,
+      });
       const candidate = await tx.codexHostSlot.upsert({
         where: {
           ownerId_coderOrigin_workspaceId_agentId: {
@@ -758,6 +795,20 @@ export class GuardianAdmissionStore {
     requireGuardian(preparationDigest(preparation) === input.preparationDigest);
     return this.transaction(async (tx) => {
       const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: preparation.projectId,
+          preparationIntentId: preparation.taskId,
+        },
+      );
       openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
       requireGuardian(
         !runtime.nativeLaunchId &&
@@ -792,6 +843,53 @@ export class GuardianAdmissionStore {
       const project = await tx.deliveryProject.findUnique({
         where: { ownerId_id: { ownerId: input.ownerId, id: preparation.projectId } },
       });
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      let retainedPreparation = false;
+      if (maintenance?.phase === "resuming") {
+        requireGuardian(
+          maintenance.idleRuntimeId === runtime.id &&
+            maintenance.resumeIntentRuntimeId &&
+            maintenance.resumeIntentEventId,
+        );
+        const ownerIntent = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+          where: {
+            ownerId_runtimeId_eventId: {
+              ownerId: input.ownerId,
+              runtimeId: maintenance.resumeIntentRuntimeId,
+              eventId: maintenance.resumeIntentEventId,
+            },
+          },
+        });
+        requireGuardian(ownerIntent.action === "maintenance_resume_intent");
+        const ownerScope = maintenanceOwnerResumeSchema.parse(
+          (ownerIntent.response as Prisma.JsonObject).maintenance,
+        );
+        const parked = ownerScope.projects.find((p) => p.preparationIntentId === intent.id);
+        requireGuardian(
+          ownerScope.maintenanceId === maintenance.id &&
+            ownerScope.idleRuntimeId === runtime.id &&
+            ownerScope.requestId === maintenance.resumeRequestId &&
+            parked &&
+            parked.sourceSha === intent.sourceSha &&
+            parked.requestDigest === intent.requestDigest &&
+            parked.requestId === intent.requestId,
+        );
+        const original = await tx.codexGuardianAdmission.findUniqueOrThrow({
+          where: {
+            ownerId_runtimeId_projectId: {
+              ownerId: input.ownerId,
+              runtimeId: parked.oldRuntimeId,
+              projectId: preparation.projectId,
+            },
+          },
+        });
+        requireGuardian(
+          original.preparationIntentId === intent.id &&
+            original.preparationDigest === input.preparationDigest &&
+            guardianDigest(original.preparation) === guardianDigest(preparation),
+        );
+        retainedPreparation = true;
+      }
       requireGuardian(
         project &&
           project.provider === "github" &&
@@ -802,12 +900,15 @@ export class GuardianAdmissionStore {
           intent.repositoryId === preparation.repositoryId &&
           intent.providerAccountId === preparation.providerAccountId &&
           intent.sourceSha === preparation.baseSha &&
-          ["queued", "preparing"].includes(intent.phase),
+          (["queued", "preparing"].includes(intent.phase) ||
+            (retainedPreparation && intent.phase === "running")),
       );
-      const payload = new ProjectTaskIntents(this.db, this.options.encryptionKey).payload(intent);
-      requireGuardian(
-        bytesDigest(JSON.stringify(payload.hostRequest)) === preparation.requestDigest,
-      );
+      if (!retainedPreparation) {
+        const payload = new ProjectTaskIntents(this.db, this.options.encryptionKey).payload(intent);
+        requireGuardian(
+          bytesDigest(JSON.stringify(payload.hostRequest)) === preparation.requestDigest,
+        );
+      }
       const count = await tx.codexGuardianAdmission.count({
         where: { ownerId: input.ownerId, runtimeId: runtime.id },
       });
@@ -839,6 +940,20 @@ export class GuardianAdmissionStore {
     const checkout = guardianCheckoutSchema.parse(input.checkout);
     return this.transaction(async (tx) => {
       const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: checkout.projectId,
+          preparationIntentId: checkout.preparationIntentId,
+        },
+      );
       openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
       requireGuardian(!runtime.nativeLaunchId);
       const admission = await lockGuardianAdmission(
@@ -884,7 +999,16 @@ export class GuardianAdmissionStore {
     projectIds: string[];
   }) {
     return this.transaction(async (tx) => {
-      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        { kind: "native", runtimeId: runtime.id },
+      );
       openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
       requireGuardian(!runtime.nativeLaunchId && this.options.policy.producerEnabled);
       const projects = [...input.projectIds].sort();
@@ -902,13 +1026,79 @@ export class GuardianAdmissionStore {
           admissions.every((a) => a.phase === "checkout" && a.checkoutBinding),
       );
       let isolationValidUntil = Number.POSITIVE_INFINITY;
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
       for (const a of admissions) {
         await lockAdmissionIntent(tx, runtime, a);
         const holds = await tx.deliveryManagerBinding.findMany({
           where: { ownerId: input.ownerId, preparationIntentId: a.preparationIntentId },
-          select: { id: true, activeAttemptId: true, blockedReason: true },
         });
-        requireGuardian(holds.length === 0); // First native launch; never adopt an earlier physical writer.
+        if (maintenance?.phase === "resuming") {
+          requireGuardian(
+            maintenance.idleRuntimeId === runtime.id &&
+              maintenance.resumeIntentRuntimeId &&
+              maintenance.resumeIntentEventId &&
+              holds.length <= 1,
+          );
+          const ownerIntent = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+            where: {
+              ownerId_runtimeId_eventId: {
+                ownerId: input.ownerId,
+                runtimeId: maintenance.resumeIntentRuntimeId,
+                eventId: maintenance.resumeIntentEventId,
+              },
+            },
+          });
+          requireGuardian(ownerIntent.action === "maintenance_resume_intent");
+          const resume = maintenanceOwnerResumeSchema.parse(
+            (ownerIntent.response as Prisma.JsonObject).maintenance,
+          );
+          const parked = resume.projects.find(
+            (p) => p.preparationIntentId === a.preparationIntentId,
+          );
+          requireGuardian(
+            resume.maintenanceId === maintenance.id &&
+              resume.idleRuntimeId === runtime.id &&
+              resume.requestId === maintenance.resumeRequestId &&
+              parked &&
+              parked.checkoutDigest === guardianDigest(a.checkoutBinding),
+          );
+          const old = await tx.codexGuardianRuntime.findUniqueOrThrow({
+            where: { id: parked.oldRuntimeId },
+          });
+          requireGuardian(
+            old.ownerId === input.ownerId &&
+              old.phase === "tree_closed" &&
+              old.closedBarrierId === parked.oldBarrierId &&
+              old.workspaceId === runtime.workspaceId &&
+              old.buildId === runtime.buildId,
+          );
+          for (const held of holds) {
+            await tx.$queryRaw`SELECT id FROM delivery_manager_bindings WHERE owner_id=${input.ownerId}::uuid AND id=${held.id}::uuid FOR UPDATE`;
+            const current = await tx.deliveryManagerBinding.findUniqueOrThrow({
+              where: { id: held.id },
+            });
+            requireGuardian(
+              !current.blockedReason &&
+                current.nativeThreadId === parked.nativeThreadId &&
+                current.sourceSha === parked.sourceSha &&
+                current.workspaceId === runtime.workspaceId &&
+                current.buildId === runtime.buildId &&
+                current.leaseId === parked.leaseId &&
+                current.leaseGeneration === parked.leaseGeneration,
+            );
+            if (current.activeAttemptId) {
+              await tx.$queryRaw`SELECT id FROM delivery_attempts WHERE owner_id=${input.ownerId}::uuid AND id=${current.activeAttemptId}::uuid FOR UPDATE`;
+              const writer = await tx.deliveryAttempt.findUniqueOrThrow({
+                where: { id: current.activeAttemptId },
+              });
+              requireGuardian(
+                writer.managerBindingId === current.id &&
+                  writer.leaseExpiresAt > (await databaseNow(tx)),
+              );
+              isolationValidUntil = Math.min(isolationValidUntil, writer.leaseExpiresAt.getTime());
+            }
+          }
+        } else requireGuardian(holds.length === 0); // Ordinary first launch never adopts a writer.
         // Bound only live/uncertain registrations. Closed historical sessions
         // remain readable without eventually exhausting native admission.
         const priorThreads = await tx.$queryRaw<{ registrationId: string }[]>`
@@ -982,6 +1172,7 @@ export class GuardianAdmissionStore {
     runtimeId: string;
     runtimeGeneration: number;
     metadata: GuardianMetadataEvidence;
+    maintenanceRebind?: MaintenanceNativeRebind;
   }) {
     const metadata = guardianMetadataEvidenceSchema.parse(input.metadata);
     const scope = producerScopeSchema.parse(input.scope);
@@ -991,7 +1182,65 @@ export class GuardianAdmissionStore {
         registrationId: scope.registrationId,
       });
       const { runtime } = await lockGuardianRuntime(tx, scope.hiveUserId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: scope.projectId,
+          preparationIntentId: scope.preparationIntentId,
+        },
+      );
       openRuntime(runtime, await databaseNow(tx), input.runtimeGeneration, this.options.policy);
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      const rebind = input.maintenanceRebind
+        ? maintenanceNativeRebindSchema.parse(input.maintenanceRebind)
+        : null;
+      if (maintenance && maintenance.phase !== "finished") {
+        requireGuardian(
+          maintenance.phase === "resuming" &&
+            rebind &&
+            maintenance.idleRuntimeId === runtime.id &&
+            rebind.maintenanceId === maintenance.id &&
+            maintenance.resumeIntentRuntimeId === rebind.ownerIntentRuntimeId &&
+            maintenance.resumeIntentEventId === rebind.ownerIntentEventId,
+        );
+        const ownerIntent = await tx.codexGuardianOperationReceipt.findUnique({
+          where: {
+            ownerId_runtimeId_eventId: {
+              ownerId: scope.hiveUserId,
+              runtimeId: rebind.ownerIntentRuntimeId,
+              eventId: rebind.ownerIntentEventId,
+            },
+          },
+        });
+        requireGuardian(ownerIntent?.action === "maintenance_resume_intent");
+        const resume = maintenanceOwnerResumeSchema.parse(
+          (ownerIntent.response as Prisma.JsonObject).maintenance,
+        );
+        const retained = resume.projects.find(
+          (p) => p.preparationIntentId === scope.preparationIntentId,
+        );
+        requireGuardian(
+          resume.maintenanceId === maintenance.id &&
+            resume.ownerId === runtime.ownerId &&
+            resume.workspaceId === runtime.workspaceId &&
+            resume.buildId === runtime.buildId &&
+            resume.idleRuntimeId === runtime.id &&
+            resume.parkedJournalDigest === rebind.parkedJournalDigest &&
+            retained &&
+            retained.historyDigest === rebind.historyDigest &&
+            retained.nativeThreadId === scope.managerThreadId &&
+            retained.leaseId === scope.leaseId &&
+            retained.leaseGeneration === scope.leaseGeneration &&
+            Date.parse(rebind.leaseValidUntil) > (await databaseNow(tx)).getTime(),
+        );
+      } else requireGuardian(!rebind);
       requireGuardian(
         this.options.policy.producerEnabled &&
           (!runtime.serverInstanceId || runtime.producerApproved),
@@ -1038,7 +1287,12 @@ export class GuardianAdmissionStore {
             admission.metadataPinsDigest === guardianDigest(metadata) &&
             guardianDigest(admission.metadataPins) === guardianDigest(metadata),
         );
-        return { runtime, admission, replayed: true };
+        return {
+          runtime,
+          admission,
+          replayed: true,
+          ...(rebind ? { maintenanceRebind: rebind } : {}),
+        };
       }
       requireGuardian(admission.phase === "checkout" && this.options.policy.producerEnabled);
       const producerDigest = guardianDigest({
@@ -1074,7 +1328,226 @@ export class GuardianAdmissionStore {
           authorityUntil: new Date(now.getTime() + 180000),
         },
       });
-      return { runtime: updated, admission: next, replayed: false };
+      return {
+        runtime: updated,
+        admission: next,
+        replayed: false,
+        ...(rebind ? { maintenanceRebind: rebind } : {}),
+      };
+    });
+  }
+  async maintenanceResumeReady(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    maintenanceId: string;
+    ownerIntentRuntimeId: string;
+    ownerIntentEventId: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      const state = parseAccountMaintenance(slot.accountMaintenance);
+      requireGuardian(
+        state?.phase === "finished" &&
+          state.id === input.maintenanceId &&
+          state.idleRuntimeId === runtime.id &&
+          state.resumeIntentRuntimeId === input.ownerIntentRuntimeId &&
+          state.resumeIntentEventId === input.ownerIntentEventId &&
+          runtime.producerApproved &&
+          slot.activeRegistrationId,
+      );
+      const { registration } = await lockActiveRegistration(tx, {
+        ownerId: input.ownerId,
+        registrationId: slot.activeRegistrationId,
+      });
+      requireGuardian(
+        registration.serverInstanceId === runtime.serverInstanceId &&
+          registration.hostKeyFingerprint === runtime.hostKeyFingerprint,
+      );
+      const receipt = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+        where: {
+          ownerId_runtimeId_eventId: {
+            ownerId: input.ownerId,
+            runtimeId: input.ownerIntentRuntimeId,
+            eventId: input.ownerIntentEventId,
+          },
+        },
+      });
+      requireGuardian(receipt.action === "maintenance_resume_intent");
+      const resume = maintenanceOwnerResumeSchema.parse(
+        (receipt.response as Prisma.JsonObject).maintenance,
+      );
+      const runnableProjectIds: string[] = [];
+      const authorizations: Array<{
+        projectId: string;
+        nativeReceiptEventId: string;
+        managerBindingId: string | null;
+        executionEpochVersion: number;
+        runnable: boolean;
+        completed: boolean;
+        taskState: unknown[];
+        claimContinuation: Record<string, unknown> | null;
+        holdReason: string | null;
+      }> = [];
+      const deadlines = [runtime.authorityUntil.getTime(), registration.expiresAt.getTime()];
+      for (const p of resume.projects) {
+        const admission = await lockGuardianAdmission(tx, input.ownerId, runtime.id, p.projectId);
+        await lockAdmissionIntent(tx, runtime, admission);
+        requireGuardian(
+          admission.phase === "native" &&
+            admission.registrationId === registration.id &&
+            admission.nativeThreadId === p.nativeThreadId,
+        );
+        const native = await tx.codexGuardianOperationReceipt.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id, action: "native" },
+        });
+        const matching = native.filter((r) => {
+          const data = r.response as Prisma.JsonObject,
+            a = data.admission as Prisma.JsonObject;
+          return a?.preparationIntentId === p.preparationIntentId;
+        });
+        requireGuardian(matching.length === 1);
+        const rebind = maintenanceNativeRebindSchema.parse(
+          (matching[0].response as Prisma.JsonObject).maintenanceRebind,
+        );
+        requireGuardian(
+          rebind.ownerIntentRuntimeId === receipt.runtimeId &&
+            rebind.ownerIntentEventId === receipt.eventId &&
+            rebind.parkedJournalDigest === resume.parkedJournalDigest &&
+            rebind.historyDigest === p.historyDigest,
+        );
+        deadlines.push(Date.parse(rebind.leaseValidUntil));
+        await tx.$queryRaw`SELECT id FROM delivery_manager_bindings WHERE owner_id=${input.ownerId}::uuid
+          AND preparation_intent_id=${p.preparationIntentId}::uuid ORDER BY id FOR UPDATE`;
+        const bindings = await tx.deliveryManagerBinding.findMany({
+          where: { ownerId: input.ownerId, preparationIntentId: p.preparationIntentId },
+          take: 2,
+        });
+        requireGuardian(bindings.length <= 1);
+        let runnable = true,
+          completed = false;
+        let holdReason: string | null = null;
+        let claimContinuation: Record<string, unknown> | null = null;
+        const taskState: unknown[] = [];
+        const completionStates: boolean[] = [];
+        if (bindings.length && bindings[0].executionEpochVersion === 0) {
+          const freshBinding = bindings[0];
+          requireGuardian(
+            state.tasks.length === 0 &&
+              freshBinding.serverInstanceId === runtime.serverInstanceId &&
+              freshBinding.workspaceId === runtime.workspaceId &&
+              freshBinding.buildId === runtime.buildId &&
+              freshBinding.nativeThreadId === p.nativeThreadId &&
+              !freshBinding.executionEpochRuntimeId &&
+              !freshBinding.executionEpochEventId &&
+              !freshBinding.executionEpochResumeEventId,
+          );
+          // The original zero-binding ready acknowledgment remains provenance.
+          // Fresh normal create/claim may already exist after its one owner input.
+          // Do not turn them into a second owner continuation or an epoch alias.
+        } else if (bindings.length) {
+          const b = bindings[0];
+          requireGuardian(
+            b.executionEpochVersion > 0 &&
+              b.executionEpochRuntimeId === runtime.id &&
+              b.executionEpochEventId === matching[0].eventId &&
+              b.executionEpochResumeEventId &&
+              !b.blockedReason,
+          );
+          const event = await tx.deliveryEvent.findUniqueOrThrow({
+            where: { id: b.executionEpochResumeEventId },
+          });
+          const scope = maintenanceResumeScopeSchema.parse(event.payload);
+          requireGuardian(
+            scope.ownerIntentRuntimeId === receipt.runtimeId &&
+              scope.ownerIntentEventId === receipt.eventId,
+          );
+          for (const saved of scope.tasks) {
+            await tx.$queryRaw`SELECT id FROM delivery_tasks WHERE owner_id=${input.ownerId}::uuid AND id=${saved.taskId}::uuid FOR UPDATE`;
+            const task = await tx.deliveryTask.findUniqueOrThrow({
+              where: { id: saved.taskId },
+              include: { steps: { orderBy: { id: "asc" } } },
+            });
+            requireGuardian(
+              task.ownerId === input.ownerId &&
+                task.managerBindingId === b.id &&
+                task.sourceVersion === saved.sourceVersion &&
+                task.sourceRevisionId === saved.sourceRevisionId &&
+                task.sourceSha === saved.sourceSha,
+            );
+            if (task.pauseRequested || task.schedulingPaused) runnable = false;
+            requireGuardian(task.steps.length <= 64);
+            completionStates.push(task.steps.length > 0 && task.steps.every(dependencySatisfied));
+            taskState.push({
+              taskId: task.id,
+              version: task.version,
+              sourceSha: task.sourceSha,
+              pauseRequested: task.pauseRequested,
+              schedulingPaused: task.schedulingPaused,
+              steps: task.steps.map((step) => ({
+                id: step.id,
+                kind: step.kind,
+                state: step.state,
+                version: step.version,
+              })),
+            });
+          }
+          completed = completionStates.length > 0 && completionStates.every(Boolean);
+          if (b.activeAttemptId && !completed) {
+            const prior =
+              b.currentAttemptId &&
+              (await tx.deliveryAttempt.findUnique({
+                where: { id: b.currentAttemptId },
+                include: { step: true },
+              }));
+            if (
+              !prior ||
+              prior.managerBindingId !== b.id ||
+              !["reported", "succeeded"].includes(prior.outcome) ||
+              prior.step.state !== prior.outcome ||
+              prior.leaseExpiresAt <= now
+            ) {
+              runnable = false;
+              holdReason = "maintenance_previous_attempt_held";
+            } else {
+              deadlines.push(prior.leaseExpiresAt.getTime());
+              claimContinuation = {
+                ownerIntentRuntimeId: receipt.runtimeId,
+                ownerIntentEventId: receipt.eventId,
+                epochRuntimeId: runtime.id,
+                nativeReceiptEventId: matching[0].eventId,
+                epochResumeEventId: b.executionEpochResumeEventId,
+                epochVersion: b.executionEpochVersion,
+                inputRequestId: resume.requestId,
+              };
+            }
+          }
+        }
+        if (runnable) runnableProjectIds.push(p.projectId);
+        authorizations.push({
+          projectId: p.projectId,
+          nativeReceiptEventId: matching[0].eventId,
+          managerBindingId: bindings[0]?.executionEpochVersion > 0 ? bindings[0].id : null,
+          executionEpochVersion: bindings[0]?.executionEpochVersion ?? 0,
+          runnable,
+          completed,
+          taskState,
+          claimContinuation,
+          holdReason,
+        });
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(deadlines.every((deadline) => deadline > fresh.getTime()));
+      requireGuardian(Buffer.byteLength(JSON.stringify(authorizations)) <= 48000);
+      return {
+        ready: true,
+        maintenanceId: state.id,
+        ownerIntentRuntimeId: receipt.runtimeId,
+        ownerIntentEventId: receipt.eventId,
+        runnableProjectIds,
+        authorizations,
+      };
     });
   }
   async fence(input: {
@@ -1256,6 +1729,13 @@ export class GuardianAdmissionStore {
           data: { phase: "tree_closed", producerApproved: false },
         });
       }
+      if (barrier.purpose === "account-maintenance") {
+        await accountMaintenanceTreeClosed(tx, runtime.id, {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        });
+      }
       return {
         runtimeId: runtime.id,
         runtimeGeneration: runtime.generation,
@@ -1264,6 +1744,197 @@ export class GuardianAdmissionStore {
         treeExited: true,
         cleanupAuthorized: false,
       };
+    });
+  }
+  async closeMaintenanceBarrier(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    maintenanceId: string;
+    barrierId: string;
+    ownershipDigest: string;
+    projectBindings: { projectId: string; bindingDigest: string }[];
+    snapshots: AccountMaintenanceIdleSnapshot[];
+  }) {
+    const snapshots = input.snapshots.map((s) => accountMaintenanceIdleSnapshotSchema.parse(s));
+    requireGuardian(
+      /^[a-f0-9]{64}$/.test(input.ownershipDigest) &&
+        snapshots.length > 0 &&
+        snapshots.length <= 32,
+    );
+    const requestDigest = guardianDigest(input);
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      requireGuardian(
+        maintenance?.id === input.maintenanceId &&
+          maintenance.ownerId === runtime.ownerId &&
+          maintenance.buildId === runtime.buildId &&
+          maintenance.runtimes.some(
+            (r) =>
+              r.runtimeId === runtime.id &&
+              r.runtimeGeneration === input.runtimeGeneration &&
+              r.lifetimeId === runtime.lifetimeId,
+          ),
+      );
+      const saved = await tx.codexGuardianBarrier.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+        include: { decisions: true },
+      });
+      const answer = (barrier: typeof saved) => {
+        requireGuardian(barrier);
+        return {
+          runtimeId: runtime.id,
+          runtimeGeneration: barrier.generation,
+          barrierId: barrier.id,
+          ownershipDigest: barrier.ownershipDigest,
+          decisions: barrier.decisions.map((d) => ({
+            admissionId: d.admissionId,
+            admissionGeneration: d.admissionGeneration,
+            decisionId: d.id,
+            stateDigest: d.stateDigest,
+          })),
+          treeExited: false,
+          cleanupAuthorized: false,
+        };
+      };
+      if (saved) {
+        requireGuardian(
+          saved.purpose === "account-maintenance" &&
+            saved.maintenanceId === maintenance.id &&
+            saved.runtimeId === runtime.id &&
+            saved.generation === runtime.generation &&
+            runtime.closedBarrierId === saved.id &&
+            saved.requestDigest === requestDigest,
+        );
+        return answer(saved);
+      }
+      requireGuardian(["requested", "waiting-boundary", "closing"].includes(maintenance.phase));
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      requireGuardian(!runtime.closedBarrierId);
+      const admissions = await tx.codexGuardianAdmission.findMany({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        orderBy: { projectId: "asc" },
+      });
+      requireGuardian(
+        admissions.length === snapshots.length &&
+          admissions.length === input.projectBindings.length &&
+          new Set(snapshots.map((p) => p.projectId)).size === admissions.length &&
+          new Set(input.projectBindings.map((p) => p.projectId)).size === admissions.length,
+      );
+      const decisions = [];
+      for (const candidate of admissions) {
+        const admission = await lockGuardianAdmission(
+          tx,
+          input.ownerId,
+          runtime.id,
+          candidate.projectId,
+        );
+        const observation = snapshots.find((p) => p.projectId === admission.projectId);
+        const parked = maintenance.projects.find((p) => p.projectId === admission.projectId);
+        requireGuardian(
+          observation &&
+            parked &&
+            admission.phase === "native" &&
+            input.projectBindings.some(
+              (p) =>
+                p.projectId === admission.projectId &&
+                p.bindingDigest === admission.preparationDigest,
+            ) &&
+            observation.admissionId === admission.id &&
+            observation.admissionGeneration === admission.generation &&
+            observation.managerThreadId === admission.nativeThreadId &&
+            parked.nativeThreadId === admission.nativeThreadId &&
+            parked.preparationIntentId === admission.preparationIntentId &&
+            parked.leaseId === admission.leaseId &&
+            parked.leaseGeneration === admission.leaseGeneration &&
+            parked.checkoutDigest === guardianDigest(admission.checkoutBinding) &&
+            Date.parse(observation.observedAt) <= now.getTime() &&
+            now.getTime() - Date.parse(observation.observedAt) <= 5000,
+        );
+        const intent = await tx.projectTaskIntent.findUniqueOrThrow({
+          where: { ownerId_id: { ownerId: input.ownerId, id: admission.preparationIntentId } },
+        });
+        requireGuardian(
+          observation.firstPromptRequestId === intent.requestId && observation.rootTurns > 0,
+        );
+        const tasks = await tx.deliveryTask.findMany({
+          where: {
+            ownerId: input.ownerId,
+            managerBinding: { is: { preparationIntentId: admission.preparationIntentId } },
+          },
+          orderBy: { id: "asc" },
+        });
+        requireGuardian(
+          tasks.every((t) => t.pauseRequested && maintenance.tasks.some((p) => p.taskId === t.id)),
+        );
+        const state = {
+          purpose: "account-maintenance",
+          maintenanceId: maintenance.id,
+          checkoutBinding: admission.checkoutBinding,
+          producerDigest: admission.producerDigest,
+          taskVersions: tasks.map((t) => ({
+            id: t.id,
+            version: t.version,
+            sourceVersion: t.sourceVersion,
+          })),
+          observation,
+          // Factual physical-stop authority only. Running attempts and uncertain
+          // external grants remain intact; they are NOT marked completed here.
+          writerCleanupAuthorized: false,
+        } as unknown as Prisma.InputJsonObject;
+        decisions.push({
+          admissionId: admission.id,
+          admissionGeneration: admission.generation,
+          state,
+          stateDigest: guardianDigest(state),
+        });
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(
+        snapshots.every(
+          (p) =>
+            Date.parse(p.observedAt) <= fresh.getTime() &&
+            fresh.getTime() - Date.parse(p.observedAt) <= 5000,
+        ),
+      );
+      const generation = runtime.generation + 1;
+      await tx.codexGuardianBarrier.create({
+        data: {
+          id: input.barrierId,
+          ownerId: input.ownerId,
+          runtimeId: runtime.id,
+          purpose: "account-maintenance",
+          maintenanceId: maintenance.id,
+          generation,
+          ownershipDigest: input.ownershipDigest,
+          requestDigest,
+          closedAt: fresh,
+        },
+      });
+      for (const decision of decisions)
+        await tx.codexGuardianStopDecision.create({
+          data: {
+            id: randomUUID(),
+            ownerId: input.ownerId,
+            runtimeId: runtime.id,
+            barrierId: input.barrierId,
+            ...decision,
+            decidedAt: fresh,
+          },
+        });
+      await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { phase: "barrier_closed", generation, closedBarrierId: input.barrierId },
+      });
+      await updateAccountMaintenanceState(tx, { ...maintenance, phase: "closing" });
+      return answer(
+        await tx.codexGuardianBarrier.findUnique({
+          where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+          include: { decisions: true },
+        }),
+      );
     });
   }
   async closeBarrier(input: {
@@ -1316,6 +1987,10 @@ export class GuardianAdmissionStore {
         runtime.phase === "open" &&
           !runtime.closedBarrierId &&
           runtime.generation === input.runtimeGeneration,
+      );
+      requireGuardian(
+        !parseAccountMaintenance(slot.accountMaintenance) ||
+          parseAccountMaintenance(slot.accountMaintenance)?.phase === "finished",
       );
       const projects = [...input.projectBindings].sort((a, b) =>
         a.projectId.localeCompare(b.projectId),
@@ -1414,9 +2089,10 @@ export class GuardianAdmissionStore {
         const binding = await tx.deliveryManagerBinding.findUniqueOrThrow({
           where: { ownerId_id: { ownerId: input.ownerId, id: bindings[0].id } },
         });
+        const actor = await currentExecutionActor(tx, binding);
         requireGuardian(
           !binding.blockedReason &&
-            binding.serverInstanceId === runtime.serverInstanceId &&
+            actor.serverInstanceId === runtime.serverInstanceId &&
             binding.nativeThreadId === admission.nativeThreadId &&
             binding.currentAttemptId === observation.currentAttemptId &&
             binding.cursorVersion === observation.cursorVersion &&

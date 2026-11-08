@@ -398,6 +398,10 @@ export function createAccountManager({
     return result;
   };
   return {
+    async peek() {
+      await queue;
+      return structuredClone(view());
+    }, // No process/lock/account read or refresh.
     run,
     async close() {
       closed = true;

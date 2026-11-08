@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { configureAgentToolsAction, resumeAgentSessionAction } from "@/lib/actions/agent-tools";
 import { type AgentSession, agentLabels } from "@/lib/agents/types";
 import { useDiscovery } from "@/lib/discovery/queries";
+import { AccountMaintenanceCard } from "./AccountMaintenanceCard";
 import { ClaudeAccountCard } from "./ClaudeAccountCard";
 import { CodexAccountCard } from "./CodexAccountCard";
 
@@ -234,6 +235,10 @@ export function AgentToolsPanel({
                 </p>
               )}
             </section>
+            <AccountMaintenanceCard
+              key={`maintenance/${workspaceId}/${buildId ?? ""}`}
+              workspaceId={workspaceId}
+            />
             <ClaudeAccountCard
               key={`claude/${workspaceId}/${buildId ?? ""}`}
               workspaceId={workspaceId}

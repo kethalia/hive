@@ -755,6 +755,296 @@ export function archiveBootstrapProjectState(config, proof) {
 }
 /** Dependencies are installed functions, never HTTP parameters. openRuntime must
  * return the ONE supervisor plus its registration authority for this host. */
+/** Installed outer only, AFTER its authenticated actual ECHILD receipt and DB
+ * maintenance-purpose close acknowledgment. This parks unfinished journals; it
+ * does not consume completion archive grants, release a lease or touch checkout
+ * files. Returned digest is private control metadata, never public evidence. */
+export function parkAccountMaintenanceProjectState(config, receipt, maintenanceId) {
+  check(
+    uuid(config.ownerId) && uuid(config.workspaceId) && uuid(maintenanceId),
+    "maintenance_park_scope_invalid",
+  );
+  check(
+    receipt?.scope === "managed_native_tree_only" &&
+      receipt.guardianExited === true &&
+      receipt.finalWaitResult === "ECHILD" &&
+      receipt.cleanupAuthorized === false &&
+      uuid(receipt.lifetimeId) &&
+      uuid(receipt.workerBarrier?.barrierId) &&
+      receipt.workerBarrier.closed === true &&
+      receipt.generation === receipt.workerBarrier.generation + 1 &&
+      Array.isArray(receipt.projects) &&
+      receipt.projects.length > 0 &&
+      receipt.projects.length <= 32 &&
+      new Set(receipt.projects.map((p) => p.projectId)).size === receipt.projects.length,
+    "maintenance_tree_exit_unverified",
+  );
+  privatePath(config.stateDirectory, true);
+  const locks = [];
+  try {
+    for (const path of [
+      join(config.stateDirectory, "controller.lock"),
+      join(config.stateDirectory, "..", "codex-project-supervisor", "supervisor.lock"),
+    ]) {
+      privatePath(path);
+      const fd = openSync(path, constants.O_RDWR | constants.O_NOFOLLOW);
+      locks.push(fd);
+      const info = fstatSync(fd);
+      check(
+        info.isFile() && info.nlink === 1 && info.uid === process.getuid() && !(info.mode & 0o077),
+        "maintenance_park_private_state",
+      );
+      execFileSync("/usr/bin/flock", ["--exclusive", "--nonblock", "3"], {
+        stdio: ["ignore", "ignore", "ignore", fd],
+        timeout: 2000,
+      });
+    }
+    const read = (path, limit) => {
+      privatePath(path);
+      const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+      try {
+        const before = fstatSync(fd);
+        check(
+          before.isFile() &&
+            before.nlink === 1 &&
+            before.uid === process.getuid() &&
+            !(before.mode & 0o077) &&
+            before.size <= limit,
+          "maintenance_park_private_state",
+        );
+        const bytes = readFileSync(fd);
+        const after = fstatSync(fd);
+        check(
+          bytes.length === before.size &&
+            after.size === before.size &&
+            after.mtimeMs === before.mtimeMs &&
+            after.ctimeMs === before.ctimeMs,
+          "maintenance_park_state_changed",
+        );
+        return bytes;
+      } finally {
+        closeSync(fd);
+      }
+    };
+    const statePath = join(config.stateDirectory, "projects.json"),
+      key = read(join(config.stateDirectory, "projects.key"), 32);
+    check(key.length === 32, "maintenance_park_private_state");
+    const mac = (v) => createHmac("sha256", key).update(JSON.stringify(v)).digest("hex");
+    const decode = (bytes) => {
+      const value = JSON.parse(bytes);
+      check(
+        typeof value.signature === "string" &&
+          /^[a-f0-9]{64}$/.test(value.signature) &&
+          timingSafeEqual(Buffer.from(value.signature), Buffer.from(mac(value.state))),
+        "maintenance_park_signature_invalid",
+      );
+      return value.state;
+    };
+    const current = decode(read(statePath, 4 * 1024 * 1024));
+    const archivePath = join(config.stateDirectory, `projects-maintenance-${maintenanceId}.json`);
+    const archived = existsSync(archivePath) ? decode(read(archivePath, 8 * 1024 * 1024)) : null;
+    const state = archived?.projectState ?? current;
+    check(
+      state.schemaVersion === 1 &&
+        state.ownerId === config.ownerId &&
+        state.workspaceId === config.workspaceId &&
+        state.guardianLifetimeId === receipt.lifetimeId &&
+        state.guardianBarrier?.barrierId === receipt.workerBarrier.barrierId &&
+        state.guardianBarrier?.generation === receipt.workerBarrier.generation &&
+        state.hostProcess?.pid === receipt.workerPid &&
+        Array.isArray(state.guardianBarrier.projects) &&
+        state.guardianBarrier.projects.length === receipt.projects.length &&
+        receipt.projects.every((p) =>
+          state.guardianBarrier.projects.some(
+            (q) => q.projectId === p.projectId && q.bindingDigest === p.bindingDigest,
+          ),
+        ) &&
+        Object.keys(state.projects).length === receipt.projects.length &&
+        receipt.projects.every((p) => state.projects[p.projectId]?.task?.nativeThreadId),
+      "maintenance_park_identity_changed",
+    );
+    const nativePath = join(
+      config.stateDirectory,
+      "..",
+      "codex-project-supervisor",
+      "registry.json",
+    );
+    const nativeBytes = read(nativePath, 1024 * 1024);
+    const nativeKey = read(
+      join(config.stateDirectory, "..", "codex-project-supervisor", "key"),
+      32,
+    );
+    const native = JSON.parse(nativeBytes);
+    check(
+      nativeKey.length === 32 &&
+        typeof native.signature === "string" &&
+        /^[a-f0-9]{64}$/.test(native.signature) &&
+        timingSafeEqual(
+          Buffer.from(native.signature),
+          Buffer.from(
+            createHmac("sha256", nativeKey).update(JSON.stringify(native.state)).digest("hex"),
+          ),
+        ) &&
+        native.state.ownerId === config.ownerId &&
+        native.state.workspaceId === config.workspaceId &&
+        receipt.projects.every(
+          (p) =>
+            native.state.projects[p.projectId]?.serverInstanceId ===
+              native.state.serverInstanceId &&
+            native.state.projects[p.projectId]?.threadId ===
+              state.projects[p.projectId].task.nativeThreadId,
+        ),
+      "maintenance_park_native_history_changed",
+    );
+    const evidence = {
+      schemaVersion: 1,
+      purpose: "account-maintenance",
+      maintenanceId,
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      priorLifetimeId: receipt.lifetimeId,
+      treeReceiptDigest: digest(receipt),
+      nativeRegistryDigest: digest(native),
+      nativeRegistry: native,
+      projectState: state,
+    };
+    check(!archived || digest(archived) === digest(evidence), "maintenance_park_evidence_changed");
+    const parkedJournalDigest = digest(evidence);
+    const reset = {
+      schemaVersion: 1,
+      ownerId: config.ownerId,
+      workspaceId: config.workspaceId,
+      projects: {},
+      accountMaintenance: {
+        id: maintenanceId,
+        parkedJournalDigest,
+        priorLifetimeId: receipt.lifetimeId,
+      },
+    };
+    check(
+      digest(current) === digest(state) || digest(current) === digest(reset),
+      "maintenance_park_state_changed",
+    );
+    const persist = (path, value) => {
+      writeAtomic(path, { state: value, signature: mac(value) });
+      const fd = openSync(
+        config.stateDirectory,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      try {
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    };
+    if (!archived) persist(archivePath, evidence); // Archive is durable BEFORE resetting the live controller pointer.
+    persist(statePath, reset);
+    return {
+      parked: true,
+      maintenanceId,
+      parkedJournalDigest,
+      projectCount: receipt.projects.length,
+    };
+  } finally {
+    for (const fd of locks.reverse()) closeSync(fd);
+  }
+}
+
+/** Fixed installed private archive reader. No caller-selected path, command or
+ * credential root. The outer signs only the projected scope after verifying
+ * both retained HMACs and the exact physical-close journal. */
+export function readAccountMaintenanceArchive(config, maintenanceId) {
+  check(
+    uuid(config.ownerId) && uuid(config.workspaceId) && uuid(maintenanceId),
+    "maintenance_archive_scope_invalid",
+  );
+  const read = (path, max) => {
+    check(realpathSync(path) === path, "maintenance_archive_private_state");
+    const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const a = fstatSync(fd);
+      check(
+        a.isFile() &&
+          a.uid === process.getuid() &&
+          a.nlink === 1 &&
+          !(a.mode & 0o077) &&
+          a.size <= max,
+        "maintenance_archive_private_state",
+      );
+      const bytes = readFileSync(fd),
+        b = fstatSync(fd);
+      check(
+        bytes.length <= max &&
+          a.ino === b.ino &&
+          a.dev === b.dev &&
+          a.size === b.size &&
+          a.mtimeMs === b.mtimeMs,
+        "maintenance_archive_changed",
+      );
+      return bytes;
+    } finally {
+      closeSync(fd);
+    }
+  };
+  const key = read(join(config.stateDirectory, "projects.key"), 32);
+  check(key.length === 32, "maintenance_archive_private_state");
+  const signed = JSON.parse(
+    read(
+      join(config.stateDirectory, `projects-maintenance-${maintenanceId}.json`),
+      8 * 1024 * 1024,
+    ),
+  );
+  const mac = createHmac("sha256", key).update(JSON.stringify(signed.state)).digest("hex");
+  check(
+    typeof signed.signature === "string" &&
+      signed.signature.length === mac.length &&
+      timingSafeEqual(Buffer.from(signed.signature), Buffer.from(mac)),
+    "maintenance_archive_signature_invalid",
+  );
+  const evidence = signed.state;
+  check(
+    evidence.schemaVersion === 1 &&
+      evidence.purpose === "account-maintenance" &&
+      evidence.maintenanceId === maintenanceId &&
+      evidence.ownerId === config.ownerId &&
+      evidence.workspaceId === config.workspaceId &&
+      evidence.projectState?.ownerId === config.ownerId &&
+      evidence.projectState?.workspaceId === config.workspaceId &&
+      uuid(evidence.projectState?.guardianBarrier?.barrierId) &&
+      evidence.priorLifetimeId === evidence.projectState?.guardianLifetimeId,
+    "maintenance_archive_scope_invalid",
+  );
+  const nativeKey = read(join(config.stateDirectory, "..", "codex-project-supervisor", "key"), 32);
+  const native = evidence.nativeRegistry;
+  check(
+    nativeKey.length === 32 &&
+      native &&
+      typeof native.signature === "string" &&
+      /^[a-f0-9]{64}$/.test(native.signature) &&
+      timingSafeEqual(
+        Buffer.from(native.signature),
+        Buffer.from(
+          createHmac("sha256", nativeKey).update(JSON.stringify(native.state)).digest("hex"),
+        ),
+      ) &&
+      digest(native) === evidence.nativeRegistryDigest &&
+      native.state.ownerId === config.ownerId &&
+      native.state.workspaceId === config.workspaceId,
+    "maintenance_archive_native_history_changed",
+  );
+  const current = JSON.parse(
+    read(
+      join(config.stateDirectory, "..", "codex-project-supervisor", "registry.json"),
+      1024 * 1024,
+    ),
+  );
+  check(
+    digest(current) === evidence.nativeRegistryDigest,
+    "maintenance_archive_native_history_changed",
+  );
+  return { evidence, parkedJournalDigest: digest(evidence) };
+}
+
 export function createProjectController(config, deps) {
   check(exact(config, ["stateDirectory", "ownerId", "workspaceId", "model", "effort"]));
   check(
@@ -1169,6 +1459,7 @@ export function createProjectController(config, deps) {
         throw new Error("prompt_submission_uncertain");
       }
       if (snap.phase === "awaitingFirstTurn") {
+        check(!t.maintenanceResume, "account_maintenance_first_prompt_replay_denied");
         t.phase = "awaitingFirstPrompt";
         t.firstPromptSubmissionAttempted = true;
         save();
@@ -1185,6 +1476,15 @@ export function createProjectController(config, deps) {
         snap = await supervisor.command({ operation: "refresh", projectId: p.projectId });
       await fence(p, true);
       assertAdmission(p.projectId);
+      if (state.accountMaintenance?.phase === "resuming") {
+        check(
+          snap.phase === "persisted" && snap.firstPromptRequestId === t.request.requestId,
+          "account_maintenance_history_changed",
+        );
+        t.phase = "running";
+        save();
+        return; // No PTY/new model input until the fresh server epoch-ready callback.
+      }
       if (snap.phase === "persisted") {
         snap = await supervisor.command({ operation: "attach", projectId: p.projectId });
         await fence(p, true);
@@ -1341,6 +1641,12 @@ export function createProjectController(config, deps) {
     async handle(path, r) {
       assertOpen();
       validateProjectOperation(path, r);
+      if (
+        state.accountMaintenance &&
+        state.accountMaintenance.phase !== "finished" &&
+        ["/projects/open", "/projects/tasks/start", "/projects/tasks/retry"].includes(path)
+      )
+        throw new Error("account_maintenance_pending");
       if (["/projects/resolve", "/projects/resolve-ref"].includes(path)) return resolve(r);
       if (path === "/projects/open") {
         const verified = await resolve(r);
@@ -1632,9 +1938,168 @@ export function createProjectController(config, deps) {
       return structuredClone(t.sourceApplication);
     },
     resumePending() {
-      if (closed || state.guardianBarrier) return;
+      if (
+        state.accountMaintenance?.phase === "resuming" &&
+        runtime &&
+        Object.values(state.projects).every((p) => p.task?.phase === "running") &&
+        !pending.size
+      ) {
+        pending.add("account-maintenance");
+        queue = queue
+          .then(async () => {
+            try {
+              const authorized = await guardian.maintenanceResumeReady();
+              await runtime.supervisor.finishAccountMaintenanceResume(
+                state.accountMaintenance,
+                authorized,
+              );
+              state.accountMaintenance.phase = "finished";
+              save();
+            } catch {
+              state.accountMaintenance.phase = "held";
+              save(); // Never retry an uncertain continuation or erase its input reservation.
+            }
+          })
+          .finally(() => pending.delete("account-maintenance"));
+        return;
+      }
+      if (
+        closed ||
+        state.guardianBarrier ||
+        (state.accountMaintenance && state.accountMaintenance.phase !== "resuming")
+      )
+        return;
       for (const p of Object.values(state.projects))
         if (p.task && (!runtime || p.task.phase !== "running")) schedule(p);
+    },
+    async beginAccountMaintenance(maintenanceId) {
+      check(
+        uuid(maintenanceId) &&
+          guardian &&
+          runtime?.supervisor &&
+          !state.guardianBarrier &&
+          !pending.size,
+        "account_maintenance_unavailable",
+      );
+      check(
+        !state.accountMaintenance ||
+          state.accountMaintenance.phase === "finished" ||
+          state.accountMaintenance.id === maintenanceId,
+        "account_maintenance_changed",
+      );
+      state.accountMaintenance = { id: maintenanceId, phase: "waiting-boundary" };
+      save();
+      await runtime.supervisor.beginAccountMaintenance(maintenanceId);
+      return { accepted: true };
+    },
+    maintenanceId() {
+      return state.accountMaintenance?.phase === "waiting-boundary"
+        ? state.accountMaintenance.id
+        : null;
+    },
+    async resumeAccountMaintenance(scope) {
+      check(
+        guardian &&
+          uuid(scope?.id) &&
+          uuid(scope.requestId) &&
+          uuid(scope.ownerIntentRuntimeId) &&
+          uuid(scope.ownerIntentEventId) &&
+          /^[a-f0-9]{64}$/.test(scope.parkedJournalDigest) &&
+          !runtime &&
+          !pending.size &&
+          !Object.keys(state.projects).length &&
+          !state.guardianBarrier &&
+          state.accountMaintenance?.id === scope.id,
+        "account_maintenance_resume_unavailable",
+      );
+      const parked = readAccountMaintenanceArchive(config, scope.id);
+      check(
+        parked.parkedJournalDigest === scope.parkedJournalDigest,
+        "account_maintenance_archive_changed",
+      );
+      const projects = structuredClone(parked.evidence.projectState.projects);
+      check(
+        Array.isArray(scope.projects) && scope.projects.length === Object.keys(projects).length,
+        "account_maintenance_scope_changed",
+      );
+      for (const p of Object.values(projects)) {
+        const t = p.task,
+          expected = scope.projects.find((v) => v.preparationIntentId === t?.taskId),
+          n = parked.evidence.nativeRegistry.state.projects[p.projectId];
+        check(
+          t?.prepared &&
+            expected &&
+            !t.executionRevoked &&
+            !recoveryHeld(p) &&
+            (!t.sourceApplication || t.sourceApplication.phase === "released") &&
+            n?.firstPrompt?.phase === "accepted" &&
+            n.firstPrompt.requestId === t.request.requestId &&
+            n.firstPrompt.digest === expected.firstPromptDigest &&
+            n.threadId === expected.nativeThreadId &&
+            (t.phase !== "blocked" || t.reason === "native_unavailable"),
+          "account_maintenance_history_changed",
+        );
+        const physical = await deps.inspectCheckout(p.repositoryId);
+        check(
+          physical?.status === "ready" &&
+            physical.checkoutVerified === true &&
+            physical.revision === t.request.revision &&
+            physical.lease?.taskId === t.taskId &&
+            physical.lease.id === t.prepared.leaseId &&
+            physical.lease.generation === t.prepared.leaseGeneration &&
+            physical.lease.expiresAt > Date.now() / 1000 &&
+            physical.checkoutIncarnation === t.checkoutIncarnation &&
+            digest(physical.checkoutIdentity) === digest(t.checkoutIdentity),
+          "account_maintenance_source_or_lease_changed",
+        );
+        t.phase = "preparing";
+        t.reason = null;
+        t.terminalSessionName = null;
+        t.maintenanceResume = {
+          maintenanceId: scope.id,
+          requestId: scope.requestId,
+          ownerIntentRuntimeId: scope.ownerIntentRuntimeId,
+          ownerIntentEventId: scope.ownerIntentEventId,
+        };
+      }
+      state.projects = projects;
+      state.accountMaintenance = { ...structuredClone(scope), phase: "restoring" };
+      state.maintenanceParking = {
+        maintenanceId: scope.id,
+        priorLifetimeId: parked.evidence.priorLifetimeId,
+        oldBarrierId: parked.evidence.projectState.guardianBarrier.barrierId,
+        parkedJournalDigest: parked.parkedJournalDigest,
+      };
+      save(); // Retained archive survives a failed or uncertain fresh startup.
+      for (const p of Object.values(projects)) {
+        await admitPreparation(p);
+        bindPrepared(p);
+        await fence(p, true);
+      }
+      runtime = await deps.openRuntime(
+        Object.values(projects).map((p) => p.task.prepared),
+        {
+          ...structuredClone(scope),
+          nativeRegistryDigest: parked.evidence.nativeRegistryDigest,
+        },
+      );
+      for (const p of Object.values(projects)) {
+        const snapshot = await runtime.supervisor.rejoinAccountMaintenanceProject(p.projectId);
+        check(
+          snapshot.threadId === p.task.nativeThreadId &&
+            snapshot.firstPromptRequestId === p.task.request.requestId &&
+            snapshot.phase === "persisted",
+          "account_maintenance_history_changed",
+        );
+      }
+      await runtime.supervisor.verifyAccountMaintenanceResumeHistory(scope);
+      for (const p of Object.values(projects)) {
+        p.task.nativeServerInstanceId = runtime.supervisor.state.serverInstanceId;
+        p.task.phase = "awaitingRegistration";
+      }
+      state.accountMaintenance.phase = "resuming";
+      save();
+      return { accepted: true };
     },
     async drain() {
       await queue;

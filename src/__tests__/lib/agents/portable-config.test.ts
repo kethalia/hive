@@ -1,6 +1,6 @@
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { portableAgentConfig } from "@/lib/agents/portable-config.server";
+import { portableAccountConfig, portableAgentConfig } from "@/lib/agents/portable-config.server";
 
 const key = generateKeyPairSync("ed25519")
   .privateKey.export({ type: "pkcs8", format: "pem" })
@@ -65,4 +65,28 @@ describe("portable agent configuration", () => {
     ])
       expect(() => portableAgentConfig({ ...shared, ...change })).toThrow();
   });
+});
+
+it("account provider enablement does not enable generic tools or the other provider", () => {
+  const scoped = { ...env, HIVE_AGENT_TOOLS_ENABLED: "false", HIVE_CODEX_ACCOUNTS_ENABLED: "true" };
+  expect(portableAccountConfig("codex", scoped)).toMatchObject({
+    accountProvider: "codex",
+    issuer: env.HIVE_AGENT_TOOLS_HIVE_ORIGIN,
+    pins: [pin],
+  });
+  expect(() => portableAgentConfig(scoped)).toThrow();
+  expect(() => portableAccountConfig("claude", scoped)).toThrow();
+  expect(() =>
+    portableAccountConfig("codex", {
+      ...scoped,
+      HIVE_CODEX_ACCOUNTS_ENABLED: "false",
+      HIVE_AGENT_TOOLS_ENABLED: "true",
+    }),
+  ).toThrow();
+  expect(() =>
+    portableAccountConfig("codex", { ...scoped, HIVE_AGENT_TOOLS_TRANSPORT: "ssh" }),
+  ).toThrow();
+  expect(
+    portableAccountConfig("claude", { ...scoped, HIVE_CLAUDE_ACCOUNTS_ENABLED: "true" }),
+  ).toMatchObject({ accountProvider: "claude" });
 });

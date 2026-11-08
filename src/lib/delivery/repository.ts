@@ -24,6 +24,7 @@ import {
   stepControlSchema,
   taskDefinitionSchema,
 } from "./contracts";
+import { currentExecutionActor } from "./execution-authority.server";
 import { NATIVE_OBSERVER_PRODUCER, nativeSourceInputSchema } from "./native-contracts";
 import { resolveAttemptSource, resolveTaskSource } from "./source-resolver.server";
 import {
@@ -991,16 +992,17 @@ export class DeliveryRepository {
           where: { id: ownerId },
           select: { coderUserId: true },
         });
+        const actor = await currentExecutionActor(tx, manager);
         const binding = {
           coderOwnerId: user.coderUserId,
           workspaceId: manager.workspaceId,
           buildId: manager.buildId,
-          serverInstanceId: manager.serverInstanceId,
+          serverInstanceId: actor.serverInstanceId,
           managerThreadId: manager.nativeThreadId,
           nativeThreadId: input.source.childThreadId,
           nativeTurnId: input.source.childTurnId,
           operationId: input.source.spawnCallId,
-          lifetimeId: manager.serverInstanceId,
+          lifetimeId: actor.serverInstanceId,
           sourceSha: attempt.sourceSha,
         };
         const bindingDigest = digest("native_binding", {
@@ -1165,13 +1167,18 @@ export class DeliveryRepository {
         (await tx.deliveryConversation.findUnique({
           where: { ownerId_id: { ownerId, id: task.conversationId } },
         }));
+      const manager =
+        task.managerBindingId &&
+        (await tx.deliveryManagerBinding.findUnique({ where: { id: task.managerBindingId } }));
+      const actor = manager ? await currentExecutionActor(tx, manager) : conversation;
       if (
         !conversation ||
+        !actor ||
         user.coderUserId !== input.binding.coderOwnerId ||
         conversation.projectId !== task.projectId ||
         conversation.workspaceId !== input.binding.workspaceId ||
         conversation.buildId !== input.binding.buildId ||
-        conversation.serverInstanceId !== input.binding.serverInstanceId ||
+        actor.serverInstanceId !== input.binding.serverInstanceId ||
         conversation.nativeThreadId !== input.binding.managerThreadId ||
         attempt.sourceSha !== input.binding.sourceSha
       )

@@ -311,7 +311,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
           ttlSeconds: 3600,
           ...(r.leaseId ? { leaseId: r.leaseId, generation: r.generation } : {}),
         }),
-      async openRuntime(projects) {
+      async openRuntime(projects, maintenanceResume) {
         check(!closed && !admissionClosed && !supervisor);
         await executionAuthority?.fence();
         executionAuthority?.assert();
@@ -333,6 +333,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
             },
             {
               executionAuthority,
+              ...(maintenanceResume ? { maintenanceResume } : {}),
               ...(guardian
                 ? { metadataAuthority: (request) => guardian.metadataAuthority(request) }
                 : {}),
@@ -471,6 +472,7 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       return;
     try {
       if (
+        !controller.maintenanceId() &&
         !guardian.state.projects.every((p) => {
           const thread = supervisor.state.projects[p.projectId]?.threadId;
           return thread && delivery.adapter.locallyCompleted(thread);
@@ -478,8 +480,11 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
       )
         return;
       drainPolling = true;
-      void guardian
-        .requestDrain()
+      const maintenanceId = controller.maintenanceId();
+      void Promise.resolve(
+        maintenanceId ? supervisor.accountMaintenanceBoundary(maintenanceId) : null,
+      )
+        .then(() => guardian.requestDrain(maintenanceId ?? undefined))
         .catch(() => {})
         .finally(() => {
           drainPolling = false;
@@ -493,6 +498,8 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
   tick.unref();
   controller.resumePending();
   return {
+    beginAccountMaintenance: (id) => controller.beginAccountMaintenance(id),
+    resumeAccountMaintenance: (scope) => controller.resumeAccountMaintenance(scope),
     deliveryStatus() {
       return delivery?.evidenceStatus() ?? { phase: "disabled", reason: null };
     },
@@ -517,6 +524,16 @@ export async function startWorkspaceHost(raw, { guardian } = {}) {
           barrier.projects.length === supervisor.config.projects.length,
       );
       const snapshots = [];
+      if (controller.maintenanceId()) {
+        const id = controller.maintenanceId();
+        const observations = await supervisor.accountMaintenanceBoundary(id, closureBarrier);
+        receipt.snapshots = observations.map((observation) => ({
+          projectId: observation.projectId,
+          maintenanceId: id,
+          history: observation,
+        }));
+        return receipt;
+      }
       for (const project of barrier.projects) {
         const thread = supervisor.state.projects[project.projectId]?.threadId;
         check(typeof thread === "string");

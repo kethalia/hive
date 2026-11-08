@@ -107,7 +107,7 @@ function operationValid(v) {
     return (
       exact(v, ["operation", "account"]) &&
       (a?.action === "status"
-        ? exact(a, ["action"])
+        ? exact(a, ["action"]) || (exact(a, ["action", "cached"]) && a.cached === true)
         : a &&
           ["connect", "cancel", "reconnect", "disconnect", "code"].includes(a.action) &&
           exact(a, [
@@ -127,7 +127,7 @@ function operationValid(v) {
     return (
       exact(v, ["operation", "account"]) &&
       (a?.action === "status"
-        ? exact(a, ["action"])
+        ? exact(a, ["action"]) || (exact(a, ["action", "cached"]) && a.cached === true)
         : a &&
           ["connect", "cancel", "reconnect", "disconnect"].includes(a.action) &&
           exact(a, ["action", "lifetimeId", "generation"]) &&
@@ -282,8 +282,12 @@ export function createAgentBridge(config, deps = {}) {
     ...(deps.claudeAccounts ?? {}),
   });
   function execute(request) {
-    if (request.operation === "claude-account") return claudeAccounts.run(request.account);
-    if (request.operation === "codex-account") return accounts.run(request.account);
+    if (request.operation === "claude-account")
+      return request.account.cached === true
+        ? claudeAccounts.peek()
+        : claudeAccounts.run(request.account);
+    if (request.operation === "codex-account")
+      return request.account.cached === true ? accounts.peek() : accounts.run(request.account);
     return new Promise((resolve, reject) => {
       let source, payload;
       try {

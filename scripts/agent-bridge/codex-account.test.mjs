@@ -203,3 +203,29 @@ for (const provider of ["codex", "claude"]) {
     }
   });
 }
+
+test("maintenance cached status never spawns, acquires auth lock or refreshes the credential cache", async () => {
+  let opened = 0,
+    acquired = 0;
+  const manager = createCodexAccountManager({
+    home: "/unused",
+    profile: "software",
+    lifetimeId: randomUUID(),
+    acquire() {
+      acquired++;
+      throw Error("must not acquire");
+    },
+    async open() {
+      opened++;
+      throw Error("must not spawn");
+    },
+  });
+  try {
+    const view = await manager.peek();
+    assert.equal(view.state, "unknown");
+    assert.equal(opened, 0);
+    assert.equal(acquired, 0);
+  } finally {
+    await manager.close();
+  }
+});

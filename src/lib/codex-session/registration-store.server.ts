@@ -1,5 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@hive/db";
+import {
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+} from "./account-maintenance-store.server";
 import type { RegistrationBinding, RegistrationStore } from "./registration.server";
 
 if (typeof window !== "undefined") throw new Error("Registration storage is server-only.");
@@ -32,6 +36,13 @@ async function clock(tx: Tx) {
 }
 async function lockSlot(tx: Tx, ownerId: string, id: string, signal?: AbortSignal) {
   signal?.throwIfAborted();
+  const hint = await tx.codexHostSlot.findUnique({ where: { ownerId_id: { ownerId, id } } });
+  if (!hint) throw new RegistrationRejected();
+  await lockAccountMaintenanceWorkspace(tx, {
+    hiveUserId: ownerId,
+    coderOrigin: hint.coderOrigin,
+    workspaceId: hint.workspaceId,
+  });
   const rows = await tx.$queryRaw<
     { id: string }[]
   >`SELECT id FROM codex_host_slots WHERE owner_id=${ownerId}::uuid AND id=${id}::uuid FOR UPDATE`;
@@ -109,6 +120,7 @@ export class PrismaRegistrationStore implements RegistrationStore {
     return this.db.$transaction(async (tx) => {
       const b = input.binding;
       await verifyOwner(tx, b);
+      await lockAccountMaintenanceWorkspace(tx, b);
       const row = await tx.codexHostSlot.upsert({
         where: {
           ownerId_coderOrigin_workspaceId_agentId: {
@@ -214,6 +226,22 @@ export class PrismaRegistrationStore implements RegistrationStore {
             date(r.expiresAt).getTime() <= now.getTime() + 60_000,
         );
         await verifyOwner(tx, b);
+        const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+        if (maintenance && maintenance.phase !== "finished") {
+          requireValue(
+            maintenance.phase === "resuming" &&
+              b.buildId === maintenance.buildId &&
+              b.projects.length === maintenance.projects.length &&
+              r.threads.length === maintenance.projects.length &&
+              maintenance.projects.every(
+                (p) =>
+                  b.projects.some((v) => v.projectId === p.projectId) &&
+                  r.threads.some(
+                    (t) => t.projectId === p.projectId && t.threadId === p.nativeThreadId,
+                  ),
+              ),
+          );
+        }
         requireValue(
           r.threads.length > 0 &&
             new Set(r.threads.map((t) => t.projectId)).size === r.threads.length &&

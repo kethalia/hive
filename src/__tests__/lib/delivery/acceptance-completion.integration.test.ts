@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { AccountMaintenanceStore } from "@/lib/codex-session/account-maintenance-store.server";
+import type { RegistrationBinding } from "@/lib/codex-session/registration.server";
 import { AcceptanceSuccessController } from "@/lib/delivery/acceptance-completion.server";
 import { acceptanceDigest, requireIntentDigest } from "@/lib/delivery/acceptance-contracts";
 import { DeliveryAcceptanceService } from "@/lib/delivery/acceptance-service.server";
@@ -13,6 +15,7 @@ import {
   databaseJobRequestSchema,
   verifyDatabaseResponse,
 } from "../../../../services/migrate/src/delivery/wire.mjs";
+import { resumeAccountMaintenanceFixture } from "../codex-session/account-maintenance-fixture";
 import { acceptanceCandidateFixture } from "./acceptance-candidate-fixture";
 import {
   collectCompletionProviderFacts,
@@ -25,7 +28,11 @@ const url = process.env.HIVE_ACCEPTANCE_TEST_DATABASE_URL;
 if (
   url &&
   (!["localhost", "127.0.0.1"].includes(new URL(url).hostname) ||
-    !new URL(url).pathname.startsWith("/hive_acceptance_test"))
+    !(
+      new URL(url).pathname.startsWith("/hive_acceptance_test") ||
+      (new URL(url).pathname === "/hive_account_maintenance_test" &&
+        process.env.HIVE_ACCOUNT_MAINTENANCE_TEST_DATABASE_URL === url)
+    ))
 )
   throw Error("Local fixture only");
 const db = new PrismaClient({
@@ -33,8 +40,12 @@ const db = new PrismaClient({
 });
 afterAll(() => db.$disconnect());
 afterEach(() => vi.unstubAllEnvs());
-async function fixture(realPolicy = false, activationRequirement = false) {
-  const f = await acceptanceCandidateFixture(db, undefined, { activationRequirement });
+async function fixture(
+  realPolicy = false,
+  activationRequirement = false,
+  options: Parameters<typeof acceptanceCandidateFixture>[2] = {},
+) {
+  const f = await acceptanceCandidateFixture(db, undefined, { activationRequirement, ...options });
   for (const name of [
     "HIVE_DELIVERY_ACCEPTANCE_ENABLED",
     "HIVE_DELIVERY_EXECUTION_ENABLED",
@@ -97,6 +108,9 @@ async function fixture(realPolicy = false, activationRequirement = false) {
     },
   });
   const task = await db.deliveryTask.findUniqueOrThrow({ where: { id: f.taskId } });
+  const currentBinding = await db.deliveryManagerBinding.findUniqueOrThrow({
+    where: { id: f.claim.managerBindingId },
+  });
   const terminal = {
     schemaVersion: 1 as const,
     managerBindingId: f.claim.managerBindingId,
@@ -105,8 +119,8 @@ async function fixture(realPolicy = false, activationRequirement = false) {
     attemptId: f.claim.attemptId,
     managerThreadId: f.managerThreadId,
     parentTurnId: f.parentTurnId,
-    cursorVersion: 1,
-    nativeSequence: 2,
+    cursorVersion: currentBinding.cursorVersion,
+    nativeSequence: currentBinding.nativeSequence,
     sourceContext: {
       revisionId: task.sourceRevisionId!,
       version: task.sourceVersion,
@@ -159,6 +173,199 @@ async function fixture(realPolicy = false, activationRequirement = false) {
   return { ...f, service, terminal, ci, evidence, full };
 }
 describe.skipIf(!url)("controller factual completion", () => {
+  it("completes a fresh independent preview step and derives readiness after a physically closed maintenance epoch", async () => {
+    let oldServer = "",
+      oldAttemptId = "",
+      oldAttempt: unknown;
+    const f = await fixture(true, false, {
+      beforeImplementation: async ({ fixture: g, manager, preludeStepId }) => {
+        oldServer = g.serverInstanceId;
+        const first = (await manager.execute(
+          g.managerEnvelope({
+            operation: "claim_step",
+            payload: {
+              taskId: g.taskId,
+              stepId: preludeStepId,
+              expectedVersion: 0,
+              requestedModel: "gpt-6.1-sol",
+              requestedEffort: "low",
+            },
+          }),
+        )) as {
+          attemptId: string;
+          managerBindingId: string;
+          leaseGeneration: number;
+          version: number;
+          nativeSequence: number;
+        };
+        oldAttemptId = first.attemptId;
+        await g.native.ingest(
+          g.sourceEnvelope(
+            first,
+            {
+              ...g.source,
+              kind: "started",
+              requestedModel: "gpt-6.1-sol",
+              requestedEffort: "low",
+              effectiveModel: "gpt-6.1-sol",
+              effectiveEffort: "low",
+            },
+            1,
+            { stepId: preludeStepId },
+          ),
+        );
+        await g.native.ingest(
+          g.sourceEnvelope(first, { ...g.source, kind: "turn_completed", status: "completed" }, 2, {
+            stepId: preludeStepId,
+          }),
+        );
+        await manager.execute(
+          g.managerEnvelope({
+            operation: "report_step",
+            payload: {
+              taskId: g.taskId,
+              stepId: preludeStepId,
+              attemptId: first.attemptId,
+              expectedVersion: first.version,
+              leaseGeneration: first.leaseGeneration,
+              sourceSha: g.context.revision,
+              report: {
+                summary: "Understood retained task",
+                difficulty: "low",
+                difficultyReason: "Fixture",
+                issues: [],
+                remainingUncertainty: "Preview pending",
+                nextAction: "Implement",
+              },
+            },
+          }),
+        );
+        oldAttempt = await db.deliveryAttempt.findUniqueOrThrow({ where: { id: first.attemptId } });
+        const binding = g.guardian.runtime.binding as unknown as RegistrationBinding;
+        const runtime = await db.codexGuardianRuntime.findUniqueOrThrow({
+          where: { id: g.guardian.runtime.id },
+        });
+        const store = new AccountMaintenanceStore(db);
+        const result = await resumeAccountMaintenanceFixture(
+          db,
+          {
+            fixture: g,
+            binding,
+            runtime,
+            store,
+            input: {
+              requestId: randomUUID(),
+              expectedVersion: 0,
+              runtimeId: runtime.id,
+              runtimeGeneration: runtime.generation,
+            },
+          },
+          "successful",
+        );
+        const permit = result.authority.authorizations[0];
+        expect(permit.runnable).toBe(true);
+        expect(permit.claimContinuation).toBeTruthy();
+        const managerWire = g.managerEnvelope,
+          sourceWire = g.sourceEnvelope,
+          acceptanceWire = g.envelope,
+          registration = g.registration;
+        const actor = {
+          registrationId: result.registrationId,
+          serverInstanceId: result.serverInstanceId,
+        };
+        g.managerEnvelope = (command, overrides = {}) =>
+          managerWire(command, { ...actor, ...overrides });
+        g.sourceEnvelope = (claim, source, sequence, overrides = {}) =>
+          sourceWire(claim, source, sequence, { ...actor, ...overrides });
+        g.envelope = (data) => acceptanceWire({ ...actor, ...data });
+        g.registration = () => ({ ...registration(), serverInstanceId: actor.serverInstanceId });
+        g.serverInstanceId = actor.serverInstanceId;
+        g.parentTurnId = randomUUID();
+        g.source = {
+          ...g.source,
+          parentTurnId: g.parentTurnId,
+          spawnCallId: randomUUID(),
+          childThreadId: randomUUID(),
+          childTurnId: randomUUID(),
+        };
+        return {
+          claimOverrides: {
+            nativeTurnId: g.parentTurnId,
+            maintenanceContinuation: permit.claimContinuation,
+          },
+        };
+      },
+    });
+    await collectCompletionProviderFacts(db, f, f.publication.operationId);
+    const original = await db.deliveryAttempt.findUniqueOrThrow({ where: { id: oldAttemptId } });
+    expect(original).toEqual(oldAttempt);
+    expect((original.runtimeBinding as { serverInstanceId: string }).serverInstanceId).toBe(
+      oldServer,
+    );
+    expect(
+      (await db.deliveryAttempt.findUniqueOrThrow({ where: { id: f.claim.attemptId } }))
+        .runtimeBinding,
+    ).toMatchObject({ serverInstanceId: f.serverInstanceId });
+    const response = await f.service.dispatch(
+      f.envelope({ action: "complete_verified", terminal: f.terminal }),
+    );
+    expect(response.result).toMatchObject({ phase: "completed" });
+    expect(
+      await db.$transaction((tx) => epicPreviewReadiness(tx, f.policies, f.user.id, f.taskId)),
+    ).toMatchObject({
+      milestone: "implementation_preview",
+      writerHeld: true,
+      productionVerified: false,
+    });
+    expect(await db.deliveryAttempt.findUniqueOrThrow({ where: { id: oldAttemptId } })).toEqual(
+      oldAttempt,
+    );
+    expect(
+      (
+        await db.deliveryManagerBinding.findUniqueOrThrow({
+          where: { id: f.claim.managerBindingId },
+        })
+      ).activeAttemptId,
+    ).toBe(oldAttemptId);
+    for (const settings of [{ effectiveModel: null }, { effectiveEffort: null }]) {
+      await expect(
+        db.$transaction(async (tx) => {
+          await tx.deliveryAttempt.update({ where: { id: oldAttemptId }, data: settings });
+          expect(await epicPreviewReadiness(tx, f.policies, f.user.id, f.taskId)).toBeNull();
+          throw Error("rollback historical settings fixture");
+        }),
+      ).rejects.toThrow("rollback historical settings fixture");
+    }
+    await expect(
+      db.$transaction(async (tx) => {
+        await tx.deliveryEvent.create({
+          data: {
+            id: randomUUID(),
+            ownerId: f.user.id,
+            taskId: f.taskId,
+            stepId: original.stepId,
+            attemptId: oldAttemptId,
+            aggregateKey: `attempt/${oldAttemptId}`,
+            aggregateVersion: original.runtimeVersion + 1,
+            type: "native_source_conflict",
+            requestDigest: "a".repeat(64),
+            policyVersion: f.policy.version,
+            payload: {
+              producer: "installed-codex-native-observer-v1",
+              nativeSourceKind: "turn_completed",
+              turnStatus: "failed",
+            },
+          },
+        });
+        expect(await epicPreviewReadiness(tx, f.policies, f.user.id, f.taskId)).toBeNull();
+        throw Error("rollback historical fixture");
+      }),
+    ).rejects.toThrow("rollback historical fixture");
+    expect(
+      await db.$transaction((tx) => epicPreviewReadiness(tx, f.policies, f.user.id, f.taskId)),
+    ).not.toBeNull();
+  });
+
   it("completes exact verified source once without manager narrative or writer release", async () => {
     const f = await fixture(),
       wire = () => f.envelope({ action: "complete_verified", terminal: f.terminal });
