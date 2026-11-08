@@ -63,7 +63,18 @@ export default {
         latest_build: {
           id: buildId,
           status: "running",
-          resources: [{ agents: [{ id: agentId, status: "connected" }] }],
+          resources: [
+            {
+              type: "kubernetes_deployment_v1",
+              name: "workspace",
+              agents: [{ id: agentId, status: "connected" }],
+            },
+            ...Array.from({ length: 6 }, (_, index) => ({
+              type: "coder_env",
+              name: `fixture-env-${index}`,
+            })),
+            { type: "kubernetes_persistent_volume_claim_v1", name: "home" },
+          ],
         },
       });
     if (path === `/api/v2/workspaces/${workspaceId}/extend` && request.method === "PUT") {

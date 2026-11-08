@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T20:28:15.273917+00:00",
+  "purpose": "sanitized-provider-shape-evidence-for-terminal-parser",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "buildId": "6d1fd221-8426-4fa3-91b8-a19780e45409",
+  "provenance": {
+    "observation": "Primary orchestrator filtered a fresh actual Coder workspace response before assigning this fix.",
+    "rawMetadataIncluded": false,
+    "requeriedForThisPatch": false
+  },
+  "resourceCount": 8,
+  "resourceGroups": [
+    {
+      "category": "deployment",
+      "count": 1,
+      "agentsField": "array",
+      "agentCount": 1
+    },
+    {
+      "category": "coder_env",
+      "count": 6,
+      "agentsField": "omitted"
+    },
+    {
+      "category": "PVC",
+      "count": 1,
+      "agentsField": "omitted"
+    }
+  ],
+  "existingContract": "src/lib/coder/types.ts WorkspaceResource.agents?: WorkspaceAgent[]",
+  "normalization": "Omitted agents becomes an empty array; null, nonarrays and malformed members still reject.",
+  "authorizationUnchanged": [
+    "100-resource and100-agent bounds",
+    "current session and Coder API subject",
+    "exact workspace owner",
+    "current running build",
+    "unique selected connected agent"
+  ],
+  "validation": {
+    "providerShapeFixture": "src/__tests__/cloudflare/generic-terminal-runtime.test.ts",
+    "localWorkerdProvider": "deploy/cloudflare/app/local-generic-terminal-provider.ts",
+    "syntheticProviderOnly": true,
+    "liveTerminalAcceptance": false,
+    "soleHistoricalFailureCauseEstablished": false,
+    "focusedTestsPassed": 52,
+    "typecheckPassed": true,
+    "localWorkerdChecksPassed": 12,
+    "localWorkerdProof": "docs/checks/autonomous-delivery/generic-terminal-local/workerd-agentless-resources.json"
+  }
+}
