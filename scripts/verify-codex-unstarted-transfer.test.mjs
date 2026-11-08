@@ -1099,7 +1099,7 @@ test("v1 recovery and installed two-task reuse observe the official guardian whi
   const currentNode = nodeMetadata(process.execPath);
   if (!currentNode.safe) {
     const candidates = ["/usr/local/bin/node", "/usr/bin/node"].map(nodeMetadata);
-    const chosen = candidates.find((candidate) => {
+    const supported = (candidate) => {
       if (!candidate.safe) return false;
       try {
         const major = Number(
@@ -1114,7 +1114,38 @@ test("v1 recovery and installed two-task reuse observe the official guardian whi
       } catch {
         return false;
       }
-    });
+    };
+    let chosen = candidates.find(supported);
+    if (!chosen && process.env.GITHUB_ACTIONS === "true") {
+      // Hosted runner Node files can be world-writable. Prepare only our own
+      // fixture with production-like ownership; the test process stays unprivileged.
+      const fixtureDirectory = mkdtempSync(join(tmpdir(), "hive-owned-node-")),
+        fixtureNode = join(fixtureDirectory, "node"),
+        sourceDigest = sha(readFileSync(currentNode.path));
+      t.after(() => rmSync(fixtureDirectory, { recursive: true, force: true }));
+      execFileSync(
+        "/usr/bin/sudo",
+        [
+          "-n",
+          "/usr/bin/install",
+          "-o",
+          "0",
+          "-g",
+          "0",
+          "-m",
+          "0555",
+          "--",
+          currentNode.path,
+          fixtureNode,
+        ],
+        { stdio: "pipe", timeout: 10000 },
+      );
+      assert.equal(sha(readFileSync(fixtureNode)), sourceDigest);
+      assert.equal(sha(readFileSync(currentNode.path)), sourceDigest);
+      const preparedNode = nodeMetadata(fixtureNode);
+      candidates.push(preparedNode);
+      if (supported(preparedNode)) chosen = preparedNode;
+    }
     assert.ok(
       chosen,
       `No supported root-owned non-writable fixture Node: ${JSON.stringify({ current: currentNode, candidates })}`,
