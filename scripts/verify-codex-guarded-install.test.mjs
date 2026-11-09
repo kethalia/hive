@@ -30,6 +30,7 @@ sys.dont_write_bytecode=True
 assert ctypes.CDLL(None).prctl(36,1,0,0,0)==0
 signal.signal(signal.SIGCHLD,signal.SIG_DFL)
 home=Path('/home/coder'); root=Path('/fixture')
+(root/'driver-pid').write_text(str(os.getpid()))
 assert os.getuid()==0 and pwd.getpwuid(os.getuid()).pw_dir==str(home)
 spec=importlib.util.spec_from_file_location('installed',root/'install-codex-host.py'); installed=importlib.util.module_from_spec(spec);spec.loader.exec_module(installed)
 result={'manifestIdentitySynthetic':True,'schemaVersion':1,'namespaceUid':os.getuid(),'networkNamespaceIsolated':True,'accountInference':False,'cleanupAuthorized':False}
@@ -83,7 +84,110 @@ try:
  changed=copy.deepcopy(request);changed['config']['model']='gpt-fixture-changed'
  assert rejected(lambda:invoke(changed));assert same(installed.process_identity(identity['pid']),identity)
  result['liveConfigChangeRejected']=True
- if (root/'idle-mode').exists():
+ if (root/'unused-bootstrap-mode').exists():
+  stage='retain_unused_bootstrap_before_detached_restart'
+  guardian=home/'.local/state/hive/codex-host-guardian'
+  controller=home/'.local/state/hive/codex-project-controller'
+  root_path=home/'.local/state/hive/managed-projects/root.json'
+  old_outer=(guardian/'lifetime.json').read_bytes()
+  old_project=(controller/'projects.json').read_bytes()
+  old_root=root_path.read_bytes()
+  auth=home/'.local/share/hive/codex-native/codex/auth.json'
+  auth_raw=b'{"fixture":"opaque bytes, never used for authentication"}\n'
+  auth.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+  auth.write_bytes(auth_raw);auth.chmod(0o600)
+  # Only the exact test-owned first host is stopped. The subreaper then waits
+  # for its real guardian/worker descendants without altering process inspection.
+  fd=os.pidfd_open(identity['pid'])
+  try:
+   assert same(installed.process_identity(identity['pid']),identity)
+   signal.pidfd_send_signal(fd,signal.SIGKILL)
+  finally:os.close(fd)
+  deadline=time.monotonic()+6
+  while True:
+   try:
+    pid,_=os.waitpid(-1,os.WNOHANG|0x40000000)
+    if pid:continue
+   except ChildProcessError:break
+   assert time.monotonic()<deadline;time.sleep(.01)
+  next_request=copy.deepcopy(request)
+  next_request['config']['binding']['buildId']=json.loads((root/'fixture-ids.json').read_text())['nextBuildId']
+  stage='second_unused_installer'
+  second=invoke(next_request)
+  assert second['status']=='started'
+  receipt=json.loads(receipt_path.read_text());ready=receipt['guardianStartup']['ready'];identity=receipt['process']
+  assert ready['outerIdentity']['parentPid']!=os.getpid()
+  assert installed.kernel_identity(identity['pid'])['parentPid']==os.getpid()
+  assert same(installed.process_identity(identity['pid']),identity)
+  result['detachedInstallerParentExited']=True
+  current_outer=(guardian/'lifetime.json').read_bytes()
+  archive_digest=hashlib.sha256(old_outer).hexdigest()
+  outer_archive=guardian/('lifetime-bootstrap-'+archive_digest+'.json')
+  project_archive=controller/('projects-bootstrap-'+archive_digest+'.json')
+  project_archive_raw=project_archive.read_bytes()
+  assert outer_archive.read_bytes()==old_outer
+  archived=json.loads(project_archive_raw)['state']
+  assert archived['projectRaw']==old_project.decode() and archived['unusedRoot']['raw']==old_root.decode()
+  opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+  def identity_response():
+   req=urllib.request.Request('http://127.0.0.1:'+str(config['port'])+'/guardian/identity',data=json.dumps({'nonce':os.urandom(32).hex()}).encode(),headers={'Host':'app.fixture.invalid','Content-Type':'application/json'})
+   try:
+    with opener.open(req,timeout=5) as response:return response.status,response.read(32769)
+   except urllib.error.HTTPError as error:return error.code,error.read(32769)
+  stage='actual_discovery_identity_after_installer_exit'
+  status,body=identity_response()
+  result['firstDiscoveryIdentityHttpStatus']=status
+  result['firstDiscoveryIdentityBodyBytes']=len(body)
+  assert status==200
+  packet=json.loads(body)
+  assert packet['startup']['outerIdentity']['parentPid']==os.getpid()
+  assert packet['startup']['outerIdentity']['parentPid']!=ready['outerIdentity']['parentPid']
+  assert packet['startup']['guardianIdentity']['parentPid']==identity['pid']
+  assert packet['startup']['workerIdentity']['parentPid']==ready['guardianIdentity']['pid']
+  assert packet['emptyRoot']['mode']=='initial-unused-remount'
+  assert packet['emptyRoot']['unusedBootstrap']['oldBuildId']==config['binding']['buildId']
+  assert packet['emptyRoot']['unusedBootstrap']['newBuildId']==next_request['config']['binding']['buildId']
+  assert len(json.dumps(packet['emptyRoot']).encode())<=16384
+  assert (guardian/'lifetime.json').read_bytes()==current_outer
+  stage='stable_startup_and_history_rejections'
+  rejected_changes=[]
+  def replace_signed(path,mutate):
+   envelope=json.loads(path.read_bytes());mutate(envelope['state'])
+   envelope['signature']=hmac.new((guardian/'key').read_bytes(),json.dumps(envelope['state'],separators=(',',':')).encode(),hashlib.sha256).hexdigest()
+   path.write_bytes(json.dumps(envelope,separators=(',',':')).encode());path.chmod(0o600)
+  mutations=[]
+  for actor in ('outerIdentity','guardianIdentity','workerIdentity'):
+   for field in ('pid','startTime','bootId','executable','device','inode'):
+    mutations.append((actor+'.'+field,lambda state,actor=actor,field=field:state['events'][4]['value'][actor].__setitem__(field,state['events'][4]['value'][actor][field]+1 if field=='pid' else str(state['events'][4]['value'][actor][field])+'-changed')))
+  for actor in ('guardianIdentity','workerIdentity'):
+   mutations.append((actor+'.parentPid',lambda state,actor=actor:state['events'][4]['value'][actor].__setitem__('parentPid',state['events'][4]['value'][actor]['parentPid']+1)))
+  mutations.extend([
+   ('generation',lambda state:state['events'][4]['value'].__setitem__('generation',2)),
+   ('projects',lambda state:state['events'][4]['value'].__setitem__('projects',[{'projectId':'unexpected'}])),
+   ('workerSha256',lambda state:state['events'][4]['value'].__setitem__('workerSha256','0'*64)),
+   ('unknownStartupField',lambda state:state['events'][4]['value'].__setitem__('unexpected',True)),
+   ('invalidOuterParent',lambda state:state['events'][4]['value']['outerIdentity'].__setitem__('parentPid',0)),
+  ])
+  for label,mutate in mutations:
+   replace_signed(guardian/'lifetime.json',mutate)
+   try:
+    status,body=identity_response();assert status==403 and body==b''
+    rejected_changes.append(label)
+   finally:(guardian/'lifetime.json').write_bytes(current_outer)
+  outer_archive.write_bytes(old_outer+b' ')
+  try:
+   status,body=identity_response();assert status==403 and body==b''
+   rejected_changes.append('archivedSignedHistory')
+  finally:outer_archive.write_bytes(old_outer)
+  assert identity_response()[0]==200
+  assert outer_archive.read_bytes()==old_outer and project_archive.read_bytes()==project_archive_raw
+  assert (guardian/'lifetime.json').read_bytes()==current_outer and root_path.read_bytes()==old_root and auth.read_bytes()==auth_raw
+  assert json.loads((controller/'projects.json').read_text())['state']['projects']==json.loads(old_project)['state']['projects']
+  result['identities']={k:ready[k] for k in ('outerIdentity','guardianIdentity','workerIdentity')}
+  inventory=json.loads((root/'last-process-inventory.json').read_text())
+  assert all(ready[k]['pid'] in inventory for k in ('outerIdentity','guardianIdentity','workerIdentity'))
+  result['unusedBootstrapDiscovery']={'httpStatus':200,'mode':packet['emptyRoot']['mode'],'proposalBytes':len(json.dumps(packet['emptyRoot']).encode()),'rawHistoryUnchanged':True,'authBytesUnchanged':True,'rejectedChanges':rejected_changes,'processInventoryProjected':True,'allKnownFixtureActorsInspected':True,'unrelatedPrimaryProcessUniverseExcluded':True}
+ elif (root/'idle-mode').exists():
   stage='idle_close_restart'
   def signed(path,keypath):
    saved=json.loads(path.read_text());encoded=json.dumps(saved['state'],separators=(',',':'),ensure_ascii=False).encode()
@@ -149,7 +253,8 @@ try:
    assert time.monotonic()<deadline;time.sleep(.02)
   assert task['guardianPreparation'] and not task.get('guardianAdmission') and not task.get('prepared')
   assert task['nativeCreationAttempted'] is False and task['firstPromptSubmissionAttempted'] is False
-  assert not (home/'projects/.hive-managed').exists()
+  assert (home/'projects/.hive-managed').is_dir()
+  assert not any((home/'projects/.hive-managed').iterdir())
   assert not (home/'.local/state/hive/codex-project-supervisor').exists()
   result['defaultPreparationDenied']=True
   result['noNativeRuntimeStarted']=True
@@ -187,13 +292,14 @@ finally:
  if failed:sys.exit(1)
 `;
 
-function guardedInstallFixture(idle) {
+function guardedInstallFixture(idle, unusedBootstrap = false) {
   const root = resolve("."),
     directory = mkdtempSync(join(tmpdir(), "hive-guarded-install-"));
   const home = join(directory, "home"),
     bundle = join(directory, "bundle");
   privateDir(home);
   if (idle) writeFileSync(join(directory, "idle-mode"), "1");
+  if (unusedBootstrap) writeFileSync(join(directory, "unused-bootstrap-mode"), "1");
   const evidence = process.env.HIVE_GUARDED_INSTALL_EVIDENCE_PATH;
   const artifactDirectory = resolve(
     process.env.HIVE_GUARDIAN_ARTIFACT_DIR || "/tmp/hive-guardian-ci-17dbf25",
@@ -202,11 +308,13 @@ function guardedInstallFixture(idle) {
   const sourcePaths = [
     "scripts/verify-codex-guarded-install.test.mjs",
     "scripts/fixtures/workspace-identity-install.py",
+    "scripts/fixtures/guarded-install-process-inventory.py",
     "scripts/build-codex-host-bundle.mjs",
     "scripts/build-native-guardian.mjs",
     ...[
       "install-codex-host.py",
       "codex-native-guardian.c",
+      "codex-empty-root.mjs",
       "codex-native-guardian.mjs",
       "codex-guardian-startup.mjs",
       "codex-guardian-worker.mjs",
@@ -242,6 +350,26 @@ function guardedInstallFixture(idle) {
       timeout: 10000,
       stdio: "pipe",
     });
+    if (unusedBootstrap) {
+      // Extend the established fixture-only /proc projection to its complete
+      // descendant tree. Production bytes and process inspection stay exact.
+      const managedPath = join(bundle, "managed-projects.py"),
+        projection = readFileSync("scripts/fixtures/guarded-install-process-inventory.py", "utf8");
+      const managed = readFileSync(managedPath, "utf8");
+      assert.equal(managed.split("from pathlib import Path\n").length, 2);
+      chmodSync(managedPath, 0o600);
+      writeFileSync(
+        managedPath,
+        managed.replace("from pathlib import Path\n", `from pathlib import Path\n${projection}\n`),
+      );
+      chmodSync(managedPath, 0o500);
+      const manifestPath = join(bundle, "package-manifest.json"),
+        manifest = JSON.parse(readFileSync(manifestPath));
+      manifest.files["managed-projects.py"] = fileSha(managedPath);
+      chmodSync(manifestPath, 0o600);
+      writeFileSync(manifestPath, JSON.stringify(manifest));
+      chmodSync(manifestPath, 0o400);
+    }
     const nativeExecutable = realpathSync(
       process.env.HIVE_TEST_CODEX_EXECUTABLE ||
         "/home/coder/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex",
@@ -294,10 +422,11 @@ function guardedInstallFixture(idle) {
         "projectId",
         "taskId",
         "requestId",
+        "nextBuildId",
       ].map((key) => [key, randomUUID()]),
     );
     const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-    const { projectId, taskId, requestId, ...identity } = ids;
+    const { projectId, taskId, requestId, nextBuildId: _nextBuildId, ...identity } = ids;
     const config = {
       schemaVersion: 1,
       enabled: true,
@@ -313,8 +442,8 @@ function guardedInstallFixture(idle) {
       port: 32179,
       model: "gpt-6.1-sol",
       effort: "low",
-      managerEnabled: idle,
-      ...(idle ? { deliveryExecutionEnabled: true } : {}),
+      managerEnabled: idle || unusedBootstrap,
+      ...(idle || unusedBootstrap ? { deliveryExecutionEnabled: true } : {}),
       nativeIsolationEnabled: true,
       guardianEnabled: true,
     };
@@ -482,7 +611,13 @@ function guardedInstallFixture(idle) {
     if (evidence) {
       privateDir(dirname(resolve(evidence)));
       writeFileSync(
-        resolve(idle ? `${evidence}.idle.json` : evidence),
+        resolve(
+          unusedBootstrap
+            ? `${evidence}.unused-bootstrap.json`
+            : idle
+              ? `${evidence}.idle.json`
+              : evidence,
+        ),
         `${JSON.stringify(result, null, 2)}\n`,
         { flag: "wx" },
       );
@@ -502,6 +637,15 @@ function guardedInstallFixture(idle) {
     else process.stderr.write(`Guarded installer fixture retained: ${directory}\n`);
   }
 }
+
+test(
+  "detached installer exit preserves actual discovery identity and unused bootstrap proposal",
+  {
+    skip: process.env.HIVE_TEST_GUARDED_INSTALL !== "1",
+    timeout: 60000,
+  },
+  () => guardedInstallFixture(false, true),
+);
 
 for (const idle of [false, true])
   test(

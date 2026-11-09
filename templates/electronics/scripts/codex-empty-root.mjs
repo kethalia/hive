@@ -203,13 +203,27 @@ export function readUnusedBootstrapRoot(home, startup, config) {
       startup.generation === 1 &&
       startup.projects?.length === 0,
   );
-  const currentOuter = signed(join(outerDir, "lifetime.json"), outerKey).state;
+  const currentOuter = signed(join(outerDir, "lifetime.json"), outerKey).state,
+    retainedStartup = currentOuter.events[4]?.value;
   check(
     currentOuter.phase === "startupReady" &&
       currentOuter.receipts.length === 0 &&
       currentOuter.events.map((e) => e.name).join() ===
         "begin,ready,launchIntent,open,startupReady" &&
-      canonical(currentOuter.events[4].value) === canonical(startup),
+      Number.isSafeInteger(retainedStartup?.outerIdentity?.parentPid) &&
+      retainedStartup.outerIdentity.parentPid > 0 &&
+      Number.isSafeInteger(startup.outerIdentity?.parentPid) &&
+      startup.outerIdentity.parentPid > 0 &&
+      // The detached installer's exit reparents the same outer process. Match
+      // every other signed startup field without rewriting retained history.
+      canonical(retainedStartup) ===
+        canonical({
+          ...startup,
+          outerIdentity: {
+            ...startup.outerIdentity,
+            parentPid: retainedStartup.outerIdentity.parentPid,
+          },
+        }),
   );
   const outerAllowed = new Set([
     "key",

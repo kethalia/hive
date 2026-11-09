@@ -329,6 +329,84 @@ test("ordinary OPEN survives actual unused bootstrap restart with raw archives a
   assert(!existsSync(join(f.home, ".local/state/hive/codex-project-supervisor/registry.json")));
   await f.kill(next);
 });
+test("unused bootstrap startup permits only a positive outer parent change and retains exact signed history", async (t) => {
+  const f = await fixture(t, true),
+    next = await f.start(f.next),
+    retained = readFileSync(f.lifetime),
+    startup = JSON.parse(retained).state.events[4].value,
+    live = structuredClone(startup),
+    rootPath = join(f.home, ".local/state/hive/managed-projects/root.json"),
+    rootBytes = readFileSync(rootPath),
+    projectBytes = readFileSync(f.projects);
+  live.outerIdentity.parentPid = startup.outerIdentity.parentPid === 1 ? 2 : 1;
+  const proof = readUnusedBootstrapRoot(f.home, live, f.next);
+  assert.equal(proof.newBuildId, f.next.binding.buildId);
+  for (const actor of ["outerIdentity", "guardianIdentity", "workerIdentity"]) {
+    for (const field of ["pid", "startTime", "bootId", "executable", "device", "inode"]) {
+      const changed = structuredClone(live);
+      changed[actor][field] =
+        field === "pid" ? changed[actor][field] + 1 : `${changed[actor][field]}-changed`;
+      assert.throws(
+        () => readUnusedBootstrapRoot(f.home, changed, f.next),
+        /unused_bootstrap_proof_invalid/,
+        `${actor}.${field}`,
+      );
+    }
+  }
+  for (const actor of ["guardianIdentity", "workerIdentity"]) {
+    const changed = structuredClone(live);
+    changed[actor].parentPid++;
+    assert.throws(
+      () => readUnusedBootstrapRoot(f.home, changed, f.next),
+      /unused_bootstrap_proof_invalid/,
+      `${actor}.parentPid`,
+    );
+  }
+  for (const parentPid of [0, -1, 1.5, "1", undefined]) {
+    const changed = structuredClone(live);
+    changed.outerIdentity.parentPid = parentPid;
+    assert.throws(
+      () => readUnusedBootstrapRoot(f.home, changed, f.next),
+      /unused_bootstrap_proof_invalid/,
+    );
+  }
+  for (const [field, value] of [
+    ["generation", 2],
+    ["projects", [{ projectId: randomUUID() }]],
+    ["workerSha256", "0".repeat(64)],
+    ["guardianSha256", "0".repeat(64)],
+    ["configSha256", "0".repeat(64)],
+    ["packageManifestSha256", "0".repeat(64)],
+    ["unexpected", true],
+  ]) {
+    assert.throws(
+      () => readUnusedBootstrapRoot(f.home, { ...live, [field]: value }, f.next),
+      /unused_bootstrap_proof_invalid/,
+      field,
+    );
+  }
+  rewrite(f.lifetime, f.key, (state) => {
+    state.events[4].value.outerIdentity.parentPid = 0;
+  });
+  assert.throws(
+    () => readUnusedBootstrapRoot(f.home, live, f.next),
+    /unused_bootstrap_proof_invalid/,
+  );
+  writeFileSync(f.lifetime, retained);
+  const archivePath = join(f.guardianDir, `lifetime-bootstrap-${proof.outerArchiveSha256}.json`),
+    archiveBytes = readFileSync(archivePath);
+  writeFileSync(archivePath, Buffer.concat([archiveBytes, Buffer.from(" ")]));
+  assert.throws(
+    () => readUnusedBootstrapRoot(f.home, live, f.next),
+    /bootstrap_archive_history_invalid/,
+  );
+  writeFileSync(archivePath, archiveBytes);
+  assert.deepEqual(readUnusedBootstrapRoot(f.home, live, f.next), proof);
+  assert(readFileSync(f.lifetime).equals(retained));
+  assert(readFileSync(f.projects).equals(projectBytes));
+  assert(readFileSync(rootPath).equals(rootBytes));
+  await f.kill(next);
+});
 test("unused OPEN retirement resumes after inner reset without duplicate archives or mapping root", async (t) => {
   const f = await fixture(t, true),
     raw = readFileSync(f.projects),
@@ -405,6 +483,65 @@ test("fixture projection still holds on a denied tracked process without changin
   );
   assert(readFileSync(path).equals(raw));
   assert(!existsSync(join(f.projectDir, "unused-bootstrap.json")));
+});
+test("two unused OPEN retirements preserve both raw histories and the third-build proposal", async (t) => {
+  const f = await fixture(t, true),
+    firstOuter = readFileSync(f.lifetime),
+    firstProject = readFileSync(f.projects),
+    originalProjects = JSON.parse(firstProject).state.projects,
+    rootPath = join(f.home, ".local/state/hive/managed-projects/root.json"),
+    rootBytes = readFileSync(rootPath),
+    authDir = join(f.home, ".local/share/hive/codex-native/codex"),
+    authBytes = Buffer.from('{"fixture":"opaque auth bytes, never consumed"}\n');
+  assert.equal(Object.keys(originalProjects).length, 1);
+  mkdirSync(authDir, { recursive: true, mode: 0o700 });
+  const authPath = join(authDir, "auth.json");
+  writeFileSync(authPath, authBytes, { mode: 0o600 });
+  const second = await f.start(f.next),
+    secondOuter = readFileSync(f.lifetime),
+    secondProject = readFileSync(f.projects),
+    secondProof = readUnusedBootstrapRoot(
+      f.home,
+      JSON.parse(secondOuter).state.events[4].value,
+      f.next,
+    );
+  await f.kill(second);
+  const thirdConfig = { ...f.next, binding: { ...f.next.binding, buildId: randomUUID() } },
+    third = await f.start(thirdConfig),
+    startup = JSON.parse(readFileSync(f.lifetime)).state.events[4].value;
+  // This chain fixture projects reparenting. The installer fixture separately
+  // exercises actual detached parent exit through loopback discovery.
+  startup.outerIdentity.parentPid = startup.outerIdentity.parentPid === 1 ? 2 : 1;
+  const thirdProof = readUnusedBootstrapRoot(f.home, startup, thirdConfig);
+  assert.equal(thirdProof.oldBuildId, f.next.binding.buildId);
+  assert.equal(thirdProof.newBuildId, thirdConfig.binding.buildId);
+  assert.equal(thirdProof.rootRecordSha256, sha(rootBytes));
+  assert.notEqual(thirdProof.historyDigest, secondProof.historyDigest);
+  assert.deepEqual(JSON.parse(readFileSync(f.projects)).state.projects, originalProjects);
+  for (const [outer, project] of [
+    [firstOuter, firstProject],
+    [secondOuter, secondProject],
+  ]) {
+    assert(
+      readFileSync(join(f.guardianDir, `lifetime-bootstrap-${sha(outer)}.json`)).equals(outer),
+    );
+    const archived = JSON.parse(
+      readFileSync(join(f.projectDir, `projects-bootstrap-${sha(outer)}.json`)),
+    ).state;
+    assert.equal(archived.projectRaw, project.toString());
+    assert.equal(archived.unusedRoot.raw, rootBytes.toString());
+  }
+  assert.equal(
+    readdirSync(f.guardianDir).filter((name) => name.startsWith("lifetime-bootstrap-")).length,
+    2,
+  );
+  assert.equal(
+    readdirSync(f.projectDir).filter((name) => name.startsWith("projects-bootstrap-")).length,
+    2,
+  );
+  assert(readFileSync(rootPath).equals(rootBytes));
+  assert(readFileSync(authPath).equals(authBytes));
+  await f.kill(third);
 });
 test("two actual abrupt bootstrap restarts retain signed history without claiming native closure", async (t) => {
   const f = await fixture(t),
