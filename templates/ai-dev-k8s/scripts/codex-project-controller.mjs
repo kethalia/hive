@@ -2596,7 +2596,7 @@ export function createProjectController(config, deps) {
           /^[a-f0-9]{64}$/.test(barrier.ownershipDigest) &&
           uuid(barrier.barrierId) &&
           Array.isArray(barrier.projects) &&
-          (barrier.projects.length > 0 || Object.keys(state.projects).length === 0) &&
+          (barrier.projects.length > 0 || unusedBootstrapProjects(state.projects)) &&
           barrier.projects.length === enrolled.length &&
           new Set(barrier.projects.map((p) => p.projectId)).size === enrolled.length &&
           enrolled.every(
