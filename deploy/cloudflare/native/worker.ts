@@ -6,4 +6,5 @@ import { createNativeWorker } from "./composition.mjs";
 
 export default createNativeWorker({ app, auth, jobs, buildIdentity });
 
+export { AgentNotificationWake } from "./agent-notification-wake.mjs";
 export { ProjectTaskWake } from "./project-task-wake.mjs";

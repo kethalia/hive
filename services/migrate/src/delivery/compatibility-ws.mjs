@@ -18,7 +18,8 @@ export async function compatibilityDatabaseTransport(
     ["127.0.0.1", "localhost"].includes(target.hostname) &&
       target.port &&
       (target.pathname === "/hive_compatibility" ||
-        /^\/hive_d10_test(?:_[a-z0-9_]+)?$/.test(target.pathname)) &&
+        /^\/hive_d10_test(?:_[a-z0-9_]+)?$/.test(target.pathname) ||
+        /^\/hive_f07_agent_wake_[a-z0-9_]+$/.test(target.pathname)) &&
       (!knownTrustFixture || !target.password),
     "migration_compatibility_fixture_scope",
   );

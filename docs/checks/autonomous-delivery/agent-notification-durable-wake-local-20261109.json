@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-09",
+  "status": "default_off_local_proof_passed_pending_independent_review",
+  "baseCommit": "9ccc7a6f481e3615c17135855065edc40436da78",
+  "branch": "codex/agent-notification-durable-wake",
+  "scope": "One exact owner/source/event agent-notification wake in the existing Worker, PostgreSQL outbox and sender",
+  "configuration": {
+    "enabled": false,
+    "selectorConfigured": false,
+    "sameWorkerClass": "AgentNotificationWake",
+    "sqliteMigration": "agent-notification-wake-v1",
+    "newEndpoint": false,
+    "newPackage": false,
+    "newService": false,
+    "newSchemaMigration": false
+  },
+  "invariants": {
+    "sourceAuthenticatedBeforeReservation": true,
+    "reservationOutsideSourceTransaction": true,
+    "lockedSourceRevalidationBeforeInsert": true,
+    "failedReservationInsertsZeroRows": true,
+    "fixedDeadlineOnReplayAndUnknownCommit": true,
+    "postInsertDatabaseClockExpiryRollsBackRateAndOutbox": true,
+    "exactRowFilterOnExhaustionAndClaim": true,
+    "fiveDeliveryAttempts": true,
+    "existingImmutableTriggerUnchanged": true,
+    "activeLeaseAndTerminalRowsFenced": true,
+    "metadataOnlyObject": true,
+    "defaultAndNonpilotZeroObjectIO": true,
+    "heldAndTerminalAlarmsZeroIdleDatabaseQueries": true
+  },
+  "bounds": {
+    "reservationMilliseconds": 1800000,
+    "admittedApplicationInvocationBoundary": 100,
+    "logicalSqlStateBytes": 65536,
+    "attemptWatchdogMilliseconds": 45000,
+    "databaseQueryAndConnectionMilliseconds": 5000,
+    "databaseTransactionMilliseconds": 10000,
+    "poolCleanupMilliseconds": 5000,
+    "reservationRpcMilliseconds": 5000,
+    "senderMilliseconds": 15000,
+    "pushClaimLeaseMilliseconds": 120000
+  },
+  "disablement": {
+    "retainExactSelector": true,
+    "existingConsumerChecksBeforeSend": true,
+    "pendingFailureUsesExistingDueClaimAndSettlementCAS": true,
+    "doesNotOverwriteCurrentProcessingLease": true,
+    "selectorRemovalRequiresExactOutboxTerminalAndUnknownCommitsReconciled": true,
+    "flagOffAndSelectorRemovalWithUnresolvedWorkSafe": false
+  },
+  "localDatabase": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "version": "17.11",
+    "ownedPostmasterVerified": true,
+    "newUniqueDatabaseRefusedIfExisting": true,
+    "migrationCount": 54,
+    "otherDatabaseServerOrGlobalRoleCommandsIssued": false
+  },
+  "checks": {
+    "focusedRuntimeAndConfig": {
+      "passed": 34,
+      "failed": 0,
+      "skipped": 0
+    },
+    "postgresqlFences": {
+      "passed": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "existingPushRouteAndSender": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    "realSqlitePostgresqlSplitBundleComposition": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": true,
+    "biome": true,
+    "diffCheck": true,
+    "ciYamlParsed": true
+  },
+  "actualComposition": {
+    "producerUsesActualAppCompositionAndRoute": true,
+    "frameworkAndCustomWorkerBundledSeparately": true,
+    "realPlatformAlarmAfterProducerRequestClosed": true,
+    "actualPrismaNeonPostgresql": true,
+    "actualSharedSender": true,
+    "pushSubscriptions": 0,
+    "providerRequests": 0,
+    "heldEnrollmentRespectedByActualJobsConsumer": true,
+    "runtimeAndBridgeDisposed": true
+  },
+  "limits": [
+    "Local composition uses zero push subscriptions and proves no external push delivery or browser notification presentation.",
+    "No live event callback, Durable Object invocation, enrollment, deployment, provider operation or spend was performed.",
+    "Alarm and push delivery remain at least once, with stable source/event tags. An admitted external send can have an unknown outcome.",
+    "The watchdog cancels admitted application work. In-flight bounded database work and the actual sender drain before request database teardown.",
+    "Held pending work is fenced, not falsely delivered. Existing consumers may fail due rows through normal claim/settle.",
+    "Keep the selector until exact PostgreSQL terminal state and reconciliation of unknown producer commits. Removing it earlier releases the consumer fence.",
+    "Rotation, warning deadlines, template publication and release arming remain outside this slice.",
+    "Cloudflare platform retry/no-op invocations remain possible after the application work boundary. The counter is not a billing cap."
+  ],
+  "sourceSha256": {
+    "src/lib/push/agent-event-wake-contracts.ts": "5c386a3ace1a0f17491ca4010e0ef377ff5a7ffaf4611f3a372a274e99b8b2f2",
+    "src/lib/push/agent-event-wake.server.ts": "f03a48382dfd9df12997f6d053a759a982a97fb4b99f63a8ebd76f6d8fcade4e",
+    "src/lib/push/agent-events.ts": "e3a8d9f6d471234c041b009b88a7f5346f3c45bd5dd3462fa6b36f045052a19b",
+    "src/lib/push/durable-outbox.ts": "4566217a2f33a7cab67daf1ec467c7c4b21818d6c398a7c71ccfd2ece884dceb",
+    "deploy/cloudflare/app/agent-notification-wake.ts": "093fa854dcdd5d98e592cadbdba256225d370753391582b8f70964f8c7132439",
+    "deploy/cloudflare/app/composition.ts": "79e8758dbdbd1f4e37ea2ba6e047dcc8c52023d02343faff5f7a52ea5dc845ae",
+    "deploy/cloudflare/jobs/worker.ts": "2e8e2bf5a8ad8a2d0d7e931f7a32fbaef8122079a2ff634c85c239c19e3bc600",
+    "deploy/cloudflare/native/agent-notification-wake.mjs": "a2671e1589be23e52e02b80a1e791635c11f5787a1b5e03df686485552a740bc",
+    "deploy/cloudflare/native/agent-notification-wake.test.mjs": "983a60220d69928790e490ece7f71ebe6db225e5908a508d457d4b6877bfa558",
+    "deploy/cloudflare/native/agent-notification-wake.integration.test.mjs": "ec518aa1bfb59be2c7875c519e58ac964d12759064b6d6d154ab8377ede2cc2b",
+    "deploy/cloudflare/native/worker.ts": "3155828669c106e09d3df0a8ea3e68891f96e717ee49ce636294629e59eb758d",
+    "deploy/cloudflare/native/wrangler.jsonc": "4451f8f622904cc0cd078212877e9681920743a2c3a1a7f918586a822f11c452",
+    "deploy/cloudflare/native/deploy.mjs": "c636dac41f5704f07354a518213d2fd25e0b7f51172cbdbe1e288efa92f53236",
+    "deploy/cloudflare/native/deploy.test.mjs": "75a67a622e7d177cccdbe289fac0f01806ed9b3dfe515680decbc1a9aa5dbd36",
+    "src/__tests__/push/agent-event-wake.integration.test.ts": "bc778ec3da5619ba9787074e0e678fa9798e79338bda3744f13bc4cbfc10ec24",
+    "services/migrate/src/delivery/compatibility-ws.mjs": "28e9675b11a7ab9b87bf26226705b557fcb0da730bae3da9ec732fd895ded7ef",
+    ".github/workflows/ci.yml": "4be91350aced763c13fb6b48fdfd20cb9097a39fb6db349faba7f0daaf559142",
+    "package.json": "8faf97fe00ed54ecaa13c073d398e20e4611e6c8a5b3cdaea55c613f3a126500"
+  }
+}

@@ -48,6 +48,10 @@ const disabled = [
 // second policy schema or accept plaintext credential settings.
 const previewRuntimeVars = new Set([
   "HIVE_PROJECT_TASK_WAKE_ENABLED",
+  "HIVE_AGENT_NOTIFICATION_WAKE_ENABLED",
+  "HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED",
+  "HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED",
+  "HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON",
   "HIVE_PROJECT_TASK_WAKE_TASK_JSON",
   "HIVE_CODEX_ACCOUNTS_ENABLED",
   "HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED",
@@ -193,12 +197,16 @@ export function validateConfig(c) {
   assert.deepEqual(c.compatibility_flags, ["nodejs_compat", "global_fetch_strictly_public"]);
   assert.deepEqual(c.limits, { cpu_ms: 100 });
   const wakeBinding = {
-    bindings: [{ name: "HIVE_PROJECT_TASK_WAKE", class_name: "ProjectTaskWake" }],
+    bindings: [
+      { name: "HIVE_PROJECT_TASK_WAKE", class_name: "ProjectTaskWake" },
+      { name: "HIVE_AGENT_NOTIFICATION_WAKE", class_name: "AgentNotificationWake" },
+    ],
   };
   assert.deepEqual(c.durable_objects, wakeBinding);
   assert.deepEqual(c.previews.durable_objects, wakeBinding);
   assert.deepEqual(c.migrations, [
     { tag: "project-task-wake-v1", new_sqlite_classes: ["ProjectTaskWake"] },
+    { tag: "agent-notification-wake-v1", new_sqlite_classes: ["AgentNotificationWake"] },
   ]);
   assert.equal(c.workers_dev, false);
   assert.equal(c.preview_urls, true);
@@ -243,6 +251,24 @@ export function validateConfig(c) {
         /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
       );
   } else assert.equal(v.HIVE_PROJECT_TASK_WAKE_TASK_JSON, undefined);
+
+  assert.ok(["false", "true"].includes(v.HIVE_AGENT_NOTIFICATION_WAKE_ENABLED));
+  if (v.HIVE_AGENT_NOTIFICATION_WAKE_ENABLED === "true") {
+    assert.equal(v.HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED, "true");
+    assert.equal(v.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED, "true");
+    assert.ok(v.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON);
+  }
+  // Disabled enrollment is retained to fence late commits and other consumers.
+  if (v.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON !== undefined) {
+    const scope = JSON.parse(v.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON);
+    assert.deepEqual(Object.keys(scope).sort(), ["eventKey", "ownerId", "sourceId"]);
+    for (const id of [scope.ownerId, scope.sourceId])
+      assert.match(
+        id,
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
+      );
+    assert.match(scope.eventKey, /^[a-zA-Z0-9_-]{1,100}$/);
+  }
 
   const pinned = {
     HIVE_NATIVE_MODE: "preview",

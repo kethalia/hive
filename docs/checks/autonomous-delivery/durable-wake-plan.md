@@ -200,3 +200,50 @@ responses are fixed synthetic doubles. Delayed visibility and clock-boundary
 fixtures exercise the corresponding holds. These checks do not establish live
 provider acceptance, browser-closed native execution, notices, rotation, full F07
 or production cutover.
+
+## Exact agent-notification wake
+
+`HIVE_AGENT_NOTIFICATION_WAKE_ENABLED=false` is the default. With no
+`HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON`, existing callbacks and dispatches perform
+zero notification-DO lookups. An opt-in native Preview selects one exact
+`{ownerId, sourceId, eventKey}` tuple and requires the existing notification ingress
+and dispatch flags. The same-Worker `AgentNotificationWake` class uses SQLite.
+
+The callback derives owner/source from the existing bearer credential before
+reserving metadata. Reservation runs outside the revocable source transaction.
+The transaction then locks and revalidates that exact source and current Coder
+identity, preserves rate/backlog/digest checks, and checks the original deadline
+before and after insertion. Failed reservation inserts nothing. A lost committed
+acknowledgement replays the same event with the original reservation deadline.
+
+One metadata-only SQLite row retains the fixed 30-minute deadline, 100-invocation
+application boundary, 64-KiB logical state bound and 45-second attempt watchdog.
+The alarm uses an independent bounded PostgreSQL request lifetime and the existing
+exact-row push claim/settle adapter. Both exhausted-row updates and candidate
+claims are filtered by owner and exact row ID. Five delivery attempts, PostgreSQL
+lease fences, subscription preferences and stable source/event tags continue to
+apply. Alarm delivery and external push are at least once. An already admitted
+sender can have an unknown outcome after disablement.
+
+Keep the exact selector configured when disabling the wake flag. Inspection marks
+that retained enrollment held, and all existing outbox consumers check it before
+sending. A due event can fail through the existing claim/settle CAS. The immutable
+PostgreSQL trigger prevents forcibly failing arbitrary pending rows, and a current
+processing lease is preserved. Held and terminal alarms make zero idle database
+queries. A late commit remains fenced even after the alarm stops. Remove the
+selector only after the exact PostgreSQL event is terminal and all unknown producer
+commits have been reconciled. Disabling the flag and removing the selector while
+work is pending, leased or uncertain does not preserve that fence. Other valid
+owners/events retain their existing path with zero pilot-object I/O.
+
+Local checks cover SQLite eviction/restart, duplicate alarms, bounded holds,
+source revocation between reservation and locking, post-insert deadline rollback,
+unknown committed acknowledgements, exact-row exhaustion and claims, five attempts,
+stable tags and retained disablement. The composed proof runs actual split
+framework/custom-Worker bundles, SQLite alarms, PrismaNeon and PostgreSQL. It has
+zero push subscriptions. A real alarm settles the event after the callback request
+closes, and the actual jobs consumer respects a retained disabled enrollment.
+This establishes local notification preparation and dispatch composition. Live
+producer events, external push delivery, browser notification presentation and
+included-usage acceptance remain separate gates. Rotation, warning deadlines,
+template publication and release arming retain their existing limits.
