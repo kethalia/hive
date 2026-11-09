@@ -374,6 +374,15 @@ with default-off configuration. All13 CI checks and current-head Codex review pa
 before integration into the epic at `cd8f2c46`. Live pilot enrollment remains off. Read-only account analytics show no observed Durable
 Object usage over32days, supporting capacity within the existing included allowances.
 This task-preparation wake does not complete notification, rotation or publication parity.
+The original unused-runtime pilot is normally stopped after a preparation timeout, with its
+HOME, authentication and signed history retained. PR447 (`05f3cc87`) supplies prospective
+enrollment-receipt and explicit empty-close/manual-rebuild recovery. Its final source passes
+280 host cases, eight installed recovery scenarios and fourteen deployment cases locally;
+current-head CI/review and corrected-image live acceptance remain pending. The next candidate
+reuses an existing stopped test workspace and its existing 100Gi PVC. Prepare account,
+policy and observation checks before START enrolls time-limited authority. Historical-mapping
+device changes remain held; no legacy evidence is fabricated. The execution ledger records
+these recovery limits and the remaining shared-session and account-backed acceptance gates.
 Prepare production bindings, retained identities, explicit production OAuth,
 migration compatibility, scheduler handover and rollback as a concrete cutover package for the
 user's final approval. Production activation is not authorized. The
