@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   provision: vi.fn(),
   resolve: vi.fn(),
   enqueue: vi.fn(),
+  holdWake: vi.fn(),
   intent: vi.fn(),
   snapshot: vi.fn(),
   recover: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock("@/lib/projects/task-intents.server", async (original) => ({
   ...(await original()),
   ProjectTaskIntents: class {
     enqueue = mock.enqueue;
+    holdWake = mock.holdWake;
     recoverySnapshot = mock.snapshot;
     recover = mock.recover;
     get = mock.get;
@@ -76,6 +78,7 @@ vi.mock("@/lib/projects/task-intents.server", async (original) => ({
 
 import {
   projectTaskId,
+  readProjectTask as readDurableTask,
   readHostProjectTask as readProjectTask,
   retryProjectTask,
   startProjectTask,
@@ -517,4 +520,188 @@ it("retries a persisted authorized recovery directly after an admission/fence tr
   expect(mock.enqueue).not.toHaveBeenCalled();
   expect(JSON.stringify(authorized)).toBe(before);
   expect(JSON.stringify(mock.host.mock.calls)).not.toContain(input.text);
+});
+
+describe("durable wake before accepted enqueue", () => {
+  async function environment() {
+    const { withTaskWakeEnvironment } = await import("@/lib/projects/task-wake.server");
+    const identity = { ownerId: user.id, projectId, taskId },
+      createdAt = Date.now();
+    const reserve = vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      ...identity,
+      createdAt,
+      deadline: createdAt + 1800000,
+      requests: 1,
+      attempts: 0,
+      phase: "active",
+      nextWake: createdAt + 1000,
+      inFlightUntil: 0,
+    });
+    const getByName = vi.fn(() => ({ reserve, inspect: reserve }));
+    return {
+      reserve,
+      getByName,
+      run: <T>(operation: () => T) =>
+        withTaskWakeEnvironment(
+          {
+            HIVE_NATIVE_MODE: "preview",
+            HIVE_NATIVE_PREVIEW_ENABLED: "true",
+            HIVE_PROJECT_TASK_WAKE_ENABLED: "true",
+            HIVE_PROJECT_TASK_WAKE_TASK_JSON: JSON.stringify(identity),
+            HIVE_PROJECT_TASK_WAKE: { getByName },
+          },
+          operation,
+        ),
+    };
+  }
+  it("nonpilot start and accepted replay keep baseline without namespace access", async () => {
+    const f = await environment(),
+      request = { ...input, requestId: "55555555-5555-4555-8555-555555555555" };
+    const otherTask = projectTaskId(user.id, projectId, request.requestId);
+    const queued = { id: otherTask, projectId, phase: "queued", status: null };
+    mock.enqueue.mockResolvedValue(queued);
+    expect((await f.run(() => startProjectTask(user, projectId, request))).taskId).toBe(otherTask);
+    const { taskRequestDigest } = await import("@/lib/projects/task-intents.server");
+    mock.intent.mockResolvedValue({
+      ...queued,
+      workspaceId,
+      requestId: request.requestId,
+      requestDigest: taskRequestDigest([
+        user.id,
+        projectId,
+        workspaceId,
+        request.requestId,
+        request.expectedRevision,
+        request.text,
+      ]),
+    });
+    expect((await f.run(() => startProjectTask(user, projectId, request))).taskId).toBe(otherTask);
+    expect(mock.enqueue).toHaveBeenCalledOnce();
+    expect(f.getByName).not.toHaveBeenCalled();
+    expect(f.reserve).not.toHaveBeenCalled();
+  });
+  it("requires durable acknowledgement before enqueue and includes lost-ACK accepted replay", async () => {
+    const f = await environment();
+    await f.run(() => startProjectTask(user, projectId, input));
+    expect(f.reserve).toHaveBeenCalledOnce();
+    expect(f.reserve.mock.invocationCallOrder[0]).toBeLessThan(
+      mock.enqueue.mock.invocationCallOrder[0],
+    );
+    expect(mock.enqueue.mock.calls[0][1]).toBeGreaterThan(Date.now());
+    const { taskRequestDigest } = await import("@/lib/projects/task-intents.server");
+    mock.intent.mockResolvedValue({
+      id: taskId,
+      projectId,
+      workspaceId,
+      requestId,
+      requestDigest: taskRequestDigest([
+        user.id,
+        projectId,
+        workspaceId,
+        requestId,
+        input.expectedRevision,
+        input.text,
+      ]),
+      phase: "queued",
+      status: null,
+    });
+    await f.run(() => startProjectTask(user, projectId, input));
+    expect(f.reserve).toHaveBeenCalledTimes(2);
+    expect(mock.enqueue).toHaveBeenCalledOnce();
+  });
+  it("accepted replay keeps an already running result after durable handoff", async () => {
+    const f = await environment();
+    const { taskRequestDigest } = await import("@/lib/projects/task-intents.server");
+    const running = { ...result, phase: "running" as const, nativeThreadId: "retained-thread" };
+    mock.intent.mockResolvedValue({
+      id: taskId,
+      projectId,
+      workspaceId,
+      requestId,
+      requestDigest: taskRequestDigest([
+        user.id,
+        projectId,
+        workspaceId,
+        requestId,
+        input.expectedRevision,
+        input.text,
+      ]),
+      phase: "running",
+      status: running,
+    });
+    mock.get.mockResolvedValue({ id: taskId, projectId, phase: "running", status: running });
+    f.reserve.mockResolvedValue({ ...(await f.reserve()), phase: "running" });
+    expect(await f.run(() => startProjectTask(user, projectId, input))).toEqual(running);
+    expect(mock.enqueue).not.toHaveBeenCalled();
+  });
+  it("accepted replay preserves prior-handoff registration metadata under a retained hold", async () => {
+    const f = await environment();
+    const { taskRequestDigest } = await import("@/lib/projects/task-intents.server");
+    const current = {
+      ...result,
+      phase: "awaitingRegistration" as const,
+      nativeThreadId: "retained-thread",
+    };
+    const row = {
+      id: taskId,
+      projectId,
+      workspaceId,
+      requestId,
+      ciphertext: null,
+      iv: null,
+      authTag: null,
+      requestDigest: taskRequestDigest([
+        user.id,
+        projectId,
+        workspaceId,
+        requestId,
+        input.expectedRevision,
+        input.text,
+      ]),
+      phase: "preparing",
+      status: current,
+    };
+    mock.intent.mockResolvedValue(row);
+    mock.get.mockResolvedValue(row);
+    f.reserve.mockResolvedValue({ ...(await f.reserve()), phase: "held" });
+    expect(await f.run(() => startProjectTask(user, projectId, input))).toEqual(current);
+    expect(mock.enqueue).not.toHaveBeenCalled();
+  });
+  it("fresh handoff metadata wins over a stale wake-held status result", async () => {
+    vi.stubEnv("HIVE_PROJECT_TASKS_ENABLED", "true");
+    const f = await environment();
+    const queued = { ownerId: user.id, id: taskId, projectId, phase: "queued", status: null };
+    const current = {
+      ...result,
+      phase: "awaitingRegistration" as const,
+      nativeThreadId: "retained-thread",
+    };
+    const handedOff = {
+      id: taskId,
+      projectId,
+      phase: "preparing",
+      status: current,
+      ciphertext: null,
+      iv: null,
+      authTag: null,
+    };
+    mock.intent.mockResolvedValue(queued);
+    mock.get.mockResolvedValueOnce(queued).mockResolvedValueOnce(handedOff);
+    f.reserve.mockResolvedValue({ ...(await f.reserve()), phase: "held" });
+    expect(
+      await f.run(() => readDurableTask(user, projectId, { workspaceId, taskId, requestId })),
+    ).toEqual(current);
+    expect(mock.holdWake).toHaveBeenCalledOnce();
+    expect(f.getByName).toHaveBeenCalledOnce();
+  });
+  it("does not enqueue or retry after an unknown reservation acknowledgement", async () => {
+    const f = await environment();
+    f.reserve.mockRejectedValue(new Error("unknown_ack"));
+    await expect(f.run(() => startProjectTask(user, projectId, input))).rejects.toThrow(
+      "unknown_ack",
+    );
+    expect(f.reserve).toHaveBeenCalledOnce();
+    expect(mock.enqueue).not.toHaveBeenCalled();
+  });
 });

@@ -1,11 +1,11 @@
 # F07 native Preview durable wake — approval proposal
 
-Status: design only, 2026-11-08. No code, bindings, namespaces, resources, secrets,
-schedules or plan changes are authorized by this document. Repository
-[architecture discipline](../../../AGENTS.md) requires owner agreement before
-implementing this additional runtime dependency. Proposed target remains the
-existing `hive` Worker, account `225177f82b9234ede14e897fe15e0cb5`, enrolled epic
-Preview `codex/delivery-system-design`; production activation stays unchanged.
+Status. Owner approved this bounded implementation on 2026-11-09. Source and local
+validation are complete for independent review. The new flag remains false, with no pilot tuple or live
+binding enrollment performed by this change. The target is the existing `hive`
+Worker and its isolated epic Preview. Production configuration remains outside
+this slice. Live enrollment and any spending require the separately reviewed
+pilot configuration and unused included capacity described below.
 
 ## Demonstrated gap and existing execution
 
@@ -81,7 +81,7 @@ alarms and lost host ACKs use existing replay/hold rules, never a second prompt.
 
 ## Small implementation and provisioning surface, after approval
 
-- New `deploy/cloudflare/native/project-task-wake.ts` class and focused tests;
+- New `deploy/cloudflare/native/project-task-wake.mjs` class and focused tests;
   export it from existing `native/worker.ts`.
 - `native/wrangler.jsonc`: reviewed `new_sqlite_classes` migration plus exact
   same-Worker binding repeated under `previews`, no `script_name`; flag stays off.
@@ -154,3 +154,49 @@ arming at the existing authoritative producers, with the same commit/wake gap
 proof and bounded due-time scheduling. Reuse those existing outboxes; do not
 poll idle Neon or claim the task-only pilot validates notices, warnings, rotation,
 release scheduling, full F07/F08 or production cutover.
+
+## Implemented configuration and local validation
+
+`HIVE_PROJECT_TASK_WAKE_ENABLED=false` preserves existing enqueue and status paths
+without a namespace lookup. Enabling it requires the exact single public
+`HIVE_PROJECT_TASK_WAKE_TASK_JSON` object containing `ownerId`, `projectId`, and
+`taskId`, under the active native Preview. The app derives those values from the
+authenticated owner, owned project, and deterministic task ID. The additional wake
+contract applies only to that exact tuple. Other valid authorized task starts,
+accepted replays, and exact-task status reads retain the existing path with zero
+namespace lookups. An enabled invocation with missing context or invalid enrollment
+continues to fail closed. Off/invalid or
+revoked enrollment stops alarm work and retains a hold. Default configuration
+contains the reviewed same-Worker class and SQLite migration, with no `script_name`.
+
+The SQLite object retains one bounded row. Its original deadline is immutable on
+reserve/replay. At 100 admitted application invocations, further work holds.
+Refused calls and redundant platform alarm deliveries remain counted even after
+the budget, so this counter does not promise an account billing ceiling. Terminal
+alarms access retained local state and perform no PostgreSQL reconciliation.
+
+The internal app adapter creates an independent request-local PrismaNeon lifetime,
+with five-second connection/query/transaction limits. It cancels at the earlier
+of the fixed reservation deadline and 45-second attempt deadline, then bounds
+pool teardown to five seconds. The watchdog is stored before reconciliation.
+An unknown outcome retains the existing 90-second PostgreSQL task lease.
+Pilot preparation in the browser uses the same wake hold and lease guard.
+After a running handoff, explicit browser status retains the existing metadata and
+registration-repair path, including after the preparation deadline. The existing
+PostgreSQL facts retain that handoff when a bound native thread is present and
+all three encrypted prompt columns were erased by running completion. This also
+covers registration loss before the alarm first observes running. The atomic
+preparation-hold update preserves those retained facts. A pre-execution
+check prevents that handoff path from carrying a first-prompt request. Current
+owner, repository policy, registration, and PostgreSQL lease checks still apply.
+Autonomous terminal alarms remain stopped. Untargeted reconciliation stays held
+while pilot wakes are enabled, preserving the exact-task dispatch boundary. No public route authenticates
+or forwards a Durable Object operation.
+
+Local Workerd tests exercise actual SQLite alarms and restart persistence.
+Composed tests use an isolated local PostgreSQL database, the unchanged PrismaNeon
+driver, the production app adapter and exact-task reconciler. Provider/native
+responses are fixed synthetic doubles. Delayed visibility and clock-boundary
+fixtures exercise the corresponding holds. These checks do not establish live
+provider acceptance, browser-closed native execution, notices, rotation, full F07
+or production cutover.

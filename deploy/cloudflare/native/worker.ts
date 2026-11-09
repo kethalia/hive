@@ -5,3 +5,5 @@ import jobs from "../jobs/worker";
 import { createNativeWorker } from "./composition.mjs";
 
 export default createNativeWorker({ app, auth, jobs, buildIdentity });
+
+export { ProjectTaskWake } from "./project-task-wake.mjs";

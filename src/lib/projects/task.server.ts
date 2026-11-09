@@ -27,10 +27,18 @@ import {
   reconcileTaskIntents,
   TaskExecutionStageError,
   TaskIntentConflict,
+  taskIntentHandedOff,
   taskRequestDigest,
 } from "./task-intents.server";
 import { recoveryInspectionSchema, recoveryScopeSchema } from "./task-recovery-contracts";
 import { ProjectTaskRecoveries } from "./task-recovery-store.server";
+import {
+  assertTaskWakeActive,
+  readTaskWake,
+  taskWakeApplies,
+  taskWakeEnabled,
+} from "./task-wake.server";
+import type { TaskWakeReceipt, TaskWakeResult } from "./task-wake-contracts";
 
 export class ProjectTaskConflict extends Error {}
 /** Deterministic UUIDv5 namespace: retries of the same owner/project/request refer
@@ -127,6 +135,20 @@ export async function startProjectTask(
       existing.requestDigest !== requestDigest
     )
       throw new TaskIntentConflict("task_identity_conflict");
+    const identity = { ownerId: user.id, projectId, taskId };
+    const wake = taskWakeApplies(identity) ? await readTaskWake(identity, true) : null;
+    if (wake && (wake.phase !== "active" || wake.deadline <= Date.now())) {
+      await taskIntentStore().holdWake(user.id, taskId);
+      const row = await taskIntentStore().get(user.id, projectId, taskId, input.workspaceId);
+      const current = pendingTaskStatus(row);
+      return taskIntentHandedOff(row) || ["running", "blocked"].includes(current.phase)
+        ? current
+        : {
+            ...current,
+            phase: "blocked" as const,
+            reason: "preparation_timeout" as const,
+          };
+    }
     return pendingTaskStatus(existing);
   }
   onStage?.("repository");
@@ -200,26 +222,32 @@ export async function startProjectTask(
     );
   }
   onStage?.("enqueue");
-  const row = await store.enqueue({
-    ownerId: user.id,
-    projectId,
-    workspaceId: input.workspaceId,
-    taskId,
-    requestId: input.requestId,
-    requestDigest,
-    hostRequest: {
-      schemaVersion: 1,
+  const identity = { ownerId: user.id, projectId, taskId };
+  const wake = taskWakeApplies(identity) ? await readTaskWake(identity, true) : null;
+  assertTaskWakeActive(wake);
+  const row = await store.enqueue(
+    {
+      ownerId: user.id,
       projectId,
-      repositoryId: project.providerRepositoryId,
-      expectedAccountId: project.providerAccountId,
+      workspaceId: input.workspaceId,
       taskId,
       requestId: input.requestId,
-      revision: input.expectedRevision,
-      model: model.data,
-      effort: effort.data,
-      text: input.text,
+      requestDigest,
+      hostRequest: {
+        schemaVersion: 1,
+        projectId,
+        repositoryId: project.providerRepositoryId,
+        expectedAccountId: project.providerAccountId,
+        taskId,
+        requestId: input.requestId,
+        revision: input.expectedRevision,
+        model: model.data,
+        effort: effort.data,
+        text: input.text,
+      },
     },
-  });
+    wake?.deadline,
+  );
   return pendingTaskStatus(row);
 }
 function taskIntentStore(pinPolicy?: ConstructorParameters<typeof ProjectTaskIntents>[2]) {
@@ -271,9 +299,52 @@ async function authorizeIntentPolicy(
 export async function reconcileProjectTasks(
   target?: { ownerId: string; taskId: string },
   limit = 3,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; wake?: TaskWakeReceipt } = {},
 ) {
   if (process.env.HIVE_PROJECT_TASKS_ENABLED !== "true") return { enabled: false as const };
+  let wake = options.wake;
+  let metadataOnly = false;
+  if (taskWakeEnabled()) {
+    if (!target) throw new Error("task_wake_exact_target_required");
+    const row = await getDb().projectTaskIntent.findUnique({
+      where: { ownerId_id: { ownerId: target.ownerId, id: target.taskId } },
+    });
+    if (!row) return { enabled: true as const, processed: 0, retry: 0, stale: 0 };
+    const identity = { ownerId: row.ownerId, projectId: row.projectId, taskId: row.id };
+    if (taskWakeApplies(identity)) {
+      // Browser status retains existing metadata/registration repair after handoff.
+      // This path cannot recover a first prompt, even if the claimed row changes.
+      const handedOff = taskIntentHandedOff(row);
+      if (options.wake && handedOff)
+        return { enabled: true as const, processed: 0, retry: 0, stale: 0 };
+      if (!options.wake && handedOff) metadataOnly = true;
+      else {
+        wake ??= (await readTaskWake(identity)) ?? undefined;
+        if (!options.wake && wake?.phase === "running") {
+          metadataOnly = true;
+          wake = undefined;
+        } else {
+          if (!wake || wake.phase !== "active" || wake.deadline <= Date.now()) {
+            await taskIntentStore().holdWake(row.ownerId, row.id);
+            return {
+              enabled: true as const,
+              processed: 0,
+              retry: 0,
+              stale: 0,
+              wakeHeld: true as const,
+            };
+          }
+          options = {
+            ...options,
+            signal: AbortSignal.any([
+              ...(options.signal ? [options.signal] : []),
+              AbortSignal.timeout(Math.max(1, wake.deadline - Date.now())),
+            ]),
+          };
+        }
+      }
+    }
+  }
   const result = await reconcileTaskIntents(
     taskIntentStore(),
     async (payload, phase) => {
@@ -366,9 +437,55 @@ export async function reconcileProjectTasks(
     },
     target,
     limit,
-    options,
+    {
+      ...options,
+      beforeExecute: async (execution) => {
+        if (metadataOnly && execution.hostRequest) throw new Error("task_wake_metadata_only");
+        if (!wake) return;
+        assertTaskWakeActive(wake);
+        if (!options.wake && target)
+          assertTaskWakeActive(
+            await readTaskWake({
+              ownerId: wake.ownerId,
+              projectId: wake.projectId,
+              taskId: wake.taskId,
+            }),
+          );
+      },
+    },
   );
   return { enabled: true as const, ...result };
+}
+export async function reconcileExactTaskWake(
+  wake: TaskWakeReceipt,
+  signal: AbortSignal,
+): Promise<TaskWakeResult> {
+  const where = { ownerId_id: { ownerId: wake.ownerId, id: wake.taskId } };
+  const row = await getDb().projectTaskIntent.findUnique({ where });
+  signal.throwIfAborted();
+  if (!row) return { phase: "retry", nextWake: Date.now() + 5000 };
+  if (row.projectId !== wake.projectId) return { phase: "held" };
+  if (taskIntentHandedOff(row)) return { phase: "running" };
+  if (row.phase === "blocked") return { phase: "held" };
+  const result = await reconcileProjectTasks({ ownerId: wake.ownerId, taskId: wake.taskId }, 1, {
+    signal,
+    wake,
+  });
+  signal.throwIfAborted();
+  const next = await getDb().projectTaskIntent.findUniqueOrThrow({ where });
+  if (taskIntentHandedOff(next)) return { phase: "running" };
+  if (next.phase === "blocked") return { phase: "held" };
+  if (
+    result.enabled &&
+    result.processed + result.retry + result.stale === 0 &&
+    next.nextAttemptAt.getTime() <= Date.now() &&
+    (!next.leaseUntil || next.leaseUntil.getTime() <= Date.now())
+  )
+    return { phase: "held" };
+  return {
+    phase: "retry",
+    nextWake: Math.max(next.nextAttemptAt.getTime(), next.leaseUntil?.getTime() ?? 0),
+  };
 }
 export async function readProjectTask(user: ProjectPrincipal, projectId: string, value: unknown) {
   const input = projectTaskReadSchema.parse(value);
@@ -377,8 +494,16 @@ export async function readProjectTask(user: ProjectPrincipal, projectId: string,
   await store.get(user.id, projectId, input.taskId, input.workspaceId);
   // The browser may accelerate one durable claim; the scheduled controller runs
   // this same operation independently when no browser is connected.
-  await reconcileProjectTasks({ ownerId: user.id, taskId: input.taskId }, 1);
-  return pendingTaskStatus(await store.get(user.id, projectId, input.taskId, input.workspaceId));
+  const result = await reconcileProjectTasks({ ownerId: user.id, taskId: input.taskId }, 1);
+  const row = await store.get(user.id, projectId, input.taskId, input.workspaceId);
+  const status = pendingTaskStatus(row);
+  return result.enabled &&
+    "wakeHeld" in result &&
+    result.wakeHeld &&
+    !taskIntentHandedOff(row) &&
+    !["running", "blocked"].includes(status.phase)
+    ? { ...status, phase: "blocked" as const, reason: "preparation_timeout" as const }
+    : status;
 }
 
 /** Explicit owner recovery never includes a prompt or changes task identity.
