@@ -229,10 +229,21 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
     const pending = new Promise<void>((resolve) => {
       finish = resolve;
     });
+    let entered!: () => void;
+    const sendEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let aborted!: () => void;
+    const abortObserved = new Promise<void>((resolve) => {
+      aborted = resolve;
+    });
     let settled = false;
     const dispatch = dispatchAgentEvents(
       db,
-      async () => {
+      async (_ownerId, _payload, signal) => {
+        entered();
+        if (signal.aborted) aborted();
+        else signal.addEventListener("abort", aborted, { once: true });
         await pending;
         await db.$queryRaw`SELECT 1`;
         return "delivered";
@@ -242,9 +253,13 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
       settled = true;
       return result;
     });
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(settled).toBe(false);
-    finish();
+    try {
+      await sendEntered;
+      await abortObserved;
+      expect(settled).toBe(false);
+    } finally {
+      finish();
+    }
     expect((await dispatch).retry).toBe(1);
     expect((await rows())[0].status).toBe("pending");
   });
