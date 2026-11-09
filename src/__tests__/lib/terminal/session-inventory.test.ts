@@ -85,27 +85,32 @@ class FixtureSocket implements RelaySocket {
   }
 }
 
-function fixture() {
+function fixture(additional: FixtureSocket[] = []) {
   const socket = new FixtureSocket();
+  const sockets = [socket];
+  let upgrades = 0;
   let command = "";
   const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const current = upgrades++ === 0 ? socket : (additional.shift() ?? new FixtureSocket());
+    if (current !== socket) sockets.push(current);
     const url = new URL(String(input));
     command = url.searchParams.get("command")!;
     const nonce = /prefix = "HIVE_INVENTORY_" \+ "([a-f0-9-]+)"/.exec(command)![1];
-    socket.prefix = `HIVE_INVENTORY_${nonce}`;
+    current.prefix = `HIVE_INVENTORY_${nonce}`;
     expect(url.origin).toBe(session.user.coderUrl);
     expect(url.pathname).toBe(`/api/v2/workspaceagents/${agentId}/pty`);
     expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("synthetic-fixture-token");
     expect(init?.redirect).toBe("manual");
     expect(init?.credentials).toBe("omit");
-    return { status: 101, redirected: false, webSocket: socket } as unknown as Response;
+    return { status: 101, redirected: false, webSocket: current } as unknown as Response;
   });
   const options = { env: { CODER_URL: session.user.coderUrl }, fetch: fetcher };
-  return { socket, fetcher, options, command: () => command };
+  return { socket, sockets, fetcher, options, command: () => command };
 }
 
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "info").mockImplementation(() => {});
   authorize.mockImplementation(async () => authority());
 });
 afterEach(() => {
@@ -182,6 +187,7 @@ describe("fixed Coder PTY session inventory", () => {
     };
     await expect(readWorkspaceSessionInventory(session, workspaceId, f.options)).rejects.toThrow();
     expect(f.socket.sent).toHaveLength(1);
+    expect(f.fetcher).toHaveBeenCalledOnce();
     expect(f.socket.closes).toEqual([1000]);
     const reason =
       kind === "close"
@@ -233,7 +239,9 @@ describe("fixed Coder PTY session inventory", () => {
   });
 
   it.each(["close", "failed"])("distinguishes %s before any GO was sent", async (kind) => {
-    const f = fixture();
+    const second = new FixtureSocket();
+    second.accept = () => queueMicrotask(() => second.emit("close"));
+    const f = fixture([second]);
     f.socket.accept = () =>
       queueMicrotask(() => {
         if (kind === "close") f.socket.emit("close");
@@ -243,10 +251,128 @@ describe("fixed Coder PTY session inventory", () => {
       "Could not list workspace terminal sessions.",
     );
     expect(f.socket.sent).toEqual([]);
+    expect(f.fetcher).toHaveBeenCalledTimes(kind === "close" ? 2 : 1);
     expect(JSON.parse(vi.mocked(console.warn).mock.calls.at(-1)![0])).toEqual({
       event: "terminal_inventory_failure",
       phase: "frames",
       reason: kind === "close" ? "socket_closed_before_go" : "remote_failed_before_go",
+    });
+  });
+
+  it("retries one pre-GO closure with fresh identifiers and current authority within the same deadline", async () => {
+    const f = fixture();
+    f.socket.accept = () => queueMicrotask(() => f.socket.emit("close"));
+    expect(await readWorkspaceSessionInventory(session, workspaceId, f.options)).toEqual([
+      { name: "existing", created: 1700000000, windows: 2 },
+    ]);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(authorize).toHaveBeenCalledTimes(3);
+    expect(authorize.mock.calls[1][3]).toBe(agentId);
+    const [first, second] = f.fetcher.mock.calls;
+    const firstUrl = new URL(String(first[0])),
+      secondUrl = new URL(String(second[0]));
+    expect(firstUrl.searchParams.get("reconnect")).not.toBe(
+      secondUrl.searchParams.get("reconnect"),
+    );
+    expect(f.sockets[0].prefix).not.toBe(f.sockets[1].prefix);
+    expect(first[1]!.signal).toBe(second[1]!.signal);
+    expect(f.sockets[0].sent).toEqual([]);
+    expect(f.sockets[1].sent).toEqual([
+      `${f.sockets[1].prefix}_GO\n`,
+      `${f.sockets[1].prefix}_ACK\n`,
+    ]);
+    expect(f.sockets.map((value) => value.closes)).toEqual([[1000], [1000]]);
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(console.info).toHaveBeenCalledOnce();
+    expect(JSON.parse(vi.mocked(console.info).mock.calls[0][0])).toEqual({
+      event: "terminal_inventory_retry",
+      phase: "frames",
+      reason: "socket_closed_before_go",
+    });
+  });
+
+  it.each([
+    "revoked",
+    "build",
+    "cancel",
+  ])("does not retry a pre-GO close after %s", async (kind) => {
+    const f = fixture(),
+      controller = new AbortController();
+    f.socket.accept = () =>
+      queueMicrotask(() => {
+        if (kind === "cancel") controller.abort();
+        f.socket.emit("close");
+      });
+    if (kind === "revoked")
+      authorize.mockResolvedValueOnce(authority()).mockRejectedValueOnce(Error("revoked"));
+    if (kind === "build")
+      authorize
+        .mockResolvedValueOnce(authority())
+        .mockResolvedValueOnce({ ...authority(), buildId: "60000000-0000-4000-8000-000000000001" });
+    await expect(
+      readWorkspaceSessionInventory(session, workspaceId, {
+        ...f.options,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow();
+    expect(f.fetcher).toHaveBeenCalledOnce();
+    expect(f.socket.sent).toEqual([]);
+    expect(console.info).not.toHaveBeenCalled();
+  });
+
+  it("clips a retry to its freshly checked credential expiry", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((duration) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), duration);
+      return controller.signal;
+    });
+    const original = authority();
+    authorize
+      .mockResolvedValueOnce(original)
+      .mockResolvedValueOnce({ ...original, expiresAt: Date.now() + 500 });
+    const second = new FixtureSocket();
+    second.onGo = () => {};
+    const f = fixture([second]);
+    f.socket.accept = () => queueMicrotask(() => f.socket.emit("close"));
+    const pending = readWorkspaceSessionInventory(session, workspaceId, f.options);
+    const rejected = expect(pending).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(f.fetcher.mock.calls[1][1]!.signal!.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    await rejected;
+    expect(f.fetcher.mock.calls[1][1]!.signal!.aborted).toBe(true);
+    expect(authorize).toHaveBeenCalledTimes(2);
+    expect(second.closes).toEqual([1000]);
+  });
+
+  it("does not reset the original eight-second deadline on a retry", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((duration) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), duration);
+      return controller.signal;
+    });
+    const second = new FixtureSocket();
+    second.onGo = () => {};
+    const f = fixture([second]);
+    f.socket.accept = () => {
+      setTimeout(() => f.socket.emit("close"), 7000);
+    };
+    const pending = readWorkspaceSessionInventory(session, workspaceId, f.options);
+    const rejected = expect(pending).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(7999);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(f.fetcher.mock.calls[0][1]!.signal).toBe(f.fetcher.mock.calls[1][1]!.signal);
+    await vi.advanceTimersByTimeAsync(2);
+    await rejected;
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(second.closes).toEqual([1000]);
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls.at(-1)![0])).toEqual({
+      event: "terminal_inventory_failure",
+      phase: "frames",
+      reason: "deadline",
     });
   });
 

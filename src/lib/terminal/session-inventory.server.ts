@@ -252,61 +252,101 @@ export async function readWorkspaceSessionInventory(
     const remaining = Math.min(TIMEOUT_MS, original.expiresAt - Date.now());
     if (remaining <= 0) throw unavailable();
     const live = AbortSignal.any([signal, AbortSignal.timeout(remaining)]);
-    const nonce = randomUUID();
-    const command = `python3 -I -c '${SCRIPT.replace("__NONCE__", nonce)}'`;
-    const url = new URL(`/api/v2/workspaceagents/${original.agentId}/pty`, original.coderOrigin);
-    url.search = new URLSearchParams({
-      reconnect: randomUUID(),
-      width: "512",
-      height: "128",
-      command,
-    }).toString();
-    phase = "upgrade";
-    const work = fetcher(url, {
-      redirect: "manual",
-      credentials: "omit",
-      signal: live,
-      headers: { Upgrade: "websocket", "Coder-Session-Token": original.token },
-    });
-    void work.then(
-      (late) => {
-        if (!live.aborted) return;
-        const pending = (late as Response & { webSocket?: RelaySocket }).webSocket;
-        try {
-          pending?.accept({ allowHalfOpen: true });
-          pending?.close(1008, "Inventory expired");
-        } catch {}
-      },
-      () => {},
-    );
-    const response = await terminalFetch(work, live);
-    socket = (response as Response & { webSocket?: RelaySocket }).webSocket;
-    if (response.status !== 101 || response.redirected || !socket) {
-      await cancelTerminalBody(response);
-      throw unavailable();
+    const snapshot = async (authority: typeof original) => {
+      const authorityRemaining = Math.min(TIMEOUT_MS, authority.expiresAt - Date.now());
+      if (authorityRemaining <= 0) throw unavailable("deadline");
+      const attemptSignal =
+        authority.expiresAt < original.expiresAt
+          ? AbortSignal.any([live, AbortSignal.timeout(authorityRemaining)])
+          : live;
+      const nonce = randomUUID();
+      const command = `python3 -I -c '${SCRIPT.replace("__NONCE__", nonce)}'`;
+      const url = new URL(
+        `/api/v2/workspaceagents/${authority.agentId}/pty`,
+        authority.coderOrigin,
+      );
+      url.search = new URLSearchParams({
+        reconnect: randomUUID(),
+        width: "512",
+        height: "128",
+        command,
+      }).toString();
+      phase = "upgrade";
+      const work = fetcher(url, {
+        redirect: "manual",
+        credentials: "omit",
+        signal: attemptSignal,
+        headers: { Upgrade: "websocket", "Coder-Session-Token": authority.token },
+      });
+      void work.then(
+        (late) => {
+          if (!attemptSignal.aborted) return;
+          const pending = (late as Response & { webSocket?: RelaySocket }).webSocket;
+          try {
+            pending?.accept({ allowHalfOpen: true });
+            pending?.close(1008, "Inventory expired");
+          } catch {}
+        },
+        () => {},
+      );
+      const response = await terminalFetch(work, attemptSignal);
+      socket = (response as Response & { webSocket?: RelaySocket }).webSocket;
+      if (response.status !== 101 || response.redirected || !socket) {
+        await cancelTerminalBody(response);
+        throw unavailable();
+      }
+      socket.binaryType = "arraybuffer";
+      phase = "frames";
+      return receive(socket, nonce, attemptSignal);
+    };
+    const recheck = async () => {
+      const current = await authorizeOwnedWorkspacePty(
+        session.session.sessionId,
+        env,
+        workspaceId,
+        original.agentId,
+        live,
+        fetcher,
+      );
+      live.throwIfAborted();
+      if (
+        current.userId !== original.userId ||
+        current.coderUserId !== original.coderUserId ||
+        current.coderOrigin !== original.coderOrigin ||
+        current.buildId !== original.buildId ||
+        current.agentId !== original.agentId ||
+        current.expiresAt <= Date.now()
+      )
+        throw unavailable();
+      return current;
+    };
+    let result: z.infer<typeof resultSchema>;
+    try {
+      result = await snapshot(original);
+    } catch (error) {
+      if (
+        !(error instanceof InventoryFailure) ||
+        error.reason !== "socket_closed_before_go" ||
+        live.aborted
+      )
+        throw error;
+      try {
+        socket?.close(1000, "Inventory retry");
+      } catch {}
+      socket = undefined;
+      phase = "preauth";
+      const current = await recheck();
+      console.info(
+        JSON.stringify({
+          event: "terminal_inventory_retry",
+          phase: "frames",
+          reason: "socket_closed_before_go",
+        }),
+      );
+      result = await snapshot(current);
     }
-    socket.binaryType = "arraybuffer";
-    phase = "frames";
-    const result = await receive(socket, nonce, live);
     phase = "postauth";
-    const current = await authorizeOwnedWorkspacePty(
-      session.session.sessionId,
-      env,
-      workspaceId,
-      original.agentId,
-      live,
-      fetcher,
-    );
-    live.throwIfAborted();
-    if (
-      current.userId !== original.userId ||
-      current.coderUserId !== original.coderUserId ||
-      current.coderOrigin !== original.coderOrigin ||
-      current.buildId !== original.buildId ||
-      current.agentId !== original.agentId ||
-      current.expiresAt <= Date.now()
-    )
-      throw unavailable();
+    await recheck();
     phase = "projector";
     return projectResult(result);
   } catch (error) {

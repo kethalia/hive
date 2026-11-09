@@ -5,7 +5,7 @@ first extracted increment of the autonomous-delivery epic. The owner accepts and
 merges each increment through GitHub.
 
 [PR449](https://github.com/kethalia/hive/pull/449) contains the implementation and
-current check status. [The migration plan](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/autonomous-delivery-pr-migration.md)
+current check status. [The migration plan](../../autonomous-delivery-pr-migration.md)
 records P01–P11 and the later feature boundaries.
 
 ## Scope and environment
@@ -61,6 +61,28 @@ same shell, normal exit and refreshed inventory. An additional browser WebSocket
 check exercises the hosted ticket route and relay, verifies a 100×35 shell resize,
 reconnects to the same PID and exits with code 1000. The local Workerd transport
 check also passed exact resize and reconnect against real Coder.
+
+## Early inventory-connection recovery
+
+Final hosted validation reproduced an intermittent inventory failure. Five
+controlled reads returned four successful snapshots and one 503. Safe diagnostics
+then identified a socket closing before Hive sent GO. A separate actual-Coder
+probe also observed a fresh connection close with zero output. The underlying
+process cause is unconfirmed. The probes did not establish a newline-framing bug.
+
+The reader now makes one fresh attempt for that specific early closure, within
+the original eight-second overall deadline. It rechecks identity/build authority
+before retrying and before returning the framed result. Other authorization,
+command, parser, post-GO and cancellation failures return the existing error.
+A second early closure also returns the error. Fixed diagnostic categories and a
+retry event support operational inspection. They exclude workspace identifiers,
+command output, credentials and exception text.
+
+All 34 targeted inventory tests passed, including recovery, the two-attempt cap,
+fresh selectors, revocation/build changes, cancellation, earlier credential expiry
+and the shared deadline.
+`inventory-recovery.json` retains the observed failure and recovery contract. The
+final deployed revision and hosted outcome are recorded in PR449.
 
 ## Limits and operations
 

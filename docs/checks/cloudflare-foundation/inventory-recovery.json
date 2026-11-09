@@ -1,0 +1,91 @@
+{
+  "scope": "bounded authenticated hosted inventory reads",
+  "initialSource": "965abc2b5bc87f5a754e1da837e6a513c40a8b4c",
+  "initialReads": [
+    {
+      "attempt": 1,
+      "status": 200,
+      "elapsedMs": 2341,
+      "body": {
+        "data": []
+      }
+    },
+    {
+      "attempt": 2,
+      "status": 200,
+      "elapsedMs": 2317,
+      "body": {
+        "data": []
+      }
+    },
+    {
+      "attempt": 3,
+      "status": 200,
+      "elapsedMs": 2551,
+      "body": {
+        "data": []
+      }
+    },
+    {
+      "attempt": 4,
+      "status": 503,
+      "elapsedMs": 1854,
+      "body": {
+        "error": "Could not list workspace terminal sessions."
+      }
+    },
+    {
+      "attempt": 5,
+      "status": 200,
+      "elapsedMs": 1948,
+      "body": {
+        "data": []
+      }
+    }
+  ],
+  "diagnosticSource": "a0048c6f2e975e90639e22cde5c61345deeaca1d",
+  "diagnosticReads": [
+    {
+      "attempt": 1,
+      "status": 200,
+      "elapsedMs": 3560,
+      "body": {
+        "data": []
+      }
+    },
+    {
+      "attempt": 2,
+      "status": 200,
+      "elapsedMs": 3187,
+      "body": {
+        "data": []
+      }
+    },
+    {
+      "attempt": 3,
+      "status": 503,
+      "elapsedMs": 1965,
+      "body": {
+        "error": "Could not list workspace terminal sessions."
+      }
+    }
+  ],
+  "observedFailure": {
+    "phase": "frames",
+    "reason": "socket_closed_before_go"
+  },
+  "status": "bounded retry implemented and covered by targeted regressions",
+  "underlyingProcessCause": "unconfirmed",
+  "mitigation": {
+    "maximumAttempts": 2,
+    "overallDeadlineMs": 8000,
+    "retryOnly": "socket_closed_before_go",
+    "freshNonceAndReconnect": true,
+    "reauthorizeBeforeRetry": true,
+    "reauthorizeBeforeReturning": true,
+    "allOtherFailuresHold": true,
+    "targetedInventoryTestsPassed": 34,
+    "hostedVerification": "Final revision build and hosted results are recorded in PR449.",
+    "earlierRetryCredentialExpiryClipsAttempt": true
+  }
+}
