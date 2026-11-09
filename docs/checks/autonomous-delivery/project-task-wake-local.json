@@ -75,7 +75,7 @@
     "deploy/cloudflare/native/project-task-wake.test.mjs": "e54ca502459c8f4dbe0c49c8a7862f230b3deae1b425fa2738898b7f51be855f",
     "deploy/cloudflare/native/worker.ts": "b831081409efcd7b5ae0051b9ba206da0a65ccf4cc19ad16c4e5d7b202076bd1",
     "deploy/cloudflare/native/wrangler.jsonc": "b1fa2fd69b9d26b514ac0ca890f1effad02cfbd78f7a4159f76832f1872a6e14",
-    "docs/checks/autonomous-delivery/durable-wake-plan.md": "b317bcfa732dad24adeacf655a85c32f4eba86793742fd2453aeb86e76bef090",
+    "docs/checks/autonomous-delivery/durable-wake-plan.md": "e7c74316cbd73bf627cc1008c9a476225c0c09d17a8ed5643741875a040e4321",
     "package.json": "0ed847b349c5d0f0893a09df38701298ec7d4ee56a530648704ae0fbaa727d98",
     "src/__tests__/lib/projects/task-wake.test.ts": "465c6752680f1bc6fca0fbaffcef7f5df2bec08ac7e39b4fcb242c5d6f52cda2",
     "src/__tests__/lib/projects/task.test.ts": "e0cfd485b377308f5225a97dd8afb533846b1505c61dce38ddca5ec2fb4bc1c5",
