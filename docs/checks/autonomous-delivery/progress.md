@@ -30,7 +30,7 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D10 migrations/backfills | Combined source merged into epic; live installed/production acceptance remain | PR423 merged into the epic at `f05af0bd` after successful CI run `42453520491` and current-head Codex review. Its caller `1a490e02` selects immutable source `768eff79` and wrapper `b8376b76`. Two distinct native-composition artifacts exercise unchanged PrismaNeon CRUD, sessions, ciphertext and assets against one restricted fixture; both trust and password authentication pass. Bounded transport checks reject wrong database/user and require completed SQL before credit. Source-bound callback recovery and immutable paused-task factual reports pass composed PostgreSQL checks. Setup migrations49/50 are verified on both existing Preview databases after decoded backups; original rows, prior48 history and runtime grants are unchanged. This is distinct from controlled production job acceptance. Genuine postmerge main-serving and production job acceptance remain. [Live upgrade](neon-preview49-50-live-upgrade.json). |
 | D12 workspace packaging | Restart repair merged and installed empty-host recovery accepted | PR413 passed full CI/current Codex review and merged into the epic. The actual retained host recovered its old startup-only lifetime through the normal installer after exact public-config restoration; signed old history remains valid. Active-task rebuild/resume and full rollout remain separate gates. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Partial implementation; approved task-preparation wake in review | PR444 implements a default-off same-Worker Durable Object wake after owner approval. Review corrections cover browser reconciliation after handoff and preserving the baseline for nonpilot tasks. No live enrollment or additional spending is authorized. Credential rotation, template publication/logs/notices and account-backed integration remain gates. Terminal, clipboard, voice and agent-tools transports have local proofs. |
+| F07 background-service replacement | Task-preparation wake integrated; live acceptance remains | PR444 is integrated at `cd8f2c46` after all13 CI checks and current-head Codex review. The default-off same-Worker wake preserves browser reconciliation after handoff and the baseline for nonpilot tasks. No live enrollment or additional spending is authorized. Credential rotation, template publication/logs/notices and account-backed integration remain gates. Terminal, clipboard, voice and agent-tools transports have local proofs. |
 | F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Real Codex connect accepted; native Accounts window source integrated; remaining live checks pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. PR443 adds the dedicated native Accounts window and preserves workspace/build selection; all81 focused checks and13 CI checks plus review pass. Actual Codex connect, official device flow and signed-in card previously passed under Agents in the real Preview browser with generic inventory disabled. Deployed native desktop navigation, singleton launcher, saved selection and mobile layout now pass, with actual signed-in Codex status retained across restart. Earlier mobile failure was not reproduced and its cause remains unestablished. Claude/maintenance were intercepted locally. No auth cache was copied. Claude, reconnect/disconnect actions and maintenance resume remain. [Scoped browser receipt](codex-account-ui-preview-20261108.json). |
 | F08 data cutover rehearsal | Fresh capture, local54 upgrade and original encryption-key validation passed; cutover remains off | A new read-only production snapshot contains81 application and7 migration rows. The original53 restore and subsequent additive54 upgrade preserve original fields and history in the owned local fixture. All7 original ciphertexts authenticate with the captured encryption key; a synthetic current-cookie round trip passes. The upgraded archive is privately retained and fully decoded. Historical cookies, target runtime privileges, final write boundary and recovery/cutover remain unproven. [Local53 receipt](production-data-capture/20261108-f08-local53-restore.json), [local54 follow-up](production-data-capture/20261108-f08-local54-followup.json). |
@@ -2207,3 +2207,68 @@ by this source checkpoint.
   handoff ordering that still suppresses metadata repair after the preparation
   deadline; its narrow correction and regression remain in progress. Live enrollment, included usage, notification/
   rotation/publication parity and full F07 completion are not established.
+
+### November9 installed parent-exit repair and final review corrections
+
+- **Deploy / Validate: parent-exit repair accepted, moderate difficulty.** Existing
+  workflow42547933966 publishes exact source66565f5c. Independent manifest readback
+  agrees with its immutable image digest. One inactive import, normal stop and
+  explicit start reuse the same4Gi PVC and all eight parameters; global template
+  activation remains unchanged. All55 installed host members match. Both prior
+  signed histories, the original OPEN map/root and private auth-cache metadata are
+  preserved. Actual identity discovery returns signed200 after the installer exits,
+  using full installed process inventory. A scoped account status returns signed-in
+  on the new build. [Installed receipt](parent-exit-installed-preview-20261109.json).
+- **Diagnose: next retained-task hold, moderate difficulty.** The same B1 retry
+  passes identity discovery and holds at runtime reservation. One read-only DB
+  snapshot proves zero committed runtime authority; four Coder metadata GETs and
+  unchanged validators pass lifecycle/current-volume checks and isolate historical
+  HOME parsing. Coder omits agents from old-build resource responses; the historical
+  parser incorrectly requires one. The narrow correction and real-shape regression
+  are in progress. No first execution wake or replacement task/prompt is sent.
+- **Review / Validate: F07 preparation wake corrections, high difficulty.** Source
+  `603878ec` passes54 focused unit cases,20 SQLite/deploy cases and13 actual Workerd/PG
+  cases, plus independent and automated review. Its first CI alarm test reveals an
+  observation race: synthetic effect precedes ACK and PG commit. Test-only955491fb
+  explicitly verifies queued before ACK, releases it and waits for durable running
+  before checking PG. All13 composed cases pass locally; all13 CI checks and
+  current-head automated review then pass before integration at `cd8f2c46`.
+  Account-wide analytics and complete namespace inventory show no observed DO usage
+  over32days; the one-object bounded pilot fits published standard included capacity.
+  No object invocation or enrollment occurs during those reads.
+  [Usage evidence](durable-wake-included-usage-20261109.json).
+- **CI / Preview: documentation and provider conflict resolved, low difficulty.**
+  Root's two evidence JSON files missed formatting; Biome corrects them and the
+  next formatting check passes. A Cloudflare build fails with11024 concurrent
+  modification from overlapping deployments; the next existing connected build
+  succeeds. No alternate publisher, token or deployment pipeline is introduced.
+
+### November9 integrated CI and recovery timing hold
+
+- **Integrate / Validate: task wake and historical parser complete at source level.**
+  PR444955491fb and PR446a5e4132b each pass13 CI checks and current-head Codex review,
+  plus independent review. They merge into the epic atcd8f2c46 and5ff6e525. The
+  combined5ff6e525 tree passes all24 reported checks and is deployed by connected
+  Workers Builds. Wake remains false with no pilot tuple; fe3 and predecessor
+  package tuples remain intact. The historical fix requires no new CLI image.
+- **Recover: original task requeued, moderate difficulty.** Exact same B1 replay
+  returns200/preparing after the historical fix. One read-only snapshot confirms
+  original intent72b queued, original request50fb/source9d preserved, B1 consumed
+  with inspection/authorization/receipt, one enrolled current runtime and one
+  guardian grant. No native launch, admission or registration is present.
+- **Hold / Diagnose: operator exceeded authority window, avoidable delay.** Root
+  waited for separately prepared verification before the first wake. Enrollment
+  occurred02:53:26.171 UTC; its authority expired02:56:26.171. Wake began03:00:20.632
+  and held before native launch. One guarded exact-runtime read confirms expiry
+  with no native launch/server instance. This was root's sequencing mistake.
+  Prepare observation code and all conditional checks before any time-limited
+  grant, then execute committed-state verification and the ordinary wake within
+  its remaining lifetime. Never reset/backdate authority or replay blindly.
+- **Validate / Recover: empty expiry chain under local proof.** The existing owner
+  recover-empty operation can close an expired unused runtime. Source tracing
+  shows the full retained OPEN→empty close→normal rebuild chain is not established:
+  empty closure makes rollover ineligible; changed binding and closed/idle archive
+  guards reject subsequent startup. A bounded real-C/worker/local-PG test is being
+  prepared to establish the first rejection and smallest normal recovery contract.
+  Current workspace/history/authority are preserved. No live close, restart,
+  authority renewal, new prompt/task or model execution follows from this work.

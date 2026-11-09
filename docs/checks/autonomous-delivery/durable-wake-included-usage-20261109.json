@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "status": "standard_included_capacity_supported_by_usage",
+  "observedAt": "2026-11-09T02:10:03.900Z",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "providerReads": 4,
+  "providerWrites": 0,
+  "durableObjectInvocations": 0,
+  "window": {
+    "startInclusive": "2026-10-08T02:09:48.000Z",
+    "endExclusive": "2026-11-09T02:09:48.000Z"
+  },
+  "analyticsEnabled": true,
+  "analyticsErrors": null,
+  "requestDurationSqliteStorageResults": "all empty",
+  "namespaceInventoryComplete": true,
+  "namespaceCount": 0,
+  "paidPlanBasis": "Owner reported this Workers account is on a paid plan. Subscription billing access was not required or obtained.",
+  "publishedPaidAllowances": {
+    "requestsPerMonth": 1000000,
+    "durationGbSecondsPerMonth": 400000,
+    "sqliteRowsReadPerMonth": 25000000000,
+    "sqliteRowsWrittenPerMonth": 50000000,
+    "sqliteStorageGbMonth": 5
+  },
+  "proposedPilot": {
+    "objects": 1,
+    "applicationRequestsAtMost": 100,
+    "deadlineMinutes": 30,
+    "logicalStateBytesAtMost": 65536,
+    "conservativeContinuouslyActiveGbSeconds": 230.4,
+    "expectedIncrementalChargeUsd": 0
+  },
+  "limits": [
+    "Account-wide usage observations support unused standard included capacity; they are not an invoice-certified balance or a reservation of future capacity.",
+    "Source remains default-off. This receipt does not enable enrollment or execute a pilot."
+  ],
+  "privateEvidenceSha256": "8d8cfb4daae67291e1821eb233d7695dc002527743d7a1fae91f46287327c3c6",
+  "pricingSource": "https://developers.cloudflare.com/durable-objects/platform/pricing/"
+}

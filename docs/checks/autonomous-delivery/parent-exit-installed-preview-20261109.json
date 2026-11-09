@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "status": "installed_parent_exit_identity_pass",
+  "observedAt": "2026-11-09T02:08:15.759Z",
+  "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-08T21:53:01.180474Z",
+  "buildId": "7dda3152-5a69-4786-bc88-f33e5dde3aea",
+  "templateVersionId": "4890e415-8c71-4687-a067-f8ff802e6c34",
+  "agentId": "0d4cffa1-30ba-409d-bd8d-99664861b782",
+  "sourceSha": "66565f5cf20e6e4ace740c6f55178a03e8213918",
+  "imageDigest": "sha256:9f06557a45b819173682f13e2dde56d83ae4aaa6515ceff897cbe2d12e60b53d",
+  "imageDigestProvenance": "reviewed-immutable-template-import-and-registry-proof",
+  "hostManifestSha256": "fe3c0b3dff83cbb37bfbce49cfa73f2ac8e753c9c9b1ef6986b4f03b848b6fe0",
+  "hostRawSha256": "87402971091ac2e2a9fb2168f89c32573002bd6d7c37e6e97b342afead8ac7a0",
+  "hostMemberCount": 55,
+  "allMemberDigestsMatch": true,
+  "currentLifetimeId": "881f1434-d296-45b2-981c-c5b41fc9e932",
+  "currentLifetimePhase": "startupReady",
+  "actualIdentity": {
+    "httpStatus": 200,
+    "requestCount": 1,
+    "elapsedMs": 780,
+    "signatureVerified": true,
+    "stableStartupVerified": true,
+    "installerParentExited": true,
+    "proposalBytes": 1643,
+    "fullInstalledInventoryUsed": true
+  },
+  "volume": {
+    "accessModes": ["ReadWriteOnce"],
+    "boundVolumeName": "pvc-4cd09896-c113-488b-b326-8273271b571c",
+    "capacity": "4Gi",
+    "claimReadOnly": false,
+    "containerName": "dev",
+    "mountPath": "/home/coder",
+    "namespace": "coder",
+    "podVolumeName": "home",
+    "pvcName": "coder-5172dea9-a2d7-4ddf-9f58-a970a777f280-home",
+    "pvcUid": "4cd09896-c113-488b-b326-8273271b571c",
+    "readOnly": false,
+    "storageClass": "longhorn",
+    "subPath": "",
+    "subPathExpr": ""
+  },
+  "authCacheMetadata": {
+    "present": true,
+    "regular": true,
+    "symlink": false,
+    "uid": 1000,
+    "mode": 384,
+    "nlink": 1,
+    "contentRead": false,
+    "contentHashed": false
+  },
+  "authContentRead": false,
+  "authContentHashed": false,
+  "homeCapacity": {
+    "totalBytes": "4143677440",
+    "availableBytes": "1316507648",
+    "minimumAvailableBytes": "805306368",
+    "repositorySeedBytes": 0
+  },
+  "processCounts": {
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "unreadableEntries": 0
+  },
+  "sshClosed": true,
+  "accountStatusRequested": false,
+  "taskOrProvisionRequested": false,
+  "modelStarted": false,
+  "mappingExecuted": false,
+  "history": {
+    "projectCount": 1,
+    "allTasksNull": true,
+    "oldLifetimeId": "2a9d8187-6f96-4053-b64a-be25c66c390f",
+    "oldPackageManifestSha256": "ca655fae0c3615fae7ebae04eedf20072cf508c9f180978ae12886cebcc3f472",
+    "rawProjectPreserved": true,
+    "rootRawPreserved": true,
+    "retainedBootstrapHistoryCount": 2,
+    "locatorComplete": true,
+    "authCachePrivate": true
+  },
+  "imageWorkflowRun": 42547933966,
+  "imageSourceProofSha256": "325c26dbaa943a3208d60d414bfd5deebb2788d1a2bf34eedec79c2808360f3c",
+  "inactiveTemplateImport": {
+    "archiveSha256": "7481b6add1fe139315ebc97b9bd56e8a3c76327f0b7b7b17d69ceda3619a5a30",
+    "archiveBytes": 786944,
+    "globalTemplateActiveUnchanged": true,
+    "sameExistingHome": true
+  },
+  "laterAccountStatus": {
+    "httpStatus": 200,
+    "state": "signed-in",
+    "lifetimeId": "e6d8ab76-d1dd-46f9-a2a4-68077171c770",
+    "generation": 0
+  },
+  "laterSameTaskRecovery": {
+    "httpStatus": 503,
+    "failureStage": "guardian_runtime_reservation",
+    "firstExecutionWakeSent": false,
+    "unknownCommittedOutcomeInspectionPending": false,
+    "readOnlyInspectionConfirmedZeroAuthority": true,
+    "cause": "Historical Coder resource response omits agent associations; current parser requires one. Lifecycle and current/historical physical volume identities pass.",
+    "inspectionBudget": {
+      "databaseConnections": 1,
+      "coderMetadataGets": 4,
+      "mutations": 0
+    }
+  },
+  "limits": [
+    "Identity discovery uses full installed inventory and actual post-installer parent change; no projected process inventory.",
+    "Immutable template/registry/source/member evidence establishes image provenance; actual pod image field was not independently observed.",
+    "Package/history/identity acceptance does not establish task runtime reservation, model execution or production acceptance.",
+    "No global template activation, authentication content read/copy, new prompt/task, manual authority repair or production cutover."
+  ],
+  "laterHistoricalFix": {
+    "mergeSha": "5ff6e525a38092e08d343ba6ce9ab08e658d77cf",
+    "combinedCiPassed": 24,
+    "servingSourceVerified": true,
+    "sameB1RetryHttpStatus": 200,
+    "intentPhase": "queued",
+    "recoveryPhase": "consumed",
+    "nativeLaunchPresent": false
+  },
+  "laterFirstWake": {
+    "httpStatus": 200,
+    "failureStage": "guardian_runtime_reservation",
+    "enrolledAt": "2026-11-09T02:53:26.171Z",
+    "authorityUntil": "2026-11-09T02:56:26.171Z",
+    "wakeBeganAt": "2026-11-09T03:00:20.632Z",
+    "authorityExpiryConfirmed": true,
+    "operatorSequencingMistake": true,
+    "nativeLaunchPresent": false,
+    "normalRecoveryLocalProofPending": true
+  }
+}

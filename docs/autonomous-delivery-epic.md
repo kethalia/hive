@@ -313,8 +313,14 @@ normal restart. Claude/maintenance responses were intercepted in those scoped ch
 The reviewed CLI image and inactive4Gi template are installed on the same workspace.
 The retained task retry exposed a detached-installer parent-PID comparison defect before
 any model execution; PR445 supplies the narrow correction and is integrated after all13
-CI checks and current-head review. Its test image and installed acceptance are next.
-Preserved-task recovery and the real manager/child/evaluator flow are next.
+CI checks and current-head review. Its immutable image is installed and actual identity
+discovery now passes after installer exit, preserving both predecessor histories and sign-in.
+The same task retry then exposes a historical Coder resource-shape mismatch: old builds
+omit agents. PR446 corrects historical parsing and is integrated after all13 CI checks and
+current-head review. The same owner retry now succeeds and commits the original task
+queued/recovery consumed. A later execution wake is held because root verification
+delayed beyond the runtime's three-minute authority window. Normal expired-empty
+recovery and the real manager/child/evaluator acceptance remain.
 Shared-thread views, safe completed-task cleanup, Claude/maintenance,
 durable background service parity and production release acceptance remain gates.
 See the [execution ledger](checks/autonomous-delivery/progress.md) for exact evidence.
@@ -364,8 +370,9 @@ still awaits owner approval, and no repository protection has been changed.
 Finish the remaining F07/F08/F10 account-backed parity/recovery gates and release-controller
 acceptance. The owner approved F07's browser-independent preparation wake. PR444
 implements the [same-Worker durable alarm](checks/autonomous-delivery/durable-wake-plan.md)
-with default-off configuration; review corrections and composed regressions remain
-before integration. Live pilot enrollment remains off pending included-usage verification.
+with default-off configuration. All13 CI checks and current-head Codex review pass
+before integration into the epic at `cd8f2c46`. Live pilot enrollment remains off. Read-only account analytics show no observed Durable
+Object usage over32days, supporting capacity within the existing included allowances.
 This task-preparation wake does not complete notification, rotation or publication parity.
 Prepare production bindings, retained identities, explicit production OAuth,
 migration compatibility, scheduler handover and rollback as a concrete cutover package for the
