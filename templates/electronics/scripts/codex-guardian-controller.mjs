@@ -1524,6 +1524,36 @@ export function openGuardianController({
     check(result.expiresAt > Date.now() / 1000);
     return result;
   }
+  function enrollmentHistory(originalEnrollment, response, s) {
+    const claims = JSON.parse(Buffer.from(originalEnrollment.grant.split(".")[1], "base64url")),
+      facts = {
+        runtimeId: originalEnrollment.runtimeId,
+        runtimeGeneration: 1,
+        grantId: claims.jti,
+        tokenDigest: sha(originalEnrollment.grant),
+        consumptionDigest: digest(originalEnrollment),
+        identityDigest: claims.identityDigest,
+        lifetimeId: s.lifetimeId,
+        configSha256,
+        startupDigest: claims.startupDigest,
+      };
+    check(
+      originalEnrollment.action === "enroll" &&
+        response?.accepted === true &&
+        Object.entries(facts).every(([field, value]) => response[field] === value) &&
+        Number.isSafeInteger(response.enrolledAt) &&
+        Number.isSafeInteger(response.authorityUntil) &&
+        response.authorityUntil === response.enrolledAt + 180000,
+    );
+    return {
+      originalEnrollment: structuredClone(originalEnrollment),
+      receipt: {
+        ...facts,
+        enrolledAt: response.enrolledAt,
+        authorityUntil: response.authorityUntil,
+      },
+    };
+  }
   async function recoverEnrollment() {
     const s = initialize(false, true, true),
       originalEnrollment = structuredClone(state.pending);
@@ -1592,25 +1622,13 @@ export function openGuardianController({
       check(
         Date.now() < body.expiresAt &&
           !abort.signal.aborted &&
-          r?.accepted === true &&
-          r.empty === true &&
-          r.runtimeId === body.runtimeId &&
-          r.runtimeGeneration === 1 &&
-          r.nonce === body.nonce &&
-          r.grantId === body.grantId &&
-          r.tokenDigest === body.tokenDigest &&
-          r.consumptionDigest === body.consumptionDigest &&
-          r.identityDigest === body.identityDigest &&
-          r.lifetimeId === body.lifetimeId &&
-          r.configSha256 === body.configSha256 &&
-          r.startupDigest === body.startupDigest &&
-          Number.isSafeInteger(r.enrolledAt) &&
-          Number.isSafeInteger(r.authorityUntil) &&
-          r.authorityUntil > r.enrolledAt,
+          r?.empty === true &&
+          r.nonce === body.nonce,
       );
+      const history = enrollmentHistory(originalEnrollment, r, s);
       check(same(startup(), s));
       check(same(state.pending, originalEnrollment) && state.hold && !state.runtimeId);
-      state.enrollmentRecovery = { originalEnrollment, receipt: structuredClone(r) };
+      state.enrollmentRecovery = history;
       state.runtimeId = r.runtimeId;
       state.generation = 1;
       state.pending = null;
@@ -1747,6 +1765,9 @@ export function openGuardianController({
               r.runtimeId === claims.runtimeId &&
               r.runtimeGeneration === s.generation,
           );
+          // send persists this history and clears pending in one signed write.
+          // An interrupted ACK still leaves the exact enrollment for readback.
+          state.enrollmentReceipt = enrollmentHistory(state.pending, r, s);
           state.runtimeId = r.runtimeId;
           state.generation = r.runtimeGeneration;
           if (unstarted) state.unstartedTransferReceipt = structuredClone(claims.unstartedTransfer);
@@ -2208,7 +2229,7 @@ export function openGuardianController({
     requestExpiredEmptyDrain: (grant) =>
       serial(() => {
         const s = initialize(false, false, true),
-          recovery = state.enrollmentRecovery;
+          recovery = state.enrollmentReceipt ?? state.enrollmentRecovery;
         check(
           recovery &&
             Date.now() >= recovery.receipt.authorityUntil &&

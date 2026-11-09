@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "slice": "prospective normal enrollment ACK epoch history",
+  "baseSourceSha": "3a33136372fb9399de9b4da2e28a940017f9272e",
+  "implementation": {
+    "normalAck": "Persist exact original signed enrollment frame and committed original epoch facts in enrollmentReceipt before clearing pending in the existing atomic signed save.",
+    "lostAck": "Use the same validated factual representation in existing enrollmentRecovery. Preserve its recovery-only expiry inspection guard.",
+    "expiredOwnerClose": "Select normal enrollmentReceipt or existing enrollmentRecovery, retaining all subsequent owner grant, epoch, generation, signature, physical identity, no-native and admission guards.",
+    "originalAuthorityMilliseconds": 180000,
+    "legacyShortAck": "Keep exact pending enrollment held until existing factual readback supplies the original committed epoch.",
+    "previewPolicy": "Append new package tuple while retaining every predecessor, including fe3."
+  },
+  "package": {
+    "manifestSha256": "b30d2271efe65bb63d4388be4bfa255aeef8b95045c41914f9260ddbea3a0582",
+    "rawArchiveSha256": "82c80f77d47f1b0b76b58defa5704a6726358273dfabfd5870f0db48e269e662",
+    "controllerSourceSha256": "c4180ca9e8862643f056d03edfa61239b975f7160df42d9eb378548cd1627943",
+    "serviceSourceSha256": "9bd8f578cbbaa30c5362662b4269c50988b5c724a436405431f5ec1eb1cea346",
+    "compressedArchiveBytes": 221708,
+    "canonicalProfiles": 5,
+    "guardianElfChanged": false,
+    "nativeOrNodePinChanged": false
+  },
+  "checks": {
+    "controller": {
+      "passed": 72,
+      "failed": 0
+    },
+    "finalFocusedNormalAck": {
+      "passed": 13,
+      "failed": 0
+    },
+    "hostRetirementTransferDiscovery": {
+      "passed": 115,
+      "failed": 0
+    },
+    "packageCompiledDeploy": {
+      "topLevelPassed": 24,
+      "topLevelSkipped": 2,
+      "failed": 0,
+      "limitations": "Optional compiled native namespace and evaluator tests remain opt-in. Nested existing native integration tests retain their own opt-in skips."
+    },
+    "unusedBootstrapVitest": {
+      "passed": 1,
+      "postgresTestsSkipped": 21,
+      "reason": "Dedicated test-suite DB names were not repurposed. The actual local C/PG composition uses a separately owned isolated fixture."
+    },
+    "typecheck": "pass",
+    "templatesCheck": "pass",
+    "affectedBiome": "pass with one pre-existing service noNonNullAssertion warning",
+    "diffCheck": "pass"
+  },
+  "actualLocalProof": {
+    "enrolledAt": "2026-11-09T04:05:00.299Z",
+    "authorityUntil": "2026-11-09T04:08:00.299Z",
+    "realExpiryWait": true,
+    "clockOverride": false,
+    "authorityChanged": false,
+    "actualCGuardian": true,
+    "initialUnusedEnrollment": true,
+    "retainedOpenCount": 1,
+    "normalAckExactFrameAndCommittedFacts": true,
+    "postExpiryFactualIdentityJournalUnchanged": true,
+    "ownerRecoverEmptyAccepted": true,
+    "firstDownstreamResult": "guardian_worker_request_rejected_drain",
+    "firstPredicate": "project-controller closeAdmission rejects a zero-admission barrier when retained project map contains one ordinary OPEN with task null.",
+    "postcheck": {
+      "runtimePhase": "open",
+      "generation": 1,
+      "epochUnchanged": true,
+      "expired": true,
+      "nativeLaunchAbsent": true,
+      "grantCount": 1,
+      "consumptionMatches": true,
+      "admissionCount": 0,
+      "taskPhase": "queued",
+      "ownerCloseMarkerPresent": true,
+      "knownActorsGone": true,
+      "retainedOpenCount": 1,
+      "closedBarrierProjects": 0
+    },
+    "privateDriverSha256": "860ede368d6cd3f465fc70940b950bca87174d2a3cfb2bcb2e380633ac7aa5e9",
+    "privatePostcheckSha256": "ef399ebdb0818024c73997bdeabf5d3c2f08e59ae2074a7cd910c54864022bc0"
+  },
+  "fixtureLimits": [
+    "Synthetic owner, Coder and provider metadata.",
+    "Test-only inventory projection includes known fixture descendants and guardian, excluding unrelated primary processes. Production inspection is unchanged.",
+    "Test-only managed-root path and device projection retain actual filesystem inode observations.",
+    "Local root-owned official Node 24.21.0 uses a fixture-specific package policy.",
+    "Actual C and FD3 worker with real project controller and local PostgreSQL service/store were exercised. Python installer was not invoked.",
+    "Both setup failures, original missing-marker failure, first shared-marker candidate and final compatibility run remain privately preserved."
+  ],
+  "nextContractForReview": "Zero-admission owner-close barrier must distinguish proven ordinary task-null OPEN metadata from admitted/native project history while retaining exact closure snapshots and preserving OPEN/root/auth history. The existing zero-project rollover and closed-startup archive guards remain separate unvalidated downstream holds.",
+  "acceptance": {
+    "normalAckMarkerAndExpiredOwnerClose": "local proven",
+    "wholeCloseRebuildFreshEnrollmentQueuedIntentChain": "held at first downstream drain predicate",
+    "existingLiveLegacyContext": "preserved and held",
+    "providerOrLiveTaskCalls": 0,
+    "imagePublish": false,
+    "productionWrites": false
+  }
+}

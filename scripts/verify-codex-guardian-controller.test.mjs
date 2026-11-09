@@ -99,6 +99,7 @@ function fixture({
     applicationRequest,
     applicationPhase = "pending",
     closeReply,
+    enrollmentReceipt,
     transportHook,
     closureTransport;
   const reply = async (body, result) => {
@@ -131,6 +132,24 @@ function fixture({
         ),
       );
       calls.push(body);
+      if (body.action === "enroll") {
+        const claims = JSON.parse(Buffer.from(body.grant.split(".")[1], "base64url")),
+          enrolledAt = Date.now();
+        enrollmentReceipt ??= {
+          accepted: true,
+          runtimeId,
+          runtimeGeneration: 1,
+          grantId: claims.jti,
+          tokenDigest: sha(body.grant),
+          consumptionDigest: digest({ ...body, proof }),
+          identityDigest: claims.identityDigest,
+          lifetimeId: startup.lifetimeId,
+          configSha256: startup.configSha256,
+          startupDigest: claims.startupDigest,
+          enrolledAt,
+          authorityUntil: enrolledAt + 180000,
+        };
+      }
       if (
         closureTransport &&
         (body.action.startsWith("epic_") || body.action.startsWith("cleanup_"))
@@ -168,7 +187,7 @@ function fixture({
         const original = body.originalEnrollment;
         assert.equal(body.consumptionDigest, digest(original));
         assert.equal(body.tokenDigest, sha(original.grant));
-        const enrolledAt = Date.now() - 60000;
+        const enrolledAt = mode === "expired" ? Date.now() - 180001 : enrollmentReceipt.enrolledAt;
         return Response.json({
           accepted: true,
           empty: true,
@@ -183,11 +202,10 @@ function fixture({
           configSha256: body.configSha256,
           startupDigest: body.startupDigest,
           enrolledAt,
-          authorityUntil: mode === "expired" ? Date.now() - 1 : Date.now() + 60000,
+          authorityUntil: enrolledAt + 180000,
         });
       }
-      if (body.action === "enroll")
-        return Response.json({ accepted: true, runtimeId, runtimeGeneration: 1 });
+      if (body.action === "enroll") return reply(body, structuredClone(enrollmentReceipt));
       if (body.action === "drain_ready")
         return Response.json({ ready: false, runtimeId, runtimeGeneration: generation });
       if (body.action === "close") {
@@ -609,6 +627,112 @@ test("fresh nonce identity and one-use issuer grant use real Ed25519 domains and
     f.close();
   }
 });
+test("normal enrollment ACK atomically retains its exact signed request and original epoch", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    const path = join(f.options.stateDirectory, "controller.json");
+    let original, response;
+    f.onTransport((request, reply) => {
+      if (request.action !== "enroll") return;
+      const pending = JSON.parse(readFileSync(path)).state;
+      assert.equal(pending.enrollmentReceipt, undefined);
+      assert.equal(pending.pending.action, "enroll");
+      original = structuredClone(pending.pending);
+      response = structuredClone(reply);
+    });
+    await f.client.bootstrap(f.grant());
+    const state = JSON.parse(readFileSync(path)).state,
+      history = state.enrollmentReceipt;
+    assert.deepEqual(history.originalEnrollment, original);
+    assert.equal(state.pending, null);
+    assert.equal(state.hold, false);
+    for (const [field, value] of Object.entries(history.receipt))
+      assert.equal(value, response[field], field);
+    assert.equal(history.receipt.consumptionDigest, digest(original));
+    assert.equal(history.receipt.tokenDigest, sha(original.grant));
+    assert.equal(history.receipt.authorityUntil, history.receipt.enrolledAt + 180000);
+    await assert.rejects(f.client.requestExpiredEmptyDrain(f.closeGrant()));
+    t.mock.method(Date, "now", () => history.receipt.authorityUntil + 1);
+    await assert.rejects(
+      f.client.requestExpiredEmptyDrain(f.closeGrant({ workspaceId: randomUUID() })),
+    );
+    assert.equal(await f.client.requestExpiredEmptyDrain(f.closeGrant()), true);
+    assert.deepEqual(JSON.parse(readFileSync(path)).state.enrollmentReceipt, history);
+    assert.deepEqual(
+      f.calls.map((call) => call.action),
+      ["enroll"],
+    );
+  } finally {
+    f.close();
+  }
+});
+test("a legacy short ACK retains pending enrollment until factual readback supplies epoch facts", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.onTransport((request, response) => {
+      if (request.action !== "enroll") return;
+      for (const field of Object.keys(response))
+        if (!["accepted", "runtimeId", "runtimeGeneration"].includes(field)) delete response[field];
+    });
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    const path = join(f.options.stateDirectory, "controller.json"),
+      held = JSON.parse(readFileSync(path)).state;
+    assert.equal(held.runtimeId, null);
+    assert.equal(held.hold, true);
+    assert.equal(held.enrollmentRecovery, undefined);
+    await f.client.identity("b".repeat(64));
+    const recovered = JSON.parse(readFileSync(path)).state;
+    assert.deepEqual(recovered.enrollmentRecovery.originalEnrollment, held.pending);
+    assert.equal(recovered.pending, null);
+    assert.equal(recovered.enrollmentRecovery.receipt.consumptionDigest, digest(held.pending));
+    assert.equal(
+      recovered.enrollmentRecovery.receipt.authorityUntil,
+      recovered.enrollmentRecovery.receipt.enrolledAt + 180000,
+    );
+    assert.deepEqual(
+      f.calls.map((call) => call.action),
+      ["enroll", "enrollment_readback"],
+    );
+  } finally {
+    f.close();
+  }
+});
+for (const field of [
+  "runtimeId",
+  "runtimeGeneration",
+  "grantId",
+  "tokenDigest",
+  "consumptionDigest",
+  "identityDigest",
+  "lifetimeId",
+  "configSha256",
+  "startupDigest",
+  "enrolledAt",
+  "authorityUntil",
+])
+  test(`normal enrollment refuses changed ${field} before clearing its signed pending request`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      f.onTransport((request, response) => {
+        if (request.action === "enroll")
+          response[field] = typeof response[field] === "number" ? response[field] + 1 : "changed";
+      });
+      await assert.rejects(f.client.bootstrap(f.grant()));
+      const state = JSON.parse(
+        readFileSync(join(f.options.stateDirectory, "controller.json")),
+      ).state;
+      assert.equal(state.hold, true);
+      assert.equal(state.runtimeId, null);
+      assert.equal(state.pending.action, "enroll");
+      assert.equal(state.enrollmentRecovery, undefined);
+      assert.equal(state.enrollmentReceipt, undefined);
+    } finally {
+      f.close();
+    }
+  });
 test("enrolled runtime identities omit empty-root proposals before first task and after generation advances", async () => {
   const f = fixture();
   try {
@@ -1149,7 +1273,7 @@ test("installed normally enrolled guardian can sign owner inspection after serve
     const before = readFileSync(join(f.options.stateDirectory, "controller.json")),
       now = Date.now() + 240000;
     t.mock.method(Date, "now", () => now);
-    assert.equal(JSON.parse(before).state.enrollmentRecovery, undefined);
+    assert.equal(JSON.parse(before).state.enrollmentReceipt.originalEnrollment.action, "enroll");
     const binding = f.options.config.binding,
       projectId = randomUUID(),
       taskId = randomUUID(),
