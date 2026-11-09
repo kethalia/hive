@@ -105,6 +105,7 @@ function fixture() {
 }
 
 beforeEach(() => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   authorize.mockImplementation(async () => authority());
 });
 afterEach(() => {
@@ -182,6 +183,71 @@ describe("fixed Coder PTY session inventory", () => {
     await expect(readWorkspaceSessionInventory(session, workspaceId, f.options)).rejects.toThrow();
     expect(f.socket.sent).toHaveLength(1);
     expect(f.socket.closes).toEqual([1000]);
+    const reason =
+      kind === "close"
+        ? "socket_closed_after_go"
+        : kind === "error"
+          ? "socket_error"
+          : kind === "failed"
+            ? "remote_failed_after_go"
+            : "protocol_parse";
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls.at(-1)![0])).toEqual({
+      event: "terminal_inventory_failure",
+      phase: "frames",
+      reason,
+    });
+  });
+
+  it.each([
+    "accept",
+    "preauth",
+    "postauth",
+    "projector",
+    "upgrade",
+  ])("emits only fixed phase/reason fields for %s failures", async (kind) => {
+    const f = fixture();
+    const privateFailure = Error("private-credential-and-workspace-details");
+    if (kind === "accept")
+      f.socket.accept = () => {
+        throw privateFailure;
+      };
+    if (kind === "preauth") authorize.mockRejectedValueOnce(privateFailure);
+    if (kind === "postauth")
+      authorize.mockResolvedValueOnce(authority()).mockRejectedValueOnce(privateFailure);
+    if (kind === "projector")
+      f.socket.result = { exitCode: 127, stdout: "", stderr: privateFailure.message };
+    if (kind === "upgrade") f.fetcher.mockResolvedValueOnce(new Response(null, { status: 403 }));
+    await expect(readWorkspaceSessionInventory(session, workspaceId, f.options)).rejects.toThrow(
+      "Could not list workspace terminal sessions.",
+    );
+    expect(console.warn).toHaveBeenCalledOnce();
+    const line = vi.mocked(console.warn).mock.calls[0][0];
+    expect(line).not.toContain("private");
+    expect(line).not.toContain(workspaceId);
+    expect(line).not.toContain(agentId);
+    expect(JSON.parse(line)).toEqual({
+      event: "terminal_inventory_failure",
+      phase: kind === "accept" ? "frames" : kind,
+      reason: kind === "accept" ? "accept_failed" : "unavailable",
+    });
+  });
+
+  it.each(["close", "failed"])("distinguishes %s before any GO was sent", async (kind) => {
+    const f = fixture();
+    f.socket.accept = () =>
+      queueMicrotask(() => {
+        if (kind === "close") f.socket.emit("close");
+        else f.socket.emit("message", { data: `${f.socket.prefix}_FAILED\n` });
+      });
+    await expect(readWorkspaceSessionInventory(session, workspaceId, f.options)).rejects.toThrow(
+      "Could not list workspace terminal sessions.",
+    );
+    expect(f.socket.sent).toEqual([]);
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls.at(-1)![0])).toEqual({
+      event: "terminal_inventory_failure",
+      phase: "frames",
+      reason: kind === "close" ? "socket_closed_before_go" : "remote_failed_before_go",
+    });
   });
 
   it("caps long-lived credential timers to the existing read deadline", async () => {
@@ -227,6 +293,11 @@ describe("fixed Coder PTY session inventory", () => {
     await vi.advanceTimersByTimeAsync(8001);
     await rejected;
     expect(f.socket.closes).toEqual([1000]);
+    expect(JSON.parse(vi.mocked(console.warn).mock.calls.at(-1)![0])).toEqual({
+      event: "terminal_inventory_failure",
+      phase: "frames",
+      reason: "deadline",
+    });
 
     const g = fixture(),
       cancel = new AbortController();

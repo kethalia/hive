@@ -13,7 +13,22 @@ import { cancelTerminalBody, terminalFetch } from "./transport-io";
 const TIMEOUT_MS = 8000;
 const MAX_WIRE_BYTES = 131072;
 const MAX_OUTPUT_BYTES = 32768;
-const unavailable = () => new Error("Could not list workspace terminal sessions.");
+type FailureReason =
+  | "unavailable"
+  | "deadline"
+  | "accept_failed"
+  | "socket_closed_before_go"
+  | "socket_closed_after_go"
+  | "socket_error"
+  | "protocol_parse"
+  | "remote_failed_before_go"
+  | "remote_failed_after_go";
+class InventoryFailure extends Error {
+  constructor(readonly reason: FailureReason) {
+    super("Could not list workspace terminal sessions.");
+  }
+}
+const unavailable = (reason: FailureReason = "unavailable") => new InventoryFailure(reason);
 const resultSchema = z
   .object({
     exitCode: z.number().int().min(0).max(255),
@@ -120,17 +135,30 @@ function receive(socket: RelaySocket, nonce: string, signal: AbortSignal) {
       bytes = 0,
       sent = false,
       settled = false;
-    const finish = (value?: z.infer<typeof resultSchema>) => {
+    const finish = (
+      value?: z.infer<typeof resultSchema>,
+      reason: FailureReason = "protocol_parse",
+    ) => {
       if (settled) return;
       settled = true;
-      signal.removeEventListener("abort", failed);
+      signal.removeEventListener("abort", expired);
       socket.removeEventListener("message", message);
-      socket.removeEventListener("close", failed);
+      socket.removeEventListener("close", closed);
       socket.removeEventListener("error", failed);
       if (value) resolve(value);
-      else reject(unavailable());
+      else reject(unavailable(reason));
     };
-    const failed = () => finish();
+    const expired = () => finish(undefined, "deadline");
+    const closed = () =>
+      finish(undefined, sent ? "socket_closed_after_go" : "socket_closed_before_go");
+    const failed = () => finish(undefined, "socket_error");
+    const sendControl = (kind: "GO" | "ACK") => {
+      try {
+        socket.send(new TextEncoder().encode(JSON.stringify({ data: `${prefix}_${kind}\n` })));
+      } catch {
+        throw unavailable("socket_error");
+      }
+    };
     const message = (event: { data: unknown }) => {
       try {
         const data = event.data;
@@ -145,10 +173,11 @@ function receive(socket: RelaySocket, nonce: string, signal: AbortSignal) {
           // biome-ignore lint/suspicious/noControlCharactersInRegex: PTY output contains CSI terminal sequences.
           .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
           .replace(/\r/g, "");
-        if (text.includes(`${prefix}_FAILED`)) throw unavailable();
+        if (text.includes(`${prefix}_FAILED`))
+          throw unavailable(sent ? "remote_failed_after_go" : "remote_failed_before_go");
         if (!sent && text.includes(`${prefix}_READY\n`)) {
           sent = true;
-          socket.send(new TextEncoder().encode(JSON.stringify({ data: `${prefix}_GO\n` })));
+          sendControl("GO");
         }
         const begin = `${prefix}_RESULT\n`,
           end = `\n${prefix}_END`;
@@ -162,22 +191,27 @@ function receive(socket: RelaySocket, nonce: string, signal: AbortSignal) {
         const payload = Buffer.from(encoded, "base64");
         if (payload.toString("base64") !== encoded) throw unavailable();
         const result = resultSchema.parse(JSON.parse(decoder.decode(payload)));
-        socket.send(new TextEncoder().encode(JSON.stringify({ data: `${prefix}_ACK\n` })));
+        sendControl("ACK");
         finish(result);
-      } catch {
-        finish();
+      } catch (error) {
+        finish(
+          undefined,
+          error instanceof InventoryFailure && error.reason !== "unavailable"
+            ? error.reason
+            : "protocol_parse",
+        );
       }
     };
     socket.addEventListener("message", message);
-    socket.addEventListener("close", failed);
+    socket.addEventListener("close", closed);
     socket.addEventListener("error", failed);
-    signal.addEventListener("abort", failed, { once: true });
-    if (signal.aborted) failed();
+    signal.addEventListener("abort", expired, { once: true });
+    if (signal.aborted) expired();
     else {
       try {
         socket.accept({ allowHalfOpen: true });
       } catch {
-        failed();
+        finish(undefined, "accept_failed");
       }
     }
   });
@@ -198,6 +232,7 @@ export async function readWorkspaceSessionInventory(
     ...(options.signal ? [options.signal] : []),
   ]);
   let socket: RelaySocket | undefined;
+  let phase: "preauth" | "upgrade" | "frames" | "postauth" | "projector" = "preauth";
   try {
     const original = await authorizeOwnedWorkspacePty(
       session.session.sessionId,
@@ -226,6 +261,7 @@ export async function readWorkspaceSessionInventory(
       height: "128",
       command,
     }).toString();
+    phase = "upgrade";
     const work = fetcher(url, {
       redirect: "manual",
       credentials: "omit",
@@ -250,7 +286,9 @@ export async function readWorkspaceSessionInventory(
       throw unavailable();
     }
     socket.binaryType = "arraybuffer";
+    phase = "frames";
     const result = await receive(socket, nonce, live);
+    phase = "postauth";
     const current = await authorizeOwnedWorkspacePty(
       session.session.sessionId,
       env,
@@ -269,8 +307,15 @@ export async function readWorkspaceSessionInventory(
       current.expiresAt <= Date.now()
     )
       throw unavailable();
+    phase = "projector";
     return projectResult(result);
-  } catch {
+  } catch (error) {
+    const reason = signal.aborted
+      ? "deadline"
+      : error instanceof InventoryFailure
+        ? error.reason
+        : "unavailable";
+    console.warn(JSON.stringify({ event: "terminal_inventory_failure", phase, reason }));
     throw unavailable();
   } finally {
     controller.abort();
