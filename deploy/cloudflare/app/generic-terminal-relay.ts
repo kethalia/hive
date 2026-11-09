@@ -68,7 +68,7 @@ export function parseGenericTerminalTarget(url: URL): GenericTerminalTarget | nu
   if (
     ![workspaceId, agentId, reconnectId].every((id) => UUID_RE.test(id)) ||
     !SAFE_IDENTIFIER_RE.test(sessionName) ||
-    sessionName.length > 128 ||
+    sessionName.length > 200 ||
     sessionName.startsWith("git-clone-")
   )
     return null;

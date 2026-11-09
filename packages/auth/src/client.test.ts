@@ -44,6 +44,23 @@ describe("auth service portable redirect boundary", () => {
     expect(cancel).toHaveBeenCalledTimes(operations.length);
   });
 
+  it("carries the explicit trusted client address only on its authenticated login request", async () => {
+    const send = vi.fn<typeof fetch>(async (_input, init) => {
+      expect(new Headers(init?.headers).get("X-Hive-Client-IP")).toBe("203.0.113.7");
+      expect(new Headers(init?.headers).get("Authorization")).toBe(`Bearer ${"a".repeat(64)}`);
+      return Response.json({ sessionId: "session", applicationsHost: "", user: {} });
+    });
+    const client = new AuthServiceClient("https://auth.internal", undefined, {
+      serviceSecret: "a".repeat(64),
+      fetch: send,
+    });
+    await client.login(
+      { coderUrl: "https://coder.example.com", email: "fixture@example.com", password: "fixture" },
+      "203.0.113.7",
+    );
+    expect(send).toHaveBeenCalledOnce();
+  });
+
   it("preserves authenticated JSON requests and 404 absence", async () => {
     vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
     const fetch = vi.fn(async (_url, init: RequestInit) => {

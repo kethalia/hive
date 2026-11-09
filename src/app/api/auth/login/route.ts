@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { NextResponse } from "next/server";
 import { getClientIp, loginSchema } from "@/lib/auth/login";
@@ -24,7 +25,15 @@ export async function POST(request: Request) {
   }
 
   const { coderUrl, email, password } = parsed.data;
-  const ip = getClientIp(request.headers);
+  const cloudflare = process.env.HIVE_RUNTIME_TARGET === "cloudflare";
+  // Cloudflare supplies this header at ingress. Browser forwarding headers do
+  // not select the native binding's rate-limit bucket.
+  const connectingIp = request.headers.get("CF-Connecting-IP");
+  const ip = cloudflare
+    ? connectingIp && isIP(connectingIp)
+      ? connectingIp
+      : "unknown"
+    : getClientIp(request.headers);
   const rateCheck = loginRateLimiter.check(ip);
   if (!rateCheck.allowed) {
     console.log(`[login] Rate limited IP: ${ip}`);
@@ -35,7 +44,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await getAuthServiceClient().login({ coderUrl, email, password });
+    const client = getAuthServiceClient();
+    const input = { coderUrl, email, password };
+    const result = cloudflare ? await client.login(input, ip) : await client.login(input);
     const response = NextResponse.json({ success: true as const });
     const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, result.applicationsHost).join("~");
     response.cookies.set(CODER_HOST_COOKIE, coderFrameUrls, {

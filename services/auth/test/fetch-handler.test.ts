@@ -1,5 +1,6 @@
-import { AuthServiceClient } from "@hive/auth";
+import { AuthServiceClient, checkRateLimit } from "@hive/auth";
 import { describe, expect, it, vi } from "vitest";
+import { runRequestLifetime } from "../../../deploy/cloudflare/app/request-lifetime";
 import { createFetchAuthHandler } from "../src/fetch-handler";
 
 const secret = "a".repeat(64);
@@ -86,6 +87,49 @@ describe("Fetch authentication transport", () => {
     );
     expect(operations.deleteSession).toHaveBeenCalledWith("session-id");
     expect(transport).toHaveBeenCalledTimes(5);
+  });
+
+  it.each([
+    "logout",
+    "getSession",
+    "getCredentials",
+    "getCoderToken",
+  ] as const)("finishes the actual streamed request lifetime on %s early return", async (method) => {
+    const { handle, operations } = fixture();
+    operations.getSessionById.mockResolvedValue(null);
+    const close = vi.fn(async () => {});
+    const waits: Promise<unknown>[] = [];
+    const client = new AuthServiceClient("https://auth.internal", undefined, {
+      serviceSecret: secret,
+      fetch: (input, init) =>
+        runRequestLifetime(
+          { run: (operation) => operation(), close },
+          { waitUntil: (task) => waits.push(task), passThroughOnException() {} },
+          async () => handle(new Request(input, init)),
+        ),
+    });
+    expect(await client[method]("session-id")).toBe(method === "logout" ? undefined : null);
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce(), { timeout: 300 });
+    await Promise.all(waits);
+  });
+
+  it("isolates the actual per-client rate-limit buckets on authenticated login", async () => {
+    const { operations } = fixture();
+    const limiter = { check: (ip: string) => checkRateLimit(`binding-regression-${ip}`, 5, 60000) };
+    const handle = createFetchAuthHandler(secret, operations, limiter);
+    const client = new AuthServiceClient("https://auth.internal", undefined, {
+      serviceSecret: secret,
+      fetch: (input, init) => handle(new Request(input, init)),
+    });
+    const input = {
+      coderUrl: "https://coder.example.com",
+      email: "fixture@example.com",
+      password: "fixture",
+    };
+    for (let attempt = 0; attempt < 5; attempt++) await client.login(input, "203.0.113.201");
+    await expect(client.login(input, "203.0.113.201")).rejects.toThrow("Too many login attempts");
+    await expect(client.login(input, "203.0.113.202")).resolves.toHaveProperty("sessionId");
+    expect(operations.performLogin).toHaveBeenCalledTimes(6);
   });
 
   it("bounds JSON bytes and rejects malformed or incomplete password login input", async () => {

@@ -216,12 +216,18 @@ describe("generic reconnecting PTY relay", () => {
       { width: "0" },
       { height: "65536" },
       { sessionName: "x;id" },
+      { sessionName: "x".repeat(201) },
     ])
       expect(
         parseGenericTerminalTarget(
           new URL(request(new URLSearchParams({ ...target, ...change }).toString()).url),
         ),
       ).toBeNull();
+  });
+  it.each([129, 200])("accepts existing terminal names of %i characters", (length) => {
+    const sessionName = "x".repeat(length);
+    const url = new URL(request(new URLSearchParams({ ...target, sessionName }).toString()).url);
+    expect(parseGenericTerminalTarget(url)?.sessionName).toBe(sessionName);
   });
   it("separates browser ping/resize and enforces bounded input", async () => {
     const f = fixture();

@@ -26,7 +26,7 @@ const preserved = join(directory, `node-next-${randomUUID()}`);
 let saved = false;
 let staged = false;
 try {
-  const identity = readProviderBuildIdentity();
+  readProviderBuildIdentity();
   await unlink(READY_FILE).catch((error) => {
     if (error.code !== "ENOENT") throw error;
   });
@@ -67,10 +67,6 @@ try {
     if (saved) await rename(preserved, ".next");
   }
   await writePortableActions();
-  await writeFile(
-    ".open-next/cloudflare/hive-provider-build.mjs",
-    `export default Object.freeze(${JSON.stringify(identity)});\n`,
-  );
   await writeBuildReady(inputs);
 } finally {
   await lock.close();

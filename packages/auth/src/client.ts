@@ -84,6 +84,7 @@ export class AuthServiceClient {
         (body as Record<string, string>).error ?? `Logout failed with status ${res.status}`,
       );
     }
+    await res.body?.cancel().catch(() => {});
   }
 
   async getSession(sessionId: string): Promise<SessionPayload | null> {
@@ -92,6 +93,7 @@ export class AuthServiceClient {
     });
 
     if (res.status === 404) {
+      await res.body?.cancel().catch(() => {});
       return null;
     }
 
@@ -111,6 +113,7 @@ export class AuthServiceClient {
     });
 
     if (res.status === 404) {
+      await res.body?.cancel().catch(() => {});
       return null;
     }
 
@@ -131,6 +134,7 @@ export class AuthServiceClient {
     });
 
     if (res.status === 404) {
+      await res.body?.cancel().catch(() => {});
       return null;
     }
 
