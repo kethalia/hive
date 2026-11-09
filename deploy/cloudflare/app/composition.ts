@@ -6,6 +6,8 @@ import {
   type ProjectReconcileEnvironment,
   projectReconcilePath,
 } from "../../../src/lib/projects/reconcile-transport";
+import { withTaskWakeEnvironment } from "../../../src/lib/projects/task-wake.server";
+import type { TaskWakeEnvironment } from "../../../src/lib/projects/task-wake-contracts";
 import { isAgentNotificationCallback } from "./agent-notifications";
 import { type AutomaticHealthEnvironment, automaticWorkerHealth } from "./automatic-health";
 import { genericTerminalPath } from "./generic-terminal-relay";
@@ -42,7 +44,8 @@ import { isPortableTemplatePublication } from "./template-publications";
 import { type TerminalPasteEnvironment, terminalPastePath } from "./terminal-paste-runtime";
 import { type VoiceEnvironment, voicePath, voiceRuntime } from "./voice-runtime";
 
-type Environment = AutomaticHealthEnvironment &
+type Environment = TaskWakeEnvironment &
+  AutomaticHealthEnvironment &
   ProjectRelayEnvironment &
   GenericTerminalEnvironment &
   TerminalPasteEnvironment &
@@ -112,7 +115,9 @@ export function createAppWorker(
         );
       if (projectReconcilePath(request)) {
         return runProjectTaskReconciliation(request, env, context, (tracked) =>
-          framework.fetch(request, env, tracked),
+          env.HIVE_PROJECT_TASK_WAKE_ENABLED === "true"
+            ? withTaskWakeEnvironment(env, () => framework.fetch(request, env, tracked))
+            : framework.fetch(request, env, tracked),
         );
       }
       const privateAccess = requiresPreviewAccess(env);
@@ -259,7 +264,9 @@ export function createAppWorker(
       const database = createCloudflareDatabaseRequest(env.DATABASE_URL);
       return privatePreviewResponse(
         await runRequestLifetime(database, context, (tracked) =>
-          framework.fetch(request, env, tracked),
+          env.HIVE_PROJECT_TASK_WAKE_ENABLED === "true"
+            ? withTaskWakeEnvironment(env, () => framework.fetch(request, env, tracked))
+            : framework.fetch(request, env, tracked),
         ),
       );
     },

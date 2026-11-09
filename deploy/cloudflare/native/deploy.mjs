@@ -47,6 +47,8 @@ const disabled = [
 // runtimes. Those runtimes own policy/pin validation; deployment does not add a
 // second policy schema or accept plaintext credential settings.
 const previewRuntimeVars = new Set([
+  "HIVE_PROJECT_TASK_WAKE_ENABLED",
+  "HIVE_PROJECT_TASK_WAKE_TASK_JSON",
   "HIVE_CODEX_ACCOUNTS_ENABLED",
   "HIVE_CODEX_ACCOUNT_MAINTENANCE_ENABLED",
   "HIVE_CLAUDE_ACCOUNTS_ENABLED",
@@ -173,8 +175,10 @@ export function validateConfig(c) {
     "assets",
     "compatibility_date",
     "compatibility_flags",
+    "durable_objects",
     "limits",
     "main",
+    "migrations",
     "name",
     "preview_urls",
     "previews",
@@ -188,6 +192,14 @@ export function validateConfig(c) {
   assert.equal(c.compatibility_date, "2026-10-29");
   assert.deepEqual(c.compatibility_flags, ["nodejs_compat", "global_fetch_strictly_public"]);
   assert.deepEqual(c.limits, { cpu_ms: 100 });
+  const wakeBinding = {
+    bindings: [{ name: "HIVE_PROJECT_TASK_WAKE", class_name: "ProjectTaskWake" }],
+  };
+  assert.deepEqual(c.durable_objects, wakeBinding);
+  assert.deepEqual(c.previews.durable_objects, wakeBinding);
+  assert.deepEqual(c.migrations, [
+    { tag: "project-task-wake-v1", new_sqlite_classes: ["ProjectTaskWake"] },
+  ]);
   assert.equal(c.workers_dev, false);
   assert.equal(c.preview_urls, true);
   assert.deepEqual(c.vars, { HIVE_NATIVE_MODE: "bootstrap" });
@@ -208,6 +220,7 @@ export function validateConfig(c) {
     run_worker_first: true,
   });
   assert.deepEqual(Object.keys(c.previews).sort(), [
+    "durable_objects",
     "placement",
     ...(Object.hasOwn(c.previews, "r2_buckets") ? ["r2_buckets"] : []),
     "secrets",
@@ -220,6 +233,17 @@ export function validateConfig(c) {
       { binding: "HIVE_DELIVERY_EVIDENCE", bucket_name: PILOT_EVIDENCE_BUCKET.name },
     ]);
   const v = c.previews.vars;
+  if (v.HIVE_PROJECT_TASK_WAKE_ENABLED === "true") {
+    assert.equal(v.HIVE_PROJECT_TASKS_ENABLED, "true");
+    const scope = JSON.parse(v.HIVE_PROJECT_TASK_WAKE_TASK_JSON);
+    assert.deepEqual(Object.keys(scope).sort(), ["ownerId", "projectId", "taskId"]);
+    for (const id of Object.values(scope))
+      assert.match(
+        id,
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i,
+      );
+  } else assert.equal(v.HIVE_PROJECT_TASK_WAKE_TASK_JSON, undefined);
+
   const pinned = {
     HIVE_NATIVE_MODE: "preview",
     HIVE_NATIVE_PREVIEW_ENABLED: "true",

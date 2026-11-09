@@ -216,6 +216,16 @@ jobs:
         run: pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/release-effect-journal.integration.test.ts src/__tests__/lib/delivery/release-scheduler.integration.test.ts
         env:
           HIVE_RELEASE_JOURNAL_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_release_test
+      - name: Prepare isolated durable task wake database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_d10_test_project_wake_20261109
+      - name: Apply durable task wake fixture schema
+        run: pnpm --filter @hive/db migrate:deploy
+        env:
+          DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_d10_test_project_wake_20261109
+      - name: Validate durable task wake in Workerd and PostgreSQL
+        run: pnpm exec tsx --test --test-concurrency=1 deploy/cloudflare/native/project-task-wake.integration.test.mjs
+        env:
+          HIVE_TASK_WAKE_TEST_DATABASE_URL: postgresql://hive:hive-test-password@localhost:5432/hive_d10_test_project_wake_20261109
       - name: Prepare isolated database change test database
         run: docker exec "${{ job.services.postgres.id }}" createdb -U hive hive_d10_test
       - name: Validate migration jobs and mixed-version harness

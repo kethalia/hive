@@ -386,3 +386,35 @@ test("managed Preview account pins match the packaged software bridge and helper
   assert.equal(pins[0].helperSha256, sha256(files.get("agent-tools.py")));
   assert.equal(pins[0].helperSha256, asset("agent-bridge.helper.sha256").toString().trim());
 });
+
+test("durable task wake is default-off and accepts only its exact same-Worker SQLite enrollment", () => {
+  assert.equal(config.previews.vars.HIVE_PROJECT_TASK_WAKE_ENABLED, "false");
+  assert.equal(config.previews.vars.HIVE_PROJECT_TASK_WAKE_TASK_JSON, undefined);
+  const enabled = clone();
+  enabled.previews.vars.HIVE_PROJECT_TASK_WAKE_ENABLED = "true";
+  assert.throws(() => validateConfig(enabled));
+  enabled.previews.vars.HIVE_PROJECT_TASK_WAKE_TASK_JSON = JSON.stringify({
+    ownerId: "11111111-1111-4111-8111-111111111111",
+    projectId: "22222222-2222-4222-8222-222222222222",
+    taskId: "33333333-3333-4333-8333-333333333333",
+  });
+  assert.doesNotThrow(() => validateConfig(enabled));
+  for (const mutation of [
+    (c) => {
+      c.previews.durable_objects.bindings[0].script_name = "foreign-worker";
+    },
+    (c) => {
+      c.migrations[0].new_classes = ["ProjectTaskWake"];
+    },
+    (c) => {
+      c.previews.vars.HIVE_PROJECT_TASK_WAKE_TASK_JSON = '{"ownerId":"*"}';
+    },
+    (c) => {
+      c.previews.vars.HIVE_PROJECT_TASKS_ENABLED = "false";
+    },
+  ]) {
+    const value = structuredClone(enabled);
+    mutation(value);
+    assert.throws(() => validateConfig(value));
+  }
+});
