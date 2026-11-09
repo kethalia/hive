@@ -356,18 +356,31 @@ test("actual SQLite alarm arms before PG visibility and hands off the exact encr
   await f.call("tick");
   assert.equal(f.hostCalls(), 0); // reserve -> crash, no visible row
   await f.store.enqueue(f.payload, reserved.deadline);
+  let release;
+  f.block(
+    new Promise((resolve) => {
+      release = resolve;
+    }),
+  );
+  t.after(() => release());
   await f.due();
   // The actual platform alarm is already armed; no post-commit notification.
   for (let n = 0; n < 160 && f.effects() === 0; n++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(f.effects(), 1);
-  const row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
-  assert.equal(row.phase, "running");
+  // The synthetic effect precedes its ACK and the PostgreSQL finish commit.
+  const beforeAck = await f.db.projectTaskIntent.findUniqueOrThrow({
+    where: { id: f.identity.taskId },
+  });
+  assert.equal(beforeAck.phase, "queued");
+  release();
   let settled = await f.call("state");
-  for (let n = 0; n < 100 && settled.phase === "active"; n++) {
-    await new Promise((r) => setTimeout(r, 20));
+  for (let n = 0; n < 160 && settled.phase === "active"; n++) {
+    await new Promise((r) => setTimeout(r, 50));
     settled = await f.call("state");
   }
   assert.equal(settled.phase, "running");
+  const row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "running");
   const queries = f.transport.counts[0].queries;
   await f.call("tick");
   await f.call("tick");

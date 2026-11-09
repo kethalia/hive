@@ -82,7 +82,7 @@
     "deploy/cloudflare/app/project-tasks.ts": "4e632e8ef747bd449fa8a8d89622df9aafdf8c3db98055f3fc331cf25c448c11",
     "deploy/cloudflare/native/deploy.mjs": "f4fa9ad53799fbd771e8b090509fa3258dae7d6ad89c3d43270bb4d0f6372704",
     "deploy/cloudflare/native/deploy.test.mjs": "78ef3b087eb4039e6e80a954717cdb207f032a1396057aa8d38cb7514939433e",
-    "deploy/cloudflare/native/project-task-wake.integration.test.mjs": "d2b221d53b3133c7f3be74a84af63dbc2b4ea8e05ccfcf311aeac3972531e476",
+    "deploy/cloudflare/native/project-task-wake.integration.test.mjs": "e4faf6dccdf42687bdcf9b3321b3c52dc1055fdd47beeadcce0c1ace4218eace",
     "deploy/cloudflare/native/project-task-wake.mjs": "fa2dcdef76d666a431ab82db8e8d45d898cdbcc4c3b302f8eb6ea06ef78f0744",
     "deploy/cloudflare/native/project-task-wake.test.mjs": "e54ca502459c8f4dbe0c49c8a7862f230b3deae1b425fa2738898b7f51be855f",
     "deploy/cloudflare/native/worker.ts": "b831081409efcd7b5ae0051b9ba206da0a65ccf4cc19ad16c4e5d7b202076bd1",
@@ -121,5 +121,16 @@
     "delayedAlarmOrdering": "Browser running then awaitingRegistration before any alarm observation survives DO expiry with tombstone retained; metadata repairs once, no prompt replay",
     "handoffEvidence": "Existing exact-bound nativeThreadId and all three prompt columns erased by running completion; queued and blocked excluded",
     "independentReview": "Source reread clear and delayed-alarm Workerd/PostgreSQL regression independently passed"
+  },
+  "ciSynchronizationCorrection": {
+    "failedSource": "603878ec6af081adf0d9d9ac84504c1c8c274384",
+    "runId": 42548523311,
+    "jobId": 128938684663,
+    "failure": "Synthetic host effect was observed before its response and PostgreSQL finish commit; immediate running assertion read queued",
+    "repair": "Hold the synthetic host acknowledgement, assert queued before acknowledgement, release it, await durable running, then assert PostgreSQL running",
+    "productionSourceChanged": false,
+    "workerdPostgresPassed": 13,
+    "workerdPostgresSkipped": 0,
+    "observedAt": "2026-11-09T02:20:49.521993+00:00"
   }
 }
