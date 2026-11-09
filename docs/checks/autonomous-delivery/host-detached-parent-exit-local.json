@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "baseSourceCommit": "26ecc67aed3f080a73f49cf3bbf38cf8bdd14a7c",
+  "scope": "local detached installer parent-exit regression and immutable host package preparation",
+  "result": "passed",
+  "cause": "The detached Python installer exits after readiness. Live startup attestation then observes a changed outer parent PID while retained startup history records the exited installer.",
+  "comparison": {
+    "onlyNormalizedField": "outerIdentity.parentPid",
+    "bothParentsRequirePositiveSafeInteger": true,
+    "retainedHistoryRewritten": false,
+    "allOtherStartupFieldsExact": true
+  },
+  "regression": {
+    "actualPythonInstallerDetachAndExit": true,
+    "compiledGuardianAndWorker": true,
+    "actualLoopbackDiscoveryIdentity": true,
+    "baseline": {
+      "httpStatus": 403,
+      "bodyBytes": 0
+    },
+    "fixed": {
+      "httpStatus": 200,
+      "bodyBytes": 4187,
+      "proposalMode": "initial-unused-remount",
+      "proposalBytes": 1714
+    },
+    "negativeCases": [
+      "outerIdentity.pid",
+      "outerIdentity.startTime",
+      "outerIdentity.bootId",
+      "outerIdentity.executable",
+      "outerIdentity.device",
+      "outerIdentity.inode",
+      "guardianIdentity.pid",
+      "guardianIdentity.startTime",
+      "guardianIdentity.bootId",
+      "guardianIdentity.executable",
+      "guardianIdentity.device",
+      "guardianIdentity.inode",
+      "workerIdentity.pid",
+      "workerIdentity.startTime",
+      "workerIdentity.bootId",
+      "workerIdentity.executable",
+      "workerIdentity.device",
+      "workerIdentity.inode",
+      "guardianIdentity.parentPid",
+      "workerIdentity.parentPid",
+      "generation",
+      "projects",
+      "workerSha256",
+      "unknownStartupField",
+      "invalidOuterParent",
+      "archivedSignedHistory"
+    ],
+    "rawHistoryRootAndSyntheticAuthBytesUnchanged": true,
+    "allFixtureChildrenReaped": true,
+    "recordedProcessesGone": true
+  },
+  "limits": {
+    "fixtureProcessInventory": "Test-only descendant projection includes dedicated subreaper, outer, C guardian, worker and transient helpers. Unrelated primary process universe excluded. Every selected actor uses canonical kernel inspection.",
+    "fixturePackageMetadataSynthetic": true,
+    "fixtureOpenMetadataSynthetic": true,
+    "fixtureAuthSentinelSynthetic": true,
+    "previousCoverageGap": "Prior composition used retained startup or kept its parent alive and missed detached parent exit. Existing multi-restart test does not cover OPEN unused-bootstrap chains.",
+    "fullInventorySetupFailuresPreserved": [
+      "Unrelated primary process inspection unavailable in bound primary proc universe",
+      "Unprivileged private proc mount unsupported"
+    ],
+    "installedFullRuntimeAcceptance": "Pending image rollout and independent live discovery verification"
+  },
+  "checks": {
+    "hostSuitesPassed": 173,
+    "guardedInstallOptInPassed": 3,
+    "profileArchivePreviewPolicyPassed": 28,
+    "templatesCheck": true,
+    "biomeAffectedFiles": true,
+    "fixturePythonAst": true,
+    "gitDiffCheck": true,
+    "typecheck": true,
+    "localClientRegeneratedFromPinnedSchemaBeforeTypecheck": true
+  },
+  "artifacts": {
+    "packageManifestSha256": "fe3c0b3dff83cbb37bfbce49cfa73f2ac8e753c9c9b1ef6986b4f03b848b6fe0",
+    "rawArchiveSha256": "87402971091ac2e2a9fb2168f89c32573002bd6d7c37e6e97b342afead8ac7a0",
+    "compressedArchiveBytes": 221664,
+    "manifestFileCount": 55,
+    "tarMemberCount": 56,
+    "canonicalEmptyRootSourceSha256": "491496c917bd7cb67b554f5498368242a115fed276fc54571bd316084463f86e",
+    "guardianCSourceSha256": "3f633c951f47a99e885f5761146522a32793e6adbd274481d4dfc01b8d4ce4a3",
+    "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+    "previewApprovedPackageCount": 9,
+    "prior8TuplesRetained": true
+  },
+  "privateEvidence": {
+    "evidence.json": "020ff30b73e589123051fe75a850ac19e3019be2ce4557a42faab447cd81c7fe",
+    "evidence.json.idle.json": "d49b83633798ea676464b09773ec2f66b914a5f37b848ba8ba9ad6fa7ac1d603",
+    "evidence.json.unused-bootstrap.json": "b3619ff82174c7e9e747a077d1b4f4ffb1ed3c4b405c24827f34704651fdeecd"
+  }
+}
