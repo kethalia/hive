@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 import type { PrismaClient } from "@hive/db";
+import { z } from "zod";
 import type { WorkspaceResource } from "@/lib/coder/types";
 import { guardianDigest } from "./guardian-contracts";
 import {
@@ -11,6 +12,7 @@ import {
   emptyRootVolumeSchema,
 } from "./guardian-empty-root-contracts";
 import { guardianVolumeSchema } from "./guardian-remount-contracts";
+import type { GuardianRuntimeIdentity } from "./guardian-store.server";
 import { guardianEnrollmentClaimsSchema } from "./guardian-transport-contracts";
 import type { RegistrationBinding } from "./registration.server";
 import { RegistrationRejected } from "./registration-store.server";
@@ -18,6 +20,85 @@ import { RegistrationRejected } from "./registration-store.server";
 const check: (v: unknown) => asserts v = (v) => {
   if (!v) throw new RegistrationRejected();
 };
+// Historical provider identity is deliberately NOT GuardianVolume. Incomplete
+// boundVolumeName is retained as history, never substituted or used as authority.
+const historicalHomeSchema = guardianVolumeSchema.extend({
+  boundVolumeName: guardianVolumeSchema.shape.boundVolumeName.or(z.literal("")),
+});
+export type HistoricalHomeIdentity = Omit<z.infer<typeof historicalHomeSchema>, "boundVolumeName">;
+export function readHistoricalHomeIdentity(resources: WorkspaceResource[]) {
+  const rows = resources.filter(
+    (r) => r.type === "kubernetes_deployment_v1" && r.name === "workspace",
+  );
+  check(rows.length === 1 && rows[0].agents?.length === 1);
+  check(
+    resources.flatMap((r) => r.agents ?? []).filter((a) => a.id === rows[0].agents?.[0].id)
+      .length === 1,
+  );
+  z.string().uuid().parse(rows[0].id);
+  const values = (rows[0].metadata ?? []).filter((m) => m.key === "hive_home_volume_v1");
+  check(
+    values.length === 1 &&
+      !values[0].sensitive &&
+      typeof values[0].value === "string" &&
+      values[0].value.length <= 2048,
+  );
+  const { boundVolumeName, ...identity } = historicalHomeSchema.parse(JSON.parse(values[0].value));
+  return { resourceId: rows[0].id, identity, observedBoundVolumeName: boundVolumeName || null };
+}
+export type UnusedBootstrapSource = ReturnType<typeof readHistoricalHomeIdentity> & {
+  oldBuildId: string;
+};
+
+export function authorizeUnusedBootstrapRoot(
+  binding: RegistrationBinding,
+  raw: EmptyRootProposal,
+  volume: EmptyRootVolume,
+  identity: GuardianRuntimeIdentity,
+  source: UnusedBootstrapSource,
+  now = Date.now(),
+) {
+  const p = emptyRootProposalSchema.parse(raw),
+    current = emptyRootVolumeSchema.parse(volume),
+    u = p.unusedBootstrap;
+  check(
+    p.mode === "initial-unused-remount" &&
+      u &&
+      source.resourceId &&
+      u.coderOrigin === binding.coderOrigin &&
+      u.hiveUserId === binding.hiveUserId &&
+      u.ownerId === binding.ownerId &&
+      u.workspaceId === binding.workspaceId &&
+      u.templateId === binding.templateId &&
+      u.newBuildId === binding.buildId &&
+      u.oldBuildId === source.oldBuildId &&
+      u.newConfigSha256 === identity.configSha256 &&
+      u.newPackageManifestSha256 === identity.packageManifestSha256 &&
+      u.oldLifetimeId !== identity.lifetimeId &&
+      current.lifetimeId === identity.lifetimeId &&
+      current.buildId === binding.buildId &&
+      current.observedAt <= now &&
+      now - current.observedAt <= 30000 &&
+      current.volumeDigest === guardianDigest(current.volume) &&
+      current.volume.pvcName === `coder-${binding.workspaceId}-home` &&
+      current.volume.boundVolumeName === `pvc-${current.volume.pvcUid}`,
+  );
+  const { boundVolumeName: _currentBinding, ...physicalVolume } = current.volume;
+  check(
+    guardianDigest(source.identity) === guardianDigest(physicalVolume) &&
+      (source.observedBoundVolumeName === null ||
+        source.observedBoundVolumeName === current.volume.boundVolumeName),
+  );
+  return emptyRootAnchorSchema.parse({
+    schemaVersion: 1,
+    purpose: "empty-managed-root",
+    proposalDigest: guardianDigest(p),
+    currentVolume: current,
+    records: { root: p.root.newRecordSha256, projects: {} },
+    identities: { root: p.root.current, projects: {} },
+    unusedBootstrapDigest: guardianDigest(u),
+  });
+}
 function decode(token: string, domain: string, key: string) {
   check(token.length <= 12000);
   const parts = token.split(".");

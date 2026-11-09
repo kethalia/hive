@@ -20,7 +20,9 @@ const url =
 if (
   url &&
   (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname) ||
-    !["/hive_empty_root_test", "/hive_delivery_test"].includes(new URL(url).pathname))
+    !["/hive_empty_root_test", "/hive_delivery_test", "/hive_unused_bootstrap_test"].includes(
+      new URL(url).pathname,
+    ))
 )
   throw Error("Owned local fixture only");
 const db = new PrismaClient({

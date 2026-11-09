@@ -4,6 +4,7 @@ import {
   lockAccountMaintenanceWorkspace,
   parseAccountMaintenance,
 } from "./account-maintenance-store.server";
+import { isUnusedBootstrapPredecessor } from "./guardian-unused-bootstrap-store.server";
 import type { RegistrationBinding, RegistrationStore } from "./registration.server";
 
 if (typeof window !== "undefined") throw new Error("Registration storage is server-only.");
@@ -117,50 +118,57 @@ export async function lockActiveRegistration(
 export class PrismaRegistrationStore implements RegistrationStore {
   constructor(private readonly db: PrismaClient) {}
   async reserve(input: Parameters<RegistrationStore["reserve"]>[0]) {
-    return this.db.$transaction(async (tx) => {
-      const b = input.binding;
-      await verifyOwner(tx, b);
-      await lockAccountMaintenanceWorkspace(tx, b);
-      const row = await tx.codexHostSlot.upsert({
-        where: {
-          ownerId_coderOrigin_workspaceId_agentId: {
+    // Match the unused-bootstrap reservation's SERIALIZABLE isolation. A
+    // snapshot can predate the advisory wait; both writers must participate
+    // in SSI so neither can commit authority from that stale absence check.
+    return this.db.$transaction(
+      async (tx) => {
+        const b = input.binding;
+        await verifyOwner(tx, b);
+        await lockAccountMaintenanceWorkspace(tx, b);
+        requireValue(!(await isUnusedBootstrapPredecessor(tx, b)));
+        const row = await tx.codexHostSlot.upsert({
+          where: {
+            ownerId_coderOrigin_workspaceId_agentId: {
+              ownerId: b.hiveUserId,
+              coderOrigin: b.coderOrigin,
+              workspaceId: b.workspaceId,
+              agentId: b.agentId,
+            },
+          },
+          create: {
             ownerId: b.hiveUserId,
             coderOrigin: b.coderOrigin,
+            coderOwnerId: b.ownerId,
             workspaceId: b.workspaceId,
             agentId: b.agentId,
           },
-        },
-        create: {
-          ownerId: b.hiveUserId,
-          coderOrigin: b.coderOrigin,
-          coderOwnerId: b.ownerId,
-          workspaceId: b.workspaceId,
-          agentId: b.agentId,
-        },
-        update: {},
-      });
-      const slot = await lockSlot(tx, b.hiveUserId, row.id);
-      const now = await clock(tx);
-      requireValue(
-        slot.coderOwnerId === b.ownerId &&
-          date(input.expiresAt) > now &&
-          date(input.expiresAt).getTime() <= now.getTime() + 60_000,
-      );
-      const generation = slot.generation + 1;
-      await tx.codexHostSlot.update({ where: { id: slot.id }, data: { generation } });
-      await tx.codexRegistrationGrant.create({
-        data: {
-          id: input.grantId,
-          ownerId: b.hiveUserId,
-          slotId: slot.id,
-          generation,
-          binding: b,
-          bindingDigest: sha(JSON.stringify(b)),
-          expiresAt: date(input.expiresAt),
-        },
-      });
-      return generation;
-    });
+          update: {},
+        });
+        const slot = await lockSlot(tx, b.hiveUserId, row.id);
+        const now = await clock(tx);
+        requireValue(
+          slot.coderOwnerId === b.ownerId &&
+            date(input.expiresAt) > now &&
+            date(input.expiresAt).getTime() <= now.getTime() + 60_000,
+        );
+        const generation = slot.generation + 1;
+        await tx.codexHostSlot.update({ where: { id: slot.id }, data: { generation } });
+        await tx.codexRegistrationGrant.create({
+          data: {
+            id: input.grantId,
+            ownerId: b.hiveUserId,
+            slotId: slot.id,
+            generation,
+            binding: b,
+            bindingDigest: sha(JSON.stringify(b)),
+            expiresAt: date(input.expiresAt),
+          },
+        });
+        return generation;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
   async seal(input: Parameters<RegistrationStore["seal"]>[0]) {
     await this.db.$transaction(async (tx) => {

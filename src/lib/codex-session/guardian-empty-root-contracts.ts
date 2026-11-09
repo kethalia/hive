@@ -11,6 +11,32 @@ const physical = z
 const record = z
   .object({ old: physical, current: physical, recordSha256: digest, newRecordSha256: digest })
   .strict();
+/** Installed host evidence, authenticated by the current identity packet. This
+ * is never an operator-supplied remount authorization. */
+export const unusedBootstrapSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    purpose: z.literal("unused-bootstrap-root"),
+    coderOrigin: z.string().url(),
+    hiveUserId: z.string().uuid(),
+    ownerId: z.string().uuid(),
+    workspaceId: z.string().uuid(),
+    templateId: z.string().uuid(),
+    oldBuildId: z.string().uuid(),
+    oldLifetimeId: z.string().uuid(),
+    oldConfigSha256: digest,
+    oldPackageManifestSha256: digest,
+    newBuildId: z.string().uuid(),
+    newConfigSha256: digest,
+    newPackageManifestSha256: digest,
+    outerArchiveSha256: digest,
+    projectArchiveSha256: digest,
+    rootRecordSha256: digest,
+    openedProjectsDigest: digest,
+    historyDigest: digest,
+  })
+  .strict();
+export type UnusedBootstrap = z.infer<typeof unusedBootstrapSchema>;
 export const emptyRootVolumeSchema = z
   .object({
     templateVersionId: z.string().uuid(),
@@ -37,7 +63,7 @@ export const emptyRootCleanupReceiptSchema = z
 export const emptyRootProposalSchema = z
   .object({
     schemaVersion: z.literal(1),
-    mode: z.enum(["initial-current", "remount"]),
+    mode: z.enum(["initial-current", "remount", "initial-unused-remount"]),
     root: record.extend({ path: z.literal("/home/coder/projects/.hive-managed") }).strict(),
     projects: z
       .array(
@@ -51,9 +77,20 @@ export const emptyRootProposalSchema = z
       )
       .max(8),
     previousEnrollment: z.string().min(100).max(12000).optional(),
+    unusedBootstrap: unusedBootstrapSchema.optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
+    if (
+      (v.mode === "initial-unused-remount") !== !!v.unusedBootstrap ||
+      (v.unusedBootstrap &&
+        (v.projects.length !== 0 ||
+          v.previousEnrollment ||
+          v.unusedBootstrap.rootRecordSha256 !== v.root.recordSha256 ||
+          v.root.old.inode !== v.root.current.inode ||
+          v.unusedBootstrap.oldBuildId === v.unusedBootstrap.newBuildId))
+    )
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "unused bootstrap scope" });
     if (Buffer.byteLength(guardianCanonical(v)) > 16384)
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "empty root proposal bound" });
   });
@@ -65,6 +102,7 @@ export const emptyRootAnchorSchema = z
     currentVolume: emptyRootVolumeSchema,
     records: z.object({ root: digest, projects: z.record(z.string(), digest) }).strict(),
     identities: z.object({ root: physical, projects: z.record(z.string(), physical) }).strict(),
+    unusedBootstrapDigest: digest.optional(),
   })
   .strict();
 export type EmptyRootProposal = z.infer<typeof emptyRootProposalSchema>;

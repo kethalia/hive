@@ -12,7 +12,7 @@ import {
   requestGuardianIdentity,
 } from "./bootstrap-delivery.server";
 import { guardianDeploymentPolicy, guardianDigest } from "./guardian-contracts";
-import { readEmptyRootResource } from "./guardian-empty-root.server";
+import { readEmptyRootResource, readHistoricalHomeIdentity } from "./guardian-empty-root.server";
 import { verifyRemountResources } from "./guardian-remount.server";
 import { guardianVolumeSchema } from "./guardian-remount-contracts";
 import {
@@ -82,6 +82,29 @@ export function createGuardianService(
     return fresh.coder;
   };
   return new GuardianService(db, config, policy, encryptionKey, {
+    async readUnusedBootstrapSource(binding, proof) {
+      const coder = await currentCoder(binding);
+      if (
+        proof.workspaceId !== binding.workspaceId ||
+        proof.ownerId !== binding.ownerId ||
+        proof.coderOrigin !== binding.coderOrigin ||
+        proof.newBuildId !== binding.buildId ||
+        !verifyUnstartedCoderLifecycle(
+          await coder.getWorkspaceBuildHistory(binding.workspaceId, options.signal),
+          {
+            workspaceId: binding.workspaceId,
+            oldBuildId: proof.oldBuildId,
+            newBuildId: binding.buildId,
+          },
+        )
+      )
+        throw new RegistrationRejected();
+      const historical = readHistoricalHomeIdentity(
+        await coder.getWorkspaceResources(binding.workspaceId, proof.oldBuildId),
+      );
+      await currentCoder(binding);
+      return { ...historical, oldBuildId: proof.oldBuildId };
+    },
     async resolveCleanupVolume(binding, lifetimeId) {
       const coder = await currentCoder(binding),
         workspace = await coder.getWorkspace(binding.workspaceId, options.signal),

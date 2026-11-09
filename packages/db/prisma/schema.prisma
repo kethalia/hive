@@ -851,6 +851,7 @@ model CodexGuardianRuntime {
   closedBarrierId String? @map("closed_barrier_id") @db.Uuid
   enrolledAt DateTime? @map("enrolled_at") @db.Timestamptz
   operationReceiptsEnabled Boolean @default(false) @map("operation_receipts_enabled")
+  unusedBootstrapPredecessorBuildId String? @map("unused_bootstrap_predecessor_build_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   slot CodexHostSlot @relation(fields: [ownerId, slotId], references: [ownerId, id], onDelete: Restrict)
   grants CodexGuardianEnrollmentGrant[]
