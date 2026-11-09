@@ -569,6 +569,24 @@ export function archiveIdleProjectState(config, receipt) {
     closeSync(lock);
   }
 }
+function unusedBootstrapProjects(projects) {
+  return (
+    Object.keys(projects).length <= 32 &&
+    new Set(Object.values(projects).map((p) => p?.repositoryId)).size ===
+      Object.keys(projects).length &&
+    Object.entries(projects).every(
+      ([id, p]) =>
+        uuid(id) &&
+        exact(p, ["projectId", "repositoryId", "expectedAccountId", "createdAt", "task"]) &&
+        p.projectId === id &&
+        number(p.repositoryId) &&
+        number(p.expectedAccountId) &&
+        Number.isSafeInteger(p.createdAt) &&
+        p.createdAt > 0 &&
+        p.task === null,
+    )
+  );
+}
 /** Only the installed outer calls this with its authenticated startup-only
  * journal proof while holding the guardian flock. This does not certify ECHILD,
  * native tree exit, or authorize checkout cleanup. */
@@ -648,7 +666,7 @@ export function archiveBootstrapProjectState(config, proof) {
           state.projects &&
           typeof state.projects === "object" &&
           !Array.isArray(state.projects) &&
-          Object.keys(state.projects).length === 0 &&
+          unusedBootstrapProjects(state.projects) &&
           state.guardianLifetimeId === lifetimeId &&
           exact(state.hostProcess, [
             "pid",
@@ -662,7 +680,47 @@ export function archiveBootstrapProjectState(config, proof) {
         "bootstrap_archive_state_invalid",
       );
     };
-    verifyBootstrapProjectHistory(config, archiveName);
+    const validatedHistory = verifyBootstrapProjectHistory(config, archiveName),
+      projectAllowed = new Set([
+        "controller.lock",
+        "projects.key",
+        "projects.json",
+        "unused-bootstrap.json",
+        archiveName,
+        ...validatedHistory.projectNames,
+      ]),
+      guardianAllowed = new Set([
+        "key",
+        "guardian.lock",
+        "lifetime.json",
+        "controller-key.pem",
+        `bootstrap-pending-${proof.sourceJournalDigest}.json`,
+        `bootstrap-retirement-${proof.sourceJournalDigest}.json`,
+        ...validatedHistory.guardianNames,
+      ]);
+    check(
+      history.every((name) => projectAllowed.has(name)) &&
+        readdirSync(config.guardianStateDirectory).every((name) => guardianAllowed.has(name)),
+      "bootstrap_archive_history_present",
+    );
+    const pointerFile = join(config.stateDirectory, "unused-bootstrap.json");
+    if (existsSync(pointerFile)) {
+      const pointer = readSigned(pointerFile),
+        priorName = `projects-bootstrap-${pointer.sourceJournalDigest}.json`;
+      check(
+        exact(pointer, ["schemaVersion", "sourceJournalDigest", "projectArchiveSha256", "phase"]) &&
+          pointer.schemaVersion === 1 &&
+          ["pending", "complete"].includes(pointer.phase) &&
+          /^[a-f0-9]{64}$/.test(pointer.sourceJournalDigest) &&
+          (pointer.sourceJournalDigest === proof.sourceJournalDigest ||
+            (pointer.phase === "complete" && validatedHistory.projectNames.includes(priorName))) &&
+          pointer.projectArchiveSha256 ===
+            createHash("sha256")
+              .update(readFileSync(join(config.stateDirectory, priorName)))
+              .digest("hex"),
+        "bootstrap_archive_proof_invalid",
+      );
+    }
     const current = readSigned(statePath),
       archived = existsSync(archivePath) ? readSigned(archivePath) : null,
       state = archived ? archived.projectState : current;
@@ -675,7 +733,7 @@ export function archiveBootstrapProjectState(config, proof) {
       schemaVersion: 1,
       ownerId: config.ownerId,
       workspaceId: config.workspaceId,
-      projects: {},
+      projects: structuredClone(state.projects),
     };
     check(
       digest(current) === digest(state) || (archived && digest(current) === digest(reset)),
@@ -690,7 +748,33 @@ export function archiveBootstrapProjectState(config, proof) {
         closeSync(fd);
       }
     };
-    const storage = lstatSync(config.stateDirectory);
+    const storage = lstatSync(config.stateDirectory),
+      projectRaw = archived?.projectRaw ?? readFileSync(statePath, "utf8"),
+      unusedRoot = archived?.unusedRoot ?? config.captureUnusedRoot?.();
+    if (!archived || archived.projectRaw) {
+      const raw = JSON.parse(projectRaw);
+      check(
+        digest(raw.state) === digest(state) &&
+          typeof raw.signature === "string" &&
+          raw.signature.length === 64 &&
+          timingSafeEqual(Buffer.from(raw.signature), Buffer.from(mac(raw.state))),
+        "bootstrap_archive_state_invalid",
+      );
+    }
+    if (unusedRoot) {
+      check(
+        exact(unusedRoot, ["schemaVersion", "raw"]) &&
+          unusedRoot.schemaVersion === 1 &&
+          typeof unusedRoot.raw === "string" &&
+          Buffer.byteLength(unusedRoot.raw) <= 16384,
+        "bootstrap_archive_state_invalid",
+      );
+      if (config.captureUnusedRoot)
+        check(
+          digest(config.captureUnusedRoot()) === digest(unusedRoot),
+          "bootstrap_archive_state_changed",
+        );
+    }
     const evidence = archived?.projectEvidence ?? {
       ownerId: config.ownerId,
       workspaceId: config.workspaceId,
@@ -698,6 +782,12 @@ export function archiveBootstrapProjectState(config, proof) {
       buildId: config.buildId,
       retirementDigest,
       projectJournalDigest: digest(state),
+      ...(unusedRoot
+        ? {
+            rawProjectDigest: createHash("sha256").update(projectRaw).digest("hex"),
+            unusedRootDigest: digest(unusedRoot),
+          }
+        : {}),
       privateDirectoryIdentity: { device: String(storage.dev), inode: String(storage.ino) },
     };
     check(
@@ -710,6 +800,7 @@ export function archiveBootstrapProjectState(config, proof) {
           "retirementDigest",
           "projectJournalDigest",
           "privateDirectoryIdentity",
+          ...(unusedRoot ? ["rawProjectDigest", "unusedRootDigest"] : []),
         ]) &&
         evidence.ownerId === config.ownerId &&
         evidence.workspaceId === config.workspaceId &&
@@ -717,14 +808,31 @@ export function archiveBootstrapProjectState(config, proof) {
         uuid(evidence.buildId) &&
         evidence.retirementDigest === retirementDigest &&
         evidence.projectJournalDigest === digest(state) &&
+        (!unusedRoot ||
+          (evidence.rawProjectDigest === createHash("sha256").update(projectRaw).digest("hex") &&
+            evidence.unusedRootDigest === digest(unusedRoot))) &&
         exact(evidence.privateDirectoryIdentity, ["device", "inode"]) &&
         evidence.privateDirectoryIdentity.device === String(storage.dev) &&
         evidence.privateDirectoryIdentity.inode === String(storage.ino),
       "bootstrap_archive_proof_invalid",
     );
     if (!archived)
-      persist(archivePath, { retirementDigest, projectState: state, projectEvidence: evidence });
+      persist(archivePath, {
+        retirementDigest,
+        projectState: state,
+        projectEvidence: evidence,
+        projectRaw,
+        ...(unusedRoot ? { unusedRoot } : {}),
+      });
+    const pointerPath = join(config.stateDirectory, "unused-bootstrap.json"),
+      pointer = {
+        schemaVersion: 1,
+        sourceJournalDigest: proof.sourceJournalDigest,
+        projectArchiveSha256: createHash("sha256").update(readFileSync(archivePath)).digest("hex"),
+      };
+    if (unusedRoot) persist(pointerPath, { ...pointer, phase: "pending" });
     persist(statePath, reset);
+    if (unusedRoot) persist(pointerPath, { ...pointer, phase: "complete" });
     return evidence;
   } finally {
     closeSync(lock);
@@ -768,7 +876,7 @@ export function verifyBootstrapProjectHistory(config, archiveName = null) {
         state.projects &&
         typeof state.projects === "object" &&
         !Array.isArray(state.projects) &&
-        Object.keys(state.projects).length === 0 &&
+        unusedBootstrapProjects(state.projects) &&
         state.guardianLifetimeId === lifetimeId &&
         exact(state.hostProcess, ["pid", "startTime", "bootId", "executable", "device", "inode"]) &&
         Object.keys(state.hostProcess).every((k) => state.hostProcess[k] === worker?.[k]),
@@ -831,6 +939,27 @@ export function verifyBootstrapProjectHistory(config, archiveName = null) {
       "bootstrap_archive_history_invalid",
     );
     assertEmpty(prior.projectState, oldProof.lifetimeId, oldProof.workerIdentity);
+    if (prior.projectRaw !== undefined) {
+      const raw = JSON.parse(prior.projectRaw);
+      check(
+        digest(raw.state) === digest(prior.projectState) &&
+          typeof raw.signature === "string" &&
+          raw.signature.length === 64 &&
+          timingSafeEqual(
+            Buffer.from(raw.signature),
+            Buffer.from(createHmac("sha256", key).update(JSON.stringify(raw.state)).digest("hex")),
+          ),
+        "bootstrap_archive_history_invalid",
+      );
+    }
+    if (prior.unusedRoot !== undefined)
+      check(
+        prior.projectRaw &&
+          prior.projectEvidence.rawProjectDigest ===
+            createHash("sha256").update(prior.projectRaw).digest("hex") &&
+          prior.projectEvidence.unusedRootDigest === digest(prior.unusedRoot),
+        "bootstrap_archive_history_invalid",
+      );
     projectNames.push(name);
     guardianNames.push(
       `lifetime-bootstrap-${match[1]}.json`,
@@ -843,6 +972,28 @@ export function verifyBootstrapProjectHistory(config, archiveName = null) {
         "bootstrap_archive_history_invalid",
       );
       guardianNames.push(pendingName);
+    }
+  }
+  const locator = join(config.stateDirectory, "unused-bootstrap.json");
+  if (existsSync(locator)) {
+    const pointer = readSigned(locator),
+      name = `projects-bootstrap-${pointer.sourceJournalDigest}.json`;
+    // The current interrupted archive is validated by archiveBootstrapProjectState
+    // itself. Historical consumers copy the fully verified locator as history.
+    if (name !== archiveName) {
+      check(
+        exact(pointer, ["schemaVersion", "sourceJournalDigest", "projectArchiveSha256", "phase"]) &&
+          pointer.schemaVersion === 1 &&
+          pointer.phase === "complete" &&
+          /^[a-f0-9]{64}$/.test(pointer.sourceJournalDigest) &&
+          projectNames.includes(name) &&
+          pointer.projectArchiveSha256 ===
+            createHash("sha256")
+              .update(readFileSync(join(config.stateDirectory, name)))
+              .digest("hex"),
+        "bootstrap_archive_history_invalid",
+      );
+      projectNames.push("unused-bootstrap.json");
     }
   }
   return { projectNames, guardianNames };

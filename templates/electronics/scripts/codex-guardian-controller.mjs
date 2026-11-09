@@ -1626,7 +1626,8 @@ export function openGuardianController({
     const transfer = readPendingUnstartedTransfer(home);
     const s = initialize(),
       issuedAt = Date.now(),
-      emptyRoot = !transfer && !state.runtimeId ? inspectEmptyRoot(home, s.lifetimeId) : null,
+      emptyRoot =
+        !transfer && !state.runtimeId ? inspectEmptyRoot(home, s.lifetimeId, s, config) : null,
       packet = {
         schemaVersion: 1,
         nonce,

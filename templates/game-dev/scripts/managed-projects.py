@@ -363,7 +363,26 @@ class ManagedProjects:
     def _empty_encoded(self, value):
         return json.dumps({"record": value, "signature": self.signature(value)}, sort_keys=True)
 
-    def _empty_inventory(self, guardian=None, plan=None):
+    def _capture_unused_bootstrap_root(self):
+        """Read-only pre-initializer snapshot, never a remapping permission."""
+        with self.lock(empty_root=True):
+            require(sorted(p.name for p in self.state.iterdir()) == ["key", "lock", "root.json"], "unused_bootstrap_history_present")
+            require(sorted(p.name for p in self.root.iterdir()) in ([], ["github"]), "empty_root_not_empty")
+            if (self.root / "github").exists():
+                self.private(self.root / "github", True)
+                require(not list((self.root / "github").iterdir()), "empty_root_not_empty")
+            root = self.read(self.state / "root.json")
+            require(root["path"] == str(self.root) and root["identity"]["inode"] == self.identity(self.root)["inode"], "empty_root_identity_changed")
+            # The old exact actors were proven dead before this callback. Scan
+            # strictly; do not import the replacement package as old authority.
+            self.no_consumers(self.root, lambda: None)
+            raw = (self.state / "root.json").read_text()
+            saved = json.loads(raw)
+            require(saved.get("record") == root and isinstance(saved.get("signature"), str)
+                    and hmac.compare_digest(saved["signature"], self.signature(saved["record"])), "receipt_signature_invalid")
+            return {"schemaVersion": 1, "raw": raw}
+
+    def _empty_inventory(self, guardian=None, plan=None, unused_bootstrap=None):
         root_file = self.state / "root.json"
         files = sorted(self.state.glob("github-*.json"))
         require(len(files) <= 8, "empty_root_inventory_bound")
@@ -433,7 +452,10 @@ class ManagedProjects:
                              "newRecordSha256": hashlib.sha256(self._empty_encoded(replacement).encode()).hexdigest(),
                              "cleanupToken": evidence["authorizationToken"], "cleanupReceipt": receipt})
         initial = not projects and previous is None
-        require(not initial or old_root["identity"] == self.identity(self.root), "empty_root_volume_provenance_missing")
+        if unused_bootstrap is not None:
+            require(initial and not files and unused_bootstrap.get("rootRecordSha256") == root_old_hash, "unused_bootstrap_root_changed")
+            require(sorted(p.name for p in self.state.iterdir()) in (["key", "lock", "root.json"], ["empty-root.json", "key", "lock", "root.json"]), "unused_bootstrap_history_present")
+        require(not initial or unused_bootstrap is not None or old_root["identity"] == self.identity(self.root), "empty_root_volume_provenance_missing")
         require(old_root["path"] == str(self.root) and old_root["identity"]["inode"] == self.identity(self.root)["inode"], "empty_root_identity_changed")
         if previous:
             require(previous["receipt"]["anchor"]["records"]["root"] == root_old_hash, "empty_root_anchor_changed")
@@ -442,14 +464,15 @@ class ManagedProjects:
             require(not (mounted == str(self.root) or mounted.startswith(str(self.root) + "/")), "empty_root_nested_mount")
         self.no_consumers(self.root, guardian)
         new_root = dict(old_root, identity=self.identity(self.root))
-        result = {"schemaVersion": 1, "mode": "initial-current" if initial else "remount", "root": {"path": str(self.root), "old": {k: str(v) for k, v in old_root["identity"].items()},
+        result = {"schemaVersion": 1, "mode": "initial-unused-remount" if unused_bootstrap is not None else "initial-current" if initial else "remount", "root": {"path": str(self.root), "old": {k: str(v) for k, v in old_root["identity"].items()},
                   "current": {k: str(v) for k, v in self.identity(self.root).items()}, "recordSha256": root_old_hash,
                   "newRecordSha256": hashlib.sha256(self._empty_encoded(new_root).encode()).hexdigest()}, "projects": projects}
+        if unused_bootstrap is not None: result["unusedBootstrap"] = unused_bootstrap
         if previous: result["previousEnrollment"] = previous["receipt"]["enrollmentToken"]
         require(len(json.dumps(result).encode()) <= 16384, "empty_root_inventory_bound")
         return result
 
-    def _inspect_empty_root(self, guardian=None, lifetime_id=None):
+    def _inspect_empty_root(self, guardian=None, lifetime_id=None, unused_bootstrap=None):
         """Read-only private outer seam; never exposed by the managed CLI."""
         if not (self.state / "root.json").exists(): return None
         with self.lock(empty_root=True):
@@ -457,11 +480,11 @@ class ManagedProjects:
             saved = self.read(marker) if marker.exists() else None
             plan = saved if saved and saved.get("phase") == "pending" else None
             if saved and saved.get("phase") == "complete" and saved["receipt"]["anchor"]["currentVolume"]["lifetimeId"] == lifetime_id:
-                require(self._empty_inventory(guardian, saved) == saved["proposal"], "empty_root_inventory_changed")
+                require(self._empty_inventory(guardian, saved, unused_bootstrap) == saved["proposal"], "empty_root_inventory_changed")
                 return saved["proposal"]
             if not plan and self.read(self.state / "root.json")["identity"] == self.identity(self.root) and (saved or list(self.state.glob("github-*.json"))):
                 return None
-            return self._empty_inventory(guardian, plan)
+            return self._empty_inventory(guardian, plan, unused_bootstrap)
 
     def _revalidate_empty_root(self, proposal, authority):
         """Issuer enrollment only; no lease, task, cleanup or execution grant."""
@@ -471,8 +494,9 @@ class ManagedProjects:
             if marker and marker["phase"] == "complete" and marker["proposalDigest"] != self._empty_digest(proposal):
                 marker = None
             if marker: require(marker["proposalDigest"] == self._empty_digest(proposal), "empty_root_replay_changed")
-            require(self._empty_inventory(authority.guardian, marker) == proposal, "empty_root_inventory_changed")
+            require(self._empty_inventory(authority.guardian, marker, proposal.get("unusedBootstrap")) == proposal, "empty_root_inventory_changed")
             grant = authority.verify(proposal)
+            require(proposal.get("mode") != "initial-unused-remount" or grant.get("anchor", {}).get("unusedBootstrapDigest") == self._empty_digest(proposal["unusedBootstrap"]), "unused_bootstrap_grant_changed")
             require(grant["expiresAt"] > time.time() * 1000, "empty_root_authority_expired")
             if marker is None:
                 previous = self.read(marker_file) if marker_file.exists() else None

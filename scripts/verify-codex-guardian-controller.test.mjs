@@ -609,6 +609,29 @@ test("fresh nonce identity and one-use issuer grant use real Ed25519 domains and
     f.close();
   }
 });
+test("enrolled runtime identities omit empty-root proposals before first task and after generation advances", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    await f.client.bootstrap(f.grant());
+    // A retained marker/locator must not be reinterpreted as new enrollment
+    // authority once the existing signed enrollment has an accepted runtime.
+    const managed = join(f.home, ".local/state/hive/managed-projects"),
+      project = join(f.home, ".local/state/hive/codex-project-controller");
+    for (const p of [managed, project]) mkdirSync(p, { recursive: true, mode: 0o700 });
+    writeFileSync(join(managed, "root.json"), "not a new proposal", { mode: 0o600 });
+    writeFileSync(join(project, "unused-bootstrap.json"), "not a new locator", { mode: 0o600 });
+    assert.equal(f.identity().emptyRoot, undefined);
+    const p = f.project();
+    await f.client.authorizeAdmission({ projectId: p.projectId, bindingDigest: p.bindingDigest });
+    f.startup.generation = 2;
+    f.startup.projects = [{ projectId: p.projectId, bindingDigest: p.bindingDigest }];
+    assert.equal(f.identity().emptyRoot, undefined);
+    assert.equal(f.calls.filter((c) => c.action === "enroll").length, 1);
+  } finally {
+    f.close();
+  }
+});
 test("foreign scope, unknown claims, expiry and startup changes cannot bootstrap", async () => {
   for (const patch of [{ workspaceId: randomUUID() }, { extra: true }, { exp: 1 }]) {
     const f = fixture();

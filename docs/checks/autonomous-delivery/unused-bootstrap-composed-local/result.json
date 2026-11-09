@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T23:37:39.135Z",
+  "source": {
+    "host": "d010ed19bbfd746c3fcead7c46d4fd1c5a1197ba",
+    "worker": "dafc88145a1278047f50ec3c263102bd167c7816",
+    "workerUncommitted": false
+  },
+  "database": "hive_unused_bootstrap_composed_20261108",
+  "checks": {
+    "actualCGuardian": true,
+    "actualOpenedProjectPreserved": true,
+    "exactRawArchives": true,
+    "noStartupRootRewrite": true,
+    "signedWorkerGrantMapsRoot": true,
+    "originalGrantExactReplayBeforeDelivery": true,
+    "mappingBeforeCommittedAckLoss": true,
+    "actualEnrollmentReadback": true,
+    "originalGrantDeadlineUnchanged": true,
+    "postEnrollmentProposalOmitted": true,
+    "actualDatabaseAndCGeneration2": true,
+    "postGeneration2ProposalOmitted": true,
+    "usedHistoryRestartHeld": true,
+    "authBytesUnchanged": true,
+    "noNativeLaunch": true,
+    "noInference": true
+  },
+  "counts": {
+    "runtimes": 1,
+    "grants": 1,
+    "admissions": 1,
+    "modelCalls": 0
+  },
+  "fixtureSeams": [
+    "Synthetic owner/Coder/provider resource and historical incomplete PV observations",
+    "Actual root inode retained; fixture device observation increments by1",
+    "Only transport root.path projected to canonical /home/coder; raw records remain real temporary paths",
+    "Fixture worker performs OPEN and one preparation then stops before checkout/model; host control/issuer/DB algorithms unchanged"
+  ],
+  "liveAcceptance": false,
+  "cleanup": {
+    "observedAt": "2026-11-08T23:39:07.594879+00:00",
+    "knownOuterGuardianWorkerActorsNoLongerLive": true,
+    "actorObservations": 6,
+    "authSentinelStillUnchangedAfterNegative": true,
+    "sharedPostgresStoppedOrReset": false
+  },
+  "independentPostcheck": {
+    "runtimes": 1,
+    "generation2": 1,
+    "nativeLaunches": 0,
+    "producerApproved": 0
+  },
+  "claimsReplayEvidence": "Full signed token byte equality includes original jti/iat/exp/claims/signature; same grant row expiry asserted unchanged.",
+  "priorHarnessFailure": {
+    "category": "fixture_identity_read_while_next_fence_pending",
+    "correction": "Wait for factual pending=null/hold=false and blocked fixture task before generation2 identity assertion.",
+    "productionSourceChanged": false
+  },
+  "evidenceHashes": {
+    "run.ts": "90bff454879f096a9c7490b3d17c812eeb7d3d17cb8781579e6ab668f169e77d",
+    "prepare-host.mjs": "e1c9bd4b024446dd713a16e6bc8d63f1e8bf7c8a5443f4766d5f492a72541b7c",
+    "outer.mjs": "e5a73daf314e2e47a17793535dd05f3dd158201b4e6a5bbb6f9b4b2c0841710b"
+  },
+  "review": {
+    "workerPredecessorFence": "exact immutable predecessor build; ordinary and legacy creators use shared workspace fence; no fake closure",
+    "runtimeUUID": "RFC UUIDv5 compatible with existing host maintenance validator",
+    "reviewerSourceEdits": false
+  },
+  "limits": [
+    "Provider/volume observations are synthetic; no genuine PVC remount.",
+    "Device and transport-path projections are explicitly fixture-only.",
+    "One actual preparation admission stops before checkout/native model; no native execution or closure proof.",
+    "No Coder/Neon/provider/lifecycle/model actions performed."
+  ]
+}
