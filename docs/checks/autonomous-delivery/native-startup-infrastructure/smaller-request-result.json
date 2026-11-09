@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T10:31:25.027708+00:00",
+  "workspaceId": "0d1c1fec-5c8b-4e49-a53b-baacee1e3a1a",
+  "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+  "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+  "createdAt": "2026-11-06T02:15:45.897537Z",
+  "buildId": "1f07b776-6218-4cc1-82ea-aaf48fd8c262",
+  "buildStatus": "running",
+  "inactiveVersionId": "99cee491-a93b-4cb4-b2fd-716c738d57ba",
+  "sharedTemplateChanged": false,
+  "imageChanged": false,
+  "capabilitiesChanged": false,
+  "requestsBefore": {
+    "cpu_request": "500m",
+    "memory_request": "2Gi"
+  },
+  "requestsAfter": {
+    "cpu_request": "100m",
+    "memory_request": "512Mi"
+  },
+  "status": "infrastructure_unavailable",
+  "agents": [
+    {
+      "id": "f90baebe-c316-4823-adf3-2701ad59e72c",
+      "status": "timeout",
+      "lifecycle": "created",
+      "firstConnected": null
+    }
+  ],
+  "readinessWaitSeconds": 180,
+  "sshOrCredentialTransfer": false,
+  "rancherProbeExecuted": false,
+  "clusterWritesByProbe": false,
+  "nextAction": "Await explicit primary read-only routing exception; continue independent implementation.",
+  "cleanup": "Diagnostic task still active; installed signed receipt not marked complete; workspace retained."
+}

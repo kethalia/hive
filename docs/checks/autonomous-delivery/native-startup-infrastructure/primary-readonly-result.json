@@ -1,0 +1,88 @@
+{
+  "cluster": "local",
+  "deployment": "coder-e6aa588f-89a7-464b-9cf9-a6371d0b819d",
+  "namespace": "coder",
+  "observedAt": "2026-11-07T15:21:25.817331+00:00",
+  "ownerCoderCredentialAbsent": true,
+  "pods": [
+    {
+      "conditions": [
+        {
+          "status": "False",
+          "type": "PodReadyToStartContainers"
+        },
+        {
+          "message": "containers with incomplete status: [seed-home]",
+          "reason": "ContainersNotInitialized",
+          "status": "False",
+          "type": "Initialized"
+        },
+        {
+          "message": "containers with unready status: [dev]",
+          "reason": "ContainersNotReady",
+          "status": "False",
+          "type": "Ready"
+        },
+        {
+          "message": "containers with unready status: [dev]",
+          "reason": "ContainersNotReady",
+          "status": "False",
+          "type": "ContainersReady"
+        },
+        {
+          "status": "True",
+          "type": "PodScheduled"
+        }
+      ],
+      "devContainers": [
+        {
+          "image": "ghcr.io/kethalia/hive-base@sha256:a840cda894bbd5ac0c581a78b5623eb7c848f4446399852a4f5961515d5047c6",
+          "lastState": {},
+          "name": "dev",
+          "ready": false,
+          "restartCount": 0,
+          "state": {
+            "waiting": {
+              "reason": "PodInitializing"
+            }
+          }
+        }
+      ],
+      "events": [
+        {
+          "count": 1102,
+          "firstTimestamp": "2026-11-06T02:02:35Z",
+          "lastTimestamp": "2026-11-07T15:17:53Z",
+          "message": "AttachVolume.Attach failed for volume \"pvc-ca7f02d5-edae-4d53-9eb8-178b8bd0c226\" : rpc error: code = Aborted desc = volume pvc-ca7f02d5-edae-4d53-9eb8-178b8bd0c226 is not ready for workloads",
+          "reason": "FailedAttachVolume",
+          "type": "Warning"
+        }
+      ],
+      "initContainers": [
+        {
+          "image": "ghcr.io/kethalia/hive-base@sha256:a840cda894bbd5ac0c581a78b5623eb7c848f4446399852a4f5961515d5047c6",
+          "lastState": {},
+          "name": "seed-home",
+          "ready": false,
+          "restartCount": 0,
+          "state": {
+            "waiting": {
+              "reason": "PodInitializing"
+            }
+          }
+        }
+      ],
+      "name": "coder-e6aa588f-89a7-464b-9cf9-a6371d0b819d-75b868c678-zzfwg",
+      "node": "k3s-03",
+      "phase": "Pending",
+      "reason": "",
+      "uid": "13d24da0-637a-494a-a4c7-0c1bf241c959"
+    }
+  ],
+  "primaryRoutingExceptionApproved": true,
+  "profileVerified": "software",
+  "providerWrites": false,
+  "rawSpecOrLogsEmitted": false,
+  "redaction": "Known credential/env secret values and long inline values removed in memory; authorization/token patterns and URL userinfo/query stripped. Secret references were not fetched.",
+  "schemaVersion": 1
+}

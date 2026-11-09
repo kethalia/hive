@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "e6aa588f-89a7-464b-9cf9-a6371d0b819d",
+  "workspaceName": "hive-native-final",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-06T02:02:29.531561Z",
+  "task": "native-autonomous-delivery-pilot",
+  "classification": "unmanaged persistent; retain for explicit review",
+  "templateVersionId": "8a3f28e7-25b5-4e37-b9d0-e9d97abc0fe6",
+  "buildId": "6e999652-df3b-4a60-b1a6-a126cfbd0304"
+}

@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T21:43:42.266293+00:00",
+  "purpose": "bounded-real-chrome-normal-exit-close-event-acceptance",
+  "finalized": true,
+  "sourceSha": "e63e8ae365c4525fdeccaebeea40a1f71cf46242",
+  "appBuildId": "3a71560e-c1b1-4440-90f5-6ab8355075ba",
+  "deploymentId": "3f4fe3b9-d9a8-42b5-913f-dcfa5e18f00a",
+  "actualDeploymentFlagsConfirmedByPrimary": true,
+  "deploymentFlags": {
+    "genericTerminal": true,
+    "terminalWsUrl": "/",
+    "workspaceRead": false,
+    "codexProjectTerminal": false,
+    "nativeProductionActive": false,
+    "releaseProduction": false
+  },
+  "scope": {
+    "phaseId": "42928c74-8f50-4652-8808-ecbc9ce390dd",
+    "hiveUserId": "c451e8a7-e931-49c1-a3e6-77b2da005687",
+    "coderOwnerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+    "buildId": "6d1fd221-8426-4fa3-91b8-a19780e45409",
+    "agentId": "8feffdb9-1d80-4e3e-89f9-8c6a0ec6ede1",
+    "lifetimeId": "01ce6dea-a366-4d02-8fea-403d108777b4",
+    "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "browserBuildId": "65b410c2-1894-47ce-a54d-10c46a129efe",
+    "browserWorkspaceReusedPersistent": true,
+    "allWorkspacesRetained": true
+  },
+  "observedAt": "2026-11-08T21:42:52.560778+00:00",
+  "requests": {
+    "driverVersionGETs": 1,
+    "extraPrimaryVersionPreflightGETs": 1,
+    "ticketPOSTs": 1,
+    "ticketHTTP200": 1,
+    "socketAttempts": 1,
+    "upgradeHTTPStatus": 101,
+    "ready": 1,
+    "fixedInputFrames": 2,
+    "inputs": ["first_PID_printf", "exact_exit"],
+    "resizeOrReconnectRepeated": false
+  },
+  "closeEvent": {
+    "code": 1000,
+    "wasClean": true,
+    "wasCleanInferredFromCode": false,
+    "nativeBrowserEventBothAssertionsPassed": true,
+    "reasonOrRawDataRecorded": false
+  },
+  "shell": {
+    "pid": 106397,
+    "exitSent": true,
+    "exactSessionAbsent": true,
+    "pidAbsent": true
+  },
+  "browserCleanup": {
+    "contextClosed": true,
+    "browserClosed": true,
+    "finalInventoryCaptured": true,
+    "recordedChromeCount": 7,
+    "allRecordedChromeAbsent": true,
+    "driverExited": true,
+    "driverExitCode": 0,
+    "complete": true
+  },
+  "invariants": {
+    "fourOriginalJournalsUnchanged": true,
+    "nativeAppServers": 0,
+    "nativeTaskModelCalls": 0,
+    "originalHostHoldJournalUnchanged": true
+  },
+  "audioWinddown": {
+    "pending": false,
+    "lastObservedAt": "2026-11-08T21:47:43.835Z",
+    "audioProcesses": 0,
+    "pulseProcesses": 0,
+    "signalsSent": 0,
+    "naturalZeroObservedAt": "2026-11-08T21:47:43.835Z"
+  },
+  "acceptance": {
+    "dedicatedAccountRealChromeNormalExitCloseFacts": true,
+    "browserHookClassifierInputContract": true,
+    "reactApplicationHookMountedInThisProbe": false,
+    "normalUserDanielWorkspaces": false,
+    "managedProjectConversationTerminal": false,
+    "originalNativePilot": false,
+    "production": false
+  },
+  "validation": {
+    "offlineHarnessCasesPassed": 17,
+    "syntaxFilesPassed": 5,
+    "separatePriorResizeReconnectEvidence": "generic-terminal-preview-acceptance-20261108.json",
+    "prior374ReceiptNotRewritten": true
+  },
+  "limits": {
+    "tickets": 1,
+    "attachments": 1,
+    "overallMs": 120000,
+    "verifiedOwnGroupStopMs": 145000,
+    "primaryMs": 170000,
+    "automaticRetry": false,
+    "furtherGenericProbes": false
+  },
+  "ordinaryTerminalSideEffects": {
+    "associatedAudioPulseStartup": true,
+    "normalOwnedWorkspaceDeadlineExtensionPermitted": true,
+    "actualDeadlineExtensionCountIndependentlyMeasured": false,
+    "newCapacityCredentialsOrDeployments": false
+  },
+  "history": {
+    "earlierAttemptsPreserved": true,
+    "phase2EffectCountsRemainUnknown": true
+  },
+  "rawDataExcluded": [
+    "credentials",
+    "cookies",
+    "tickets",
+    "headers",
+    "shell output",
+    "private configuration"
+  ],
+  "finalizedAt": "2026-11-08T21:47:43.835Z",
+  "finalHostProcessCounts": {
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "webTmuxProcesses": 0,
+    "audioProcesses": 0,
+    "pulseProcesses": 0,
+    "unreadableEntries": 0
+  },
+  "finalOriginalJournalsUnchanged": true
+}

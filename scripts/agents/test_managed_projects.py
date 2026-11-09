@@ -1,0 +1,906 @@
+import hashlib
+import hmac
+import importlib.util
+import json
+import os
+import shutil
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+SOURCE = Path(__file__).resolve().parents[2] / "templates/ai-dev-k8s/scripts/managed-projects.py"
+SPEC = importlib.util.spec_from_file_location("managed_projects", SOURCE)
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
+URL = "https://github.com/owner/repository.git"
+
+
+def git(path, *args):
+    return subprocess.check_output(["git", "-C", str(path), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.com", *args], stderr=subprocess.DEVNULL).decode().strip()
+
+
+class FixtureResolver:
+    def resolve(self, repository_id):
+        return MODULE.VerifiedRepository(repository_id, URL)
+
+
+class FixtureGit(MODULE.GitDriver):
+    """Explicit in-process injection only; cannot be selected by CLI or environment."""
+    def __init__(self, bare):
+        self.bare = bare
+        self.fail_clone_once = False
+
+    def run(self, cwd, args, repository=None):
+        if args[0] == "clone" and self.fail_clone_once:
+            self.fail_clone_once = False
+            raise MODULE.ManagedError("fixture_interrupted_clone")
+        command = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "-c", "init.templateDir="]
+        if args[0] in {"clone", "fetch"}:
+            command += ["-c", "protocol.file.allow=always", "-c", f"url.{self.bare}.insteadOf={URL}"]
+        return self.execute(command + args, cwd, {"PATH": os.environ["PATH"], "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0"})
+
+
+class TestControllerAuthority:
+    """Independent fixture issuer, not a completion assertion accepted by the CLI."""
+    def __init__(self):
+        self.key = os.urandom(32)
+
+    def signature(self, payload):
+        return hmac.new(self.key, json.dumps(payload, sort_keys=True).encode(), hashlib.sha256).hexdigest()
+
+    def issue(self, record, root_identity):
+        binding = {"repositoryId": record["repositoryId"], "taskId": record["lastTaskId"], "revision": record["revision"], "rootIdentity": {k: str(v) for k, v in root_identity.items()}, "projectIdentity": {k: str(v) for k, v in record["projectIdentity"].items()}, "checkoutIdentity": {k: str(v) for k, v in record["checkoutIdentity"].items()}, "checkoutIncarnation": record["checkoutIncarnation"], "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "cleanupRequestId": record["cleanupRequests"][-1]["id"]}
+        digest = "sha256:" + "a" * 64
+        payload = {"binding": binding, "completionEventId": "controller-completion-1", "policyVersion": "reviewed-policy-1", "artifact": {"digest": digest, "objectVersion": "immutable-r2-version-1"}, "productionObservation": {"id": "independently-queried-observation-1", "revision": record["revision"], "buildDigest": "b" * 64, "observationDigest": "c" * 64}}
+        return {"payload": payload, "signature": self.signature(payload)}
+
+    def verify(self, envelope, expected):
+        if not hmac.compare_digest(envelope.get("signature", ""), self.signature(envelope.get("payload"))):
+            raise MODULE.ManagedError("controller_signature_invalid")
+        payload = envelope["payload"]
+        MODULE.require(payload["binding"] == expected, "controller_binding_mismatch")
+        return payload
+
+    def verify_history(self, envelope, expected):
+        return self.verify(envelope, expected)
+
+
+class ManagedProjectsTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="hive-managed-test-")
+        self.base = Path(self.temporary.name)
+        self.home = self.base / "home"
+        self.home.mkdir()
+        self.source = self.base / "source"
+        self.source.mkdir()
+        git(self.source, "init", "-b", "main")
+        (self.source / "README.md").write_text("fixture\n")
+        (self.source / ".gitignore").write_text("*.cache\n")
+        git(self.source, "add", ".")
+        git(self.source, "commit", "-m", "test: fixture")
+        self.sha = git(self.source, "rev-parse", "HEAD")
+        self.bare = self.base / "remote.git"
+        git(self.base, "clone", "--bare", str(self.source), str(self.bare))
+        self.backend = FixtureGit(self.bare)
+        self.manager = MODULE.ManagedProjects(self.home, FixtureResolver(), self.backend)
+        self.authority = TestControllerAuthority()
+        # CI may host unrelated same-UID nondumpable processes. Enumerate only
+        # this fixture's real process and explicitly tracked real children.
+        # Production still scans all of /proc and fails closed on PermissionError.
+        self.process_ids = {os.getpid()}
+        original_iterdir = Path.iterdir
+        def fixture_iterdir(path):
+            if path == Path("/proc"):
+                return iter(Path("/proc") / str(pid) for pid in self.process_ids)
+            return original_iterdir(path)
+        process_patch = mock.patch.object(Path, "iterdir", fixture_iterdir)
+        process_patch.start()
+        self.addCleanup(process_patch.stop)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def prepare(self, **kwargs):
+        return self.manager.prepare("123", "task-one", self.sha, **kwargs)
+
+    def release(self, prepared, sha=None):
+        lease = prepared["lease"]
+        return self.manager.release_lease("123", lease["taskId"], lease["id"], lease["generation"], sha or self.sha)
+
+    def evidence(self):
+        with self.manager.lock():
+            _, _, record = self.manager.load("123")
+            return self.authority.issue(record, self.manager.read(self.manager.state / "root.json")["identity"])
+
+    def cleanup(self, envelope=None):
+        return self.manager._remove_with_authority("123", "task-one", envelope or self.evidence(), self.authority)
+
+    def retired_ready(self):
+        prepared = self.prepare()
+        self.release(prepared)
+        self.manager.request_cleanup("123", "task-one")
+        return Path(prepared["checkoutDirectory"])
+
+    def test_unguarded_installed_release_and_reuse_stay_strict_for_unknown_holder(self):
+        manager = MODULE.ManagedProjects.installed(self.home)
+        manager.resolver, manager.driver = self.manager.resolver, self.manager.driver
+        self.assertIsNone(manager._installed_observer())
+        first = manager.prepare("123", "task-one", self.sha)
+        file = manager.paths("123")[1]
+        checkout = Path(first["checkoutDirectory"])
+        def holder():
+            child = subprocess.Popen([sys.executable, "-I", "-c", "import ctypes,sys,time;f=open(sys.argv[1]);assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0;print('ready',flush=True);time.sleep(30)", str(checkout / "README.md")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.assertEqual(child.stdout.readline().strip(), "ready")
+            self.process_ids.add(child.pid)
+            return child
+        def stop(child):
+            child.terminate(); child.wait(timeout=3)
+            child.stdout.close(); child.stderr.close(); self.process_ids.remove(child.pid)
+        lease = first["lease"]
+        child = holder(); before = file.read_bytes()
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha)
+            self.assertEqual(file.read_bytes(), before)
+        finally: stop(child)
+        released = manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha)
+        self.assertEqual(manager.release_lease("123", "task-one", lease["id"], lease["generation"], self.sha), released)
+        child = holder(); before = file.read_bytes()
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                manager.prepare("123", "task-two", self.sha)
+            self.assertEqual(file.read_bytes(), before)
+        finally: stop(child)
+        second = manager.prepare("123", "task-two", self.sha)
+        self.assertEqual(second["checkoutIncarnation"], first["checkoutIncarnation"])
+        self.assertEqual(second["lease"]["taskId"], "task-two")
+        state = self.home / ".local/state/hive/codex-host-guardian"
+        state.mkdir(mode=0o700)
+        with self.assertRaises((MODULE.ManagedError, FileNotFoundError)):
+            manager._installed_observer()
+        state.rmdir(); state.symlink_to(self.home / "missing-guard-state", target_is_directory=True)
+        with self.assertRaises(MODULE.ManagedError): manager._installed_observer()
+
+    def test_prepares_exact_revision_reuses_and_rejects_other_writer(self):
+        first = self.prepare()
+        checkout = Path(first["checkoutDirectory"])
+        self.assertEqual(git(checkout, "rev-parse", "HEAD"), self.sha)
+        inode = checkout.stat().st_ino
+        lease = first["lease"]
+        second = self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        self.assertEqual(checkout.stat().st_ino, inode)
+        self.assertGreater(second["lease"]["generation"], lease["generation"])
+        with self.assertRaisesRegex(MODULE.ManagedError, "writer_busy"):
+            self.manager.prepare("123", "task-two", self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "stale_lease"):
+            self.release(first)
+
+    def test_existing_primary_clone_and_native_history_are_never_owned(self):
+        primary = self.home / "projects/owner/repository"
+        primary.mkdir(parents=True)
+        (primary / "user-work").write_text("keep")
+        history = self.home / ".codex/sessions"
+        history.mkdir(parents=True)
+        (history / "native-history").write_text("keep")
+        self.prepare()
+        self.assertEqual((primary / "user-work").read_text(), "keep")
+        self.assertEqual((history / "native-history").read_text(), "keep")
+        with self.assertRaisesRegex(MODULE.ManagedError, "invalid_request"):
+            MODULE.dispatch(self.manager, {"schemaVersion": 1, "operation": "prepare", "provider": "github", "repositoryId": "123", "taskId": "x", "revision": self.sha, "path": str(primary)})
+
+    def test_interrupted_clone_preserves_stage_and_recovers_from_signed_attempt(self):
+        self.backend.fail_clone_once = True
+        with self.assertRaisesRegex(MODULE.ManagedError, "interrupted_clone"):
+            self.prepare()
+        interrupted = self.manager.inspect("123")
+        stage = Path(interrupted["projectDirectory"]) / interrupted["preservedStages"][0]
+        (stage / "interruption-evidence").write_text("keep")
+        lease = interrupted["lease"]
+        completed = self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        self.assertEqual(completed["status"], "ready")
+        self.assertEqual((stage / "interruption-evidence").read_text(), "keep")
+
+    def test_publish_interruption_recovers_without_duplicate_clone(self):
+        original = os.rename
+        def interrupted_rename(source, destination):
+            original(source, destination)
+            raise OSError("fixture death after atomic publish")
+        with mock.patch.object(MODULE.os, "rename", side_effect=interrupted_rename):
+            with self.assertRaises(OSError):
+                self.prepare()
+        interrupted = self.manager.inspect("123")
+        lease = interrupted["lease"]
+        completed = self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        self.assertEqual(completed["status"], "ready")
+        with self.manager.lock():
+            self.assertEqual(len(self.manager.load("123")[2]["stages"]), 1)
+
+    def test_cleanup_cli_never_accepts_completion_boolean_or_deletes(self):
+        prepared = self.prepare()
+        result = self.manager.request_cleanup("123", "task-one")
+        self.assertEqual(result["status"], "controller_authority_unavailable")
+        self.assertTrue(Path(prepared["checkoutDirectory"]).exists())
+        with self.assertRaisesRegex(MODULE.ManagedError, "invalid_request"):
+            MODULE.dispatch(self.manager, {"schemaVersion": 1, "provider": "github", "repositoryId": "123", "operation": "requestCleanup", "taskId": "task-one", "productionPassed": True})
+
+    def test_trusted_fixture_removal_preserves_project_evidence_and_can_rehydrate(self):
+        checkout = self.retired_ready()
+        project = checkout.parent
+        self.cleanup()
+        self.assertFalse(checkout.exists())
+        self.assertTrue((project / "evidence/controller-completion-1.json").is_file())
+        self.assertEqual(self.manager.inspect("123")["status"], "checkout_removed")
+        restored = self.prepare()
+        self.assertEqual(git(Path(restored["checkoutDirectory"]), "rev-parse", "HEAD"), self.sha)
+        self.release(restored)
+        with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
+            self.cleanup()
+
+    def test_released_checkout_fetches_new_exact_revision_without_losing_old_commit(self):
+        prepared = self.prepare()
+        self.release(prepared)
+        (self.source / "README.md").write_text("next revision")
+        git(self.source, "add", ".")
+        git(self.source, "commit", "-m", "test: next revision")
+        sha = git(self.source, "rev-parse", "HEAD")
+        git(self.source, "push", str(self.bare), "main")
+        resumed = self.manager.prepare("123", "task-two", sha)
+        self.assertEqual(git(Path(resumed["checkoutDirectory"]), "rev-parse", "HEAD"), sha)
+
+    def test_reused_inode_cannot_revive_old_checkout_cleanup_authority(self):
+        # Deterministically model a filesystem reusing the same device/inode.
+        # Production identity checks are unchanged; nonce authority must suffice.
+        with mock.patch.object(self.manager, "identity", return_value={"device": 1, "inode": 2}):
+            checkout = self.retired_ready()
+            old_evidence = self.evidence()
+            self.cleanup(old_evidence)
+            restored = self.prepare()
+            self.release(restored)
+            with self.manager.lock():
+                record = self.manager.load("123")[2]
+                self.assertEqual({k: str(v) for k,v in record["checkoutIdentity"].items()}, old_evidence["payload"]["binding"]["checkoutIdentity"])
+                self.assertNotEqual(record["checkoutIncarnation"], old_evidence["payload"]["binding"]["checkoutIncarnation"])
+            with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
+                self.cleanup(old_evidence)
+            self.manager.request_cleanup("123", "task-one")
+            with self.assertRaisesRegex(MODULE.ManagedError, "controller_binding_mismatch"):
+                self.cleanup(old_evidence)
+            self.assertTrue(checkout.exists())
+
+    def test_new_lease_invalidates_cleanup_request_without_replacing_checkout(self):
+        checkout = self.retired_ready()
+        old_evidence = self.evidence()
+        restored = self.prepare()
+        self.release(restored)
+        with self.assertRaisesRegex(MODULE.ManagedError, "request_stale"):
+            self.cleanup(old_evidence)
+        self.assertTrue(checkout.exists())
+
+    def test_feature_branch_push_upstream_release_and_cleanup(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        git(checkout, "switch", "-c", "codex/feature")
+        (checkout / "feature").write_text("completed feature")
+        git(checkout, "add", ".")
+        git(checkout, "commit", "-m", "test: feature")
+        sha = git(checkout, "rev-parse", "HEAD")
+        git(checkout, "-c", f"url.{self.bare}.insteadOf={URL}", "push", "-u", "origin", "codex/feature")
+        self.release(prepared, sha)
+        self.manager.request_cleanup("123", "task-one")
+        self.cleanup()
+        self.assertFalse(checkout.exists())
+
+    def test_upstream_allowance_rejects_execution_transport_and_ambiguous_config(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        config = checkout / ".git/config"
+        original = config.read_text()
+        additions = [
+            '[include]\npath = /does/not/exist\n',
+            '[includeIf "gitdir:*"]\npath = /does/not/exist\n',
+            '[credential]\nhelper = !echo forbidden\n',
+            '[core]\nhooksPath = /tmp/forbidden\n',
+            '[core]\nfsmonitor = !echo forbidden\n',
+            '[filter "unsafe"]\nsmudge = echo forbidden\n',
+            '[remote "origin"]\nurl = https://github.com/other/repository.git\n',
+            '[remote "origin"]\npushurl = https://github.com/other/repository.git\n',
+            '[branch "feature"]\nremote = other\nmerge = refs/heads/feature\n',
+            '[branch "feature"]\nremote = origin\nmerge = refs/tags/feature\n',
+            '[branch "feature"]\nremote = origin\nmerge = refs/heads/feature\nmerge = refs/heads/other\n',
+            '[branch "feature"]\nremote = origin\n',
+            '[branch "../escape"]\nremote = origin\nmerge = refs/heads/feature\n',
+            '[branch "feature"]\nremote = origin\nmerge = refs/heads/feature\nrebase = true\n',
+        ]
+        for addition in additions:
+            with self.subTest(addition=addition):
+                config.write_text(original + "\n" + addition)
+                with self.assertRaisesRegex(MODULE.ManagedError, "git_configuration_changed"):
+                    self.release(prepared)
+        config.write_text(original)
+        self.release(prepared)
+
+    def test_active_dirty_task_inspection_preserves_lease_and_edits(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        (checkout / "README.md").write_text("unfinished work")
+        inspected = self.manager.inspect("123")
+        self.assertEqual(inspected["lease"], prepared["lease"])
+        lease = inspected["lease"]
+        with self.assertRaisesRegex(MODULE.ManagedError, "checkout_has_work"):
+            self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        self.assertEqual((checkout / "README.md").read_text(), "unfinished work")
+        self.assertEqual(self.manager.inspect("123")["lease"], lease)
+
+    def test_forged_or_wrong_revision_authority_cannot_remove(self):
+        checkout = self.retired_ready()
+        permit = self.evidence()
+        permit["payload"]["productionObservation"]["revision"] = "f" * 40
+        with self.assertRaisesRegex(MODULE.ManagedError, "signature_invalid"):
+            self.cleanup(permit)
+        permit["signature"] = self.authority.signature(permit["payload"])
+        with self.assertRaisesRegex(MODULE.ManagedError, "preservation_evidence"):
+            self.cleanup(permit)
+        self.assertTrue(checkout.exists())
+
+    def test_dirty_untracked_and_ignored_work_block_cleanup(self):
+        checkout = self.retired_ready()
+        for path, content in [(checkout / "README.md", "changed"), (checkout / "untracked", "keep"), (checkout / "ignored.cache", "keep")]:
+            path.write_text(content)
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_has_work"):
+                self.cleanup()
+            if path.name == "README.md":
+                git(checkout, "checkout", "--", "README.md")
+            else:
+                path.unlink()
+
+    def test_active_process_blocks_cleanup(self):
+        checkout = self.retired_ready()
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"], cwd=checkout)
+        self.process_ids.add(child.pid)
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
+                self.cleanup()
+        finally:
+            child.kill()
+            child.wait()
+            self.process_ids.discard(child.pid)
+        self.assertTrue(checkout.exists())
+
+    def test_inaccessible_same_owner_process_blocks_cleanup(self):
+        checkout = self.retired_ready()
+        original = os.readlink
+        def unreadable(path, *args, **kwargs):
+            if Path(path) == Path(f"/proc/{os.getpid()}/cwd"):
+                raise PermissionError("fixture nondumpable process")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(MODULE.os, "readlink", side_effect=unreadable):
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable"):
+                self.cleanup()
+        self.assertTrue(checkout.exists())
+
+    def test_inspect_verifies_checkout_provenance_without_rejecting_dirty_work(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        (checkout / "README.md").write_text("unfinished edits")
+        inspected = self.manager.inspect("123")
+        self.assertTrue(inspected["checkoutVerified"])
+        self.assertEqual(inspected["checkoutIdentity"], {"device": str(checkout.stat().st_dev), "inode": str(checkout.stat().st_ino)})
+        self.assertEqual(inspected["checkoutIdentity"], prepared["checkoutIdentity"])
+        saved = checkout.with_name("original-checkout")
+        checkout.rename(saved)
+        shutil.copytree(saved, checkout)
+        with self.assertRaisesRegex(MODULE.ManagedError, "checkout_identity_changed"):
+            self.manager.inspect("123")
+        shutil.rmtree(checkout)
+        saved.rename(checkout)
+        git(checkout, "remote", "set-url", "origin", "https://github.com/other/repository.git")
+        with self.assertRaisesRegex(MODULE.ManagedError, "git_configuration_changed"):
+            self.manager.inspect("123")
+
+    def test_open_file_reference_and_linked_worktree_block_cleanup(self):
+        checkout = self.retired_ready()
+        with (checkout / "README.md").open() as held:
+            self.assertEqual(held.readline(), "fixture\n")
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
+                self.cleanup()
+        git(checkout, "worktree", "add", "--detach", str(self.base / "linked"), "HEAD")
+        with self.assertRaisesRegex(MODULE.ManagedError, "linked_worktrees"):
+            self.cleanup()
+
+    def test_mount_and_checkout_symlink_are_retained(self):
+        checkout = self.retired_ready()
+        read_text = MODULE.Path.read_text
+        def mounted(path, *args, **kwargs):
+            if str(path) == "/proc/self/mountinfo":
+                return f"1 0 0:1 / {checkout}/mounted rw - tmpfs tmpfs rw\n"
+            return read_text(path, *args, **kwargs)
+        with mock.patch.object(MODULE.Path, "read_text", mounted):
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_has_mount"):
+                self.cleanup()
+        os.rename(checkout, checkout.parent / "preserved-original")
+        checkout.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(MODULE.ManagedError, "symlink_or_path_escape"):
+            self.cleanup()
+        self.assertEqual((self.source / "README.md").read_text(), "fixture\n")
+
+    def test_expired_lease_does_not_authorize_another_writer(self):
+        self.prepare()
+        with mock.patch.object(MODULE.time, "time", return_value=10**12):
+            with self.assertRaisesRegex(MODULE.ManagedError, "writer_busy"):
+                self.manager.prepare("123", "task-two", self.sha)
+
+    def test_production_git_auth_never_enters_argv_env_remote_or_owner_credentials(self):
+        driver = MODULE.GitDriver()
+        secret = "fixture_external_auth_secret"
+        observed = {}
+        def execute(command, cwd, environment):
+            observed["command"] = command
+            observed["environment"] = environment
+            observed["askpass"] = Path(environment["GIT_ASKPASS"])
+            self.assertNotIn(secret, json.dumps(command))
+            self.assertNotIn(secret, json.dumps(environment))
+            self.assertNotIn("CODER_SESSION_TOKEN", environment)
+            self.assertNotIn("OPENAI_API_KEY", environment)
+            self.assertIn("protocol.file.allow=never", command)
+            self.assertIn("init.templateDir=", command)
+            self.assertEqual(environment["GIT_CONFIG_GLOBAL"], os.devnull)
+            return ""
+        with mock.patch.dict(os.environ, {"CODER_SESSION_TOKEN": "owner-secret", "OPENAI_API_KEY": "unrelated-secret"}), mock.patch.object(driver, "execute", execute):
+            driver.run(self.source, ["fetch", "origin", self.sha], MODULE.VerifiedRepository("123", URL, secret))
+        self.assertFalse(observed["askpass"].exists())
+
+    def test_unpreserved_local_commit_blocks_cleanup(self):
+        prepared = self.prepare()
+        checkout = Path(prepared["checkoutDirectory"])
+        (checkout / "README.md").write_text("unpublished")
+        git(checkout, "add", ".")
+        git(checkout, "commit", "-m", "test: unpublished")
+        sha = git(checkout, "rev-parse", "HEAD")
+        self.release(prepared, sha)
+        self.manager.request_cleanup("123", "task-one")
+        with self.assertRaisesRegex(MODULE.ManagedError, "not_preserved_remotely"):
+            self.cleanup()
+
+    def test_reflog_only_commit_blocks_cleanup(self):
+        checkout = self.retired_ready()
+        (checkout / "local-work").write_text("unpublished work")
+        git(checkout, "add", ".")
+        git(checkout, "commit", "-m", "test: unpreserved reflog work")
+        git(checkout, "reset", "--hard", self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "commits_not_preserved_remotely"):
+            self.cleanup()
+        self.assertTrue(checkout.exists())
+
+    def test_interrupted_stage_substitution_and_retry_budget_fail_closed(self):
+        self.backend.fail_clone_once = True
+        with self.assertRaises(MODULE.ManagedError):
+            self.prepare()
+        interrupted = self.manager.inspect("123")
+        lease = interrupted["lease"]
+        stage = Path(interrupted["projectDirectory"]) / interrupted["preservedStages"][0]
+        saved = stage.with_name("saved-stage")
+        stage.rename(saved)
+        stage.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(MODULE.ManagedError, "symlink_or_path_escape"):
+            self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        stage.unlink()
+        saved.rename(stage)
+        for _ in range(2):
+            lease = self.manager.inspect("123")["lease"]
+            self.backend.fail_clone_once = True
+            with self.assertRaisesRegex(MODULE.ManagedError, "fixture_interrupted_clone"):
+                self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        lease = self.manager.inspect("123")["lease"]
+        with self.assertRaisesRegex(MODULE.ManagedError, "clone_attempt_budget_exhausted"):
+            self.prepare(lease_id=lease["id"], generation=lease["generation"])
+        self.assertTrue(stage.exists())
+
+    def test_unmanaged_roots_symlinks_and_tampered_receipts_fail_closed(self):
+        self.prepare()
+        receipt = self.manager.state / "github-123.json"
+        data = json.loads(receipt.read_text())
+        data["record"]["revision"] = "f" * 40
+        receipt.write_text(json.dumps(data))
+        with self.assertRaisesRegex(MODULE.ManagedError, "signature_invalid"):
+            self.manager.inspect("123")
+        other_home = self.base / "other-home"
+        (other_home / "projects").mkdir(parents=True)
+        (other_home / "projects/.hive-managed").symlink_to(self.source, target_is_directory=True)
+        other = MODULE.ManagedProjects(other_home, FixtureResolver(), self.backend)
+        with self.assertRaisesRegex(MODULE.ManagedError, "symlink_or_path_escape"):
+            other.prepare("123", "task", self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "invalid_repository_id"):
+            self.manager.inspect("../../source")
+
+    def test_missing_inspect_is_readonly_and_does_not_adopt_existing_directory(self):
+        value = self.manager.inspect("987")
+        self.assertEqual(value["status"], "not_created")
+        self.assertFalse((self.manager.root / "github/987").exists())
+        (self.manager.root / "github/987").mkdir(parents=True)
+        with self.assertRaisesRegex(MODULE.ManagedError, "unmanaged_project_exists"):
+            self.manager.inspect("987")
+
+    def test_expected_account_is_verified_with_same_agent_token_before_clone_lookup(self):
+        from types import SimpleNamespace
+        helper = SimpleNamespace(external_token=lambda: "fixture-private-token", github_json=mock.Mock(return_value=({"id": 789}, {})))
+        spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _: None))
+        with mock.patch.object(MODULE.importlib.util, "spec_from_file_location", return_value=spec), mock.patch.object(MODULE.importlib.util, "module_from_spec", return_value=helper):
+            with self.assertRaisesRegex(MODULE.ManagedError, "repository_account_changed"):
+                MODULE.GitHubResolver("456").resolve("123")
+        helper.github_json.assert_called_once_with("fixture-private-token", "/user")
+
+    def renewal_authority(self, value):
+        expected = {"repositoryId": "123", "taskId": value["lease"]["taskId"], "leaseId": value["lease"]["id"],
+                    "leaseGeneration": value["lease"]["generation"], "revision": value["revision"], "checkoutIncarnation": value["checkoutIncarnation"]}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(project_id == "project-fixture" and actual == expected, "renewal_binding_changed")
+        return Authority()
+
+    def unstarted_replay_fixture(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": value["lease"]["id"],
+            "leaseGeneration": value["lease"]["generation"], "revision": self.sha,
+            "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": value["checkoutIdentity"]}
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(actual == expected, "renewal_binding_changed")
+                return grant
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        return result, Authority()
+
+    def test_unstarted_replay_rejects_changed_checkout_identity(self):
+        value, authority = self.unstarted_replay_fixture()
+        checkout = Path(value["checkoutDirectory"])
+        checkout.rename(checkout.with_name("retained-original"))
+        checkout.mkdir()
+        with self.assertRaisesRegex(MODULE.ManagedError, "checkout_identity_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_unstarted_replay_rejects_changed_head(self):
+        value, authority = self.unstarted_replay_fixture()
+        checkout = Path(value["checkoutDirectory"])
+        (checkout / "README.md").write_text("another source\n")
+        git(checkout, "add", "README.md")
+        git(checkout, "commit", "-m", "test: changed fixture source")
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_source_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_unstarted_replay_rejects_new_checkout_consumer(self):
+        value, authority = self.unstarted_replay_fixture()
+        child = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(10)"], cwd=value["checkoutDirectory"])
+        self.process_ids.add(child.pid)
+        try:
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_in_use"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        finally:
+            child.terminate()
+            child.wait(timeout=3)
+
+    def test_unstarted_owner_revalidation_preserves_identity_and_replays_once(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        with self.manager.lock():
+            _, receipt, record = self.manager.load("123")
+            record["lease"]["expiresAt"] = MODULE.time.time() - 7200
+            original = dict(record["lease"])
+            self.manager.write(receipt, record)
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": original["id"],
+            "leaseGeneration": original["generation"], "revision": self.sha,
+            "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": value["checkoutIdentity"]}
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def verify(inner, project_id, actual):
+                MODULE.require(project_id == "project-fixture" and actual == expected, "renewal_binding_changed")
+                return grant
+        renewed = self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        self.assertEqual({k: v for k, v in renewed["lease"].items() if k != "expiresAt"},
+                         {k: v for k, v in original.items() if k != "expiresAt"})
+        self.assertGreater(renewed["lease"]["expiresAt"], MODULE.time.time())
+        self.assertEqual(renewed["checkoutIncarnation"], value["checkoutIncarnation"])
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority()), renewed)
+        with self.manager.lock():
+            _, _, record = self.manager.load("123")
+            self.assertEqual(record["unstartedRevalidation"]["previousLease"], original)
+            self.assertEqual(record["renewalSequence"], 1)
+        grant["recoveryId"] = "different-recovery"
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_replay_conflict"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+
+    def test_unstarted_owner_authority_expiry_during_locked_validation_cannot_extend(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        calls = 0
+        grant = {"transferId": "transfer-fixture", "recoveryId": "owner-recovery-fixture", "proofDigest": "a" * 64,
+            "expiresAt": MODULE.time.time() * 1000 + 30000, "renewalSequence": 0}
+        class Authority:
+            def verify(inner, project_id, actual):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    grant["expiresAt"] = MODULE.time.time() * 1000 - 1
+                return grant
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_authority_expired"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", Authority())
+        self.assertEqual(self.manager.inspect("123")["lease"], value["lease"])
+        self.assertEqual(self.manager.inspect("123")["renewalSequence"], 0)
+
+    def remount_fixture(self):
+        import copy
+        value = self.manager.prepare("123", "task", self.sha)
+        with self.manager.lock():
+            project, receipt, record = self.manager.load("123")
+            root_file = self.manager.state / "root.json"
+            root = self.manager.read(root_file)
+            paths = {"root": self.manager.root, "project": project, "checkout": project / "checkout"}
+            current = {k: {x: str(n) for x, n in self.manager.identity(v).items()} for k, v in paths.items()}
+            old = copy.deepcopy(current)
+            for identity in old.values(): identity["device"] = str(int(identity["device"]) + 100)
+            root["identity"]["device"] += 100
+            record["projectIdentity"]["device"] += 100
+            record["checkoutIdentity"]["device"] += 100
+            record["lease"]["expiresAt"] = MODULE.time.time() - 7200
+            self.manager.write(root_file, root); self.manager.write(receipt, record)
+            lease = dict(record["lease"])
+        mapping = {"old": old, "current": current,
+            "oldRootRecordSha256": hashlib.sha256(root_file.read_bytes()).hexdigest(),
+            "oldProjectRecordSha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+            "oldLeaseDigest": self.manager._remount_digest({"id": lease["id"], "taskId": lease["taskId"],
+                "generation": lease["generation"], "expiresAtMillis": int(lease["expiresAt"] * 1000)})}
+        ticket = {"attestationDigest": "a" * 64, "continuationDigest": "b" * 64, "originalProofDigest": "c" * 64,
+            "recoveryId": "recovery", "taskId": "task", "mapping": mapping, "expiresAt": MODULE.time.time() * 1000 + 30000,
+            "volume": {"mountPath": str(self.home), "subPath": "", "subPathExpr": "", "readOnly": False, "claimReadOnly": False}}
+        expected = {"repositoryId": "123", "taskId": "task", "leaseId": lease["id"], "leaseGeneration": lease["generation"],
+            "revision": self.sha, "checkoutIncarnation": value["checkoutIncarnation"], "checkoutIdentity": old["checkout"]}
+        grant = {"transferId": "transfer", "recoveryId": "recovery", "proofDigest": "c" * 64,
+            "expiresAt": ticket["expiresAt"], "renewalSequence": 0, "expected": expected}
+        class Authority:
+            def continuity(inner, project_id, phase):
+                self.assertEqual(project_id, "project-fixture")
+                self.assertIn(phase, {"inspecting", "consuming"})
+                return copy.deepcopy(ticket)
+            def verify(inner, project_id, actual):
+                self.assertEqual(actual, expected)
+                return copy.deepcopy(grant)
+        self.remount_mount_patch = mock.patch.object(self.manager, "_remount_mount")
+        self.remount_mount_patch.start(); self.addCleanup(self.remount_mount_patch.stop)
+        return value, Authority(), ticket, grant, receipt
+
+    def test_remount_owner_mapping_is_read_only_until_consume_and_replays_once(self):
+        old, authority, ticket, grant, receipt = self.remount_fixture()
+        before = receipt.read_bytes()
+        with self.assertRaisesRegex(MODULE.ManagedError, "managed_root_changed"):
+            self.manager.inspect("123")
+        inspected = self.manager._inspect_unstarted_checkout("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertTrue(inspected["checkoutVerified"])
+        self.assertEqual(inspected["remount"]["mappingDigest"], self.manager._remount_digest(ticket["mapping"]))
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(result["checkoutIdentity"], ticket["mapping"]["current"]["checkout"])
+        self.assertEqual(result["lease"]["id"], old["lease"]["id"])
+        self.assertEqual(result["lease"]["generation"], old["lease"]["generation"])
+        self.assertEqual(result["checkoutIncarnation"], old["checkoutIncarnation"])
+        self.assertEqual(result["renewalSequence"], 1)
+        completed = receipt.read_bytes()
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", authority), result)
+        self.assertEqual(receipt.read_bytes(), completed)
+        self.assertEqual(self.manager.inspect("123")["checkoutIdentity"], result["checkoutIdentity"])
+
+    def test_remount_crash_between_records_holds_generic_operations_and_replays_exact_plan(self):
+        _, authority, _, _, receipt = self.remount_fixture()
+        original_write = self.manager.write
+        def fault(path, record):
+            if path == receipt: raise OSError("fixture_crash_before_project_replace")
+            return original_write(path, record)
+        with mock.patch.object(self.manager, "write", side_effect=fault):
+            with self.assertRaisesRegex(OSError, "fixture_crash"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_reconciliation_required"):
+            self.manager.inspect("123")
+        result = self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(result["renewalSequence"], 1)
+        self.assertEqual(self.manager._revalidate_unstarted_lease("123", "project-fixture", authority), result)
+
+    def test_remount_expiry_after_root_replace_cannot_write_project_or_completion(self):
+        _, authority, _, grant, receipt = self.remount_fixture()
+        before = receipt.read_bytes(); original_write = self.manager.write
+        def expire(path, record):
+            result = original_write(path, record)
+            if path == self.manager.state / "root.json": grant["expiresAt"] = MODULE.time.time() * 1000 - 1
+            return result
+        with mock.patch.object(self.manager, "write", side_effect=expire):
+            with self.assertRaisesRegex(MODULE.ManagedError, "renewal_authority_expired"):
+                self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_reconciliation_required"):
+            self.manager.inspect("123")
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_authority_changed"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+
+    def test_remount_rejects_changed_inode_and_receipt_before_any_write(self):
+        _, authority, ticket, _, receipt = self.remount_fixture()
+        before = receipt.read_bytes()
+        ticket["mapping"]["current"]["checkout"]["inode"] = "1"
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_volume_changed"):
+            self.manager._inspect_unstarted_checkout("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), before)
+        self.assertFalse((self.manager.state / "unstarted-remount.json").exists())
+
+    def test_remount_replay_cannot_restore_old_receipts_to_extend_again(self):
+        _, authority, _, grant, receipt = self.remount_fixture()
+        root_file = self.manager.state / "root.json"
+        old_root, old_project = root_file.read_bytes(), receipt.read_bytes()
+        self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        grant["replayOnly"] = True  # Actual controller retains completed rebinding history.
+        root_file.write_bytes(old_root); receipt.write_bytes(old_project)
+        (self.manager.state / "unstarted-remount.json").unlink()
+        with self.assertRaisesRegex(MODULE.ManagedError, "remount_replay_conflict"):
+            self.manager._revalidate_unstarted_lease("123", "project-fixture", authority)
+        self.assertEqual(receipt.read_bytes(), old_project)
+        self.assertFalse((self.manager.state / "unstarted-remount.json").exists())
+
+    def test_remount_scan_rejects_arbitrary_same_uid_nondumpable_holder(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        code = "import os,ctypes,sys,time; f=open(sys.argv[1]); assert ctypes.CDLL(None).prctl(4,0,0,0,0)==0; print('ready',flush=True); time.sleep(30)"
+        child = subprocess.Popen([sys.executable, "-I", "-c", code, str(Path(value["checkoutDirectory"]) / "README.md")],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.process_ids.add(child.pid)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), "ready")
+            with self.assertRaisesRegex(MODULE.ManagedError, "process_inspection_unavailable|checkout_in_use"):
+                self.manager.no_consumers(Path(value["checkoutDirectory"]))
+        finally:
+            child.terminate(); child.wait(timeout=3); child.stdout.close(); child.stderr.close()
+
+    def test_remount_mount_scope_rejects_nested_mount(self):
+        # Pure mount-table fixture: real production still parses its own /proc.
+        self.remount_mount_patch = None
+        rows = "1 0 8:1 / / rw - ext4 /dev/root rw\n2 1 8:2 / /home/coder rw - ext4 /dev/home rw\n3 2 8:3 / /home/coder/projects rw - ext4 /dev/other rw\n"
+        manager = MODULE.ManagedProjects("/home/coder")
+        with mock.patch.object(Path, "read_text", return_value=rows):
+            with self.assertRaisesRegex(MODULE.ManagedError, "remount_mount_changed"):
+                manager._remount_mount([Path("/home/coder/projects/.hive-managed")], os.makedev(8, 2))
+
+    def test_renewal_preserves_dirty_untracked_ignored_work_and_lease_identity(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        checkout = Path(value["checkoutDirectory"])
+        (checkout / "README.md").write_text("in progress")
+        (checkout / "untracked.txt").write_text("preserved")
+        (checkout / "ignored.cache").write_text("preserved")
+        renewed = self.manager._renew_controller_lease("123", "project-fixture", self.renewal_authority(value))
+        self.assertEqual(renewed["lease"]["id"], value["lease"]["id"])
+        self.assertEqual(renewed["lease"]["generation"], value["lease"]["generation"])
+        self.assertEqual(renewed["renewalSequence"], 1)
+        self.assertGreater(renewed["lease"]["expiresAt"], value["lease"]["expiresAt"])
+        self.assertEqual((checkout / "README.md").read_text(), "in progress")
+        self.assertTrue((checkout / "untracked.txt").exists() and (checkout / "ignored.cache").exists())
+        with self.assertRaisesRegex(MODULE.ManagedError, "invalid_request"):
+            MODULE.dispatch(self.manager, {"schemaVersion": 1, "provider": "github", "repositoryId": "123", "operation": "renewLease"})
+
+    def test_released_source_is_archived_only_with_exact_controller_evidence(self):
+        prepared = self.prepare()
+        source = {"headSha": self.sha, "version": 1}
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["acceptedSource"] = source
+            record["sourceLastApplied"] = {"fixture": "preserved"}
+            self.manager.write(path, record)
+        released = self.release(prepared)
+        replay = self.release(prepared)
+        self.assertEqual(replay["releaseReceipt"], released["releaseReceipt"])
+        with self.assertRaisesRegex(MODULE.ManagedError, "accepted_source_prepare_unavailable"):
+            self.manager.prepare("123", "task-two", self.sha)
+        class Authority:
+            def verify(inner, evidence, expected):
+                MODULE.require(evidence == "signed-controller-evidence", "controller_signature_invalid")
+                lease_digest = hashlib.sha256(json.dumps(released["releaseReceipt"], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                return {"binding": expected, "treeReceiptDigest": "a" * 64,
+                        "preservationDigest": "b" * 64, "leaseReleaseDigest": lease_digest}
+        with self.assertRaisesRegex(MODULE.ManagedError, "controller_signature_invalid"):
+            self.manager._archive_accepted_source("123", "task-one", "forged", Authority())
+        class WrongReleaseAuthority:
+            def verify(inner, evidence, expected):
+                return {"binding": expected, "treeReceiptDigest": "a" * 64,
+                        "preservationDigest": "b" * 64, "leaseReleaseDigest": "c" * 64}
+        with self.assertRaisesRegex(MODULE.ManagedError, "archive_evidence_invalid"):
+            self.manager._archive_accepted_source("123", "task-one", "wrong-release", WrongReleaseAuthority())
+        result = self.manager._archive_accepted_source("123", "task-one", "signed-controller-evidence", Authority())
+        self.assertTrue(result["checkoutRetained"])
+        with self.manager.lock():
+            project, _, record = self.manager.load("123")
+            self.assertNotIn("acceptedSource", record)
+            archived = self.manager.read(project / "evidence" / f"source-{result['archiveDigest']}.json")
+            self.assertEqual(archived["binding"]["acceptedSource"], source)
+        second = self.manager.prepare("123", "task-two", self.sha)
+        self.assertEqual(second["lease"]["taskId"], "task-two")
+
+    def test_renewal_never_revives_expired_or_released_leases_and_rejects_changed_incarnation(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        authority = self.renewal_authority(value)
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["checkoutIncarnation"] = "different-incarnation"
+            self.manager.write(path, record)
+        with self.assertRaisesRegex(MODULE.ManagedError, "renewal_binding_changed"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+        with self.manager.lock():
+            _, path, record = self.manager.load("123")
+            record["checkoutIncarnation"] = value["checkoutIncarnation"]
+            record["lease"]["expiresAt"] = 1
+            self.manager.write(path, record)
+        with self.assertRaisesRegex(MODULE.ManagedError, "lease_not_active"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+        self.manager.release_lease("123", "task", value["lease"]["id"], value["lease"]["generation"], self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "lease_not_active"):
+            self.manager._renew_controller_lease("123", "project-fixture", authority)
+
+    def test_cleanup_lost_completion_replays_without_a_second_delete_and_retains_history(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence()
+        with mock.patch.object(self.manager, "_complete_cleanup", side_effect=RuntimeError("fixture_lost_completion")):
+            with self.assertRaisesRegex(RuntimeError, "fixture_lost_completion"): self.cleanup(evidence)
+        self.assertFalse(Path(prepared["checkoutDirectory"]).exists())
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=AssertionError("second deletion")):
+            result = self.cleanup(evidence); self.assertEqual(result["status"], "checkout_removed")
+            self.assertEqual(self.cleanup(evidence), result)
+        self.assertTrue(Path(prepared["projectDirectory"]).is_dir())
+        self.assertTrue((Path(prepared["projectDirectory"]) / "evidence").is_dir())
+
+    def test_partial_cleanup_holds_prepare_and_never_skips_git_or_clean_checks(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence(); checkout = Path(prepared["checkoutDirectory"])
+        def partial(path):
+            (Path(path) / "README.md").unlink(); raise OSError("fixture_partial_remove")
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=partial):
+            with self.assertRaisesRegex(OSError, "fixture_partial_remove"): self.cleanup(evidence)
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=AssertionError("partial retry")):
+            with self.assertRaisesRegex(MODULE.ManagedError, "checkout_has_work"): self.cleanup(evidence)
+        self.assertTrue(checkout.is_dir())
+        self.assertEqual(self.manager._inspect_cleanup("123", "task-one")["disposition"], "deleting")
+
+    def test_dangling_checkout_symlink_is_not_an_absent_replayed_removal(self):
+        prepared = self.prepare(); self.release(prepared); self.manager.request_cleanup("123", "task-one")
+        evidence = self.evidence(); checkout = Path(prepared["checkoutDirectory"])
+        with mock.patch.object(self.manager, "_complete_cleanup", side_effect=RuntimeError("fixture_lost_completion")):
+            with self.assertRaises(RuntimeError): self.cleanup(evidence)
+        checkout.symlink_to(self.base / "missing-target")
+        with self.assertRaises(MODULE.ManagedError): self.cleanup(evidence)
+        self.assertTrue(os.path.lexists(checkout))
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_reconciliation_required"): self.prepare()
+
+    def test_readonly_cleanup_retry_inspection_reuses_request_and_never_calls_pending_started_clean(self):
+        prepared = self.prepare(); self.release(prepared)
+        first = self.manager._inspect_cleanup("123", "task-one")
+        second = self.manager._inspect_cleanup("123", "task-one")
+        self.assertEqual(first["binding"], second["binding"])
+        self.assertEqual(first["disposition"], "not_started")
+        with mock.patch.object(MODULE.shutil, "rmtree", side_effect=OSError("fixture_pending_delete")):
+            with self.assertRaises(OSError): self.cleanup()
+        pending = self.manager._inspect_cleanup("123", "task-one")
+        self.assertEqual(pending["binding"], first["binding"])
+        self.assertEqual(pending["disposition"], "deleting")
+
+    def test_renewal_sequence_fences_prior_signed_cleanup_completion(self):
+        value = self.manager.prepare("123", "task", self.sha)
+        self.manager.request_cleanup("123", "task")
+        with self.manager.lock():
+            _, _, record = self.manager.load("123")
+            old_evidence = self.authority.issue(record, self.manager.read(self.manager.state / "root.json")["identity"])
+        renewed = self.manager._renew_controller_lease("123", "project-fixture", self.renewal_authority(value))
+        self.manager.release_lease("123", "task", renewed["lease"]["id"], renewed["lease"]["generation"], self.sha)
+        with self.assertRaisesRegex(MODULE.ManagedError, "cleanup_request_stale"):
+            self.manager._remove_with_authority("123", "task", old_evidence, self.authority)
+        self.manager.request_cleanup("123", "task")
+        with self.assertRaisesRegex(MODULE.ManagedError, "controller_binding_mismatch"):
+            self.manager._remove_with_authority("123", "task", old_evidence, self.authority)
+
+
+if __name__ == "__main__":
+    unittest.main()

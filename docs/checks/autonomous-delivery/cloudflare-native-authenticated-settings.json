@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-11-05T20:29:31.971165+00:00",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "revision": "5c012a63ddcaa323548b70166661faa6d4ec11f3",
+  "passed": true,
+  "status": 200,
+  "coderHostMatches": true,
+  "coderWorkspaceReadSucceeded": true,
+  "workspaceCount": 5,
+  "cacheControl": "private, no-store",
+  "httpRequests": 1,
+  "cumulativeOuterRequests": 31,
+  "realCoderLoginPassed": true,
+  "priorEvidence": "cloudflare-native-live-5c012a63-retry.json",
+  "priorFailureExplanation": "Harness used GET on notifications/sources, a POST/DELETE route; its 405 was not a session failure. Correct authenticated read uses settings/window."
+}

@@ -28,6 +28,17 @@ describe("terminal-proxy fetchCoderApi", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects redirect responses and closes the private-CA dispatcher", async () => {
+    mockUndiciFetch.mockResolvedValue(
+      new Response("redirect", { status: 302, headers: { Location: "https://other.example" } }),
+    );
+    const { fetchCoderApi } = await import("../src/coder-fetch.js");
+    await expect(fetchCoderApi("https://coder.example.com/api/v2/users/me")).rejects.toThrow(
+      "Coder API redirect rejected",
+    );
+    expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
   it("extends public CA trust and closes the dispatcher", async () => {
     const { fetchCoderApi } = await import("../src/coder-fetch.js");
 
@@ -39,8 +50,27 @@ describe("terminal-proxy fetchCoderApi", () => {
     });
     expect(mockUndiciFetch).toHaveBeenCalledWith(
       "https://coder.example.com/api/v2/workspaces",
-      expect.objectContaining({ dispatcher: expect.anything() }),
+      expect.objectContaining({ dispatcher: expect.anything(), redirect: "manual" }),
     );
     expect(mockAgentClose).toHaveBeenCalledOnce();
+  });
+
+  it("disables redirects for credential-bearing requests using public CA trust", async () => {
+    vi.stubEnv("CODER_CA_CERT", "");
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", mockFetch);
+    try {
+      const { fetchCoderApi } = await import("../src/coder-fetch.js");
+      await fetchCoderApi("https://coder.example.com/api/v2/workspaces", {
+        headers: { "Coder-Session-Token": "synthetic-token" },
+        redirect: "follow",
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: "manual" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

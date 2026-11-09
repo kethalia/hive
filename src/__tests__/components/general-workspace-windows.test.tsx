@@ -14,6 +14,7 @@ const loading = vi.hoisted(() => {
   }
   return { agents: deferred(), management: deferred(), mount: vi.fn(), hide: vi.fn() };
 });
+const navigation = vi.hoisted(() => ({ search: new URLSearchParams(), replace: vi.fn() }));
 
 // Next aliases next/dynamic to this implementation for the App Router. Without a
 // loading option it relies on an ancestor Suspense boundary. Delay the imported
@@ -31,10 +32,20 @@ vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
   return { WorkspaceListContent: () => <p>Loaded workspace controls</p> };
 });
+vi.mock("@/components/workspaces/AccountsPanel", () => ({
+  AccountsPanel: ({ workspaceId }: { workspaceId: string }) => (
+    <p>Loaded accounts for {workspaceId}</p>
+  ),
+}));
 vi.mock("@/lib/actions/clone-project", () => ({ cloneProjectAction: vi.fn() }));
-vi.mock("@/lib/actions/settings-window", () => ({
-  getSettingsWindowAction: vi.fn(async () => ({
-    data: { connectedWorkspaceIds: [], pendingWorkspaceIds: [], workspaces: [] },
+vi.mock("@/lib/settings/window-client", () => ({
+  fetchSettingsWindow: vi.fn(async () => ({
+    email: "owner@example.com",
+    coderUrl: "https://coder.example.com",
+    connectedWorkspaceIds: [],
+    pendingWorkspaceIds: [],
+    workspaces: [],
+    workspaceError: false,
   })),
 }));
 vi.mock("@/components/settings-content", () => ({
@@ -51,9 +62,10 @@ vi.mock("@/lib/actions/workspaces", () => ({
   startWorkspaceAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => {
-  const search = new URLSearchParams();
-  const router = { replace: vi.fn() };
-  return { useRouter: () => router, useSearchParams: () => search };
+  return {
+    useRouter: () => ({ replace: navigation.replace }),
+    useSearchParams: () => navigation.search,
+  };
 });
 vi.mock("@/components/workspaces/WorkspaceHeaderButton", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/workspaces/WorkspaceHeaderButton")>()),
@@ -88,6 +100,7 @@ const workspaces = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const key of [...navigation.search.keys()]) navigation.search.delete(key);
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -363,7 +376,7 @@ describe("workspace tool windows", () => {
     const view = render(tree);
     const terminal = await screen.findByLabelText("Terminal input");
     fireEvent.change(terminal, { target: { value: "unsent" } });
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"] as const) {
+    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"] as const) {
       act(() => requestHiveWindow({ tool }));
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -377,11 +390,61 @@ describe("workspace tool windows", () => {
     act(() => requestHiveWindow({ tool: "settings" }));
     await waitFor(() => expect(saved().activeBoardKey).toBe("board-1"));
     expect(screen.getAllByTestId("hive-window-settings")).toHaveLength(1);
-    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(5));
+    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(6));
     view.unmount();
     render(tree);
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"])
+    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"])
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
+  });
+  it("consumes an exact Accounts deep link, persists its build hold, and reuses the window for current scope", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "old-build");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(await screen.findByTestId("hive-window-accounts")).toBeVisible();
+    expect(screen.getByText(/This workspace has a different build/)).toBeVisible();
+    expect(screen.queryByText("Loaded accounts for software")).not.toBeInTheDocument();
+    const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        tool: "accounts",
+        workspaceId: "software",
+        buildId: "old-build",
+      }),
+    );
+    expect(navigation.replace).toHaveBeenCalledWith("/workspaces", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Use current build" }));
+    expect(await screen.findByText("Loaded accounts for software")).toBeVisible();
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        workspaceId: "software",
+        buildId: "build-1",
+      }),
+    );
+    act(() => requestHiveWindow({ tool: "accounts" }));
+    expect(screen.getAllByTestId("hive-window-accounts")).toHaveLength(1);
+    expect(saved().boards[0].windows[1]).toMatchObject({
+      workspaceId: "software",
+      buildId: "build-1",
+    });
+  });
+  it("does not drop a malformed explicit build scope and open unscoped Accounts instead", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(
+      await screen.findByText("The Accounts workspace or build selection is invalid."),
+    ).toBeVisible();
+    expect(screen.queryByTestId("hive-window-accounts")).not.toBeInTheDocument();
   });
 });
 

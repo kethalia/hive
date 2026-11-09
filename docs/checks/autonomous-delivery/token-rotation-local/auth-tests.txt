@@ -1,0 +1,339 @@
+> hive-auth@1.1.5 test /home/coder/projects/kethalia/hive/services/auth
+> vitest run
+
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive/services/auth
+
+ ✓ test/coder-fetch.test.ts (4 tests) 23ms
+stdout | src/auth/coder-auth.test.ts > createCoderApiKey > returns null on HTTP error
+[auth-service] API key creation failed: 403
+
+stdout | src/auth/coder-auth.test.ts > createCoderApiKey > returns null on network error
+[auth-service] API key creation error: network failure
+
+ ✓ src/auth/coder-auth.test.ts (21 tests) 16ms
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > retains an ambiguous pending commit even if a separate snapshot would still show the old row
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > retains an ambiguous pending commit even if a separate snapshot would still show the old row
+[auth-service] Authenticated user: user
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > retains an ambiguous pending commit even if a separate snapshot would still show the old row
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2034 transaction rollback may discard only this attempt's new key
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2034 transaction rollback may discard only this attempt's new key
+[auth-service] Authenticated user: user
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2034 transaction rollback may discard only this attempt's new key
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2002 transaction rollback may discard only this attempt's new key
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2002 transaction rollback may discard only this attempt's new key
+[auth-service] Authenticated user: user
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > a conclusive P2002 transaction rollback may discard only this attempt's new key
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > explicit zero-count CAS rollback never revokes the winner or prior key
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > explicit zero-count CAS rollback never revokes the winner or prior key
+[auth-service] Authenticated user: user
+
+stdout | src/auth/login-write-outcomes.test.ts > actual login storage outcome handling > explicit zero-count CAS rollback never revokes the winner or prior key
+[auth-service] API key created on attempt 1
+
+ ✓ src/auth/login-write-outcomes.test.ts (4 tests) 14ms
+ ✓ test/client.test.ts (18 tests) 53ms
+stderr | src/auth/token-rotation.test.ts > portable token rotation provenance > failed push does not prevent rotation and failed mint leaves current key intact
+[token-rotation] Push notification failed
+
+ ✓ src/auth/token-rotation.test.ts (11 tests) 27ms
+stdout | test/health.test.ts > health endpoint > returns 200 with status ok and uptime
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 200 with token, coderUrl, and expiresAt on success
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 200 with token, coderUrl, and expiresAt on success
+[auth-service] GET /sessions/:id/token → 200 user=alice
+
+stdout | test/health.test.ts > health endpoint > returns 404 for unknown routes
+[auth-service] GET request
+
+stdout | src/auth/login.test.ts > performLogin > succeeds with API key creation
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > succeeds with API key creation
+[auth-service] Authenticated user: testuser
+
+stdout | src/auth/login.test.ts > performLogin > succeeds with API key creation
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login.test.ts > performLogin > succeeds with API key creation
+[auth-service] Session created for user db-user-id
+
+ ✓ test/health.test.ts (5 tests) 47ms
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] Authenticated user: testuser
+
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] API key creation attempt 1/3 failed
+
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] API key creation attempt 2/3 failed
+
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] API key creation attempt 3/3 failed
+[auth-service] Falling back to session token as credential (R101)
+
+stdout | src/auth/login.test.ts > performLogin > falls back to session token when API key creation fails all 3 retries
+[auth-service] Session created for user db-user-id
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 200 with null expiresAt when token has no expiry
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 200 with null expiresAt when token has no expiry
+[auth-service] GET /sessions/:id/token → 200 user=alice
+
+stdout | src/auth/login.test.ts > performLogin > rejects invalid credentials
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 200 with session on successful login
+[auth-service] POST request
+
+stdout | src/auth/login.test.ts > performLogin > succeeds on second API key retry
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > succeeds on second API key retry
+[auth-service] Authenticated user: testuser
+
+stdout | src/auth/login.test.ts > performLogin > succeeds on second API key retry
+[auth-service] API key creation attempt 1/3 failed
+
+stdout | src/auth/login.test.ts > performLogin > succeeds on second API key retry
+[auth-service] API key created on attempt 2
+
+stdout | src/auth/login.test.ts > performLogin > succeeds on second API key retry
+[auth-service] Session created for user db-user-id
+
+stdout | test/service-auth.test.ts > auth service caller authentication > permits authenticated POST /login
+[auth-service] POST request
+
+stdout | src/auth/login.test.ts > performLogin > cleans only the newly minted key when login loses its DB CAS
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > cleans only the newly minted key when login loses its DB CAS
+[auth-service] Authenticated user: testuser
+
+stdout | src/auth/login.test.ts > performLogin > cleans only the newly minted key when login loses its DB CAS
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login.test.ts > performLogin > revokes only the positively tracked old Hive key after successful commit
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > revokes only the positively tracked old Hive key after successful commit
+[auth-service] Authenticated user: testuser
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 404 when session not found
+[auth-service] GET request
+
+stdout | src/auth/login.test.ts > performLogin > revokes only the positively tracked old Hive key after successful commit
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login.test.ts > performLogin > revokes only the positively tracked old Hive key after successful commit
+[auth-service] Session created for user db-user-id
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 404 when session not found
+[auth-service] GET /sessions/:id/token → 404 session=nonexist…
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 200 with session on successful login
+[auth-service] POST /login → 200 user=u1
+
+stdout | src/auth/login.test.ts > performLogin > strips trailing slash from coderUrl in user upsert
+[auth-service] Coder instance validated: https://coder.example.com
+
+stdout | src/auth/login.test.ts > performLogin > strips trailing slash from coderUrl in user upsert
+[auth-service] Authenticated user: testuser
+
+stdout | src/auth/login.test.ts > performLogin > strips trailing slash from coderUrl in user upsert
+[auth-service] API key created on attempt 1
+
+stdout | src/auth/login.test.ts > performLogin > strips trailing slash from coderUrl in user upsert
+[auth-service] Session created for user db-user-id
+
+stdout | test/service-auth.test.ts > auth service caller authentication > permits authenticated POST /logout
+[auth-service] POST request
+
+ ✓ src/auth/login.test.ts (10 tests) 12ms
+stdout | test/service-auth.test.ts > auth service caller authentication > permits authenticated GET /sessions/victim-session
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 404 when no Coder token exists for user
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 404 when no Coder token exists for user
+[auth-service] GET /sessions/:id/token → 404 no_token user=alice
+
+stdout | test/service-auth.test.ts > auth service caller authentication > permits authenticated GET /sessions/victim-session/credentials
+[auth-service] GET request
+
+stdout | test/service-auth.test.ts > auth service caller authentication > permits authenticated GET /sessions/victim-session/token
+[auth-service] GET request
+
+stdout | test/service-auth.test.ts > auth service caller authentication > keeps GET /health public while other methods and paths require authentication
+[auth-service] GET request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 500 with KEY_UNAVAILABLE when encryption key is missing
+[auth-service] GET request
+
+stderr | test/token.test.ts > GET /sessions/:id/token > returns 500 with KEY_UNAVAILABLE when encryption key is missing
+[auth-service] GET /sessions/:id/token → 500 code=KEY_UNAVAILABLE session=sess-123…
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 500 with KEY_MISMATCH on key mismatch
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 400 when body is empty
+[auth-service] POST request
+
+stderr | test/token.test.ts > GET /sessions/:id/token > returns 500 with KEY_MISMATCH on key mismatch
+[auth-service] GET /sessions/:id/token → 500 code=KEY_MISMATCH session=sess-123…
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 400 when email is missing
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 400 when password is missing
+[auth-service] POST request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 500 with DECRYPT_FAILED on corrupt ciphertext
+[auth-service] GET request
+
+stderr | test/token.test.ts > GET /sessions/:id/token > returns 500 with DECRYPT_FAILED on corrupt ciphertext
+[auth-service] GET /sessions/:id/token → 500 code=DECRYPT_FAILED session=sess-123…
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 400 when a client supplies a Coder origin
+[auth-service] POST request
+
+stdout | test/token.test.ts > GET /sessions/:id/token > returns 500 with INTERNAL_ERROR on unexpected errors
+[auth-service] GET request
+
+stderr | test/token.test.ts > GET /sessions/:id/token > returns 500 with INTERNAL_ERROR on unexpected errors
+[auth-service] GET /sessions/:id/token → 500 code=INTERNAL_ERROR session=sess-123…
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 401 on invalid credentials
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 401 on invalid credentials
+[auth-service] POST /login → 401 invalid credentials
+
+stdout | test/service-auth.test.ts > auth service caller authentication > accepts all shared client operations through the production authentication guard
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 502 when Coder is unreachable
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 502 when Coder is unreachable
+[auth-service] POST /login → 502 coder unreachable
+
+ ✓ src/auth/managed-keys.test.ts (10 tests) 20ms
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 429 when rate limited
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 429 when rate limited
+[auth-service] Rate limited login attempt from ::1
+
+stdout | test/service-auth.test.ts > auth service caller authentication > accepts all shared client operations through the production authentication guard
+[auth-service] POST request
+
+stdout | test/service-auth.test.ts > auth service caller authentication > accepts all shared client operations through the production authentication guard
+[auth-service] GET request
+
+stdout | test/service-auth.test.ts > auth service caller authentication > accepts all shared client operations through the production authentication guard
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /login > returns 500 on unexpected error
+[auth-service] POST request
+
+stderr | test/handlers.test.ts > HTTP handlers > POST /login > returns 500 on unexpected error
+[auth-service] POST /login → 500 something broke
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /logout > returns 200 on successful logout
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /logout > returns 200 on successful logout
+[auth-service] POST /logout → 200 session=sess-123…
+
+ ✓ test/token.test.ts (8 tests) 59ms
+stdout | test/service-auth.test.ts > auth service caller authentication > accepts all shared client operations through the production authentication guard
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > POST /logout > returns 400 when sessionId is missing
+[auth-service] POST request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id > returns 200 with session payload when found
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id > returns 200 with session payload when found
+[auth-service] GET /sessions/:id → 200 user=u1
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id > returns 404 when session not found
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id > returns 404 when session not found
+[auth-service] GET /sessions/:id → 404 session=nonexist…
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id/credentials > returns 200 with credential status when session exists
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id/credentials > returns 200 with credential status when session exists
+[auth-service] GET /sessions/:id/credentials → 200 status=valid
+
+stdout | test/service-auth.test.ts > auth service caller authentication > does not follow authenticated service redirects
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id/credentials > returns 404 when session not found
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > GET /sessions/:id/credentials > returns 404 when session not found
+[auth-service] GET /sessions/:id/credentials → 404 session=nonexist…
+
+stdout | test/handlers.test.ts > HTTP handlers > unknown routes > returns 404 for unknown paths
+[auth-service] GET request
+
+stdout | test/handlers.test.ts > HTTP handlers > unknown routes > returns 404 for wrong method on existing path
+[auth-service] GET request
+
+ ✓ test/service-auth.test.ts (25 tests) 101ms
+ ✓ test/handlers.test.ts (17 tests) 55ms
+ ✓ test/fetch-handler.test.ts (5 tests) 33ms
+ ✓ src/auth/rotation-scheduler.test.ts (5 tests) 118ms
+ ✓ src/auth/encryption.test.ts (17 tests) 11ms
+ ✓ src/auth/credential-store.test.ts (9 tests) 15ms
+ ✓ src/auth/token-status.test.ts (8 tests) 5ms
+stdout | src/auth/session.test.ts > session management > getSessionById > returns null for non-existent sessionId
+[auth-service] Session not found for sessionId=nonexist…
+
+stdout | src/auth/session.test.ts > session management > getSessionById > returns null and deletes expired session
+[auth-service] Session expired for user=user-1, cleaning up
+
+stdout | src/auth/session.test.ts > session management > getSessionById > retains but rejects existing wrong-host sessions
+[auth-service] Session belongs to a different Coder deployment
+
+stdout | src/auth/session.test.ts > session management > getSessionById > returns null for empty sessionId
+[auth-service] Session not found for sessionId=…
+
+ ✓ src/auth/session.test.ts (7 tests) 11ms
+ ✓ src/auth/rate-limit.test.ts (7 tests) 6ms
+
+ Test Files  18 passed (18)
+      Tests  191 passed (191)
+   Start at  01:41:46
+   Duration  819ms (transform 1.21s, setup 0ms, collect 3.35s, tests 627ms, environment 3ms, prepare 1.32s)

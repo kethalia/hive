@@ -17,12 +17,17 @@ import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 const TerminalPanel = dynamic(() => import("./TerminalPanel").then((m) => m.TerminalPanel), {
   ssr: false,
 });
+const TemplatePublicationLogs = dynamic(
+  () => import("./TemplatePublicationLogs").then((m) => m.TemplatePublicationLogs),
+  { ssr: false },
+);
 
 interface PushState {
   jobId: string | null;
   inProgress: boolean;
   result: boolean | null;
   terminalOpen: boolean;
+  canViewDetailedLogs?: boolean;
 }
 
 function formatDate(iso: string | null): string {
@@ -54,6 +59,19 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
   const definition = templateCatalogEntry(status.name);
   const profile = workspaceProfileForTemplate(status.name);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [restoredJobId, setRestoredJobId] = useState<string | null>(null);
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search),
+      id = query.get("publication");
+    setRestoredJobId(
+      window.location.pathname === `/templates/${status.name}` &&
+        query.getAll("publication").length === 1 &&
+        id &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)
+        ? id
+        : null,
+    );
+  }, [status.name]);
   const [pushState, setPushState] = useState<PushState>({
     jobId: null,
     inProgress: false,
@@ -91,10 +109,12 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
   }, []);
 
   const handlePush = useCallback(async () => {
+    setRestoredJobId(null);
     lineHistory.current = [];
     setPushState({ jobId: null, inProgress: true, result: null, terminalOpen: true });
 
-    let jobId: string;
+    let jobId: string,
+      canViewDetailedLogs = false;
     try {
       const res = await fetch(`/api/templates/${status.name}/push`, { method: "POST" });
       if (!res.ok) {
@@ -105,6 +125,7 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
       }
       const data = await res.json();
       jobId = data.jobId;
+      canViewDetailedLogs = data.canViewDetailedLogs === true;
     } catch (err) {
       writeLine(`[error] ${err instanceof Error ? err.message : String(err)}`);
       setPushState((prev) => ({ ...prev, inProgress: false, result: false }));
@@ -112,7 +133,7 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
     }
 
     if (!mounted.current) return;
-    setPushState((prev) => ({ ...prev, jobId }));
+    setPushState((prev) => ({ ...prev, jobId, canViewDetailedLogs }));
     stopStreamRef.current?.();
     stopStreamRef.current = followTemplatePush(status.name, jobId, {
       onLine: writeLine,
@@ -244,6 +265,12 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
           className="h-64"
         />
       )}
+      {restoredJobId || (pushState.canViewDetailedLogs && pushState.jobId) ? (
+        <TemplatePublicationLogs
+          name={status.name}
+          jobId={restoredJobId ?? (pushState.jobId as string)}
+        />
+      ) : null}
     </DashboardPageShell>
   );
 }

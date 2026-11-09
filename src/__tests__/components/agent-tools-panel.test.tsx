@@ -50,15 +50,56 @@ const snapshot: AgentToolsSnapshot = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
   vi.mocked(inspectAgentToolsAction).mockResolvedValue({ data: structuredClone(snapshot) });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("agent tools panel", () => {
   it("does not scan or mutate when closed", () => {
     render(<AgentToolsPanel workspaceId={id} open={false} onOpenSession={vi.fn()} />);
     expect(inspectAgentToolsAction).not.toHaveBeenCalled();
     expect(configureAgentToolsAction).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "unavailable",
+    "loading",
+  ])("opens scoped Accounts without mounting account readers when generic inventory is %s", async (state) => {
+    if (state === "unavailable")
+      vi.mocked(inspectAgentToolsAction).mockResolvedValue({
+        serverError: "Generic agent tools are disabled",
+      });
+    else vi.mocked(inspectAgentToolsAction).mockReturnValue(new Promise(() => {}));
+    const listener = vi.fn();
+    window.addEventListener("hive:window-open", listener);
+    try {
+      render(
+        <AgentToolsPanel workspaceId={id} buildId="current-build" open onOpenSession={vi.fn()} />,
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Open Accounts" }));
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener.mock.calls[0][0].detail).toEqual({
+        tool: "accounts",
+        workspaceId: id,
+        buildId: "current-build",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("region", { name: "Managed Codex account" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("region", { name: "Workspace Claude account" }),
+      ).not.toBeInTheDocument();
+      expect(configureAgentToolsAction).not.toHaveBeenCalled();
+      expect(resumeAgentSessionAction).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("hive:window-open", listener);
+    }
   });
 
   it("searches session metadata and resumes the selected ID only", async () => {

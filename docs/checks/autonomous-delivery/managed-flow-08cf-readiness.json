@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "deployment": "https://coder.kethalia.com",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "workspaceName": "hive-managed-flow-08cf",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-07T18:47:25.146316Z",
+  "buildId": "9933c878-831c-4edf-baf7-fee9f1bbc5c3",
+  "templateVersionId": "86834e24-6be5-4fd2-985c-23d1de969713",
+  "task": "managed-cloudflare-delivery-pilot-fixed-launch",
+  "classification": "unmanaged isolated test; retain unless exact cleanup authorized",
+  "disposable": false,
+  "automaticDeletionAuthorized": false,
+  "storage": "20Gi",
+  "ttlMs": 7200000,
+  "image": "ghcr.io/kethalia/hive-base@sha256:22fce3aa20b2c70c9c84e82f5b4fd0d584a7b564c32940853127fd2c7c37df34",
+  "sourceCommit": "08cf34f168b711a3fffff7d8edeb549c3c505078",
+  "globalActivationChanged": false,
+  "creationProvenance": "Primary software workspace own acknowledged Coder create action; not a specialist handoff",
+  "observedAt": "2026-11-07T18:51:48.629098+00:00",
+  "agentId": "5d715b16-8656-4e2c-813a-14317e7b90d6",
+  "healthy": true,
+  "sourcePackagePinsMatch": true,
+  "devAndInitImageMatch": true,
+  "deploymentUid": "8929ea71-8d78-4edd-8691-5e6b849c601b",
+  "pvc": {
+    "uid": "6c1d77cc-49ba-4098-aa26-acc68251df90",
+    "claimName": "coder-868d3188-181c-466e-b067-e3ff592e79bc-home",
+    "namespace": "coder",
+    "storageClass": "longhorn",
+    "accessModes": ["ReadWriteOnce"],
+    "storage": "20Gi"
+  },
+  "privateHomeMountVerified": true,
+  "hostPathPresent": false,
+  "differentFromAllPriorClaimNames": true,
+  "differentFromKnownPriorAndPrimaryPvcUids": true,
+  "resources": {
+    "limits": {
+      "cpu": "12",
+      "memory": "32Gi"
+    },
+    "requests": {
+      "cpu": "2",
+      "memory": "16Gi"
+    }
+  },
+  "hostChecks": {
+    "coderRootOwned": true,
+    "coderVersion": "Coder v2.38.4+d16b1ca Wed Oct 28 19:44:12 UTC 2026",
+    "healthStatus": 200,
+    "workerGuardedPath": true,
+    "guardianPackageSha256": "80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46",
+    "packageMatches": true,
+    "elfMatches": true,
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    "workspaceMatches": true,
+    "buildMatches": true,
+    "hiveUserMatches": true,
+    "hiveOriginMatches": true,
+    "issuerKeyMatches": true,
+    "nativeAuthPresent": false,
+    "model": "gpt-6.1-sol",
+    "effort": "high"
+  },
+  "preexecutionChecks": {
+    "guardianJournalSignatureValid": true,
+    "workerPid": 759,
+    "workerStartTime": "123572698",
+    "guardianPhase": "startupReady",
+    "guardianEventNames": ["begin", "ready", "launchIntent", "open", "startupReady"],
+    "admissionEventCount": 0,
+    "guardianController": {
+      "present": false
+    },
+    "projectJournalPresent": true,
+    "projectJournalSignatureValid": true,
+    "projectCount": 0,
+    "projectTaskCount": 0,
+    "supervisorRegistryPresent": false,
+    "supervisorRegistrySignatureValid": null,
+    "supervisorProjectCount": null,
+    "workerIdentityAndPathVerified": true,
+    "managedCodexExecutableProcessCount": 0,
+    "tmuxExecutableProcessCount": 0,
+    "procUnreadableOrExitedCount": 1,
+    "supervisorTmuxSocketPresent": false,
+    "supervisorTmuxSessionCount": null,
+    "liveInventoryLimitation": "process and durable journal snapshot; in-memory native guardian inventory not independently queried"
+  },
+  "installedBinaryPins": {
+    "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    "nodeRootOwnedReadonlyByUser": true,
+    "helperDescriptor": {
+      "goVersion": "go1.26.10",
+      "schemaVersion": 1,
+      "sdkVersion": "v2.38.4",
+      "sha256": "5cb01a6bde1a451cec77568e08ffebba491086d8271c0a785b8744b18a74ae39"
+    },
+    "helperBinaryMatchesDescriptor": true,
+    "packageManifestSha256": "80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46",
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "acceptanceCodeSha256": "ebe3ca502d891d8c6b52af4cd4d904851f377dc07614cf46450d764e74a80e60",
+    "userNamespaceProbe": {
+      "ordinaryUid": true,
+      "exitCode": 0,
+      "result": "ok",
+      "stdoutEmpty": true
+    }
+  },
+  "globalActiveTemplateVersionUnchanged": true,
+  "operatorEnrollmentPerformed": false,
+  "authenticationTransferred": false,
+  "taskOrModelStarted": false,
+  "limitation": "Provider-reported provisioner state plus signed durable journal/process snapshot and harmless user namespace probe; not physical/kernel attestation or independent in-memory native inventory."
+}

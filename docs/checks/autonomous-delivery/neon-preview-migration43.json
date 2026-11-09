@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-11-06T01:12:14.986802+00:00",
+  "scope": "existing Preview databases only",
+  "sourceCommit": "3e694180d7865d4f11744f40b2390f1c6ae4b345",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "endpointId": "ep-jolly-sky-b7fhirib",
+  "directHost": "ep-jolly-sky-b7fhirib.c-13.us-east-1.aws.neon.tech",
+  "newMigrations": ["20261106010000_coder_browser_oauth"],
+  "migrationTool": "committed services/migrate/src/migrate.mjs with pinned committed schema/migrations and direct connection",
+  "privateBackupDirectory": "/home/coder/projects/kethalia/.private-hive-preview-migration43/20261106T011036Z-3e694180",
+  "backupTool": "PostgreSQL 18 pg_dump custom archive",
+  "restoreValidation": "Complete archive decoding with pg_restore --file=/dev/null; full restore not performed",
+  "productionTouched": false,
+  "providerResourcesCreated": false,
+  "databases": [
+    {
+      "name": "hive_app_preview",
+      "databaseId": 1112631,
+      "owner": "hive_epic_owner",
+      "migrationsBefore": 42,
+      "migrationsAfter": 43,
+      "original42MigrationRecordsAndChecksumsPreserved": true,
+      "failedOrUnfinishedMigrations": 0,
+      "existingTableCount": 70,
+      "existingRowCount": 7,
+      "originalTableDataPreserved": true,
+      "rowVerification": "Private row counts and content comparison over original columns; only eight new OAuth metadata/encrypted refresh columns excluded; managed_key provenance backfill separately verified",
+      "newTablesEmpty": true,
+      "backup": {
+        "archiveFile": "hive_app_preview-before43.dump",
+        "bytes": 382883,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "runtimePrivileges": {
+        "role": "hive_app_runtime",
+        "flowRead": true,
+        "flowInsert": true,
+        "flowUpdate": true,
+        "flowDelete": true,
+        "flowTruncate": false,
+        "flowReferences": false,
+        "flowTrigger": false,
+        "receiptUpdate": false,
+        "receiptDelete": false,
+        "oldAppRoleCanConnectNative": false
+      },
+      "oldAppRoleCanConnectNative": false
+    },
+    {
+      "name": "hive_native_preview",
+      "databaseId": 1303554,
+      "owner": "hive_epic_owner",
+      "migrationsBefore": 42,
+      "migrationsAfter": 43,
+      "original42MigrationRecordsAndChecksumsPreserved": true,
+      "failedOrUnfinishedMigrations": 0,
+      "existingTableCount": 70,
+      "existingRowCount": 25,
+      "originalTableDataPreserved": true,
+      "rowVerification": "Private row counts and content comparison over original columns; only eight new OAuth metadata/encrypted refresh columns excluded; managed_key provenance backfill separately verified",
+      "newTablesEmpty": true,
+      "backup": {
+        "archiveFile": "hive_native_preview-before43.dump",
+        "bytes": 406298,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "runtimePrivileges": {
+        "role": "hive_native_runtime",
+        "flowRead": true,
+        "flowInsert": true,
+        "flowUpdate": true,
+        "flowDelete": true,
+        "flowTruncate": false,
+        "flowReferences": false,
+        "flowTrigger": false,
+        "receiptUpdate": false,
+        "receiptDelete": false,
+        "oldAppRoleCanConnectNative": false
+      },
+      "oldAppRoleCanConnectNative": false
+    }
+  ]
+}

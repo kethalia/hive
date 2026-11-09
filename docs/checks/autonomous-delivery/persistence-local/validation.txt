@@ -1,0 +1,16 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/state.test.ts (12 tests) 6ms
+ ✓ src/__tests__/lib/delivery/repository.integration.test.ts (18 tests) 416ms
+
+ Test Files  2 passed (2)
+      Tests  30 passed (30)
+   Start at  16:38:04
+   Duration  772ms (transform 127ms, setup 0ms, collect 209ms, tests 422ms, environment 0ms, prepare 80ms)
+
+
+No difference detected.
+
+
+{"restartReplay":"passed","sameReport":true,"outboxCount":1}

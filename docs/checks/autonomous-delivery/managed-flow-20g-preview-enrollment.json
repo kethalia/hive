@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-07T16:38:31.820Z",
+  "workspaceId": "35dded27-d8bd-479c-a44a-f20b766349af",
+  "buildId": "fe760ceb-5b53-4810-9848-22077c24ffc1",
+  "hiveOwnerId": "c451e8a7-e931-49c1-a3e6-77b2da005687",
+  "repositoryId": "1183966024",
+  "providerAccountId": "62855857",
+  "sourceBaseBranch": "codex/delivery-system-design",
+  "allowedPrefixes": ["docs"],
+  "repositoryCatalogDigest": "ca410cf0d8488ea0655a946df0575474776e68417fe7e14d524669a841da818b",
+  "repositoryPolicyDigest": "280f50d2e5f669321f69cac147b7a5ee066a123d798052b0bb1320ca4d18e303",
+  "guardianPackageManifestSha256": "36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa",
+  "guardianPolicyDigest": "0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50",
+  "acceptanceCodeDigest": "ebe3ca502d891d8c6b52af4cd4d904851f377dc07614cf46450d764e74a80e60",
+  "acceptanceDescriptorMatchesInstalledCode": true,
+  "expectedGuardianConfigMatchesActual": true,
+  "expectedGuardianConfigSha256": "7d12df5fde6909095a8a768a4330d657fac1b983d8413ed0d616651fe3e42bdb",
+  "issuerPublicSpkiSha256": "3be4bf440762fd8de0facdf3933c71590a94dfaf9a6e68c8e764e38275387463",
+  "ciGateNames": [
+    "Build / Lint / Test / Build",
+    "Build / Lint / Test / Lint",
+    "Build / Lint / Test / Format",
+    "Migration preflight / PostgreSQL"
+  ],
+  "runtimeSchemasValidated": true,
+  "helperContractValidated": true,
+  "productionAndSchedulesUnchanged": true,
+  "providerMutations": false,
+  "deploymentPerformed": false
+}

@@ -7,7 +7,9 @@ import {
   type GeneralPane,
   generalWorkspaceHref,
   generalWorkspaceStorageKey,
+  hiveWindowHref,
   importLegacyWorkspaceBoards,
+  openHiveWindow,
   parseGeneralWorkspace,
   removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
@@ -301,5 +303,89 @@ describe("closing workspace windows", () => {
     reordered.manager!.columns[1].pin = "left";
     reordered.activeWindowId = "second";
     expect(removeGeneralWindow(reordered, "second").activeWindowId).toBe("third");
+  });
+});
+
+describe("delivery report window links", () => {
+  it("retains a single delivery window and existing terminal while selecting another report", () => {
+    const taskId = "11111111-1111-4111-8111-111111111111";
+    const reportId = "22222222-2222-4222-8222-222222222222";
+    let state = addGeneralWindow(emptyGeneralWorkspace(), terminal("one"), "terminal");
+    state = openHiveWindow(state, { tool: "delivery" }, "delivery");
+    state = openHiveWindow(state, { tool: "delivery", taskId, reportId }, "unused");
+    expect(state.boards[0].windows).toHaveLength(2);
+    expect(state.boards[0].windows[0]).toEqual({ ...terminal("one"), id: "terminal" });
+    expect(state.boards[0].windows[1]).toMatchObject({ id: "delivery", taskId, reportId });
+    expect(parseGeneralWorkspace(JSON.stringify(state))?.boards[0].windows[1]).toMatchObject({
+      taskId,
+      reportId,
+    });
+    expect(hiveWindowHref({ tool: "delivery", taskId, reportId })).toBe(
+      `/workspaces?panel=delivery&task=${taskId}&report=${reportId}`,
+    );
+  });
+});
+
+describe("Accounts window selection", () => {
+  it("keeps one Accounts window across boards, persists only scope, and retains legacy Agents", () => {
+    let state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "agents", workspaceId: "one" },
+      "agents",
+    );
+    state = openHiveWindow(
+      state,
+      { tool: "accounts", workspaceId: "one", buildId: "build-one" },
+      "accounts",
+    );
+    state.boards.push({ key: "board-2", name: "2", order: 1, windows: [] });
+    state.activeBoardKey = "board-2";
+    state = openHiveWindow(
+      state,
+      { tool: "accounts", workspaceId: "two", buildId: "build-two" },
+      "duplicate",
+    );
+    expect(state.activeBoardKey).toBe("board-1");
+    expect(state.boards.flatMap((b) => b.windows)).toHaveLength(2);
+    const restored = parseGeneralWorkspace(JSON.stringify(state))!;
+    expect(restored.boards[0].windows).toEqual([
+      expect.objectContaining({ id: "agents", tool: "agents", workspaceId: "one" }),
+      expect.objectContaining({
+        id: "accounts",
+        tool: "accounts",
+        workspaceId: "two",
+        buildId: "build-two",
+      }),
+    ]);
+    state = openHiveWindow(restored, { tool: "accounts" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "two", buildId: "build-two" });
+    state = openHiveWindow(state, { tool: "accounts", workspaceId: "one" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "one" });
+    expect(state.boards[0].windows[1]).not.toHaveProperty("buildId", "build-two");
+  });
+  it("links an exact workspace/build and strips account responses from restored state", () => {
+    expect(hiveWindowHref({ tool: "accounts", workspaceId: "workspace", buildId: "build" })).toBe(
+      "/workspaces?panel=accounts&workspace=workspace&build=build",
+    );
+    const state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "accounts", workspaceId: "workspace", buildId: "build" },
+      "accounts",
+    );
+    Object.assign(state.boards[0].windows[0], {
+      userCode: "private-code",
+      lifetimeId: "private-lifetime",
+      generation: 8,
+      pending: { verificationUrl: "https://private.example/" },
+    });
+    const restored = parseGeneralWorkspace(JSON.stringify(state));
+    expect(restored?.boards[0].windows[0]).toEqual({
+      id: "accounts",
+      kind: "hive",
+      tool: "accounts",
+      label: "Accounts",
+      workspaceId: "workspace",
+      buildId: "build",
+    });
   });
 });

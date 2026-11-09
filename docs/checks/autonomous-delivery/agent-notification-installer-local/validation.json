@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:30:06.007089+00:00",
+  "scope": "source/local portable notification setup and narrow callback transport",
+  "tests": {
+    "hostAndInstaller": 5,
+    "serverClientAndRoute": 43,
+    "actualPostgresqlIncluded": 7,
+    "actualCallbackWorkerdChecks": 17,
+    "actualBridgeInstallerWorkerd": true,
+    "typecheck": true,
+    "biome": true,
+    "diffCheck": true
+  },
+  "hostSyncOwner": "admission_protocol / primary coordinated sync",
+  "liveProviderRequests": 0,
+  "liveCredentialsUsed": false,
+  "liveConfigurationChanged": false,
+  "privateReceiptExported": false,
+  "remaining": [
+    "real installed bridge/config pin acceptance",
+    "actual Codex/Claude hook events and trust behavior",
+    "browser foreground/background push and terminal deep links",
+    "Node worker drain and scheduler ownership",
+    "aggregate jobs and capacity review"
+  ]
+}

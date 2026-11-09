@@ -1,0 +1,239 @@
+# Invoke from a workflow_dispatch dispatcher pinned to this reviewed revision.
+# Both the calling branch and this reusable workflow are pinned in the catalog.
+name: Controlled database change
+on:
+  workflow_call:
+    inputs:
+      operation:
+        type: string
+        required: true
+      enabled:
+        type: boolean
+        default: false
+      trusted-revision:
+        type: string
+        default: ""
+      dispatch-id:
+        type: string
+        default: ""
+      catalog-json:
+        type: string
+        default: ""
+      approval-json:
+        type: string
+        default: ""
+      job-json:
+        type: string
+        default: ""
+      compatibility-config-json:
+        type: string
+        default: ""
+      compatibility-digest:
+        type: string
+        default: ""
+    secrets:
+      HIVE_DATABASE_URL:
+        required: false
+# Patched to an immutable reviewed source commit after the source checkpoint.
+# This literal, not any workflow/catalog input, selects executable recipe and enrollment.
+env:
+  HIVE_DATABASE_TRUSTED_RECIPE_SHA: '768eff79a7e523a5b38c416952b720e84067a6bf'
+jobs:
+  source-input:
+    if: ${{ inputs.enabled && inputs.operation == 'approve' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: none
+    outputs:
+      matrix: ${{ steps.config.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.21.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - id: config
+        env:
+          TRUSTED_REVISION: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
+          DISPATCH_ID: ${{ inputs.dispatch-id }}
+          HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON: ${{ inputs.compatibility-config-json }}
+          HIVE_DATABASE_COMPATIBILITY_DIGEST: ${{ inputs.compatibility-digest }}
+        run: |
+          [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
+          [[ "$DISPATCH_ID" =~ ^[a-f0-9-]{36}$ ]]
+          node services/migrate/src/delivery/source-build-input.mjs
+  source-build:
+    if: ${{ inputs.enabled && inputs.operation == 'approve' }}
+    needs: source-input
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.source-input.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: none
+    defaults:
+      run:
+        working-directory: candidate
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ matrix.revision }}
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.HIVE_DATABASE_TRUSTED_RECIPE_SHA }}
+          path: recipe
+          persist-credentials: false
+      - name: Verify exact candidate or baseline tree before any candidate execution
+        env:
+          REVISION: ${{ matrix.revision }}
+          TREE: ${{ matrix.tree }}
+          BASE: ${{ matrix.base }}
+          HEAD: ${{ matrix.head }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$REVISION" && "$(git rev-parse HEAD^{tree})" == "$TREE" ]]
+          if [[ -n "$HEAD" ]]; then
+            [[ "$(git rev-list --parents -n 1 HEAD)" == "$REVISION $BASE $HEAD" ]]
+          fi
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d
+        with:
+          package_json_file: recipe/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.21.0
+      - name: Install the pinned credential-free recipe
+        working-directory: recipe
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile
+      - name: Build local compatibility artifact without provider credentials
+        run: |
+          pnpm build:cloudflare
+          pnpm exec wrangler deploy --dry-run --config deploy/cloudflare/native/wrangler.jsonc --outdir "$GITHUB_WORKSPACE/candidate/build/app"
+          node "$GITHUB_WORKSPACE/recipe/services/migrate/src/delivery/pack-source-build.mjs" "$GITHUB_WORKSPACE/candidate"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hive-database-${{ inputs.dispatch-id }}-${{ matrix.label }}
+          path: candidate/release.tar
+          if-no-files-found: error
+          retention-days: 1
+  compatibility:
+    if: ${{ always() && (inputs.enabled || vars.HIVE_DELIVERY_DATABASE_ENABLED == 'true') && inputs.operation == 'approve' && (!inputs.enabled || needs.source-build.result == 'success') }}
+    needs: source-build
+    outputs:
+      approval-json: ${{ steps.compatibility.outputs.approval-json }}
+    name: fixed-database-compatibility-${{ inputs.enabled && inputs.compatibility-digest || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_DIGEST) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: none
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - if: ${{ inputs.enabled }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: hive-database-${{ inputs.dispatch-id }}-old
+          path: ${{ runner.temp }}/database-source-artifacts/old
+      - if: ${{ inputs.enabled }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: hive-database-${{ inputs.dispatch-id }}-new
+          path: ${{ runner.temp }}/database-source-artifacts/new
+      - name: Test immutable versions against isolated PostgreSQL
+        id: compatibility
+        env:
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.catalog-json }}
+          HIVE_DATABASE_SOURCE_APPROVAL_INTENT_JSON: ${{ inputs.approval-json }}
+          HIVE_DATABASE_SOURCE_ARTIFACT_DIRECTORY: ${{ runner.temp }}/database-source-artifacts
+          HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON: ${{ inputs.enabled && inputs.compatibility-config-json || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_CONFIG_JSON) }}
+          HIVE_DATABASE_COMPATIBILITY_DIGEST: ${{ inputs.enabled && inputs.compatibility-digest || (!inputs.enabled && vars.HIVE_DATABASE_COMPATIBILITY_DIGEST) }}
+        run: |
+          [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
+          node services/migrate/src/delivery/compatibility-job.mjs
+  approval:
+    name: fixed-database-approval
+    if: ${{ (inputs.enabled || vars.HIVE_DELIVERY_DATABASE_ENABLED == 'true') && inputs.operation == 'approve' }}
+    needs: compatibility
+    runs-on: ubuntu-latest
+    environment: hive-database-change
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Approve tested plan
+        env:
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DATABASE_JOB_PURPOSE: ${{ inputs.enabled && 'automatic-source-build' || 'legacy-protected' }}
+          HIVE_DELIVERY_DATABASE_ENABLED: ${{ inputs.enabled && 'true' || vars.HIVE_DELIVERY_DATABASE_ENABLED }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.enabled && inputs.catalog-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON) }}
+          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.enabled && needs.compatibility.outputs.approval-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON) }}
+        run: |
+          [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
+          node services/migrate/src/delivery/approve-plan.mjs
+  database:
+    name: fixed-database-${{ inputs.operation }}
+    if: ${{ (inputs.enabled || vars.HIVE_DELIVERY_DATABASE_ENABLED == 'true') && (inputs.operation == 'advance' || inputs.operation == 'activate') }}
+    runs-on: ubuntu-latest
+    environment: hive-database-change
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out reviewed job
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.21.0
+      - name: Install reviewed dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Run controlled operation
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TRUSTED_REVISION: ${{ inputs.enabled && env.HIVE_DATABASE_TRUSTED_RECIPE_SHA || vars.HIVE_DATABASE_WORKFLOW_SHA }}
+          HIVE_DATABASE_JOB_PURPOSE: ${{ inputs.enabled && 'automatic-source-build' || 'legacy-protected' }}
+          HIVE_DELIVERY_DATABASE_ENABLED: ${{ inputs.enabled && 'true' || vars.HIVE_DELIVERY_DATABASE_ENABLED }}
+          HIVE_DELIVERY_DATABASE_CATALOG_JSON: ${{ inputs.enabled && inputs.catalog-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_CATALOG_JSON) }}
+          HIVE_DELIVERY_DATABASE_APPROVAL_JSON: ${{ inputs.enabled && inputs.approval-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_APPROVAL_JSON) }}
+          HIVE_DELIVERY_DATABASE_JOB_JSON: ${{ inputs.enabled && inputs.job-json || (!inputs.enabled && vars.HIVE_DELIVERY_DATABASE_JOB_JSON) }}
+          DATABASE_URL: ${{ secrets.HIVE_DATABASE_URL }}
+        run: |
+          [[ "$TRUSTED_REVISION" =~ ^[a-f0-9]{40}$ && "$(git rev-parse HEAD)" == "$TRUSTED_REVISION" ]]
+          case "$OPERATION" in
+            advance) node services/migrate/src/delivery/installed-job.mjs ;;
+            activate) HIVE_DELIVERY_DATABASE_JOB_MODE=activate node services/migrate/src/delivery/installed-job.mjs ;;
+            *) exit 1 ;;
+          esac

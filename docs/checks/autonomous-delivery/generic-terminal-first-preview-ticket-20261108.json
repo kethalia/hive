@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "c0f415fb2e175d40e67063924af4fa42e9d0bbbf",
+  "observedAt": "2026-11-08T18:07:50.092Z",
+  "scope": "dedicated test account, one existing isolated workspace; held before terminal attachment",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "workspaceBuildId": "6d1fd221-8426-4fa3-91b8-a19780e45409",
+  "appBuildId": "6a8181bd-812c-498c-8b93-8a87599578f5",
+  "ticketRequests": 1,
+  "ticketStatus": 400,
+  "websocketAttachments": 0,
+  "inputFrames": 0,
+  "shellCreated": false,
+  "nativeOrProjectCalls": 0,
+  "modelStarted": false,
+  "authorityOutcome": "not issued; request validation failed before terminal attachment",
+  "observedRuntimeConfiguration": {
+    "terminalWsUrl": "",
+    "genericEnabled": true,
+    "readTemplateCount": 0
+  },
+  "lifetimeAndProjectJournalHmacVerified": true,
+  "lifetimeAndProjectJournalBytesUnchanged": true,
+  "afterProcesses": {
+    "nativeAppServer": 0,
+    "nativeTmux": 0,
+    "webTmux": 0,
+    "audio": 0
+  },
+  "authContentRead": false,
+  "credentialValuesRecorded": false,
+  "blindRetryPerformed": false,
+  "browserContextAndSshClosed": true,
+  "liveTerminalAcceptance": false,
+  "limitation": "The flag was enabled but the required same-Worker terminal URL was absent. This receipt records the failure, not successful terminal acceptance."
+}

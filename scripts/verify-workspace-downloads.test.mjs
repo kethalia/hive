@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -10,6 +10,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -18,6 +19,14 @@ const dockerfile = readFileSync(new URL("../docker/hive-base/Dockerfile", import
 const instructions = dockerfile.match(/^RUN .*?(?:\\\n.*?)*$/gm) ?? [];
 const evidence = JSON.parse(
   readFileSync(new URL("../docs/checks/security/workspace-image-artifacts.json", import.meta.url)),
+);
+const claudeRelease = JSON.parse(
+  readFileSync(
+    new URL(
+      "../docs/checks/autonomous-delivery/codex-account-local/claude-2.1.319-release.json",
+      import.meta.url,
+    ),
+  ),
 );
 const artifacts = [
   { name: "notesmd-cli", download: "/tmp/notesmd-cli.tar.gz", archive: true },
@@ -124,7 +133,17 @@ test("workspace builds never execute the mutable Claude installer or resolve a r
 
 for (const artifact of artifacts) {
   test(`${artifact.name} pin matches the independently verified vendor artifact`, () => {
-    const record = evidence.artifacts.find((record) => record.name === artifact.name);
+    const record =
+      artifact.name === "claude"
+        ? claudeRelease.artifact
+        : evidence.artifacts.find((record) => record.name === artifact.name);
+    if (artifact.name === "claude") {
+      assert.equal(claudeRelease.manifestSignature.gpgValidSig, true);
+      assert.equal(
+        claudeRelease.manifestSignature.fingerprint,
+        "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+      );
+    }
     assert.equal(record.matches_vendor_checksum, true);
     const command = installCommand(artifact);
     assert.ok(command.includes(record.sha256));
@@ -177,4 +196,121 @@ for (const variant of ["game", "electronics"]) {
     assert.notEqual(result.status, 0);
     assert.doesNotMatch(result.actionLog, /apt-get install .*\/download/);
   });
+}
+
+const retryArtifacts = [
+  { name: "coder", download: "/tmp/coder.tar.gz" },
+  { name: "act", download: "/tmp/act.tar.gz" },
+  { name: "notesmd-cli", download: "/tmp/notesmd-cli.tar.gz" },
+];
+const infrastructureRetryArtifacts = [
+  { name: "terraform", download: "/tmp/terraform.zip", checksum: "TERRAFORM_SHA256" },
+  { name: "kubectl", download: "/tmp/kubectl", checksum: "KUBECTL_SHA256" },
+  { name: "helm", download: "/tmp/helm.tar.gz", checksum: "HELM_SHA256" },
+  { name: "argocd", download: "/tmp/argocd", checksum: "ARGOCD_SHA256" },
+];
+retryArtifacts.push(...infrastructureRetryArtifacts);
+async function retryFixture(t, artifact, failure, permanent = false) {
+  const root = mkdtempSync(join(tmpdir(), "hive-release-retry-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const payload = Buffer.from("synthetic checksum-verified release download\n");
+  let requests = 0;
+  const server = createServer((req, res) => {
+    requests++;
+    if (permanent || requests === 1) {
+      if (failure === "reset") req.socket.resetAndDestroy();
+      else {
+        res.writeHead(503);
+        res.end("temporary vendor failure");
+      }
+    } else {
+      res.writeHead(200);
+      res.end(payload);
+    }
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const instruction = installCommand(artifact).replaceAll(/\\\r?\n/g, " "),
+    curl = instruction
+      .match(/\bcurl\s+[\s\S]*?(?=\s*&&|$)/g)
+      ?.find((command) => command.includes(artifact.download));
+  assert.ok(curl, `${artifact.name} curl command must exist`);
+  for (const option of [
+    "--retry 3",
+    "--retry-all-errors",
+    "--retry-delay 2",
+    "--retry-max-time 90",
+    "--connect-timeout 15",
+    "--max-time 120",
+  ])
+    assert.ok(curl.includes(option));
+  let command = curl.replace(
+    /https:\/\/[^"\s]+/,
+    `http://127.0.0.1:${server.address().port}/release`,
+  );
+  const installationMarker = join(root, "installed");
+  if (failure === "checksum") {
+    // Execute the real checksum gate immediately after this artifact's curl.
+    // A marker stands in for the following extraction/installation action.
+    const following = instruction.slice(instruction.indexOf(curl) + curl.length);
+    const checksum = following.match(/^\s*&&\s*([\s\S]*?)(?=\s*&&)/)?.[1];
+    assert.ok(checksum?.includes(`$${artifact.checksum}`));
+    assert.match(
+      following.slice(following.indexOf(checksum) + checksum.length),
+      /^\s*&&\s*(unzip|install|tar)\b/,
+    );
+    command += ` && ${checksum} && touch '${installationMarker}'`;
+  }
+  command = command.replaceAll(artifact.download, join(root, "download"));
+  const started = performance.now();
+  const child = spawn("sh", ["-ec", command], {
+    stdio: ["ignore", "ignore", "pipe"],
+    env: {
+      PATH: process.env.PATH,
+      CURL_HOME: root,
+      NO_PROXY: "127.0.0.1",
+      no_proxy: "127.0.0.1",
+      ...(artifact.checksum ? { [artifact.checksum]: "0".repeat(64) } : {}),
+    },
+  });
+  let error = "";
+  child.stderr.on("data", (bytes) => {
+    error += bytes.toString();
+  });
+  const timeout = setTimeout(() => child.kill("SIGKILL"), 15000);
+  const result = await new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  }).finally(() => clearTimeout(timeout));
+  assert.equal(result.signal, null, "curl must stop itself within its retry bound");
+  if (failure === "reset")
+    assert.match(error, /curl: \(56\)/, "exercise the observed receive-error category");
+  if (permanent) {
+    assert.notEqual(result.code, 0);
+    assert.equal(requests, 4, "one attempt plus at most three retries");
+    assert.ok(performance.now() - started < 12000);
+  } else if (failure === "checksum") {
+    assert.notEqual(result.code, 0, "checksum mismatch must fail");
+    assert.equal(requests, 2);
+    assert.equal(existsSync(installationMarker), false, "checksum must gate installation");
+  } else {
+    assert.equal(result.code, 0, error);
+    assert.equal(requests, 2);
+    assert.deepEqual(readFileSync(join(root, "download")), payload);
+  }
+}
+for (const failure of ["503", "reset"]) {
+  test(`pinned release downloads recover a transient ${failure} within bounded retries`, async (t) => {
+    for (const artifact of retryArtifacts)
+      await t.test(artifact.name, (t) => retryFixture(t, artifact, failure));
+  });
+}
+test("permanent release connection resets exhaust three retries without falling back", (t) =>
+  retryFixture(t, retryArtifacts[0], "reset", true));
+
+for (const artifact of infrastructureRetryArtifacts) {
+  test(`${artifact.name} permanent 503 exhausts three retries without falling back`, (t) =>
+    retryFixture(t, artifact, "503", true));
+  test(`${artifact.name} checksum mismatch prevents extraction or installation`, (t) =>
+    retryFixture(t, artifact, "checksum"));
 }

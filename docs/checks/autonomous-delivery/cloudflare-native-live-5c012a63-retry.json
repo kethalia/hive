@@ -1,0 +1,67 @@
+{
+  "observedAt": "2026-11-05T20:28:30.924181+00:00",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "revision": "5c012a63ddcaa323548b70166661faa6d4ec11f3",
+  "passed": false,
+  "httpRequests": 6,
+  "cumulativeOuterRequests": 30,
+  "checks": [
+    {
+      "path": "/login",
+      "method": "GET",
+      "status": 401,
+      "cacheControl": "private, no-store",
+      "loginRedirect": false,
+      "loginForm": false,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/login",
+      "method": "GET",
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "loginRedirect": false,
+      "loginForm": true,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/api/notifications/sources",
+      "method": "GET",
+      "status": 307,
+      "cacheControl": "private, no-store",
+      "loginRedirect": true,
+      "loginForm": false,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/__hive-preview/access",
+      "method": "POST",
+      "status": 204,
+      "cacheControl": "private, no-store",
+      "loginRedirect": false,
+      "loginForm": false,
+      "loginSucceeded": false
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "status": 200,
+      "cacheControl": "private, no-store",
+      "loginRedirect": false,
+      "loginForm": false,
+      "loginSucceeded": true
+    },
+    {
+      "path": "/api/notifications/sources",
+      "method": "GET",
+      "status": 405,
+      "cacheControl": "private, no-store",
+      "loginRedirect": false,
+      "loginForm": false,
+      "loginSucceeded": false
+    }
+  ],
+  "realCoderLoginAttempted": true,
+  "taskStartAttempted": false,
+  "nativeHostDeliveryEnabled": false
+}

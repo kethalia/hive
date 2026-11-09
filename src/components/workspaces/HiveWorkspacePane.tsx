@@ -3,7 +3,12 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { Suspense, useId } from "react";
+import { Suspense, useId, useState } from "react";
+import {
+  CoderDisconnectNotice,
+  type CoderDisconnectOutcome,
+} from "@/components/coder-disconnect-notice";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -12,12 +17,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getSettingsWindowAction } from "@/lib/actions/settings-window";
 import type { CoderWorkspace } from "@/lib/coder/types";
-import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
+import { fetchSettingsWindow } from "@/lib/settings/window-client";
+import {
+  type GeneralWindow,
+  hiveToolLabels,
+  requestHiveWindow,
+} from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
+const DeliveryPanel = dynamic(() =>
+  import("@/components/delivery/DeliveryPanel").then((m) => m.DeliveryPanel),
+);
+const ProjectWorkspacePanel = dynamic(() =>
+  import("@/components/projects/ProjectWorkspacePanel").then((m) => m.ProjectWorkspacePanel),
+);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
+const AccountsPanel = dynamic(() => import("./AccountsPanel").then((m) => m.AccountsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
 );
@@ -34,29 +50,36 @@ const Logs = dynamic(() =>
 const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.TemplatesWindow));
 
 function SettingsWindow({ userId }: { userId: string }) {
+  const [outcome, setOutcome] = useState<{ userId: string; value: CoderDisconnectOutcome } | null>(
+    null,
+  );
+  const currentOutcome = outcome?.userId === userId ? outcome.value : null;
   const query = useQuery({
     queryKey: ["settings-window", userId],
-    queryFn: async () => {
-      const result = await getSettingsWindowAction();
-      if (!result?.data) throw new Error(result?.serverError ?? "Could not load settings.");
-      return result.data;
-    },
+    queryFn: ({ signal }) => fetchSettingsWindow(signal),
     staleTime: 30_000,
+    retry: false,
+    enabled: !currentOutcome,
   });
+  // Full cache clearing must discard account data without unmounting a committed
+  // operation's notice. Owner changes still fetch their own authenticated DTO.
+  if (currentOutcome) return <CoderDisconnectNotice outcome={currentOutcome} />;
   if (query.isPending)
     return (
       <p role="status" className="p-4 text-sm">
         Loading settings…
       </p>
     );
-  if (!query.data)
+  if (query.isError || !query.data)
     return (
       <div className="space-y-3 p-4">
         <p role="alert">Settings are unavailable.</p>
         <Button onClick={() => void query.refetch()}>Retry</Button>
       </div>
     );
-  return <SettingsContent {...query.data} />;
+  return (
+    <SettingsContent {...query.data} onCoderDisconnect={(value) => setOutcome({ userId, value })} />
+  );
 }
 
 interface Props {
@@ -70,7 +93,7 @@ interface Props {
   onActivate: () => void;
   onClose: () => void;
   onCycleWidth?: () => void;
-  onWorkspaceChange: (workspaceId: string) => void;
+  onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
 
@@ -89,10 +112,22 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const { projectDiscoveryEnabled, projectTasksEnabled, deliveryEnabled, workspaceCapabilities } =
+    useRuntimeConfig();
+  const selectedWorkspace = workspaces.find((w) => w.id === pane.workspaceId);
   const workspace =
-    workspaces.find((w) => w.id === pane.workspaceId) ??
-    workspaces.find((w) => w.latest_build.status === "running") ??
-    workspaces[0];
+    pane.tool === "accounts" && pane.workspaceId
+      ? selectedWorkspace
+      : (selectedWorkspace ??
+        (pane.tool === "projects" && workspaceCapabilities
+          ? workspaces.find(
+              (w) =>
+                w.latest_build.status === "running" &&
+                workspaceCapabilities.projectTemplateIds.includes(w.template_id),
+            )
+          : undefined) ??
+        workspaces.find((w) => w.latest_build.status === "running") ??
+        workspaces[0]);
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -120,7 +155,16 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" ? (
+        {pane.tool === "delivery" ? (
+          <DeliveryPanel
+            key={userId}
+            userId={userId}
+            enabled={Boolean(deliveryEnabled)}
+            visible={visible}
+            taskId={pane.taskId}
+            reportId={pane.reportId}
+          />
+        ) : pane.tool === "agents" || pane.tool === "projects" || pane.tool === "accounts" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">
@@ -129,7 +173,13 @@ export function HiveWorkspacePane({
               <Select
                 value={workspace?.id ?? null}
                 onValueChange={(value) => {
-                  if (value) onWorkspaceChange(value);
+                  if (value)
+                    onWorkspaceChange(
+                      value,
+                      pane.tool === "accounts"
+                        ? workspaces.find((w) => w.id === value)?.latest_build.id
+                        : undefined,
+                    );
                 }}
                 disabled={!workspaces.length}
                 items={workspaces.map((w) => ({
@@ -139,7 +189,13 @@ export function HiveWorkspacePane({
               >
                 <SelectTrigger
                   id={workspaceSelectId}
-                  aria-label="Agent workspace"
+                  aria-label={
+                    pane.tool === "projects"
+                      ? "Project workspace"
+                      : pane.tool === "accounts"
+                        ? "Account workspace"
+                        : "Agent workspace"
+                  }
                   className="w-full"
                 >
                   <SelectValue placeholder="No workspaces available" />
@@ -154,17 +210,94 @@ export function HiveWorkspacePane({
               </Select>
             </div>
             {workspace?.latest_build.status === "running" ? (
-              <AgentToolsPanel
-                key={`${workspace.id}:${workspace.latest_build.id}`}
-                workspaceId={workspace.id}
-                buildId={workspace.latest_build.id}
-                open={visible}
-                onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
-              />
+              pane.tool === "accounts" ? (
+                pane.buildId && pane.buildId !== workspace.latest_build.id ? (
+                  <div className="space-y-3">
+                    <p role="status">
+                      This workspace has a different build. Select its current build to manage
+                      accounts.
+                    </p>
+                    <Button
+                      onClick={() => onWorkspaceChange(workspace.id, workspace.latest_build.id)}
+                    >
+                      Use current build
+                    </Button>
+                  </div>
+                ) : visible ? (
+                  <AccountsPanel
+                    key={`${userId}/${workspace.id}/${workspace.latest_build.id}`}
+                    workspaceId={workspace.id}
+                  />
+                ) : null
+              ) : pane.tool === "projects" ? (
+                workspaceCapabilities &&
+                !workspaceCapabilities.projectTemplateIds.includes(workspace.template_id) ? (
+                  <section aria-label="Project workspace setup" className="space-y-3">
+                    <p role="status">
+                      {projectDiscoveryEnabled
+                        ? "This workspace is not configured for GitHub projects. Choose an enabled software workspace or review its template and Hive configuration."
+                        : "GitHub project browsing is not enabled in this Hive preview."}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        requestHiveWindow({ tool: "templates", workspaceId: workspace.id })
+                      }
+                    >
+                      Review workspace templates
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        requestHiveWindow({ tool: "workspaces", workspaceId: workspace.id })
+                      }
+                    >
+                      Manage Coder workspaces
+                    </Button>
+                  </section>
+                ) : (
+                  <ProjectWorkspacePanel
+                    key={workspace.id}
+                    workspaceId={workspace.id}
+                    enabled={Boolean(projectDiscoveryEnabled)}
+                    tasksEnabled={Boolean(projectTasksEnabled)}
+                    visible={visible}
+                  />
+                )
+              ) : (
+                <AgentToolsPanel
+                  key={`${workspace.id}:${workspace.latest_build.id}`}
+                  workspaceId={workspace.id}
+                  buildId={workspace.latest_build.id}
+                  open={visible}
+                  onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
+                />
+              )
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Start a Coder workspace to view its agent conversations.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {pane.tool === "projects"
+                    ? "Start a Coder workspace to browse connected repositories."
+                    : pane.tool === "accounts"
+                      ? pane.workspaceId && !workspace
+                        ? "The selected workspace is unavailable. Choose a workspace to manage its accounts."
+                        : "Start a Coder workspace to manage its accounts."
+                      : "Start a Coder workspace to view its agent conversations."}
+                </p>
+                {pane.tool === "projects" ? (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      requestHiveWindow({
+                        tool: "workspaces",
+                        ...(workspace ? { workspaceId: workspace.id } : {}),
+                      })
+                    }
+                  >
+                    Manage Coder workspaces
+                  </Button>
+                ) : null}
+              </div>
             )}
           </div>
         ) : pane.tool === "workspaces" ? (
@@ -188,7 +321,7 @@ export function HiveWorkspacePane({
         ) : pane.tool === "diagnostics" ? (
           <Diagnostics visible={visible} highlightedWorkspaceId={pane.workspaceId} />
         ) : (
-          <SettingsWindow userId={userId} />
+          <SettingsWindow key={userId} userId={userId} />
         )}
       </Suspense>
     </TerminalSessionFrame>

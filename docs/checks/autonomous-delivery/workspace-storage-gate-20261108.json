@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "scope": "authorized read-only workspace storage diagnosis; no deletion or scheduling changes",
+  "observedAt": "2026-11-08T21:20:35.638150+00:00",
+  "originalHostnameTlsFailedBeforeAuthentication": true,
+  "certificateVerifiedInternalIngressRouteWorked": true,
+  "workspaceHomeVolumes": [
+    {
+      "name": "pvc-ce7c8974-d331-417c-a66b-8f5317bc8ae6",
+      "uid": "9b04aefb-7838-46b4-901a-658375981741",
+      "spec": {
+        "numberOfReplicas": 2,
+        "dataEngine": "v1",
+        "frontend": "blockdev",
+        "nodeID": "",
+        "disableFrontend": false
+      },
+      "status": {
+        "state": "detached",
+        "robustness": "faulted",
+        "currentNodeID": "",
+        "ownerID": "k3s-03",
+        "shareState": ""
+      },
+      "conditions": [
+        {
+          "type": "WaitForBackingImage",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-08T21:00:18Z"
+        },
+        {
+          "type": "Scheduled",
+          "status": "False",
+          "reason": "ReplicaSchedulingFailure",
+          "message": "precheck new replica failed: insufficient storage",
+          "lastTransitionTime": "2026-11-08T21:00:18Z"
+        },
+        {
+          "type": "TooManySnapshots",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-08T21:00:18Z"
+        },
+        {
+          "type": "OfflineRebuilding",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-08T21:00:18Z"
+        },
+        {
+          "type": "Restore",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-08T21:00:18Z"
+        }
+      ]
+    },
+    {
+      "name": "pvc-5c9370a4-3b39-4078-a132-975df629dee6",
+      "uid": "10afc1df-9f26-491c-8359-f20b0062a792",
+      "spec": {
+        "numberOfReplicas": 2,
+        "dataEngine": "v1",
+        "frontend": "blockdev",
+        "nodeID": "",
+        "disableFrontend": false
+      },
+      "status": {
+        "state": "detached",
+        "robustness": "faulted",
+        "currentNodeID": "",
+        "ownerID": "k3s-03",
+        "shareState": ""
+      },
+      "conditions": [
+        {
+          "type": "WaitForBackingImage",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-06T02:15:48Z"
+        },
+        {
+          "type": "Scheduled",
+          "status": "False",
+          "reason": "ReplicaSchedulingFailure",
+          "message": "precheck new replica failed: insufficient storage",
+          "lastTransitionTime": "2026-11-06T02:15:48Z"
+        },
+        {
+          "type": "TooManySnapshots",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-06T02:15:48Z"
+        },
+        {
+          "type": "OfflineRebuilding",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-06T02:15:48Z"
+        },
+        {
+          "type": "Restore",
+          "status": "False",
+          "reason": "",
+          "message": "",
+          "lastTransitionTime": "2026-11-06T02:15:48Z"
+        }
+      ]
+    }
+  ],
+  "inventory": {
+    "observedAt": "2026-11-08T21:26:11.308395+00:00",
+    "homePvcCount": 15,
+    "allMappedToCurrentWorkspaces": true,
+    "logicalCapacityGi": 1020,
+    "stoppedWorkspaceLogicalCapacityGiAtInventory": 645,
+    "actualDiskUseNotInferredFromPvcCapacity": true,
+    "safeAutomaticDeletionCandidatesEstablished": false,
+    "receiptKeysRead": false
+  },
+  "logicalDiskScheduling": {
+    "observedAt": "2026-11-08T21:32:12.517390+00:00",
+    "settings": {
+      "storage-over-provisioning-percentage": "100",
+      "storage-minimal-available-percentage": "10"
+    },
+    "headroom": [
+      {
+        "node": "k3s-01",
+        "physicalAvailableBytes": 239914188800,
+        "logicalSchedulingHeadroomBytesAt100Percent": 1026189722
+      },
+      {
+        "node": "k3s-02",
+        "physicalAvailableBytes": 746166681600,
+        "logicalSchedulingHeadroomBytesAt100Percent": 11763607962
+      },
+      {
+        "node": "k3s-03",
+        "physicalAvailableBytes": 1135922380800,
+        "logicalSchedulingHeadroomBytesAt100Percent": 11580964045
+      }
+    ],
+    "fourGiTestHomeWithTwoReplicasAppearsToFitTwoNodes": true,
+    "capacityMustBeRecheckedBeforeCreation": true,
+    "smallTestTemplatePlanOnlyAtThisCheckpoint": true
+  },
+  "retention": {
+    "bothFailedWorkspaceHomesRetained": true,
+    "failedCanaryStopped": true,
+    "reusedInfrastructureStopped": true,
+    "originalHeldRuntimeAndCheckoutRetained": true
+  },
+  "providerWritesForStorageDiagnosis": false,
+  "volumeDeletion": false,
+  "replicaOrSchedulingPolicyChange": false,
+  "newPaidCapacity": false,
+  "productionDataRead": false,
+  "nativeModelExecutedInNewCanary": false,
+  "remaining": [
+    "Reviewed small-home test template/version and actual readiness",
+    "Normal dedicated account authentication",
+    "Real native task and shared-view acceptance",
+    "Final production capture and cutover rehearsal"
+  ]
+}

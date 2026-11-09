@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-06T01:33:25.420832+00:00",
+  "baseCommit": "5053a5a2d42222d5e019056a9d35d10160baf6f0",
+  "scope": "Explicit owner task recovery; source and isolated local fixtures only",
+  "migration": "20261106020000_project_task_recovery",
+  "protocol": {
+    "serverStates": ["inspecting", "authorized", "consumed"],
+    "localStates": ["inspecting", "inspected", "consuming", "consumed", "held"],
+    "authorizationMaxMs": 60000,
+    "attemptBoundPerTask": 32,
+    "reconcilerExcludedUntilConsumed": true,
+    "promptInRecoveryRequests": false,
+    "absentRestores": "queued with unchanged ciphertext",
+    "existingRestores": "preparing after exact intent CAS; fresh fence before local receipt/schedule"
+  },
+  "verification": [
+    {
+      "kind": "canonical controller and recovery module",
+      "passed": 41,
+      "command": "node --test scripts/verify-codex-project-controller.test.mjs scripts/verify-codex-project-recovery.test.mjs"
+    },
+    {
+      "kind": "outer guardian controller including independent consuming producer gate",
+      "passed": 46,
+      "command": "node --test scripts/verify-codex-guardian-controller.test.mjs"
+    },
+    {
+      "kind": "owner route mock orchestration",
+      "passed": 13,
+      "command": "pnpm exec vitest run src/__tests__/lib/projects/task.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "PostgreSQL recovery composition and final-expiry rollback",
+      "passed": 6,
+      "command": "pnpm exec vitest run src/__tests__/lib/projects/task-recovery.integration.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "PostgreSQL guardian service including exact signed recovery identity",
+      "passed": 30,
+      "command": "pnpm exec vitest run src/__tests__/lib/codex-session/guardian-service.integration.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "PostgreSQL guardian store",
+      "passed": 10,
+      "command": "pnpm exec vitest run src/__tests__/lib/codex-session/guardian-store.integration.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "PostgreSQL task intents",
+      "passed": 11,
+      "command": "pnpm exec vitest run src/__tests__/lib/projects/task-intents.integration.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "actual installed ELF/FD3/owner app/signed transport/PostgreSQL regression",
+      "passed": 8,
+      "durationMs": 72338,
+      "cases": [
+        "lost_ack",
+        "expired_empty",
+        "prepare_ack",
+        "prepare_slow_ack",
+        "checkout_ack",
+        "fence_ack",
+        "prepare_expired",
+        "prepare_mismatch"
+      ],
+      "command": "pnpm exec vitest run src/__tests__/lib/codex-session/guardian-installed.integration.test.ts --no-file-parallelism"
+    },
+    {
+      "kind": "package/archive/profile tests",
+      "passed": 19,
+      "command": "node --test scripts/verify-codex-host-package.test.mjs scripts/build-codex-host-archive.test.mjs scripts/verify-workspace-profile-templates.test.mjs"
+    },
+    {
+      "kind": "templates sync/check",
+      "exitCode": 0,
+      "mirroredProfiles": 4,
+      "command": "node scripts/sync-workspace-profile-templates.mjs && pnpm templates:check"
+    },
+    {
+      "kind": "migration isolated scratch-schema apply and rollback",
+      "exitCode": 0,
+      "command": "psql <isolated-loopback-fixture> -v ON_ERROR_STOP=1 -f /tmp/owner-recovery-migration-rollback.sql"
+    },
+    {
+      "kind": "TypeScript no emit",
+      "exitCode": 0,
+      "command": "pnpm exec tsc --noEmit --pretty false"
+    },
+    {
+      "kind": "Biome touched-source check",
+      "exitCode": 0,
+      "command": "pnpm exec biome check <touched-source paths from stage-paths.txt>"
+    },
+    {
+      "kind": "git diff --check",
+      "exitCode": 0,
+      "command": "git diff --check"
+    },
+    {
+      "kind": "compiled installed-module behavioral suites",
+      "passed": 6,
+      "skipped": 2,
+      "skipReason": "Pre-existing opt-in acceptance suites; other installed recovery suites executed.",
+      "command": "node --test scripts/verify-codex-compiled-host.test.mjs"
+    },
+    {
+      "kind": "migration runner preflight",
+      "passed": 20,
+      "command": "node --test services/migrate/test/preflight.test.mjs"
+    }
+  ],
+  "package": {
+    "compressedBytes": 159824,
+    "compressedLimitBytes": 160000,
+    "compressedSha256": "f0376c72d2430bab355dee89cdc58846ebc8a3e37f0b1cfe199824728651e69d",
+    "archiveBytes": 747008,
+    "archiveSha256": "bb06213cf2756b3ddf702f891d8dd37301315418ca16bc3a2588d40a7770c8cc",
+    "manifestSha256": "36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa",
+    "policyDigest": "0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50",
+    "unchangedNativeElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd"
+  },
+  "limits": [
+    "Expired or unknown partial consume remains held; no automatic supersession.",
+    "Archived/idle history and unavailable native empty-history proof cannot establish absence.",
+    "Historical consume receipts never reschedule or independently authorize execution.",
+    "No provider/workspace/deployment/Git mutations; no live owner-recovery pilot.",
+    "Existing immutable old host packages are not hot-adopted."
+  ],
+  "review": "Independent oauth_review source approval, including final consuming-only outer gate and runtime-locked authoritative absence/exact-task checks; no material findings.",
+  "localDatabaseEnvironment": "HIVE_DELIVERY_TEST_DATABASE_URL=postgresql://coder@127.0.0.1:55439/hive_delivery_test?sslmode=disable"
+}

@@ -1,0 +1,461 @@
+import { createHash, randomUUID } from "node:crypto";
+import { decrypt, encrypt } from "@hive/auth";
+import { Prisma, type PrismaClient, type ProjectTaskIntent } from "@hive/db";
+import { z } from "zod";
+import {
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+} from "@/lib/codex-session/account-maintenance-store.server";
+import {
+  type ProjectTaskStatus,
+  projectTaskFailureStageSchema,
+  projectTaskStatusSchema,
+} from "./task-contracts";
+
+const uuid = z.string().uuid();
+export const taskIntentPayloadSchema = z
+  .object({
+    ownerId: uuid,
+    projectId: uuid,
+    workspaceId: uuid,
+    taskId: uuid,
+    requestId: uuid,
+    requestDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    hostRequest: z
+      .object({
+        schemaVersion: z.literal(1),
+        projectId: uuid,
+        repositoryId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+        expectedAccountId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+        taskId: uuid,
+        requestId: uuid,
+        revision: z.string().regex(/^[a-f0-9]{40}$/),
+        model: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,99}$/),
+        effort: z.string().min(1).max(20),
+        text: z
+          .string()
+          .min(1)
+          .refine((v) => Buffer.byteLength(v) <= 32768),
+      })
+      .strict(),
+  })
+  .strict()
+  .refine(
+    (p) =>
+      p.projectId === p.hostRequest.projectId &&
+      p.taskId === p.hostRequest.taskId &&
+      p.requestId === p.hostRequest.requestId,
+  );
+export type TaskIntentPayload = z.infer<typeof taskIntentPayloadSchema>;
+export type TaskIntentExecution = {
+  ownerId: string;
+  projectId: string;
+  workspaceId: string;
+  taskId: string;
+  requestId: string;
+  repositoryId: string;
+  providerAccountId: string;
+  sourceSha: string;
+  hostRequest?: TaskIntentPayload["hostRequest"];
+};
+export class TaskIntentConflict extends Error {}
+export class TaskExecutionStageError extends Error {
+  readonly stage: z.infer<typeof projectTaskFailureStageSchema>;
+  constructor(stage: z.infer<typeof projectTaskFailureStageSchema>) {
+    super("Task execution stage failed");
+    this.stage = projectTaskFailureStageSchema.parse(stage);
+  }
+}
+export function taskRequestDigest(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+export function pendingTaskStatus(
+  row: Pick<ProjectTaskIntent, "id" | "projectId" | "status" | "phase">,
+): ProjectTaskStatus {
+  if (row.status) return projectTaskStatusSchema.parse(row.status);
+  return {
+    schemaVersion: 1,
+    projectId: row.projectId,
+    taskId: row.id,
+    phase: row.phase === "blocked" ? "blocked" : "preparing",
+    nativeThreadId: null,
+    terminalSessionName: null,
+    reason: row.phase === "blocked" ? "native_unavailable" : null,
+  };
+}
+/** Running completion erases all prompt columns; later metadata preserves that fact. */
+export function taskIntentHandedOff(
+  row: Pick<
+    ProjectTaskIntent,
+    "id" | "projectId" | "phase" | "status" | "ciphertext" | "iv" | "authTag"
+  >,
+) {
+  if (row.phase === "running") return true;
+  if (
+    row.phase !== "preparing" ||
+    [row.ciphertext, row.iv, row.authTag].some((value) => value !== null)
+  )
+    return false;
+  const status = pendingTaskStatus(row);
+  return (
+    status.projectId === row.projectId && status.taskId === row.id && status.nativeThreadId !== null
+  );
+}
+export class ProjectTaskIntents {
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly encryptionKey: string,
+    private readonly pinRepositoryPolicy?: (
+      tx: Prisma.TransactionClient,
+      input: TaskIntentPayload,
+    ) => Promise<{
+      repositoryPolicyVersionId: string;
+      repositoryPolicyDigest: string;
+      intentTextDigest: string;
+    }>,
+    private readonly captureAcceptanceIntent?: (
+      tx: Prisma.TransactionClient,
+      input: TaskIntentPayload,
+      row: ProjectTaskIntent,
+    ) => Promise<void>,
+  ) {}
+  async enqueue(value: TaskIntentPayload, wakeDeadline?: number) {
+    const input = taskIntentPayloadSchema.parse(value);
+    const checkDeadline = () => {
+      if (
+        wakeDeadline !== undefined &&
+        (!Number.isSafeInteger(wakeDeadline) || Date.now() >= wakeDeadline)
+      )
+        throw new TaskIntentConflict("task_wake_held");
+    };
+    checkDeadline();
+    const encrypted = encrypt(JSON.stringify(input), this.encryptionKey);
+    const persist = async (tx: Prisma.TransactionClient) => {
+      checkDeadline();
+      // A replay keeps its immutable original pin even after catalog activation.
+      // It must still match exact owner/request bytes before returning history.
+      const previous = await tx.projectTaskIntent.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.taskId } },
+      });
+      if (previous) {
+        if (
+          previous.projectId !== input.projectId ||
+          previous.workspaceId !== input.workspaceId ||
+          previous.requestId !== input.requestId ||
+          previous.requestDigest !== input.requestDigest
+        )
+          throw new TaskIntentConflict("task_identity_conflict");
+        checkDeadline();
+        return previous;
+      }
+      const owner = await tx.user.findUniqueOrThrow({ where: { id: input.ownerId } });
+      await lockAccountMaintenanceWorkspace(tx, {
+        hiveUserId: input.ownerId,
+        coderOrigin: owner.coderUrl,
+        workspaceId: input.workspaceId,
+      });
+      const slots = await tx.codexHostSlot.findMany({
+        where: {
+          ownerId: input.ownerId,
+          coderOrigin: owner.coderUrl,
+          workspaceId: input.workspaceId,
+        },
+      });
+      if (
+        slots.some((s) => {
+          const state = parseAccountMaintenance(s.accountMaintenance);
+          return state && state.phase !== "finished";
+        })
+      )
+        throw new TaskIntentConflict("account_maintenance_pending");
+      const policyPin = await this.pinRepositoryPolicy?.(tx, input);
+      // PostgreSQL arbitrates duplicate inserts. Prisma may emulate this composite
+      // upsert with a read then insert, which races on the separately unique task ID.
+      await tx.projectTaskIntent.createMany({
+        data: {
+          ...policyPin,
+          id: input.taskId,
+          ownerId: input.ownerId,
+          projectId: input.projectId,
+          workspaceId: input.workspaceId,
+          requestId: input.requestId,
+          requestDigest: input.requestDigest,
+          repositoryId: input.hostRequest.repositoryId,
+          providerAccountId: input.hostRequest.expectedAccountId,
+          sourceSha: input.hostRequest.revision,
+          ciphertext: Uint8Array.from(encrypted.ciphertext),
+          iv: Uint8Array.from(encrypted.iv),
+          authTag: Uint8Array.from(encrypted.authTag),
+        },
+        skipDuplicates: true,
+      });
+      const row = await tx.projectTaskIntent.findUnique({
+        where: {
+          ownerId_projectId_requestId: {
+            ownerId: input.ownerId,
+            projectId: input.projectId,
+            requestId: input.requestId,
+          },
+        },
+      });
+      if (
+        !row ||
+        row.id !== input.taskId ||
+        row.workspaceId !== input.workspaceId ||
+        row.requestDigest !== input.requestDigest
+      )
+        throw new TaskIntentConflict("task_identity_conflict");
+      await this.captureAcceptanceIntent?.(tx, input, row);
+      checkDeadline();
+      return row;
+    };
+    for (let retry = 0; ; retry++) {
+      try {
+        return await this.db.$transaction(persist, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5000,
+          timeout: 10000,
+        });
+      } catch (error) {
+        if (
+          retry >= 2 ||
+          !error ||
+          typeof error !== "object" ||
+          !("code" in error) ||
+          error.code !== "P2034"
+        )
+          throw error;
+      }
+    }
+  }
+  /** A retained wake tombstone can hold only an unleased preparation. */
+  async holdWake(ownerId: string, taskId: string) {
+    uuid.parse(ownerId);
+    uuid.parse(taskId);
+    await this.db.$executeRaw`
+      UPDATE project_task_intents SET phase='blocked',
+        status=jsonb_build_object('schemaVersion',1,'projectId',project_id,'taskId',id,'phase','blocked',
+          'nativeThreadId',status->'nativeThreadId','terminalSessionName',status->'terminalSessionName',
+          'reason','preparation_timeout'), updated_at=clock_timestamp()
+      WHERE owner_id=${ownerId}::uuid AND id=${taskId}::uuid AND phase IN ('queued','preparing')
+        AND (lease_until IS NULL OR lease_until<=clock_timestamp())
+        AND (phase='queued' OR ciphertext IS NOT NULL OR iv IS NOT NULL OR auth_tag IS NOT NULL
+          OR status->>'nativeThreadId' IS NULL
+          OR status->>'projectId' IS DISTINCT FROM project_id::text
+          OR status->>'taskId' IS DISTINCT FROM id::text)`;
+  }
+  async get(ownerId: string, projectId: string, taskId: string, workspaceId: string) {
+    const row = await this.db.projectTaskIntent.findFirst({
+      where: {
+        id: uuid.parse(taskId),
+        ownerId: uuid.parse(ownerId),
+        projectId: uuid.parse(projectId),
+        workspaceId: uuid.parse(workspaceId),
+      },
+    });
+    if (!row) throw new TaskIntentConflict("task_not_found");
+    return row;
+  }
+  async recoverySnapshot(ownerId: string, projectId: string, taskId: string, workspaceId: string) {
+    for (const value of [ownerId, projectId, taskId, workspaceId]) uuid.parse(value);
+    // Read the exact timestamp before loading the row. If it changes between
+    // reads (or during the host request), recovery's compare-and-set must fail.
+    const versions = await this.db.$queryRaw<{ version: string }[]>`
+      SELECT to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS version
+      FROM project_task_intents WHERE id=${taskId}::uuid AND owner_id=${ownerId}::uuid
+        AND project_id=${projectId}::uuid AND workspace_id=${workspaceId}::uuid`;
+    if (!versions[0]) throw new TaskIntentConflict("task_not_found");
+    return {
+      row: await this.get(ownerId, projectId, taskId, workspaceId),
+      version: versions[0].version,
+    };
+  }
+  async recover(snapshot: { row: ProjectTaskIntent; version: string }, value: ProjectTaskStatus) {
+    const { row, version } = snapshot;
+    const { failureStage: _failureStage, ...status } = projectTaskStatusSchema.parse(value);
+    if (status.taskId !== row.id || status.projectId !== row.projectId)
+      throw new Error("Intent recovery binding mismatch");
+    if (status.phase === "awaitingTask" || status.phase === "blocked") return false;
+    const phase = status.phase === "running" ? "running" : "preparing";
+    const count = await this.db.$executeRaw`
+      UPDATE project_task_intents SET phase=${phase}, status=${JSON.stringify(status)}::jsonb,
+        failure_count=0,lease_id=NULL,lease_until=NULL,progress_at=clock_timestamp(),updated_at=clock_timestamp(),next_attempt_at=clock_timestamp(),
+        ciphertext=CASE WHEN ${phase}='running' THEN NULL ELSE ciphertext END,
+        iv=CASE WHEN ${phase}='running' THEN NULL ELSE iv END,
+        auth_tag=CASE WHEN ${phase}='running' THEN NULL ELSE auth_tag END
+      WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND project_id=${row.projectId}::uuid
+        AND workspace_id=${row.workspaceId}::uuid AND phase='blocked'
+        AND to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')=${version}`;
+    return count === 1;
+  }
+  async claim(target?: { ownerId: string; taskId: string }) {
+    if (target) {
+      uuid.parse(target.ownerId);
+      uuid.parse(target.taskId);
+    }
+    const leaseId = randomUUID();
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
+      WITH candidate AS (
+        SELECT id, (phase <> 'running' AND progress_at < clock_timestamp()-interval '30 minutes') AS timed_out FROM project_task_intents
+        WHERE phase IN ('queued','preparing','running') AND next_attempt_at <= clock_timestamp()
+          AND NOT EXISTS (SELECT 1 FROM codex_host_slots s
+            WHERE s.owner_id=project_task_intents.owner_id AND s.workspace_id=project_task_intents.workspace_id
+              AND s.coder_origin=(SELECT u.coder_url FROM users u WHERE u.id=project_task_intents.owner_id)
+              AND s.account_maintenance IS NOT NULL AND s.account_maintenance->>'phase'<>'finished')
+          AND NOT EXISTS (SELECT 1 FROM project_task_recoveries r WHERE r.owner_id=project_task_intents.owner_id AND r.task_id=project_task_intents.id AND r.phase<>'consumed')
+          AND NOT EXISTS (SELECT 1 FROM delivery_epic_start_intents e WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id AND e.phase='reserved')
+          AND NOT EXISTS (
+            SELECT 1 FROM delivery_epic_start_intents e
+            JOIN delivery_epic_plan_heads h ON h.owner_id=e.owner_id AND h.epic_id=e.epic_id
+            JOIN delivery_epic_plans p ON p.owner_id=h.owner_id AND p.epic_id=h.epic_id AND p.version=h.version
+            JOIN delivery_tasks t ON t.owner_id=p.owner_id AND t.id=p.authored_by_task_id
+            WHERE e.owner_id=project_task_intents.owner_id AND e.intent_id=project_task_intents.id
+              AND (t.pause_requested OR t.scheduling_paused)
+          )
+          AND (lease_until IS NULL OR lease_until <= clock_timestamp())
+          AND (${target?.ownerId ?? null}::uuid IS NULL OR owner_id=${target?.ownerId ?? null}::uuid)
+          AND (${target?.taskId ?? null}::uuid IS NULL OR id=${target?.taskId ?? null}::uuid)
+        ORDER BY next_attempt_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+      )
+      UPDATE project_task_intents p SET lease_id=${leaseId}::uuid, lease_until=clock_timestamp()+interval '90 seconds', updated_at=clock_timestamp(),
+        failure_count=LEAST(5,p.failure_count+CASE WHEN p.lease_until IS NOT NULL THEN 1 ELSE 0 END),
+        phase=CASE WHEN c.timed_out OR (p.lease_until IS NOT NULL AND p.failure_count>=4) THEN 'blocked' ELSE p.phase END,
+        status=CASE WHEN c.timed_out THEN jsonb_build_object('schemaVersion',1,'projectId',p.project_id,'taskId',p.id,'phase','blocked',
+          'nativeThreadId',p.status->'nativeThreadId','terminalSessionName',p.status->'terminalSessionName','reason','preparation_timeout')
+          WHEN p.lease_until IS NOT NULL AND p.failure_count>=4 THEN NULL ELSE p.status END
+      FROM candidate c WHERE p.id=c.id RETURNING p.id`;
+    if (!rows.length) return null;
+    return this.db.projectTaskIntent.findFirst({ where: { id: rows[0].id, leaseId } });
+  }
+  execution(row: ProjectTaskIntent): TaskIntentExecution {
+    const metadata = {
+      ownerId: row.ownerId,
+      projectId: row.projectId,
+      workspaceId: row.workspaceId,
+      taskId: row.id,
+      requestId: row.requestId,
+      repositoryId: row.repositoryId,
+      providerAccountId: row.providerAccountId,
+      sourceSha: row.sourceSha,
+    };
+    // A running/prepared intent can recover registration after a host restart
+    // using immutable metadata; it must never submit the first prompt again.
+    if (row.phase !== "queued") return metadata;
+    const payload = this.payload(row);
+    return { ...metadata, hostRequest: payload.hostRequest };
+  }
+  payload(row: ProjectTaskIntent) {
+    if (!row.ciphertext || !row.iv || !row.authTag) throw new Error("Intent payload unavailable");
+    const payload = taskIntentPayloadSchema.parse(
+      JSON.parse(
+        decrypt(
+          {
+            ciphertext: Buffer.from(row.ciphertext),
+            iv: Buffer.from(row.iv),
+            authTag: Buffer.from(row.authTag),
+          },
+          this.encryptionKey,
+        ),
+      ),
+    );
+    if (
+      payload.ownerId !== row.ownerId ||
+      payload.projectId !== row.projectId ||
+      payload.taskId !== row.id ||
+      payload.workspaceId !== row.workspaceId ||
+      payload.requestId !== row.requestId ||
+      payload.requestDigest !== row.requestDigest ||
+      payload.hostRequest.repositoryId !== row.repositoryId ||
+      payload.hostRequest.expectedAccountId !== row.providerAccountId ||
+      payload.hostRequest.revision !== row.sourceSha
+    )
+      throw new Error("Intent payload binding mismatch");
+    return payload;
+  }
+  async finish(row: ProjectTaskIntent, value: ProjectTaskStatus) {
+    const { failureStage: _failureStage, ...status } = projectTaskStatusSchema.parse(value);
+    if (status.taskId !== row.id || status.projectId !== row.projectId)
+      throw new Error("Intent result binding mismatch");
+    const phase = ["running", "blocked"].includes(status.phase) ? status.phase : "preparing";
+    const result = await this.db.$executeRaw`
+      UPDATE project_task_intents SET phase=${phase}, status=${JSON.stringify(status)}::jsonb,
+        progress_at=CASE WHEN status IS DISTINCT FROM ${JSON.stringify(status)}::jsonb THEN clock_timestamp() ELSE progress_at END,
+        failure_count=0, lease_id=NULL, lease_until=NULL, next_attempt_at=clock_timestamp()+CASE WHEN ${phase}='running' THEN interval '30 seconds' ELSE interval '5 seconds' END, updated_at=clock_timestamp(),
+        ciphertext=CASE WHEN ${phase}='running' THEN NULL ELSE ciphertext END,
+        iv=CASE WHEN ${phase}='running' THEN NULL ELSE iv END,
+        auth_tag=CASE WHEN ${phase}='running' THEN NULL ELSE auth_tag END
+      WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND lease_id=${row.leaseId}::uuid AND lease_until > clock_timestamp()`;
+    return result === 1;
+  }
+  async fail(row: ProjectTaskIntent, failureStage?: z.infer<typeof projectTaskFailureStageSchema>) {
+    const stage =
+      failureStage === undefined ? null : projectTaskFailureStageSchema.parse(failureStage);
+    const fallback = pendingTaskStatus({ ...row, status: null });
+    return this.db.$executeRaw`
+      UPDATE project_task_intents SET failure_count=LEAST(5,failure_count+1),
+        phase=CASE WHEN failure_count>=4 THEN 'blocked' ELSE phase END,
+        status=CASE WHEN failure_count>=4 THEN
+          jsonb_set(jsonb_set(
+            CASE WHEN ${stage}::text IS NULL THEN COALESCE(status, ${JSON.stringify(fallback)}::jsonb)
+              ELSE jsonb_set(COALESCE(status, ${JSON.stringify(fallback)}::jsonb), '{failureStage}', to_jsonb(${stage}::text), true) END,
+            '{phase}', '"blocked"'::jsonb, true), '{reason}', '"native_unavailable"'::jsonb, true)
+          WHEN ${stage}::text IS NOT NULL THEN jsonb_set(COALESCE(status, ${JSON.stringify(fallback)}::jsonb), '{failureStage}', to_jsonb(${stage}::text), true)
+          ELSE status END,
+        lease_id=NULL,lease_until=NULL,updated_at=clock_timestamp(),
+        next_attempt_at=clock_timestamp()+interval '10 seconds'*power(2,LEAST(4,failure_count))
+      WHERE id=${row.id}::uuid AND owner_id=${row.ownerId}::uuid AND lease_id=${row.leaseId}::uuid AND lease_until > clock_timestamp()`;
+  }
+}
+export async function reconcileTaskIntents(
+  store: Pick<ProjectTaskIntents, "claim" | "execution" | "finish" | "fail">,
+  execute: (payload: TaskIntentExecution, phase: string) => Promise<ProjectTaskStatus>,
+  target?: { ownerId: string; taskId: string },
+  limit = 3,
+  options: {
+    signal?: AbortSignal;
+    beforeExecute?: (execution: TaskIntentExecution) => Promise<void>;
+  } = {},
+) {
+  z.number().int().min(1).max(3).parse(limit);
+  const result = { processed: 0, retry: 0, stale: 0 };
+  for (let index = 0; index < limit; index++) {
+    options.signal?.throwIfAborted();
+    const row = await store.claim(target);
+    options.signal?.throwIfAborted();
+    if (!row) break;
+    if (row.phase === "blocked") {
+      result.retry++;
+      continue;
+    }
+    try {
+      let execution: TaskIntentExecution;
+      try {
+        execution = store.execution(row);
+      } catch {
+        options.signal?.throwIfAborted();
+        throw new TaskExecutionStageError("intent_read");
+      }
+      await options.beforeExecute?.(execution);
+      options.signal?.throwIfAborted();
+      const value = await execute(execution, row.phase);
+      options.signal?.throwIfAborted();
+      let finished: boolean;
+      try {
+        finished = await store.finish(row, value);
+      } catch {
+        options.signal?.throwIfAborted();
+        throw new TaskExecutionStageError("status_write");
+      }
+      if (finished) result.processed++;
+      else result.stale++;
+    } catch (error) {
+      // A cancelled/unknown host outcome retains this exact durable claim for
+      // later lease-fenced recovery; never acknowledge or start a second intent.
+      options.signal?.throwIfAborted();
+      await store.fail(row, error instanceof TaskExecutionStageError ? error.stage : undefined);
+      result.retry++;
+    }
+  }
+  options.signal?.throwIfAborted();
+  return result;
+}

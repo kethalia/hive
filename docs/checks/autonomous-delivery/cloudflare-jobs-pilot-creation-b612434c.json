@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "action": "create-private-unscheduled-jobs-worker",
+  "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
+  "readback": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "observedAt": "2026-11-05T20:00:31.704Z",
+    "quota": {
+      "additionalCostsAuthorized": false,
+      "newPaidProductsAllowed": false,
+      "remainingRequests": 9720200,
+      "remainingCpuMilliseconds": 9288422.79
+    },
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "336a83fa-1061-4171-8683-62bb1a2819e4",
+      "versionId": "f82ee2f4-3f93-432d-afc1-1ce24fb2952d",
+      "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "repositoryPolicyEnabled": true,
+      "repositoryCatalogSHA256": "5f008843c3b4aea5faee720c7f41d560ebfbc5ede2bd0121513e0353e5030904"
+    },
+    "jobs": {
+      "name": "hive-jobs-compatibility-preview",
+      "exists": true,
+      "tag": "e9e70650970f4012a6ff87a7a3063b23",
+      "createdOn": "2026-11-05T20:00:12.007381Z",
+      "deploymentId": "90fc30eb-bab3-4af0-93e6-11e651145ab4",
+      "versionId": "9e228e73-e41d-4568-8181-3979fd9a06ba",
+      "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "bindings": [
+        "APP_SERVICE",
+        "HIVE_DELIVERY_PILOT_MODE",
+        "HIVE_PROJECT_TASKS_ENABLED",
+        "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+        "HIVE_RUNTIME_TARGET",
+        "SOURCE_REVISION"
+      ],
+      "appService": "hive-app-compatibility-preview",
+      "projectTasksEnabled": true,
+      "pilotMode": true,
+      "schedules": []
+    }
+  },
+  "creationReceipt": {
+    "schemaVersion": 1,
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "name": "hive-jobs-compatibility-preview",
+    "runId": "9caa260e-cd3c-4db7-8b1d-606bc870a166",
+    "sourceRevision": "b612434c46b2d4c20eed12c230a4d6184d91cc28",
+    "tag": "e9e70650970f4012a6ff87a7a3063b23",
+    "createdOn": "2026-11-05T20:00:12.007381Z",
+    "deploymentId": "90fc30eb-bab3-4af0-93e6-11e651145ab4",
+    "versionId": "9e228e73-e41d-4568-8181-3979fd9a06ba",
+    "action": "create",
+    "observedAt": "2026-11-05T20:00:31.704Z",
+    "schedules": []
+  },
+  "scheduledInvocationsEnabled": false,
+  "publicUrlsEnabled": false,
+  "secretValuesRecorded": false
+}

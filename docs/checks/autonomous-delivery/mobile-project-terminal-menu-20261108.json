@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T18:02:28.431090Z",
+  "deployedSourceSha": "44b02e8d2ea1df42db7f399d01926dbe23017d92",
+  "uiImplementationMerge": "c8501d81ef202f9cbde3fcdb7241db6ac41fcd14",
+  "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "browserBuildId": "65b410c2-1894-47ce-a54d-10c46a129efe",
+  "workspaceDesignation": "reused-persistent",
+  "viewports": ["590x1280", "1440x900"],
+  "projectBrowserRoutingPassed": true,
+  "legacyCloneEntryAbsent": true,
+  "scopedGitHubDiscovery": { "httpStatus": 200, "repositoriesReturned": 100 },
+  "typedSearch": { "query": "hive", "repositoryVisible": "kethalia/hive" },
+  "terminalSetupDomPassed": true,
+  "repeatedRetryEntriesAbsent": true,
+  "settledMobileRenderingVerified": true,
+  "settledDesktopRenderingVerified": false,
+  "nonassetReadAttemptsCumulative": 38,
+  "writesForwarded": 0,
+  "websocketConnections": 0,
+  "taskOrModelStarted": false,
+  "regularUserWorkspaceAcceptance": false,
+  "sharedThreadPhaseBAcceptance": false,
+  "browserContextsAndSshClosed": true,
+  "limitations": [
+    "Dedicated test-account discovery does not prove normal-user workspace enrollment.",
+    "Terminal setup rendering does not prove terminal attachment or session enumeration.",
+    "An initial read-only network guard denied the project's GET route; the corrected exact-scope read passed.",
+    "An overly strict screenshot assertion rejected intentional disabled-row opacity; actual mobile geometry and rendering were independently verified."
+  ]
+}

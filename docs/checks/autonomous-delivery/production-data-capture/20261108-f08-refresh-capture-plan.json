@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "preparedAt": "2026-11-08T21:59:34.466829+00:00",
+  "status": "plan-only; production GET/secret/DB access requires primary review and explicit GO",
+  "sourceRevision": "4066101b21f7c8327a3857a25fa565fda6619c1c",
+  "clusterRepositoryRevision": "2c569b4f2dd010c9d31e8f70be02c50ae7508c4b",
+  "completedEvidenceNotToRepeat": [
+    {
+      "evidence": "20261105-result.json",
+      "sourceVersion": "17.11",
+      "tables": 8,
+      "rows": 88,
+      "archiveBytes": 25654,
+      "archiveSha256": "00025c4d48ff2bce6c086ebf49b63bfbb605d3f3e8ae4965c125d18ed798bf27",
+      "readOnlyCaptureAndLocalRestore": true
+    },
+    {
+      "evidence": "20261105-restore-upgrade.json / 20261105-recovery.json",
+      "originalApplicationRows": 81,
+      "originalApplicationTables": 7,
+      "localAndThenIsolatedNeonUpgradePassed": true,
+      "secondLocalRestorePassed": true
+    },
+    {
+      "evidence": "20261108-schema52-rehearsal.json",
+      "completedMigrations": 52,
+      "originalRowsAndPriorHistoryPreserved": true
+    },
+    {
+      "evidence": "../unused-recovery-resumption-local53-rehearsal.json",
+      "scope": "separate synthetic Preview app/native datasets reached53; not production-capture or original-key proof"
+    }
+  ],
+  "remainingEvidence": "Fresh source capture plus original production encryption/cookie-key preservation; new local53 rehearsal of that fresh capture. This is not final maintenance-boundary capture or cutover acceptance.",
+  "infrastructureGate": {
+    "workspaceName": "daniel/hive-infra-4gi-1108",
+    "workspaceId": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+    "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+    "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+    "createdAt": "2026-11-08T21:50:10.112691Z",
+    "templateVersionId": "9861dba6-d20a-4dd4-8642-84947eadb981",
+    "buildId": "60d5a4da-521b-4744-bef8-05e811bf30b3",
+    "agentId": "ba5c8ad1-ca9d-4412-91b0-f0188ff5c25f",
+    "requiredBeforeCredentialTransfer": "Primary rechecks workspace UUID, owner UUID, template UUID and creation timestamp against its own creation record; exact build/version and connected agent; remote profile= infrastructure, image variant, official client versions, private HOME capacity, no inherited/persisted owner Coder session. Startup_error remains separately recorded; do not describe entire workspace as healthy.",
+    "existingToolProof": "/home/coder/projects/kethalia/.private-hive-four-gib-test-templates-20261108/execution-214703Z/infrastructure-profile-tools-private.json",
+    "observedVersions": {
+      "terraform": "1.15.8",
+      "kubectl": "v1.34.5",
+      "helm": "v3.16.4+g7877b45",
+      "argocd": "v3.3.4+34ccdfc"
+    },
+    "historicalHomeAvailableBytes": 2646351872,
+    "transfer": "After GO only, copy existing Rancher credential through the already authenticated primary-to-specialist SSH channel to a new owner-only task directory (0700), token file0600. Never copy primary owner Coder credential or reuse existing specialist credential paths.",
+    "existingStartupObservation": {
+      "status": "running",
+      "jobStatus": "succeeded",
+      "healthy": false
+    }
+  },
+  "rancherTransport": {
+    "logicalOrigin": "https://rancher.local.kethalia.com",
+    "connectTo": "ingress-nginx-controller.ingress-nginx.svc.cluster.local:443",
+    "tls": "Preserve rancher.local.kethalia.com SNI and Host, system CA verification, redirects forbidden. Reuse reviewed InternalConnection/InternalHandler logic from /tmp/hive-canary-pod-orchestration-readonly.py; never execute that canary script as the production collector.",
+    "credentialSource": "/tmp/hive-epic-coder-auth/rancher-token; existing credential only; no value read or copied during plan preparation",
+    "requestBudget": {
+      "metadataGetMax": 10,
+      "secretGetMax": 2,
+      "jsonMaxBytesPerResponse": 2097152,
+      "secretMaxBytesPerResponse": 65536,
+      "perRequestSeconds": 15,
+      "totalMetadataSeconds": 120
+    },
+    "allowedMethods": ["GET"],
+    "fixedPrefix": "/k8s/clusters/local",
+    "metadataPaths": [
+      "/k8s/clusters/local/apis/apps/v1/namespaces/hive/deployments/hive-hive-web",
+      "/k8s/clusters/local/apis/apps/v1/namespaces/hive/deployments/hive-hive-auth",
+      "/k8s/clusters/local/apis/apps/v1/namespaces/hive/deployments/hive-hive-terminal",
+      "/k8s/clusters/local/apis/postgresql.cnpg.io/v1/namespaces/hive/clusters/hive-pg",
+      "/k8s/clusters/local/api/v1/namespaces/hive/services/hive-pg-rw",
+      "/k8s/clusters/local/api/v1/namespaces/hive/pods/<fresh CNPG currentPrimary matching hive-pg-[0-9]+>"
+    ],
+    "conditionalConfigMapPaths": "Only an exact ConfigMap name referenced by the three admitted deployments, namespace hive, and only selected public config names. No listing/discovery loop.",
+    "secretPaths": [
+      {
+        "path": "/k8s/clusters/local/api/v1/namespaces/hive/secrets/hive-pg-app",
+        "retainKeys": ["uri"],
+        "purpose": "Source app database connection; validate dbname hive, user hive and pinned service/pod destination before use."
+      },
+      {
+        "path": "/k8s/clusters/local/api/v1/namespaces/hive/secrets/hive-secrets",
+        "retainKeys": ["ENCRYPTION_KEY", "COOKIE_SECRET"],
+        "purpose": "Preserve original data-encryption and cookie-signing keys privately; key names/format/equality booleans only in sanitized evidence."
+      }
+    ],
+    "secretScopeNote": "AUTH_SERVICE_SECRET is the existing separate internal service identity, not a data-decryption/cookie key. Record its referenced name only in this capture; no need to retain its value. VAPID database rows are captured unchanged; no notification send or identity regeneration.",
+    "dbTransport": "Prefer one bounded direct connection to the freshly verified hive-pg-rw service from Infrastructure. November5 direct access was refused, so do not assume it works now.",
+    "conditionalGetPortForward": "If direct service access is refused, the only proposed API tunnel is GET /k8s/clusters/local/api/v1/namespaces/hive/pods/<fresh currentPrimary>/portforward?ports=5432 over authenticated WebSocket Upgrade, same TLS routing. Reuse a reviewed existing tunnel implementation if available. Before executing it, demonstrate that its initial/fallback handshake remains GET; kubectl SPDY POST fallback or unreviewed protocol substitution is not authorized. Hold for primary review if the GET-only transport cannot be established.",
+    "forbidden": "No POST/PUT/PATCH/DELETE, exec/log/node APIs, global cluster lists, workload/PVC changes, Jobs, scale/restart, new tokens, or provider settings."
+  },
+  "snapshot": {
+    "sourceExpected": {
+      "namespace": "hive",
+      "cluster": "hive-pg",
+      "service": "hive-pg-rw",
+      "database": "hive",
+      "role": "hive",
+      "major": 17,
+      "historicalMinor": "17.11"
+    },
+    "existingCaptureScript": "scripts/checks/data-migration/capture.py",
+    "scriptSha256": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+    "preflight": "Read-only metadata SQL first: current_database/current_user/version/readOnly/recovery status; non-system schemas; extensions; relation kinds; large-object count; sequence count and live values; current-role privilege flags. Reject non-public application schemas, partitioned/foreign/materialized relations, large objects or unsupported extensions rather than silently omit them. Any sequence values need a separate freshness/maintenance-boundary qualification because they are not MVCC snapshot state.",
+    "clientGate": "Use official PostgreSQL17 psql/pg_dump/pg_restore matching source17 and intended local17 restore; verify client binaries/versions. If absent, prepare official vendor clients in Infrastructure only after approval; no primary Infrastructure tooling installation. Source major change requires review, not a silent older/newer client substitution.",
+    "connectionFile": "New0600 no-symlink single-link file; no credential URI in argv/stdout, no inherited libpq service/startup/options.",
+    "pgOptions": "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=5000 -c timezone=UTC -c datestyle=ISO,MDY",
+    "transaction": "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SELECT pg_export_snapshot(); keep that transaction open until every original-column fingerprint and pg_dump child completes.",
+    "dump": "pg_dump --format=custom --no-owner --no-acl --schema=public --lock-wait-timeout=5s --snapshot=<exported>; existing helper bounds output before writing.",
+    "limits": {
+      "maxSourceBytes": 104857600,
+      "maxRows": 100000,
+      "timeoutSeconds": 300,
+      "minPrivateFreeBytes": 536870912
+    },
+    "outputs": "New directory0700, source.dump0600 and capture.json0600; source version/table+original-column counts/hashes and migration history; aggregate only in stdout; no rows/ciphertext/URIs/raw exceptions.",
+    "freshness": "Concurrent production writers remain running. This is a consistent ordinary-table rehearsal snapshot, not a write-stop/final cutover boundary; no production mutation or scheduler change."
+  },
+  "keyContinuity": {
+    "formatOnly": "ENCRYPTION_KEY exactly64 hex; COOKIE_SECRET nonempty bounded exact bytes, no CR/LF. Capture named keys only; never replace them with preview/synthetic keys.",
+    "privateComparison": "Use primary-owned random audit HMAC key to fingerprint decoded encryption bytes and exact cookie-secret bytes privately; transfer/readback must compare equal with only booleans emitted. Never publish key values or key fingerprints.",
+    "encryptionProof": "On the isolated restored copy only, run the existing AES-GCM decrypt function against original encrypted credential fields; require authenticated decrypt success, report counts/booleans, immediately discard plaintext. Never contact Coder/OAuth or rotate the captured tokens.",
+    "cookieProof": "Synthetic product sign/verify with retained cookie key checks local function compatibility only. Matching Secret value plus private transfer equality preserves intended signing identity; it does not prove a running old process has reloaded that Secret or that any actual historical cookie remains valid.",
+    "sessionLimit": "Current host-only purpose-separated cookie semantics reject legacy names/origins and some historical signatures even with the same key. No live login, personal browser cookie access, universal session-continuity claim or production secret binding write."
+  },
+  "transferAndRestore": [
+    "Primary receives source.dump, private capture manifest, selected keys and private metadata via existing authenticated SSH binary transfer to a NEW directory below ~/projects/kethalia, mode0700/files0600; O_EXCL/nonsymlink checks, archive byte count and SHA256 before/after. No public preview/Neon upload, logs, Git tracking or existing backup overwrite.",
+    "Preserve failed/partial attempts separately. Inspect full archive decode with matching pg_restore and capture safe object inventory before restore; never execute unreviewed foreign source definitions.",
+    "After separate root GO for local DB work, connect only to existing owned local PostgreSQL127.0.0.1:55439, verify exact server identity/version. Create a NEW uniquely named f08 fixture database, refuse if it exists. Never stop/reinitialize that server, reset another DB or reuse baseline fixtures.",
+    "Enable writes only in the explicitly identified local restore environment (remove source read-only PGOPTIONS there only). Restore --no-owner --no-acl --exit-on-error --single-transaction into an empty new database, preserving source migrations and original-row/column fingerprints.",
+    "Apply pinned reviewed migration history through53 using existing migration runner on the local-only URI; verify every source migration row/checksum preserved and all53 names/checksums completed with no unresolved failures. Compare all original application-column fingerprints before/after and retain added-column differences separately.",
+    "Create/decode a private upgraded dump; optionally restore that fresh upgraded artifact into a second NEW local fixture only if required new evidence warrants it. No production/Neon migrations or public app binding changes.",
+    "Record limitations: no-owner/no-acl local restore does not reproduce production role ownership, grants, CONNECT isolation, CNPG replication/backup/PITR or post-cutover write recovery. Never infer those from row preservation."
+  ],
+  "executionGates": [
+    "Primary reviews this exact plan and bounded collectors before GO.",
+    "Fresh matching workspace four-ID/build/profile/tools/auth/free-space proof before transferring the existing Rancher credential.",
+    "Stop on source/secret-reference/namespace/DB-major mismatch or unproved GET-only tunnel; no automatic escalation or repeated credential requests."
+  ],
+  "references": [
+    "https://www.postgresql.org/docs/17/app-pgdump.html",
+    "https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#get-connect-portforward-pod-v1-core"
+  ],
+  "preparationEffects": {
+    "productionRequests": 0,
+    "secretReads": 0,
+    "credentialTransfers": 0,
+    "databaseRequests": 0,
+    "providerWrites": 0,
+    "sourceCodeChanges": 0,
+    "commitOrPush": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-30T07:09:46.693Z",
+  "app": {
+    "deploymentId": "a5e829af-d998-4f23-ac49-fe7580714154",
+    "versionId": "5034f69b-9919-4057-88c3-59584c1a58c1",
+    "publicState": {
+      "enabled": false,
+      "previews_enabled": false
+    }
+  },
+  "auth": {
+    "deploymentId": "5b1700ec-db43-41a9-af42-fc15cfaf64e0",
+    "versionId": "7bcf113d-a56a-4d27-a389-cc4299f250ba",
+    "publicState": {
+      "enabled": false,
+      "previews_enabled": false
+    }
+  }
+}

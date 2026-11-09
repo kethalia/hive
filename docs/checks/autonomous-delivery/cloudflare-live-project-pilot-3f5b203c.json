@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "3f5b203ca3c6b27f411b9afa2da4382661d65eb7",
+  "observedAt": "2026-11-05T18:12:43.086Z",
+  "appDeploymentId": "d52d72f0-c41b-4644-88b6-e372e2301cef",
+  "result": "held_before_task_enqueue",
+  "previewBootstrap": 204,
+  "projectOpen": {
+    "status": 502,
+    "error": "discovery_unavailable"
+  },
+  "fixedStageDiagnostic": {
+    "stage": "host_response",
+    "category": "internal",
+    "statusCode": 403
+  },
+  "additionalOuterRequests": 2,
+  "incrementalOuterRequestsTotal": 12,
+  "incrementalOuterRequestCeiling": 200,
+  "newLoginPerformed": false,
+  "taskStartRequests": 0,
+  "taskStatusRequests": 0,
+  "temporaryTailRemoved": true,
+  "appWorkersDevEnabledAfterProbe": false,
+  "jobsSchedule": [],
+  "productionChanged": false,
+  "interpretation": "App issuer creation and cookie exchange completed. Host POST returned 403; this status alone does not distinguish host rejection from an intermediary. Diagnosis continues."
+}

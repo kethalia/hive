@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T21:23:28.028266+00:00",
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "buildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "lifetimeId": "27e29c6f-1e4e-42aa-8c46-5bcaf1636380",
+  "recordedWorkerPid": 4897,
+  "recordedStartTimeMatches": true,
+  "ownerMatches": true,
+  "exactCanonicalWorkerPathMatches": true,
+  "guardedPath": "/usr/bin:/bin",
+  "healthStatus": 200,
+  "checkMethod": "exact worker PID and process identity from installed startup receipt; exact argv path and environment, not process substring scan",
+  "priorCheckerIssue": "own inspection command contained the worker filename and was included by substring search",
+  "correctedPrivateCheckerSha256": "2125888c010d9ead952d1fa68d0e7052906f80f5100ab117999e2c7fb7e0c08c",
+  "hostMutated": false
+}

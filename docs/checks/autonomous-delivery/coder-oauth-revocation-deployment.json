@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T03:10:34.015575+00:00",
+  "sourceRevision": "483737d0066692b16d2512bd03b517138751658f",
+  "scope": "Native Hive branch Preview only",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "automaticBuild": {
+    "id": "0043e46f-5b43-47ba-9cfb-7d7194b93c72",
+    "outcome": "success",
+    "exactCommitVerified": true
+  },
+  "deployment": {
+    "id": "0c59e010-1fae-4951-b563-2e6493af40d7",
+    "createdAt": "2026-11-06T03:03:59.71043Z",
+    "source": "wrangler"
+  },
+  "githubCI": {
+    "id": 42153983754,
+    "outcome": "success",
+    "url": "https://github.com/kethalia/hive/actions/runs/42153983754"
+  },
+  "localCloudflareBuildPassed": true,
+  "fullWebTypecheckPassedAfterBuild": true,
+  "assembledWorkerdProof": "cloudflare-native-proof-483737d0.json",
+  "anonymousLogin": {
+    "status": 200,
+    "continueWithCoder": true,
+    "emailOrPasswordInputs": false,
+    "userAgent": "Hive-OAuth-Acceptance/1.0"
+  },
+  "requestAccounting": {
+    "priorHistoricalLedger": 188,
+    "afterTwoLoginChecks": 190,
+    "maximum": 200,
+    "firstDefaultPythonUserAgentRequestReturned403": true,
+    "firstFailureClassNotEstablished": true,
+    "bothRequestsRetainedInLedger": true,
+    "afterReadonly503Diagnosis": 191,
+    "oneShotPilotLedgersSeparate": true
+  },
+  "realProviderRevocationAccepted": true,
+  "realProviderRevocationState": "accepted dedicated-account revocation and same-owner reconnect",
+  "productionChanged": false,
+  "exactProviderAccessRevocationObserved": true,
+  "hivePostRevocationReadOnlySnapshot": {
+    "credentialSource": "oauth",
+    "version": 3,
+    "refreshState": "reconnect",
+    "sessionCount": 0,
+    "remoteKeyAbsent": true
+  },
+  "realProviderEvidence": "coder-oauth-revocation-live-preview.json"
+}

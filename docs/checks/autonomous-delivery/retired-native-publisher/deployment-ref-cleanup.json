@@ -1,0 +1,24 @@
+{
+  "repository": "kethalia/hive",
+  "branch": "codex/native-preview-publisher",
+  "expectedCommit": "1f4ee6bd2cbda6781fb3ca1794c9d538db45bb5b",
+  "origin": "Primary-created disabled reachability caller",
+  "ownerRequestedRemoval": true,
+  "remoteDeleteIntent": true,
+  "localCommittedHistoryRetained": true,
+  "remoteDeleteVerified": true,
+  "githubEnvironment": {
+    "name": "hive-native-release",
+    "createdAt": "2026-11-06T12:04:48Z",
+    "creationMatchesPrimaryAttempt": true,
+    "deleteExitCode": 0,
+    "deleteVerified": true
+  },
+  "cloudflarePreview": {
+    "id": "d2c1c9e7491e47398eed4a121da3300b",
+    "name": "codex/native-preview-publisher",
+    "removedAutomaticallyAfterBranchDeletion": true,
+    "manualDeleteSent": false,
+    "workerRetained": "hive"
+  }
+}

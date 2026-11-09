@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "08cf34f168b711a3fffff7d8edeb549c3c505078",
+  "sourceFilesVerified": 124,
+  "changes": [
+    {
+      "path": "profile.json",
+      "field": "image",
+      "before": "ghcr.io/kethalia/hive-base@sha256:33450f5ff6052dd96f735f9f4a44355ca81c27e5b3a2801b0782609bdb33d09f",
+      "after": "ghcr.io/kethalia/hive-base@sha256:22fce3aa20b2c70c9c84e82f5b4fd0d584a7b564c32940853127fd2c7c37df34"
+    },
+    {
+      "path": "profile.json",
+      "field": "resources.storage",
+      "before": "100Gi",
+      "after": "20Gi"
+    }
+  ],
+  "otherFieldsUnchanged": true
+}

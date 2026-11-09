@@ -1,0 +1,21 @@
+{
+  "hostConfig": true,
+  "receipt": true,
+  "pid": 818,
+  "processAlive": true,
+  "archiveSha256": "647125003d48bb3c28e55cd4c8f205cb313a65451652faf1f1fea582b2dea0c7",
+  "managerEnabled": false,
+  "buildId": "c9d8217c-c45a-4595-bc64-5b56c54b9bfd",
+  "healthStatus": 200,
+  "schemaVersion": 1,
+  "sourceRevision": "06e00da",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateVersionId": "5ad25d5b-b8b5-46cd-b71e-7b43ccbde017",
+  "agentId": "ed3b58ad-a1a4-4aa4-a11b-c79088b4c400",
+  "bootstrapTransport": "read-only pod Downward API",
+  "idempotentReinstall": "already_running",
+  "nativeEnabled": false,
+  "accountInferenceValidated": false,
+  "productionChanged": false
+}

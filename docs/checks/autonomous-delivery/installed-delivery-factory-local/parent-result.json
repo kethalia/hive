@@ -1,0 +1,75 @@
+{
+  "recordedAt": "2026-10-30T02:57:56.764820+00:00",
+  "scope": "parent staged-source clean export before commit; default-off capability only",
+  "baseRevision": "328283fa787602eafa64024282f5cfd2c7d1b4a3",
+  "sourceExport": "/tmp/hive-factory-parent-bu5266t7",
+  "runtime": {
+    "passed": 389,
+    "skipped": 14,
+    "nestedCompiledPassed": 187,
+    "nestedCompiledSkipped": 3
+  },
+  "templatesPassed": 98,
+  "guardianPolicyPassed": 3,
+  "typecheck": "passed",
+  "fixedInstaller": "passed with reviewed CI guardian ELF, bounded XZ, no loose runtime scripts, no native inference",
+  "guardianIncludedArchive": {
+    "compressedBytes": 137848,
+    "tarBytes": 634880,
+    "tarSha256": "44f749de6af50004a19410ad0828e979b63d5c49d019bd50d55da76e012d6671"
+  },
+  "templateArchiveBytes": {
+    "ai-dev-k8s": 450048,
+    "browser-testing": 445440,
+    "game-dev": 446464,
+    "electronics": 445952,
+    "infrastructure": 446464
+  },
+  "initialFailures": [
+    "Template exceeds Coder1MiB due to duplicate loose runtime tree; fixed only verified archive-member reference classification in canonical installer.",
+    "Clean-export validation lacked migrate node_modules and generated Prisma symlinks; repaired export dependency links, then reran full runtime and typecheck."
+  ],
+  "independentReview": "cloudflare_capability: initial FD await revoke finding fixed and30checks/1skip passed; installer-member packaging exception reviewed without blocker",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "e4a57b41abaf3e55cace8c2d4b276c69deba777b4f7ed5475c9a7fce75b756e6",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "61c0c1e8c0ca910a0065f1e6fb0814eef33b5efae1865156dab479e235ece712",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "5e8a5748d2cd2a62ad21f036a5ae555ad19c2d5c3028b3fc76798b18f3ee0205",
+    "src/lib/codex-session/guardian-config.server.ts": "8ee28598bfb2855684c1e5c8fd09a040f1ed9d19374f5e15bd22280b820693b8",
+    "scripts/verify-codex-delivery-runtime.test.mjs": "e25a224fc1a40dd9bea8649c380dbdab7d3aeafdff1783061349ed413bb91abd",
+    "scripts/agents/test_codex_host_install.py": "2bc5ae9a4a96db76abfbb0a636e4b98e71e40c5517c6358da71571d5adfdee7c",
+    "src/__tests__/lib/codex-session/guardian-policy.test.ts": "23adc3aef7d28606b1346caaa0fdf2a0e3b230d2f0b4ad85d8d4c419de34e884",
+    "docs/checks/autonomous-delivery/installed-delivery-factory.md": "6440fc465a4037ae7ff5c13e07213ed983e4645a5b22d6d1d58d7366dd3bd250",
+    "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "5f1e4dd0bbce8be7a8c9dcdc3d0dfe64dec086aec68cd718a4e97adf0e8c67bc",
+    "scripts/verify-codex-source-application.test.mjs": "dca5aca3d7c0ebf6d1cccfa15f871a5937f2ed2ac259dbabfc51b84e40eec9c1",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/abort.txt": "d845cbd013e30d962c1f16299306f0dc4028846348155d343c952429cc0fff54",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/node-final.txt": "e6791227c4b0168156f94f7dac3ab8d84d54251b64730e9f556ae9b165422d57",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/node.txt": "7ede12a09d93f33ac3a5b27aabe67278d5f390c0e89f25ea96ae272a368bafb6",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/policy.txt": "3fb863c5abf805281e8b18be7af262fb975f745d1cb59838b4a6ff1aeff6d03e",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/python.txt": "9b109a2ae02e95f2121ae223ab07cbf97924a504b75bbc567dc9e1f57847d102",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/result.json": "b292bf97686909931e6182ac9dbd315b97472a940425e9a6e6763b6bbba3eb82",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/types.txt": "f8a3765e82ea622af2ec8283ebabb15b1cc674dbe834b9b2858bc71bf6df120a",
+    "scripts/build-template-artifacts.mjs": "cc471be24229820a6fc9f391d0c56cab8019700d30dd2372d312f5c15afc611d",
+    "scripts/build-template-artifacts.test.mjs": "5cc46a219de0a3b5714931c94bc1218b708c989e9133bfb21a574b0cb3ec15e6",
+    "scripts/build-codex-host-bundle.mjs": "41ec73336bb257b4a30d8250526c2723751eaf87b8d53f9cf7507832d569e61c",
+    "scripts/verify-codex-compiled-host.test.mjs": "54e07ee16fb16983238f8cdd75a6d7e34eb04719f5ffb1f74c7515616bc906d2",
+    "scripts/verify-codex-host-package.test.mjs": "7667de72df0f0df67aca29d1f44eac0adae2c9f05bf0b6ebeac4d129de958b05",
+    "package.json": "e72780e71ad0ed5e4b20c8146ddf99de2c99c01f53376579a359ef4d05694a5b"
+  },
+  "evidenceSha256": {
+    "parent-sync.txt": "05715cd52be899cf826f5a8b51cb5cf13fc7952e8b83e50c049353e157954615",
+    "parent-sync-final.txt": "2609cff2c31681ef0668c4e32f367394522a0d7da317e9f646c37d8d6363ad37",
+    "parent-runtime.txt": "6b5dd7e5c9da146be1c534171a0f8d662b2ecf318681dd9b8b598f99781bac6a",
+    "parent-runtime-final.txt": "7d3f3f8996321ac45b7b0d071ce081ca3d4032e32f400ea1703dbdac4ca32204",
+    "parent-types.txt": "06cb269a6c603c4cc22872894675902a166ca7ac98ad316986f317ed80b52a53",
+    "parent-types-final.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parent-policy-final.txt": "8ec3d1cd1209398cba554b54c2344a3d69552d1dd6fc5acc37402c2e8ff440fb",
+    "parent-templates-final.txt": "4bd22db46282794c0ad3b0eb2929961bb4cdb92a8fe52fc8408558ab36800c49",
+    "parent-installed.txt": "ff96ab05a23f2953fd29447a78791d69c706fc5df91c18f202b0a2d913d92560",
+    "parent-installed.json": "3e93009ba0440d112cb6cf84cccc1a3d5a297e64928fb71067867aec56faf046",
+    "parent-archive.json": "2800cb48fbfe63595c9a93f2054712f9893e00a033b3d8c1a35c1a3ddc3089d7"
+  },
+  "logNormalization": "Trailing whitespace/blank EOF removed; original /tmp/hive-factory-parent-* retained",
+  "accountInference": false,
+  "productionActivation": false,
+  "fullFactorySourceAdvance": false
+}

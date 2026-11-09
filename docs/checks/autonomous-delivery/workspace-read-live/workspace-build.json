@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T04:29:47.394245+00:00",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "createdAt": "2026-10-29T17:13:32.271538Z",
+  "sourceRevision": "9ea8aca",
+  "templateVersionId": "5c1cf6a3-af5f-4099-a2e7-6d1318b7d5f6",
+  "importJobId": "0d324d20-5977-4a26-aed8-8d2ba70671fc",
+  "importStatus": "succeeded",
+  "activeTemplateVersionId": "1b6dbdb0-69d0-4213-9d53-b8a4f33e8c30",
+  "activeTemplateVersionChanged": false,
+  "buildId": "52e45775-5965-447e-9313-3c937a9f89d8",
+  "buildStatus": "pending",
+  "workspaceReadEnabled": true,
+  "managerEnabled": false,
+  "persistentWorkspace": true,
+  "primaryCredentialsCopied": false
+}

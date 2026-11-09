@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:55:08.164Z",
+  "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+  "passed": false,
+  "stage": "private_gate",
+  "outerRequests": 1,
+  "maximumOuterRequests": 8,
+  "maximumWallMilliseconds": 25000,
+  "statuses": {
+    "private_gate": 404
+  },
+  "checks": {},
+  "realLogin": false,
+  "projectEnrollment": false,
+  "workspaceMutation": false,
+  "browserAcceptance": false,
+  "scope": "Deployment/private-gate smoke only; project/session/browser acceptance remains pending."
+}

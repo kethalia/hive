@@ -44,4 +44,18 @@ describe("RuntimeConfigProvider", () => {
       ),
     ).toBe("<span></span>");
   });
+  it("keeps the explicit portable menu capabilities on client transitions", () => {
+    const workspaceCapabilities = {
+      projectTemplateIds: ["00000000-0000-4000-8000-000000000001"],
+      readTemplateIds: [],
+      terminalEnabled: false,
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <RuntimeConfigProvider config={{ terminalWsUrl: "/", workspaceCapabilities }}>
+        {children}
+      </RuntimeConfigProvider>
+    );
+    const { result } = renderHook(() => useRuntimeConfig(), { wrapper });
+    expect(result.current.workspaceCapabilities).toEqual(workspaceCapabilities);
+  });
 });

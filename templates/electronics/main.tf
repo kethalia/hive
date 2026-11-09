@@ -2,6 +2,10 @@ terraform {
   required_version = ">= 1.9"
 
   required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "= 2.4.2"
+    }
     coder = {
       source  = "coder/coder"
       version = "~> 2.15"
@@ -77,8 +81,10 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_RUNTIME_BUILD_ID       = local.hive_host_enabled ? data.external.hive_build_identity[0].result.build_id : (local.hive_read_enabled ? data.external.hive_read_build_identity[0].result.build_id : (local.hive_voice_enabled ? data.external.hive_voice_build_identity[0].result.build_id : (local.hive_agent_enabled ? data.external.hive_agent_build_identity[0].result.build_id : "")))
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
+    HIVE_MANAGED_PROJECTS       = tostring(local.hive_host_enabled)
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
     HIVE_DESKTOP_ENABLED        = tostring(local.profile.capabilities.desktop)
     HIVE_BROWSER_ENABLED        = tostring(local.profile.capabilities.browser)
@@ -259,7 +265,6 @@ resource "coder_script" "tools_ci" {
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     git_config_retry_script        = file("${path.module}/scripts/git-config-retry.sh")
-    github_token                   = data.coder_external_auth.github.access_token
     github_cli_script_b64          = base64encode(file("${path.module}/scripts/github-cli.sh"))
     github_credential_script_b64   = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64  = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
@@ -443,12 +448,13 @@ module "git-config" {
 
 # Hive owns CLI updates; config and authentication stay user-managed.
 module "codex" {
-  count         = data.coder_workspace.me.start_count
-  source        = "registry.coder.com/coder-labs/codex/coder"
-  version       = "5.5.0"
-  agent_id      = coder_agent.main.id
-  install_codex = false
-  manage_config = false
+  count              = data.coder_workspace.me.start_count
+  source             = "registry.coder.com/coder-labs/codex/coder"
+  version            = "5.5.0"
+  agent_id           = coder_agent.main.id
+  install_codex      = false
+  manage_config      = false
+  pre_install_script = file("${path.module}/scripts/wait-for-codex.sh")
 }
 
 module "claude-code" {
@@ -577,7 +583,9 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
     }
   }
 
-  wait_until_bound = false
+  # Publish the provider-observed PV identity only after Longhorn binds HOME.
+  # The Immediate storage class does not need the deployment to schedule first.
+  wait_until_bound = true
 
   spec {
     access_modes       = ["ReadWriteOnce"]
@@ -594,6 +602,10 @@ resource "kubernetes_persistent_volume_claim_v1" "home" {
 
 resource "kubernetes_deployment_v1" "workspace" {
   lifecycle {
+    precondition {
+      condition     = data.coder_parameter.enable_hive_voice.value != "true" || local.profile.id == "software"
+      error_message = "Hive voice signaling requires the software workspace profile."
+    }
     precondition {
       condition     = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? true : can(regex("^hive-codex-v[0-9]+$", local.profile.codex_sandbox_apparmor_profile))
       error_message = "Codex sandbox AppArmor policy must be a versioned hive-codex-vN localhost profile installed by the cluster operator."
@@ -637,9 +649,9 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_host_bootstrap_data, local.hive_read_bootstrap_data, local.hive_voice_bootstrap_data, local.hive_agent_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
-        }
+        })
 
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
@@ -793,6 +805,105 @@ resource "kubernetes_deployment_v1" "workspace" {
               sub_path   = "run"
             }
           }
+
+          dynamic "volume_mount" {
+            for_each = local.hive_host_enabled ? [true] : []
+            content {
+              name       = "hive-host-bootstrap"
+              mount_path = "/opt/hive-codex-host-template"
+              read_only  = true
+            }
+          }
+          dynamic "volume_mount" {
+            for_each = local.hive_read_enabled ? [true] : []
+            content {
+              name       = "hive-read-bootstrap"
+              mount_path = "/opt/hive-workspace-read-template"
+              read_only  = true
+            }
+          }
+          dynamic "volume_mount" {
+            for_each = local.hive_voice_enabled ? [true] : []
+            content {
+              name       = "hive-voice-bootstrap"
+              mount_path = "/opt/hive-voice-template"
+              read_only  = true
+            }
+          }
+
+          dynamic "volume_mount" {
+            for_each = local.hive_agent_enabled ? [true] : []
+            content {
+              name       = "hive-agent-bootstrap"
+              mount_path = "/opt/hive-agent-template"
+              read_only  = true
+            }
+          }
+
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_host_enabled ? [true] : []
+          content {
+            name = "hive-host-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/host-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_read_enabled ? [true] : []
+          content {
+            name = "hive-read-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/read-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_voice_enabled ? [true] : []
+          content {
+            name = "hive-voice-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/voice-request']"
+                }
+              }
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_agent_enabled ? [true] : []
+          content {
+            name = "hive-agent-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/agent-request']"
+                }
+              }
+            }
+          }
         }
 
         volume {
@@ -819,9 +930,35 @@ resource "kubernetes_deployment_v1" "workspace" {
   depends_on = [kubernetes_persistent_volume_claim_v1.home]
 }
 
+# Public provider-backed storage identity. These selectors read the actual dev
+# container mount and pod claim; a PVC label alone is not mount continuity.
+locals {
+  hive_home_volumes = [for deployment in kubernetes_deployment_v1.workspace : {
+    pvcUid          = kubernetes_persistent_volume_claim_v1.home.metadata[0].uid
+    pvcName         = one([for v in deployment.spec[0].template[0].spec[0].volume : v.persistent_volume_claim[0].claim_name if v.name == "home"])
+    namespace       = deployment.metadata[0].namespace
+    storageClass    = kubernetes_persistent_volume_claim_v1.home.spec[0].storage_class_name
+    capacity        = kubernetes_persistent_volume_claim_v1.home.spec[0].resources[0].requests["storage"]
+    accessModes     = kubernetes_persistent_volume_claim_v1.home.spec[0].access_modes
+    boundVolumeName = kubernetes_persistent_volume_claim_v1.home.spec[0].volume_name
+    containerName   = one([for c in deployment.spec[0].template[0].spec[0].container : c.name if c.name == "dev"])
+    podVolumeName   = one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.name if m.mount_path == "/home/coder"])
+    mountPath       = one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.mount_path if m.name == "home"])
+    subPath         = try(coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.sub_path if m.name == "home"]), ""), "")
+    subPathExpr     = try(coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.sub_path_expr if m.name == "home"]), ""), "")
+    readOnly        = coalesce(one([for m in one([for c in deployment.spec[0].template[0].spec[0].container : c if c.name == "dev"]).volume_mount : m.read_only if m.name == "home"]), false)
+    claimReadOnly   = coalesce(one([for v in deployment.spec[0].template[0].spec[0].volume : v.persistent_volume_claim[0].read_only if v.name == "home"]), false)
+  }]
+}
+
 resource "coder_metadata" "workspace" {
   count       = data.coder_workspace.me.start_count
   resource_id = kubernetes_deployment_v1.workspace[count.index].id
+
+  item {
+    key   = "hive_home_volume_v1"
+    value = jsonencode(local.hive_home_volumes[count.index])
+  }
 
   item {
     key   = "template_version"

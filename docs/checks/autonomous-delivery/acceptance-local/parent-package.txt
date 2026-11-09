@@ -1,0 +1,24 @@
+✔ Coder shell startup loads a large host package from a mounted file, outside argv (64.221395ms)
+✔ host archive has the same digest across checkouts sharing a dependency store (642.789742ms)
+✔ reproducible archive preserves executable scripts and matches file content identity (11.018168ms)
+✔ nested assets extract without implicit parent creation, as Coder requires (3.836421ms)
+✔ provider caches are excluded and private files or symlinks fail the build (2.609628ms)
+✔ a missing entrypoint or oversized file cannot become a published artifact (8.954703ms)
+✔ dedup verifies compiled bytes, retains Terraform/bootstrap dependencies and rejects stale sources (21.720957ms)
+✔ digest mismatch and dynamic script selection cannot silently drop deployment inputs (5.859995ms)
+✔ fixed package installer member names do not retain loose runtime trees (12.086678ms)
+✔ a recompressed package with a stale internal file digest is rejected (6.68339ms)
+✔ actual curated template fits deployment bound and every literal Terraform file remains extractable (544.743942ms)
+ℹ {"hostGzipBytes":137392,"templateTarBytes":555008,"files":56}
+✔ optional guardian bundle copies the verified build artifact without compiling at install (404.654011ms)
+✔ bundles only locked ws locally and keeps modules inert on import (228.987875ms)
+✔ host config cannot request unreviewed startup fields or profiles (0.666389ms)
+✔ JS controller and installed Python authority agree on actual kernel process identity (56.350067ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 774.837448

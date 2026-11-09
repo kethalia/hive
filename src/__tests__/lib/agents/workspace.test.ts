@@ -1,9 +1,13 @@
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: vi.fn() }));
+const portable = vi.hoisted(() => ({ execute: vi.fn() }));
+vi.mock("@/lib/agents/portable-config.server", () => ({
+  createPortableAgentService: () => ({ execute: portable.execute }),
+}));
 
 import { spawn } from "node:child_process";
 import { agentToolsSnapshotSchema } from "@/lib/agents/types";
@@ -54,7 +58,21 @@ beforeEach(() => {
   ]);
 });
 
+afterEach(() => vi.unstubAllEnvs());
 describe("workspace agent operations", () => {
+  it("uses the scoped bridge on Cloudflare without falling back to SSH", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    portable.execute.mockResolvedValue({ message: "done" });
+    expect(await runWorkspaceAgentOperation(user, "workspace", "install")).toEqual({
+      message: "done",
+    });
+    expect(portable.execute).toHaveBeenCalledWith(
+      { hiveUserId: user.id, coderUserId: user.coderUserId },
+      "workspace",
+      { operation: "install" },
+    );
+    expect(spawn).not.toHaveBeenCalled();
+  });
   it("checks ownership before inspecting account or session data", async () => {
     client.getWorkspace.mockResolvedValue({ owner_id: "someone-else" });
     await expect(runWorkspaceAgentOperation(user, "workspace", "inspect")).rejects.toThrow(

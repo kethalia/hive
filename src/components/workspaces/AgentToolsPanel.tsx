@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { configureAgentToolsAction, resumeAgentSessionAction } from "@/lib/actions/agent-tools";
 import { type AgentSession, agentLabels } from "@/lib/agents/types";
 import { useDiscovery } from "@/lib/discovery/queries";
+import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 
 const states: Record<AgentSession["state"], string> = {
   working: "Working",
@@ -159,6 +160,14 @@ export function AgentToolsPanel({
         className="min-h-0 space-y-5 overflow-y-auto overscroll-contain pr-1"
         data-mobile-scroll-allow="true"
       >
+        {open ? (
+          <Button
+            variant="outline"
+            onClick={() => requestHiveWindow({ tool: "accounts", workspaceId, buildId })}
+          >
+            Open Accounts
+          </Button>
+        ) : null}
         {snapshot ? (
           <>
             <section aria-label="Recent agent sessions" className="space-y-3">

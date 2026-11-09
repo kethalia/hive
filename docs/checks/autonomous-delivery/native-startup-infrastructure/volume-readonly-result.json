@@ -1,0 +1,53 @@
+{
+  "observedAt": "2026-11-07T15:47:57.895133+00:00",
+  "scope": "exact failed task home volume only",
+  "profile": "software",
+  "primaryReadonlyExceptionApproved": true,
+  "providerWrites": false,
+  "volume": "pvc-ca7f02d5-edae-4d53-9eb8-178b8bd0c226",
+  "claim": {
+    "name": "coder-e6aa588f-89a7-464b-9cf9-a6371d0b819d-home",
+    "namespace": "coder",
+    "uid": "ca7f02d5-edae-4d53-9eb8-178b8bd0c226"
+  },
+  "pvPhase": "Bound",
+  "requestedBytes": "107374182400",
+  "replicaCount": 2,
+  "state": "detached",
+  "robustness": "faulted",
+  "ownerNode": "k3s-03",
+  "currentNode": "",
+  "conditions": [
+    {
+      "type": "WaitForBackingImage",
+      "status": "False",
+      "reason": "",
+      "message": ""
+    },
+    {
+      "type": "Scheduled",
+      "status": "False",
+      "reason": "ReplicaSchedulingFailure",
+      "message": "precheck new replica failed: insufficient storage"
+    },
+    {
+      "type": "TooManySnapshots",
+      "status": "False",
+      "reason": "",
+      "message": ""
+    },
+    {
+      "type": "OfflineRebuilding",
+      "status": "False",
+      "reason": "",
+      "message": ""
+    },
+    {
+      "type": "Restore",
+      "status": "False",
+      "reason": "",
+      "message": ""
+    }
+  ],
+  "actualBytes": 0
+}

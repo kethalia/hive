@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:57:11.558010+00:00",
+  "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+  "inspection": "existing clean validation worktree actual generated artifact",
+  "generatedConfigsInspected": 2,
+  "deploymentIdConfigured": false,
+  "assetPrefix": "",
+  "javascriptAssetsInspected": 96,
+  "literalConcreteDplQueryReferences": 0,
+  "policyBroadened": false,
+  "previewRequests": 0
+}

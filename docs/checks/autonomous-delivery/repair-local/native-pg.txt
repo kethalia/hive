@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+·
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  08:12:57
+   Duration  5.32s (transform 455ms, setup 0ms, collect 568ms, tests 4.60s, environment 0ms, prepare 42ms)
+

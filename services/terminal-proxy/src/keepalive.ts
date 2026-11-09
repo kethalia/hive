@@ -1,7 +1,10 @@
+import { AuthServiceClient, coderCredentialHeaders, isConfiguredCoderUrl } from "@hive/auth";
 import { fetchCoderApi } from "./coder-fetch.js";
 
 export interface ConnectionMeta {
   token: string;
+  credentialSource?: string;
+  sessionId?: string;
   coderUrl: string;
 }
 
@@ -467,11 +470,35 @@ export class KeepAliveManager {
       return;
     }
 
-    const coderUrl = (meta.coderUrl || this.defaultCoderUrl).replace(/\/+$/, "");
     const deadline = new Date(Date.now() + EXTEND_HOURS * 60 * 60 * 1000).toISOString();
-    const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
 
     try {
+      let credential = meta;
+      if (meta.credentialSource === "oauth") {
+        if (!meta.sessionId) throw new Error("OAuth session unavailable");
+        const auth = new AuthServiceClient(
+          process.env.AUTH_SERVICE_URL || "http://localhost:4400",
+          20000,
+          {
+            serviceSecret: process.env.AUTH_SERVICE_SECRET,
+          },
+        );
+        const latest = await auth.getCoderToken(meta.sessionId);
+        if (
+          !latest ||
+          !isConfiguredCoderUrl(latest.coderUrl) ||
+          latest.coderUrl !== meta.coderUrl ||
+          !latest.token ||
+          !["oauth", "managed_key", "legacy"].includes(latest.credentialSource ?? "") ||
+          !latest.expiresAt ||
+          Date.parse(latest.expiresAt) <= Date.now() ||
+          !Number.isFinite(Date.parse(latest.expiresAt))
+        )
+          throw new Error("OAuth session unavailable");
+        credential = { ...meta, token: latest.token, credentialSource: latest.credentialSource };
+      }
+      const coderUrl = (credential.coderUrl || this.defaultCoderUrl).replace(/\/+$/, "");
+      const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -481,7 +508,7 @@ export class KeepAliveManager {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Coder-Session-Token": meta.token,
+            ...coderCredentialHeaders(credential.token, credential.credentialSource),
           },
           body: JSON.stringify({ deadline }),
           signal: controller.signal,

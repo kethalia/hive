@@ -1,0 +1,9 @@
+✔ fixed Python installer and guarded outer attest exact worker readiness and refuse duplicate or unauthorized execution (4404.895331ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4483.58547

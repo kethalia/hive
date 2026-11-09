@@ -34,3 +34,41 @@ test("optional agent integrations stay in software and do not block login", () =
   assert.match(script, /typescript-language-server@5\.1\.3 typescript@5\.9\.3/);
   assert.match(script, /typescript-lsp@claude-plugins-official/);
 });
+
+test("GitHub project discovery preserves credentials and validates pagination", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_github_projects.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test("managed checkouts preserve work and enforce signed lifecycle boundaries", () => {
+  const result = spawnSync("python3", ["-B", "scripts/agents/test_managed_projects.py"], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+for (const [label, script] of [
+  ["pinned native Codex runtime installation", "test_codex_runtime_install.py"],
+  ["authoritative GitHub evidence collection", "test_github_evidence.py"],
+  ["fixture-only source publication boundaries", "test_delivery_source_broker.py"],
+  ["protected source broker and bounded provider transport", "test_delivery_source_runtime.py"],
+  ["private source worker protocol and recovery", "test_delivery_source_worker.py"],
+  [
+    "accepted source application preserves work and authority barriers",
+    "test_managed_source_apply.py",
+  ],
+  ["private accepted-source worker and lost-ack recovery", "test_delivery_source_apply_worker.py"],
+  [
+    "independent acceptance reads only sealed publication material",
+    "test_delivery_acceptance_material.py",
+  ],
+  ["managed project lease renewal", "test_codex_project_lease.py"],
+  ["pinned host package installation and provisioner identity", "test_codex_host_install.py"],
+]) {
+  test(label, () => {
+    const result = spawnSync("python3", ["-B", `scripts/agents/${script}`], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  });
+}

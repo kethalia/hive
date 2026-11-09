@@ -1,0 +1,17 @@
+{
+  "observedAt": "2026-10-29T21:02:57.302358+00:00",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "database": "hive_app_preview",
+  "userId": "3a8174c9-5c45-4b54-bdb8-2ed03b9b2f34",
+  "before": {
+    "tokenCount": 0,
+    "sessionCount": 0
+  },
+  "after": {
+    "tokenCount": 0,
+    "sessionCount": 0
+  },
+  "method": "Read-only metadata counts; no token/ciphertext/session values read",
+  "conclusion": "First run made zero login POSTs and created no persisted login resources"
+}

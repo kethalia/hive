@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T22:30:25.036544+00:00",
+  "stage": "capture_attempt_failed_preserved_no_retry",
+  "workspaceId": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+  "buildId": "60d5a4da-521b-4744-bef8-05e811bf30b3",
+  "requiredInfrastructureGatesPassed": true,
+  "genericStartupErrorRemainsSeparate": true,
+  "freshSourceRechecksPassed": true,
+  "metadataGETsTotal": 8,
+  "exactSecretGETsTotal": 2,
+  "getOnlyWebSocketAttempts": 1,
+  "httpPostFallbackUsed": false,
+  "tlsVerificationDisabled": false,
+  "providerWrites": 0,
+  "preflight": {
+    "passed": true,
+    "sourceVersion": 170011,
+    "databaseAndRoleMatched": true,
+    "readOnly": "on",
+    "primary": true,
+    "publicTables": 8,
+    "unexpectedSchemas": false,
+    "unsupportedRelations": 0,
+    "largeObjects": 0,
+    "sequences": 0,
+    "confirmedSuccessfulSqlSessions": 1
+  },
+  "capture": {
+    "invocations": 1,
+    "sourceScriptSha256": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+    "complete": false,
+    "privatePartialDirectoryExists": true,
+    "partialFiles": 0,
+    "archiveOpened": false,
+    "manifestExists": false,
+    "sameSnapshotRowHashesEstablished": false,
+    "actualSnapshotControlSqlCountEstablished": false,
+    "connectionQuota": 3,
+    "automaticRetry": false
+  },
+  "cleanup": {
+    "ownedPid": 17807,
+    "ownedProcessWaited": true,
+    "listenerAbsent": true,
+    "unrelatedProcessesSignalled": false
+  },
+  "offlineExclusions": {
+    "uriParserPassed": true,
+    "queryKeys": ["sslmode"],
+    "readonlyPGOptionsPresent": true,
+    "loopbackPortMatchesReady": true,
+    "databaseRoleMatches": true,
+    "sslRequire": true,
+    "destinationIdentityGuardPasses": true,
+    "pgDumpVersionOnlyExit": 0,
+    "pgDumpVersionRegexPasses": true,
+    "databaseRequests": 0
+  },
+  "diagnosis": {
+    "established": "Failure occurred after private destination creation and before source.dump opening; URI parser, read-only connection environment, destination identity/mode and pg_dump version regex pass offline.",
+    "notEstablished": "Exact failing snapshot/metadata/size/fingerprint stage. A private tunnel stderr connection-reset category does not establish causation.",
+    "plainErrorMessagesOrRowValuesEmitted": false
+  },
+  "privatePreservation": {
+    "directory": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/received-tunnel-attempt-one",
+    "files": 10,
+    "mode": "0700 directory /0600 files",
+    "hashReadbackVerified": true,
+    "originalSecretCaptureStillPreserved": true,
+    "completeDumpTransferred": false
+  },
+  "nextReviewArtifact": {
+    "file": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/trace-capture-stage.py",
+    "sha256": "0c21579303f0b7e6d4d46e6785093414cfffc8370a865291a0300bcd13509463",
+    "purpose": "Finite function/line/exception-type trace around imported unchanged capture.py; excludes exception messages/locals/SQL/rows/credentials.",
+    "offlineSyntheticFailureAndRedactionTestPassed": true,
+    "executedAgainstProduction": false,
+    "newLiveAttemptRequiresPrimaryReview": true
+  },
+  "localRestoreOrNeonWrites": false,
+  "commitOrPush": false
+}

@@ -6,10 +6,13 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -23,6 +26,29 @@ SPEC.loader.exec_module(tools)
 
 
 class AgentToolsTests(unittest.TestCase):
+    def test_fixed_terminal_mutations_use_exact_targets_and_never_shell(self):
+        with patch.object(tools, "run", return_value=(0, "private-output")) as command:
+            self.assertEqual(tools.terminal_session({"operation": "rename-terminal-session", "oldName": "one", "newName": "one-more"}), {"oldName": "one", "newName": "one-more"})
+            command.assert_called_once_with(["/usr/bin/tmux", "-L", "web", "rename-session", "-t", "=one", "one-more"])
+        with patch.object(tools, "run", return_value=(0, "private-output")) as command:
+            self.assertEqual(tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one"}), {"name": "one"})
+            command.assert_called_once_with(["/usr/bin/tmux", "-L", "web", "kill-session", "-t", "=one"])
+
+    def test_terminal_mutations_reject_reserved_names_and_ambiguous_or_injected_targets(self):
+        for name in ("git-clone-owner", "-option", "one:window", "one;touch bad", "a/b", "x" * 129, "", "a\n"):
+            with self.subTest(name=name), patch.object(tools, "run") as command:
+                with self.assertRaises(ValueError):
+                    tools.terminal_session({"operation": "kill-terminal-session", "sessionName": name})
+                command.assert_not_called()
+        with patch.object(tools, "run") as command:
+            with self.assertRaises(ValueError):
+                tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one", "socket": "native"})
+            command.assert_not_called()
+        with patch.object(tools, "run", return_value=(1, "sensitive-error")) as command:
+            with self.assertRaises(ValueError):
+                tools.terminal_session({"operation": "kill-terminal-session", "sessionName": "one"})
+            self.assertEqual(command.call_count, 1)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -50,6 +76,46 @@ class AgentToolsTests(unittest.TestCase):
             "pane": "%1", **extra,
         }})
         return key
+
+    @unittest.skipUnless(shutil.which("tmux"), "tmux is required for the real-server regression")
+    def test_resume_overrides_or_removes_existing_server_config_environment(self):
+        socket = self.home / "socket"
+        socket.mkdir()
+        bin_dir = self.home / "bin"
+        bin_dir.mkdir()
+        for agent in ("codex", "claude"):
+            executable = bin_dir / agent
+            executable.write_text("#!/usr/bin/python3\nimport json, os, pathlib, sys\n"
+                                  "pathlib.Path(os.environ['HOME'], sys.argv[-1] + '.json').write_text("
+                                  "json.dumps({k: os.environ.get(k) for k in ('CODEX_HOME', 'CLAUDE_CONFIG_DIR')}))\n")
+            executable.chmod(0o755)
+        env = {**os.environ, "TMUX_TMPDIR": str(socket), "PATH": str(bin_dir) + ":/usr/bin:/bin",
+               "CODEX_HOME": "/stale/codex", "CLAUDE_CONFIG_DIR": "/stale/claude"}
+        subprocess.run(["tmux", "-L", "web", "new-session", "-d", "-s", "base", "sleep 30"],
+                       env=env, check=True)
+        self.addCleanup(subprocess.run, ["tmux", "-L", "web", "kill-server"], env=env,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for custom in (True, False):
+            for agent in ("codex", "claude"):
+                self.id = str(uuid.uuid4())
+                key = self.record(agent)
+                current = {**env}
+                if custom:
+                    current.update(CODEX_HOME=str(self.home / "custom codex"),
+                                   CLAUDE_CONFIG_DIR=str(self.home / "custom claude"))
+                else:
+                    current.pop("CODEX_HOME")
+                    current.pop("CLAUDE_CONFIG_DIR")
+                with patch.dict(os.environ, current, clear=True):
+                    tools.resume(key)
+                output = self.home / (self.id + ".json")
+                for _ in range(100):
+                    if output.exists():
+                        break
+                    time.sleep(0.02)
+                self.assertEqual(json.loads(output.read_text()), {
+                    name: current.get(name) for name in ("CODEX_HOME", "CLAUDE_CONFIG_DIR")
+                })
 
     def test_install_is_idempotent_preserves_settings_and_symlinks(self):
         target = self.home / "dotfiles" / "claude.json"

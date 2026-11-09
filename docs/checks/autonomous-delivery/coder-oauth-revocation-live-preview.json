@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T03:26:09.719450+00:00",
+  "sourceRevision": "483737d0066692b16d2512bd03b517138751658f",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "scope": "Dedicated native Preview test identity; real Coder provider; primary HTTP pilot",
+  "passed": true,
+  "productionChanged": false,
+  "databaseDMLByPilot": false,
+  "applicationAuthWritesExpected": true,
+  "checks": {
+    "exactFreshCapturedAccessRevokedOnce": true,
+    "revokedAccessReturns401": true,
+    "credentialRequiresReconnect": true,
+    "bothPriorHiveSessionsDeletedBeforeReauthorization": true,
+    "priorRevocationAndZeroSessionsBound": true,
+    "oldCookieProtectedAPINotAuthenticated": true,
+    "newCookieProtectedAPIAuthenticated": true,
+    "sameOwnerReauthorized": true,
+    "oldSessionsNeverRevived": true,
+    "newCookieAuthenticatedAndReloaded": true,
+    "noManagedKeyFallback": true
+  },
+  "acceptedProtocol": {
+    "beforeReauthorization": "Original token generation at reconnect; zero Hive sessions; original signed cookie gets settings API401 not_authenticated",
+    "afterReauthorization": "Same Hive/Coder identity; credential version3 to4; OAuth source; no remote managed key; exactly one new session; protected settings API200; workspace page and reload200; original unchanged cookie still API401"
+  },
+  "requestAccounting": {
+    "historicalLedger": {
+      "used": 191,
+      "maximum": 200,
+      "remaining": 9
+    },
+    "failedFirstAttempt": {
+      "hive": 1,
+      "coder": 0
+    },
+    "revocationAndContinuationsCombined": {
+      "hive": 9,
+      "coder": 9
+    },
+    "combinedPhaseLimits": {
+      "hive": 10,
+      "coder": 10
+    },
+    "notAGlobalEgressCounter": true,
+    "earlierBrowserAndOAuthPhasesSeparate": true
+  },
+  "issuesPreserved": [
+    {
+      "kind": "pre-revocation authenticated request503",
+      "bodyBytes": 0,
+      "providerMutations": false,
+      "followupSameCookieStatus": 200,
+      "cause": "unclassified"
+    },
+    {
+      "kind": "checker CookieJar deepcopy TypeError",
+      "afterKnownSuccessfulExactRevocation": true,
+      "correction": "New jar with shallow copies of Cookie objects; actual synthetic runtime regression passed"
+    },
+    {
+      "kind": "checker assumed workspaces redirect",
+      "actualBehavior": "200 with sign-in alert",
+      "correction": "Use actual auth-first settings API401 before/after reconnect; verify SQL zero sessions"
+    }
+  ],
+  "limitations": [
+    "Not a continuous browser-driven provider sign-in; earlier Browser Testing navigation and authenticated reload evidence remain separate.",
+    "One transient unclassified503 remains recorded; this checkpoint is not production reliability acceptance.",
+    "No explicit disconnect UI/protocol, idle-client webhook, production activation or whole-epic completion claimed.",
+    "Private cookies, provider tokens, encrypted payloads and credential hashes are not included."
+  ]
+}

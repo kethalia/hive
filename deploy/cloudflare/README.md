@@ -1,4 +1,10 @@
-# Hive Cloudflare edge
+# Hive Cloudflare deployments
+
+For the application migration, use the [preview and production environments](environments.md).
+The `app/`, `auth/` and `jobs/` Workers run the migrated application directly; they do not proxy the Kubernetes Hive web service.
+The canonical target is now the single `hive` Worker with native branch Previews in `native/`. The separately named production reservations were retired after the user selected this layout.
+
+## Legacy origin proxy
 
 Hive's web runtime currently relies on Node child processes, local template files, BullMQ workers,
 and long-lived terminal services. Those responsibilities remain on the Kubernetes origin. This

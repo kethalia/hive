@@ -1,0 +1,13 @@
+{
+  "observedAt": "2026-11-05T19:45:58.270604+00:00",
+  "origin": "https://hive-app-compatibility-preview.b00ste.workers.dev",
+  "deployedSource": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+  "additionalHttpRequests": 2,
+  "cumulativeOuterRequests": 21,
+  "unauthorizedStatus": 401,
+  "authorizedStatus": 200,
+  "loginFormPresent": true,
+  "cacheControl": "private, no-store",
+  "passed": true,
+  "scope": "Two follow-up GETs using approved validation user agent; original urllib-default attempts returned403 and are retained separately. Actual SSR login only; no task/login mutation."
+}

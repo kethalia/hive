@@ -20,6 +20,19 @@ describe("runtime-config", () => {
   });
 
   describe("getServerRuntimeConfig", () => {
+    it("exposes repository discovery only through the explicit server flag", () => {
+      vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "false");
+      expect(getServerRuntimeConfig().projectDiscoveryEnabled).toBeUndefined();
+      vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "true");
+      const config = getServerRuntimeConfig();
+      expect(parseRuntimeConfig(serializeRuntimeConfig(config))?.projectDiscoveryEnabled).toBe(
+        true,
+      );
+      expect(
+        parseRuntimeConfig('{"terminalWsUrl":"","projectDiscoveryEnabled":"true"}')
+          ?.projectDiscoveryEnabled,
+      ).toBeUndefined();
+    });
     it("exposes voice only when explicitly enabled and preserves it through serialization", () => {
       vi.stubEnv("HIVE_CODEX_VOICE_ENABLED", "true");
       const config = getServerRuntimeConfig();
@@ -41,6 +54,68 @@ describe("runtime-config", () => {
     it("falls back to empty string when env var is unset", () => {
       vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
       expect(getServerRuntimeConfig()).toEqual({ terminalWsUrl: "" });
+    });
+
+    it("uses only the explicit same-origin Worker terminal setting", () => {
+      vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://node.example/ws");
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+      vi.stubEnv("HIVE_TERMINAL_WS_URL", "/");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("/");
+      vi.stubEnv("HIVE_TERMINAL_WS_URL", "https://other.example");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("");
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
+      expect(getServerRuntimeConfig().terminalWsUrl).toBe("wss://node.example/ws");
+    });
+  });
+
+  describe("workspace menu capabilities", () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    it("publishes only configured template IDs/booleans, never pins or issuer secrets", () => {
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+      vi.stubEnv("HIVE_CODEX_GATEWAY_ENABLED", "true");
+      vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "true");
+      vi.stubEnv("HIVE_CODEX_SOFTWARE_TEMPLATE_IDS", id);
+      vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "true");
+      vi.stubEnv(
+        "HIVE_WORKSPACE_READ_PROFILES_JSON",
+        JSON.stringify([{ templateId: id, profile: "software", manifestSha256: "a".repeat(64) }]),
+      );
+      vi.stubEnv("HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY", "private-never-publish");
+      vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "false");
+      const config = getServerRuntimeConfig(),
+        json = serializeRuntimeConfig(config);
+      expect(config.workspaceCapabilities).toEqual({
+        projectTemplateIds: [id],
+        readTemplateIds: [id],
+        terminalEnabled: false,
+      });
+      expect(parseRuntimeConfig(json)?.workspaceCapabilities).toEqual(config.workspaceCapabilities);
+      expect(json).not.toContain("private-never-publish");
+      expect(json).not.toContain("manifestSha256");
+      vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "false");
+      vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+      expect(getServerRuntimeConfig().workspaceCapabilities).toEqual({
+        projectTemplateIds: [id],
+        readTemplateIds: [],
+        terminalEnabled: true,
+      });
+    });
+    it("keeps malformed portable capability data unavailable rather than restoring legacy clone behavior", () => {
+      for (const raw of [
+        null,
+        {},
+        "true",
+        { projectTemplateIds: [id, id], readTemplateIds: ["bad"], terminalEnabled: "true" },
+      ]) {
+        expect(
+          parseRuntimeConfig(JSON.stringify({ terminalWsUrl: "/", workspaceCapabilities: raw }))
+            ?.workspaceCapabilities,
+        ).toEqual({ projectTemplateIds: [], readTemplateIds: [], terminalEnabled: false });
+      }
+      vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+      vi.stubEnv("HIVE_WORKSPACE_READ_ENABLED", "true");
+      vi.stubEnv("HIVE_WORKSPACE_READ_PROFILES_JSON", "not-json");
+      expect(getServerRuntimeConfig().workspaceCapabilities?.readTemplateIds).toEqual([]);
     });
   });
 
@@ -160,4 +235,18 @@ describe("runtime-config", () => {
       expect(resolveTerminalWsUrl("/")).toBe("");
     });
   });
+});
+
+it("only exposes delivery when explicitly enabled by the server", () => {
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "false");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBeUndefined();
+  vi.stubEnv("HIVE_DELIVERY_ENABLED", "true");
+  expect(getServerRuntimeConfig().deliveryEnabled).toBe(true);
+  expect(parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":true}')?.deliveryEnabled).toBe(
+    true,
+  );
+  expect(
+    parseRuntimeConfig('{"terminalWsUrl":"","deliveryEnabled":"true"}')?.deliveryEnabled,
+  ).toBeUndefined();
+  vi.unstubAllEnvs();
 });

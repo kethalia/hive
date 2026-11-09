@@ -1,0 +1,9 @@
+Existing workflow failure preserved; no workflow retry/rebuild/re-push performed.
+2026-10-30T05:33:50.2147168Z  Server Version: 29.4.2
+2026-10-30T05:33:50.2148211Z   driver-type: io.containerd.snapshotter.v1
+2026-10-30T05:33:54.5710732Z  Server Version: 29.4.2
+2026-10-30T05:33:54.5711725Z   driver-type: io.containerd.snapshotter.v1
+2026-10-30T05:39:40.9189999Z #51 exporting manifest sha256:30ea4d3d6271efb8b4e351d2983cc09f01cb1a92ddb7e8f889f6d21d1021bbcc done
+2026-10-30T05:39:40.9213528Z #51 exporting config sha256:b40d18c37ceeb7bfaa7b7fafd7c3f19263066752d035dc981b1721b3b9791a1a done
+2026-10-30T05:40:14.7072774Z preview-cli-014d08e33ce4091a739715a284b1b7fb504e465b: digest: sha256:30ea4d3d6271efb8b4e351d2983cc09f01cb1a92ddb7e8f889f6d21d1021bbcc size: 6722
+2026-10-30T05:40:15.0385730Z workspace_image_preview_rejected

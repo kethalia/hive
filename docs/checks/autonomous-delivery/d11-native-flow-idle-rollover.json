@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T21:13:38.406763+00:00",
+  "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "buildId": "0a6d2566-432d-481b-b962-5d071681b54b",
+  "closure": {
+    "ownedProcessesExited": true,
+    "journalSha256": "ee10bc3965a8c2ec083855d54a2da53f52b229689b0b5c681051913a9f4b9ccb",
+    "idleClosed": true,
+    "treeExited": true,
+    "finalWaitResult": "ECHILD",
+    "zeroProjects": true,
+    "admissionCount": 0,
+    "controllerStateAbsent": true,
+    "outerExited": true,
+    "receiptId": "92e69eb5-af2c-4f93-ba8b-1b733b308ab6",
+    "lifetimeId": "2e0cc62e-c416-4615-ac21-dc3cd4749a65"
+  },
+  "installedHelperRestart": {
+    "oldArchiveSignatureValid": true,
+    "oldArchiveSha256": "ee10bc3965a8c2ec083855d54a2da53f52b229689b0b5c681051913a9f4b9ccb",
+    "oldLifetimeId": "2e0cc62e-c416-4615-ac21-dc3cd4749a65",
+    "newJournalSignatureValid": true,
+    "newLifetimeId": "27e29c6f-1e4e-42aa-8c46-5bcaf1636380",
+    "newLifetimeDistinct": true,
+    "phase": "startupReady",
+    "controllerStateAbsent": true,
+    "healthStatus": 200,
+    "authPresent": false
+  },
+  "podRebuilt": false,
+  "nativeAuthCopied": false,
+  "taskStarted": false
+}

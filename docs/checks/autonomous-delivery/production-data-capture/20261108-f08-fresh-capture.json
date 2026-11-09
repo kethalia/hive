@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T23:08:12.497788+00:00",
+  "stage": "fresh_read_only_capture_preserved_no_restore",
+  "workspaceId": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+  "buildId": "60d5a4da-521b-4744-bef8-05e811bf30b3",
+  "freshSameInfrastructureIdentityProfileToolsAndAuthBoundary": true,
+  "genericStartupErrorRemainsSeparate": true,
+  "sourcePrimaryPod": "hive-pg-2",
+  "sourcePrimaryPodUid": "b2ef7b3f-6bdc-4ac8-b5a7-b8f5c6f59cd9",
+  "requests": {
+    "metadataGETsTotal": 10,
+    "secretGETsTotal": 2,
+    "getOnlyWebSocketAttemptsTotal": 2,
+    "attemptTwoStandalonePreflight": false,
+    "tcpSessionLimitUnchanged": 3,
+    "providerWrites": 0
+  },
+  "capture": {
+    "sourceScriptSha256": "253b0bf34bfd2e48d1e5f9b952818ec172cb57109f5787c4048eba3a4ad512d8",
+    "instrumentationSha256": "0c21579303f0b7e6d4d46e6785093414cfffc8370a865291a0300bcd13509463",
+    "tracerComplete": true,
+    "manifestVerified": true,
+    "postgresVersion": 170011,
+    "sourceReadOnly": true,
+    "tableRowsSameSnapshot": true,
+    "tables": 8,
+    "rows": 88,
+    "archiveBytes": 25654,
+    "archiveSha256": "96858559fe53c1c2f71361289bee6f226dcf85e95f2b0131d1a24c747395452f",
+    "applicationTables": 7,
+    "applicationRows": 81
+  },
+  "originalCaptureComparison": {
+    "earlierCapture": "20261105",
+    "tableSetMatches": true,
+    "allCountsMatch": true,
+    "allOriginalColumnSetsMatch": true,
+    "allSameTableRowHashesMatch": true,
+    "rowValuesOrKeyFingerprintsEmitted": false
+  },
+  "archiveInspection": {
+    "fullDecodePassed": true,
+    "tableDefinitions": 8,
+    "tableDataSections": 8,
+    "objectKinds": {
+      "SCHEMA": 1,
+      "COMMENT": 1,
+      "TYPE": 1,
+      "TABLE": 8,
+      "TABLE DATA": 8,
+      "CONSTRAINT": 8,
+      "INDEX": 11,
+      "FK CONSTRAINT": 5
+    },
+    "expectedNavigationFavoriteEnumVerified": true,
+    "unsupportedCapturedObjectKinds": 0,
+    "databaseConnectionsUsed": 0
+  },
+  "freshnessQualification": {
+    "earlierStandalonePreflightFileWrittenAt": "2026-11-08T22:24:57.701956+00:00",
+    "standalonePreflightRepeatedInAttemptTwo": false,
+    "samePodUidDoesNotProveSameSnapshotGlobalMetadata": true,
+    "scope": "The capture independently verified read-only PostgreSQL17 and ordinary public relations in its exported snapshot. Earlier standalone checks for non-public schemas, extension inventory, large objects and sequences are not same-snapshot assertions. The complete archive itself contains only admitted public table/schema/index/constraint/comment objects and the exact original NavigationFavoriteKind enum; roles, global objects and objects excluded by --schema=public are outside this backup scope."
+  },
+  "privatePreservation": {
+    "primaryDirectory": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/received-capture-attempt-two-validated",
+    "files": 12,
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "binaryHashReadbackVerified": true,
+    "originalSelectedKeysDirectory": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/received-preflight",
+    "attemptOneEvidenceRetained": true,
+    "firstInspectorAllowlistFailureRetained": true
+  },
+  "cleanup": {
+    "ownedPid": 31720,
+    "ownedProcessWaited": true,
+    "listenerAbsent": true,
+    "unrelatedProcessesSignalled": false
+  },
+  "limitations": [
+    "Attempt two success with omitted standalone preflight does not establish the cause of attempt one failure.",
+    "This remains an ordinary public-table rehearsal snapshot with production writers running; it is not a final write-stop cutover capture or global-role/ACL/sequence/PITR backup.",
+    "Original keys were captured/preserved privately, but authenticated decryption and actual cookie/session continuity have not yet been exercised.",
+    "No local restore, local migration, Neon upload, production database write or provider mutation occurred."
+  ],
+  "nextGate": "Primary separate GO for new isolated local PostgreSQL55439 fixture restore and upgrade through53; preserve existing server/databases and original keys."
+}

@@ -1,0 +1,10 @@
+{
+  "observedAt": "2026-10-29T21:10:42.620308+00:00",
+  "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
+  "task": "hive-cloudflare-browser-preview",
+  "method": "Installed signed-receipt helper complete, then cleanup; fresh identity and stopped build verified before second cleanup requested deletion",
+  "result": "Absent from fresh Coder workspace list",
+  "evidence": "live-hydration-followup.json",
+  "evidenceSha256": "0258698aaf66c886e650b2ee83a3ff2a84d3e52649877c171b2e6cee45bdece4",
+  "primaryPreserved": true
+}

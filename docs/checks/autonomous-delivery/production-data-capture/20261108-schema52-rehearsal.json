@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T12:52:05.392454+00:00",
+  "scope": "isolated-local-production-capture-schema52-rehearsal",
+  "baseSourceCommit": "5c8b88fe4aa3c0b22d23f5c48690cbcf56861296",
+  "migration52Sha256": "416c14dd05a717264a3a9be68943610c051e137199ab95b159a6940e84066c87",
+  "sourceBackupSha256": "6c0c81d8d33ad57c0aff01d8b9b29e24ce1a5039ef1ea34deddb1ded795bfb9d",
+  "sourceSchemaMigrations": 51,
+  "targetSchemaMigrations": 52,
+  "prior51HistoryPreserved": true,
+  "all52ChecksumsMatch": true,
+  "originalApplicationTablesCompared": 7,
+  "originalApplicationRowsCompared": 81,
+  "originalMigrationRowsCompared": 7,
+  "allOriginalColumnFingerprintsMatchBeforeAndAfter": true,
+  "productionKeysReadOrDecrypted": false,
+  "liveProductionChanged": false,
+  "livePreviewChanged": false,
+  "limits": [
+    "November5 capture; final maintenance-boundary capture remains required.",
+    "Does not prove original encryption/cookie key continuity or application acceptance.",
+    "Only a new root-owned local PostgreSQL17 test database was mutated."
+  ],
+  "upgradedBackupSha256": "72bdf58af243f7fb0ff9c5a847e302fcc02e59b2c9389bbd507e55a5376af127",
+  "upgradedBackupBytes": 442608,
+  "upgradedBackupDecoded": true
+}

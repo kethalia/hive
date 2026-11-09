@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "files": 1977,
+  "directories": 297,
+  "realHomeFilesystem": true,
+  "accountInference": false,
+  "providerWrites": false,
+  "passed": true,
+  "applySeconds": 14.196,
+  "sourceHashes": {
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "7e2ff9eeb57b34fcf1f29308de0d463fd5b3b7b6e26ab7968e252fba2979f6d1",
+    "templates/ai-dev-k8s/scripts/managed-source-apply.py": "7e894b75fad56b92886b1c4e47098806952deabc097ea9d7f32d895280512660",
+    "templates/ai-dev-k8s/scripts/codex-project-lease.py": "c2c2b174e6dbc8a7af3c36aa3e4d7e8332f2b247ef39038d959b590221f28bfc"
+  },
+  "sourceStable": true
+}

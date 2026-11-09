@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-10-30T01:54:37.590532+00:00",
+  "scope": "parent clean-index export before commit",
+  "export": "/tmp/hive-rotation-parent-o1kr9pqo",
+  "authTestsPassed": 191,
+  "targetedTestsPassed": 22,
+  "targetedIncludesRealPostgres": 11,
+  "rootTypecheck": "passed",
+  "localWorkerdChecksPassed": 5,
+  "localWorkerdUsesStoreAndProviderDoubles": true,
+  "remoteProviderOperations": false,
+  "activation": false,
+  "logsSha256": {
+    "parent-auth.txt": "277a0025bfe580530093918cef5047da64249386714a27cd5e332f4fc91be78a",
+    "parent-postgres.txt": "30f9c0d388878f21ab795a9503047d08ab212f2b99b9c532a2caf175957f0e0b",
+    "parent-types.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parent-workerd.txt": "3ce1a52381c286f58ddf28c59c00dbcf5e86a720cf8b837d73098ac73057190e"
+  },
+  "logNormalization": "Trailing whitespace and blank EOF lines removed; original logs retained in /tmp/hive-rotation-parent-*.txt"
+}

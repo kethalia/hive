@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "scope": "Inert protected accepted-source metadata application; no CLI or installed factory",
+  "sources": {
+    "templates/ai-dev-k8s/scripts/managed-source-apply.py": "7e894b75fad56b92886b1c4e47098806952deabc097ea9d7f32d895280512660",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "7e2ff9eeb57b34fcf1f29308de0d463fd5b3b7b6e26ab7968e252fba2979f6d1",
+    "templates/ai-dev-k8s/scripts/codex-project-lease.py": "c2c2b174e6dbc8a7af3c36aa3e4d7e8332f2b247ef39038d959b590221f28bfc",
+    "scripts/agents/test_managed_source_apply.py": "b03214b87f3b38c25e33a55c289052d289aa103501fd5184d4b65053e6b8cbe7",
+    "scripts/agents/test_codex_project_lease.py": "bf8ad4a34ccbf700821ee92197081c42ba40109508bb25e4456d696db30d6329",
+    "docs/checks/autonomous-delivery/accepted-source-application.md": "0a208b70338a2d9ec85ec9496e5367139b632f3145388c88d485a60445fad726"
+  },
+  "checks": {
+    "focusedPassed": 56,
+    "focusedScaleSkipped": 1,
+    "finalDirectEntryPassed": 21,
+    "finalDirectEntryScaleSkipped": 1,
+    "scaleFirstPassed": true,
+    "scaleFirstApplySeconds": 14.611,
+    "scaleFinalPassed": true,
+    "scaleFinalApplySeconds": 14.755,
+    "scaleSourceStable": true,
+    "syntaxPassed": true,
+    "diffCheckPassed": true
+  },
+  "cleanup": {
+    "remainingScaleFixtureDirectories": [],
+    "gitChildCleanup": "Every fixed Git subprocess is waited/reaped; source fixtures use task-owned TemporaryDirectory cleanup. No native runtime was started."
+  },
+  "knownHeldBoundaries": [
+    "Private candidate-index changed before prepared journal: retained for explicit review, not automatically adopted.",
+    "Changed accepted current source/admission/barrier/producer or unknown metadata/lock remains held.",
+    "Index conflicts or unsupported staging remain untouched.",
+    "Barrier rejection after durable applied receipt keeps independent execution admission closed; receipt alone is not authority."
+  ],
+  "initialReviewCorrections": [
+    "Descriptor-path replacement test initially received FileExistsError after the pinned rename; foreign path remained untouched. Added fresh pin refusal before lock lookup and descriptor-relative existence checks; regression now passes.",
+    "Split-index was safely rejected as invalid; empty split-index placeholder now receives explicit unsupported classification.",
+    "Release reordered after durable receipt and lock release, with fresh HMAC lease/source reload; no managed write follows input release."
+  ],
+  "activation": {
+    "providerWrites": false,
+    "accountInference": false,
+    "cloudActions": false,
+    "installedAuthorityFactory": false,
+    "serverApplicationReservation": false,
+    "terminalRootBarrierIntegration": false,
+    "cleanupAuthority": false
+  }
+}

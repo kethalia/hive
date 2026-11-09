@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T03:10:18.886599+00:00",
+  "purpose": "Installed empty-host and credential-lock acceptance, not manager or production acceptance",
+  "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-07T18:47:25.146316Z",
+  "buildId": "f499235f-38f7-4a32-b5a0-eeeb6ae623c3",
+  "templateVersionId": "e8a81296-49e0-44d1-a8e1-a77a43583e56",
+  "sourceCommit": "c14b701c8ad61324c4fb2d3fd16c1d306f6ffc6e",
+  "image": "ghcr.io/kethalia/hive-base@sha256:bf1da3a683ae54db3ad78bd4afd8a0a9c3e7b7cde6ac9e88d125b49f99ad1813",
+  "immutableImageRegistryIdentityVerified": true,
+  "imageWorkflowRunId": 42438707300,
+  "imageWorkflowConclusion": "success",
+  "actualImageAndVolume": {
+    "observedAt": "2026-11-08T03:01:33.270783+00:00",
+    "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+    "buildId": "f499235f-38f7-4a32-b5a0-eeeb6ae623c3",
+    "deploymentImages": [
+      {
+        "kind": "container",
+        "image": "ghcr.io/kethalia/hive-base@sha256:bf1da3a683ae54db3ad78bd4afd8a0a9c3e7b7cde6ac9e88d125b49f99ad1813"
+      },
+      {
+        "kind": "init_container",
+        "image": "ghcr.io/kethalia/hive-base@sha256:bf1da3a683ae54db3ad78bd4afd8a0a9c3e7b7cde6ac9e88d125b49f99ad1813"
+      }
+    ],
+    "pvc": [
+      {
+        "uid": "6c1d77cc-49ba-4098-aa26-acc68251df90",
+        "accessModes": ["ReadWriteOnce"],
+        "storage": "20Gi"
+      }
+    ],
+    "hostPathVolumes": false
+  },
+  "installedPinsAndHistory": {
+    "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    "helperSha256": "5cb01a6bde1a451cec77568e08ffebba491086d8271c0a785b8744b18a74ae39",
+    "rootOwnedBinaries": true,
+    "packageManifestSha256": "2210b850e6d73e33cd3380f871b73956c00de98a8266de3c1c90ed209b048f77",
+    "verifiedPackageMembers": 53,
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "acceptanceCodeSha256": "ebe3ca502d891d8c6b52af4cd4d904851f377dc07614cf46450d764e74a80e60",
+    "oldBootstrapArchiveHmacVerified": true,
+    "currentBootstrapHmacVerified": true,
+    "oldConfigSha256": "40acb17845fd1c33d0ab2e94cbbfd61c8c16888c919ee565735ea881f08c6b99",
+    "hostEpochId": "ec84c81b-95d8-4c5c-9359-a1436140ef94",
+    "priorHostEpochId": "b48521c9-c1c4-4ff7-a293-fce75da69c20",
+    "bootstrapRetirementCount": 3,
+    "nativeTreeClosureClaimed": false,
+    "healthStatus": 200,
+    "testCodexAuthAbsentAtPinVerification": true
+  },
+  "accountBridgeReadyAfterNormalBootstrapRetry": true,
+  "dedicatedCredentialLockProof": {
+    "dedicatedTestCacheWritten": true,
+    "exclusiveLockAcquired": true,
+    "rootOwnedFsGroupHomeAccepted": true,
+    "personalCliAuthTouched": false,
+    "modelStarted": false
+  },
+  "initialCoderStartupScriptsSucceeded": false,
+  "coderLifecycleStillReportsInitialStartError": true,
+  "initialFailure": "Both startup identity reads failed; later unchanged authenticated helper validated the exact current scopes",
+  "recovery": "Normal immutable guarded bootstrap rerun once after verified prelaunch failure and fresh identity proof; no installed-file or journal edits",
+  "permanentStartupRepairPullRequest": 422,
+  "sourceReviewOrImageStillRequired": true,
+  "modelPilotStarted": false,
+  "globalActiveTemplateChanged": false,
+  "productionChanged": false
+}

@@ -1,0 +1,17 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/source-publication.integration.test.ts (16 tests) 4033ms
+   ✓ internal source revision acceptance, synthetic independent producer > accepts output under the same writer, verifies output evidence and advances a second immutable source link  682ms
+   ✓ internal source revision acceptance, synthetic independent producer > serializes duplicate and competing publications with exact lost-ACK replay only  352ms
+   ✓ internal source revision acceptance, synthetic independent producer > rejects unactivated fixture receipts, model booleans, bad signatures and binding/producer scope swaps  342ms
+   ✓ internal source revision acceptance, synthetic independent producer > checks revocation/expiry/pause inside mutation and never consumes a source version on rejection  424ms
+   ✓ internal source revision acceptance, synthetic independent producer > protects append-only chain/input/output and cross-owner/cross-attempt pointers in PostgreSQL  344ms
+ ✓ src/__tests__/lib/delivery/progression.integration.test.ts (12 tests) 2265ms
+   ✓ protocol-one server progression (synthetic signed host, not native ordering proof) > advances analysis then two delegated attempts at one source while preserving the physical writer and immutable receipts  367ms
+ ✓ src/__tests__/lib/delivery/native-source.integration.test.ts (10 tests) 958ms
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  22:49:24
+   Duration  8.14s (transform 292ms, setup 0ms, collect 490ms, tests 7.26s, environment 0ms, prepare 122ms)

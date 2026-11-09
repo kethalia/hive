@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "stage": "nativeStartup",
+  "error": "native_start_timeout",
+  "unitAndDescriptorChecksPassed": 10,
+  "nativeTestDurationMs": 8687.43,
+  "modelTurnsSubmitted": 0,
+  "providerRequestCountCaptured": false,
+  "cause": "unresolved",
+  "diagnosticFollowup": {
+    "sameDescriptorMountNativeTcpReady": true,
+    "elapsedMs": 612,
+    "productionTimeoutChanged": false,
+    "privilegeChanged": false
+  }
+}

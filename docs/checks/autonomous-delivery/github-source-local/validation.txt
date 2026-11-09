@@ -1,0 +1,23 @@
+Source collection and PostgreSQL/domain checks
+Commands: python3 -m unittest scripts/agents/test_github_evidence.py; HIVE_DELIVERY_TEST_DATABASE_URL=<isolated-local-fixture> pnpm exec vitest run --no-file-parallelism src/__tests__/lib/delivery/github-evidence.test.ts src/__tests__/lib/delivery/github-persistence.integration.test.ts
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/github-persistence.integration.test.ts (12 tests) 454ms
+ ✓ src/__tests__/lib/delivery/github-evidence.test.ts (24 tests) 30ms
+
+ Test Files  2 passed (2)
+      Tests  36 passed (36)
+   Start at  18:30:43
+   Duration  1.03s (transform 178ms, setup 0ms, collect 283ms, tests 484ms, environment 0ms, prepare 81ms)
+
+
+........
+----------------------------------------------------------------------
+Ran 8 tests in 0.061s
+
+OK
+
+Root pnpm typecheck and scoped Biome passed after full policy-digest/replay-integrity review fixes.
+Read-only primary live helper collection and normalization passed, correctly blocked on build/format, missing current trusted review, and draft PR.
+Synthetic database authority/artifact fixtures are not signed source transport or R2 proof. No GitHub write or release activation.

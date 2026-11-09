@@ -1,0 +1,242 @@
+{
+  "fixture": "hive_acceptance_test_upgrade33",
+  "migrations": {
+    "0_init": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c",
+    "20260602000000_add_navigation_favorites": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2",
+    "20260603000000_add_terminal_controls_beyond_mobile": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4",
+    "20260714000000_add_navigation_favorite_position": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409",
+    "20260814000000_remove_legacy_tasks": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7",
+    "20261016000000_add_agent_notifications": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f",
+    "20261016010000_stage_notification_credentials": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b",
+    "20261029000000_add_delivery_foundation": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04",
+    "20261029010000_delivery_audit_integrity": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12",
+    "20261029020000_delivery_report_event_binding": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb",
+    "20261029030000_delivery_runtime_recovery": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae",
+    "20261029040000_coder_token_key_provenance": "79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b",
+    "20261029050000_codex_host_registration": "4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056",
+    "20261029060000_codex_heartbeat_ack": "a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d",
+    "20261029070000_project_task_intents": "c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2",
+    "20261029071000_project_intent_payload_guards": "d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f",
+    "20261029072000_project_intent_source_context": "06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97",
+    "20261029073000_project_preparation_progress": "dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c",
+    "20261029090000_delivery_manager_binding": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+    "20261029100000_delivery_informational_report": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+    "20261029100100_delivery_report_null_guard": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+    "20261029110000_delivery_manager_progression": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+    "20261029120000_delivery_source_revisions": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+    "20261029130000_guardian_admission": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7",
+    "20261029140000_delivery_source_application": "7a06ad285de5ef6cf47c51b796a0ca15d8a2ec503104c61764caafcbd73b1909",
+    "20261029150000_credential_rotation_scheduler": "6fb7009af531dbe174f0789d7fe98520a6b645b05138dfec8a57720fe70ce488",
+    "20261029160000_template_publication": "54f451575e16aa77ad0a4e58e2c483090db96fbf02afef76c582c2c3b6b3c8dd",
+    "20261029170000_template_publication_creation": "e523c9cf5bebf7927af66887aaa192bcba19e9e9b919444567eae295d6150637",
+    "20261029180000_template_publication_notices": "a590d0839853d4c554168cc5c21dd02231b090dd78a6bb6976902c1d972e0e91",
+    "20261029190000_delivery_repository_policy": "296c5952f0701fcfafe431dca66b22074c5edcd440ed73f678caea45cb3dc1b3",
+    "20261029200000_delivery_acceptance": "0bd8d40821f150e69b76817845e6f37ba8966117cdbb8709144d4d91a1f3488d"
+  },
+  "restrictedRole": {
+    "delivery_acceptance_intents": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": false
+    },
+    "delivery_acceptance_jobs": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": true
+    },
+    "delivery_acceptance_plans": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": false
+    }
+  },
+  "schemaVersion": 1,
+  "tables": {
+    "coder_tokens": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "codex_guardian_admissions": {
+      "digest": "925a82aa3fa890cf308e333d3a1775ec",
+      "rows": 63
+    },
+    "codex_guardian_barriers": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "codex_guardian_enrollment_grants": {
+      "digest": "11e5523d81298c1909666cd4386e8a71",
+      "rows": 63
+    },
+    "codex_guardian_runtimes": {
+      "digest": "c4fc1566c762a4c4278ca110993c6fd4",
+      "rows": 63
+    },
+    "codex_guardian_stop_decisions": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "codex_host_registrations": {
+      "digest": "77e5f911a3c6e28b7c1ca034079c6608",
+      "rows": 63
+    },
+    "codex_host_slots": {
+      "digest": "0567ac630bff73398f6981948c2ee58e",
+      "rows": 63
+    },
+    "codex_registered_threads": {
+      "digest": "b156960c7cdf1042345406d6b300cd16",
+      "rows": 63
+    },
+    "codex_registration_grants": {
+      "digest": "f264e4c8234dec88ef8555a3d22b7abb",
+      "rows": 63
+    },
+    "credential_expiry_notices": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "credential_rotation_operations": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "credential_rotation_schedules": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_acceptance_intents": {
+      "digest": "9c155f96b148d6f4babd1a8976d96fe7",
+      "rows": 78
+    },
+    "delivery_acceptance_jobs": {
+      "digest": "173bbaa8167b6f930062fb9adcf1ecbd",
+      "rows": 113
+    },
+    "delivery_acceptance_plans": {
+      "digest": "3dd6c6716eb9e087e768b0c82b19064c",
+      "rows": 51
+    },
+    "delivery_attempts": {
+      "digest": "614a853484bd9ee09a3f3e7dd1f5221f",
+      "rows": 43
+    },
+    "delivery_conversations": {
+      "digest": "f978aca53bb525acf7a428a4146ed4d7",
+      "rows": 63
+    },
+    "delivery_epics": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_events": {
+      "digest": "b212088f856c708e0aa050a092850399",
+      "rows": 231
+    },
+    "delivery_evidence": {
+      "digest": "46a9b5f1ba13f8ce7e122eb7b3673629",
+      "rows": 30
+    },
+    "delivery_manager_bindings": {
+      "digest": "82bd641a65bb6c0c86a57f17c16dd9bb",
+      "rows": 55
+    },
+    "delivery_outbox": {
+      "digest": "a0d0e746d00647b98b2c5d8bb81487be",
+      "rows": 55
+    },
+    "delivery_projects": {
+      "digest": "0c8328a187b5bca95a4d37d78f0a0d16",
+      "rows": 78
+    },
+    "delivery_report_evidence": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_repository_policies": {
+      "digest": "4cf839050fa6a1e8751c0da3edec9818",
+      "rows": 78
+    },
+    "delivery_repository_policy_versions": {
+      "digest": "6ae4c308f1531cef664fda9a737ee27a",
+      "rows": 78
+    },
+    "delivery_source_applications": {
+      "digest": "8861abff7c4f7563cc50c62e6ecc79a8",
+      "rows": 2
+    },
+    "delivery_source_revisions": {
+      "digest": "511b9439a7eed2e11d09b22ae7b24468",
+      "rows": 43
+    },
+    "delivery_step_dependencies": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_step_reports": {
+      "digest": "4d9336d510a3a1341ddbbf8e90c943ed",
+      "rows": 12
+    },
+    "delivery_steps": {
+      "digest": "28c78cf74292c6f5fd9f404ebe8baa62",
+      "rows": 43
+    },
+    "delivery_task_policy_bindings": {
+      "digest": "a115b938484a8276959c2186c6719809",
+      "rows": 43
+    },
+    "delivery_tasks": {
+      "digest": "ced601d9dd991d615406b9dbe7279b96",
+      "rows": 43
+    },
+    "navigation_favorites": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "notification_sources": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "project_task_intents": {
+      "digest": "c2160baa729e4f8c44b98b6e245438cc",
+      "rows": 78
+    },
+    "push_subscriptions": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "sessions": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_events": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_jobs": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_notices": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_targets": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "users": {
+      "digest": "4fdff4b6513027c6616aedaf5242525a",
+      "rows": 78
+    },
+    "vapid_keys": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    }
+  }
+}

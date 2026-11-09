@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T22:28:20.569180+00:00",
+  "headRevision": "e53f561b025581e5c57e457d57c6c49cadf6e238",
+  "workflowRunId": 40965737968,
+  "workflowConclusion": "success",
+  "artifact": {
+    "id": 12937942275,
+    "name": "native-guardian-linux-x64-7e13669931084cfb6987cabf8ae3d3548064f925",
+    "sizeBytes": 11488,
+    "digest": "sha256:4c8a81c69866b01b7b91abb9d0cde5550641fa896acda770f8c8f6d71ef1bda9",
+    "expiresAt": "2026-11-12T22:25:29Z"
+  },
+  "scope": "GitHub Actions compiled and tested the exact foundation ELF; artifact metadata read through GitHub API. Artifact has not been downloaded or installed.",
+  "pullRequestMergeRef": "7e13669931084cfb6987cabf8ae3d3548064f925",
+  "sourceSha256": {
+    "scripts/build-native-guardian.mjs": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "84e04df89743bbbafb58e7b4eb6c6c3fa0de1b2f5eb906e37bfa3f5363f1669f",
+    ".github/workflows/build-native-guardian.yml": "2ede914866ef1ad633feb8379f2b74f049cb051c44f89aa2fd275e6a0e59f26f"
+  },
+  "runtimeActivation": false,
+  "productionMutation": false
+}

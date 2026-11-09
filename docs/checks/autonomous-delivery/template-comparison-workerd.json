@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T22:16:04.085Z",
+  "testedRevision": "eea5b45305e750e3de8c70fd143c670cbb67ce09",
+  "scope": "Actual local workerd, canonical template hashing and five generated archives; no Coder HTTP or deployed browser acceptance",
+  "templateSource": "isolated source export; all archives checked against the current manifest",
+  "passed": true,
+  "results": [
+    {
+      "name": "ai-dev-k8s",
+      "archiveBytes": 770048,
+      "localHash": "5fdcc1a06e27501af28497635a44b4e83faeb9f9d7c42ab2de1dee048e232bed",
+      "remoteHash": "5fdcc1a06e27501af28497635a44b4e83faeb9f9d7c42ab2de1dee048e232bed",
+      "stale": false
+    },
+    {
+      "name": "browser-testing",
+      "archiveBytes": 765440,
+      "localHash": "15fe48e566c41fd120c6391ce7dd9ef3ba45f19884b6f18f3e170143d8e070e0",
+      "remoteHash": "15fe48e566c41fd120c6391ce7dd9ef3ba45f19884b6f18f3e170143d8e070e0",
+      "stale": false
+    },
+    {
+      "name": "game-dev",
+      "archiveBytes": 766464,
+      "localHash": "a2849e70ff6a4b9dda8870d6b5e1a71b44ce9f7621b3756be203609129bbae34",
+      "remoteHash": "a2849e70ff6a4b9dda8870d6b5e1a71b44ce9f7621b3756be203609129bbae34",
+      "stale": false
+    },
+    {
+      "name": "electronics",
+      "archiveBytes": 765952,
+      "localHash": "99b62fdc85a2520df6e3cc8d5abf96dfd181fb0b99901c01d1b900d4350c6ed5",
+      "remoteHash": "99b62fdc85a2520df6e3cc8d5abf96dfd181fb0b99901c01d1b900d4350c6ed5",
+      "stale": false
+    },
+    {
+      "name": "infrastructure",
+      "archiveBytes": 766464,
+      "localHash": "6cd63b1972f1ac85c0a690c3f574b26efe2aa71432884f569ab054f63fc76247",
+      "remoteHash": "6cd63b1972f1ac85c0a690c3f574b26efe2aa71432884f569ab054f63fc76247",
+      "stale": false
+    }
+  ],
+  "changedArchiveDetected": true,
+  "malformedArchiveRejected": true,
+  "unknownTemplateRejected": true,
+  "unauthenticatedRejected": true,
+  "cloudRequests": 0,
+  "sourceDigests": {
+    "src/lib/templates/staleness.ts": "99c4712b6c8043d37326ced258e86c5b75531ead378e4ad084ad3c8e081d4dc1",
+    "src/lib/templates/artifact-manifest.json": "7c99f7740017a514e89a2bd849ae7b933fe7b6c792acf471e607699fec352a92",
+    "scripts/build-template-artifacts.mjs": "19e5e6870434795c4324d374da1e6d221f8f5a2a5fc66f1b59a50ab555e04603",
+    "deploy/cloudflare/templates/local-comparison-fixture.ts": "8fddb4a2370edbb21a1c8893c55daa82b4cfe585943a32f1fc0b24807577feed",
+    "deploy/cloudflare/templates/run-local-comparison.mjs": "1bbe72d795cc8361875d74d6d907ef4a584c22e859e389a7e068aaf0cd01de60",
+    "pnpm-lock.yaml": "2dbea9462ec46bc954241f01f89afd57923cea602ddf3d631d7e0bfc67212df3"
+  }
+}

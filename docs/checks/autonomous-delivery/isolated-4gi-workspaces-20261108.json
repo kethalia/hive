@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T23:29:00.753392+00:00",
+  "purpose": "isolated-4Gi-test-workspace-preparation",
+  "records": [
+    {
+      "profile": "infrastructure",
+      "workspaceId": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+      "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+      "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+      "createdAt": "2026-11-08T21:50:10.112691Z",
+      "workspaceName": "hive-infra-4gi-1108",
+      "designation": "created unmanaged persistent; retain",
+      "createdDisposable": false,
+      "reused": false,
+      "automaticDeletionAuthorized": false,
+      "templateVersionId": "9861dba6-d20a-4dd4-8642-84947eadb981",
+      "initialBuildId": "60d5a4da-521b-4744-bef8-05e811bf30b3",
+      "image": "ghcr.io/kethalia/hive-base@sha256:7215c860e9aeadc21e1aa1c8dad5d39b1ba6f4a1047c3a30c1bd4195f34de207",
+      "homeStorage": "4Gi"
+    },
+    {
+      "profile": "software",
+      "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+      "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+      "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+      "createdAt": "2026-11-08T21:53:01.180474Z",
+      "workspaceName": "hive-native-4gi-1108",
+      "designation": "created unmanaged persistent; retain",
+      "createdDisposable": false,
+      "reused": false,
+      "automaticDeletionAuthorized": false,
+      "templateVersionId": "40edfc49-2a28-4c8b-bab9-0b0d5b0e240c",
+      "initialBuildId": "81130afc-7453-41ab-9f81-41826ff8840f",
+      "image": "ghcr.io/kethalia/hive-base@sha256:12c0861bb770da29e3e5f9c36fddc1d2fe6236b4eb757e16877a4f525bc613af",
+      "homeStorage": "4Gi"
+    }
+  ],
+  "softwareInstalledAt": "2026-11-08T22:00:40.722Z",
+  "software": {
+    "lifecycleState": "ready",
+    "overallCoderHealthy": true,
+    "imagePackageVerified": true,
+    "hostManifestSha256": "b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216",
+    "hostMemberCount": 55,
+    "lifetimeId": "fbf05420-04b9-4550-84b3-82ea7b84d9b5",
+    "lifetimePhase": "startupReady",
+    "emptyHistory": true,
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "homeCapacity": {
+      "totalBytes": "4143677440",
+      "availableBytes": "1429970944",
+      "minimumAvailableBytes": "805306368",
+      "repositorySeedBytes": 0
+    }
+  },
+  "infrastructure": {
+    "agentConnected": true,
+    "requiredProfileToolsVerified": true,
+    "ownerCLIAuthenticationCleared": true,
+    "genericLifecycleState": "start_error",
+    "nonblockingModule": "coder-labs/codex5.5.0",
+    "failedModuleExitCode": 1,
+    "innerFailureCauseEstablished": false,
+    "productionReadOnlyCaptureCompletedSeparately": true
+  },
+  "boundaries": {
+    "globalTemplateVersionsActivated": false,
+    "volumeOrWorkspaceDeleted": false,
+    "replicaOrStorageSchedulingPolicyChanged": false,
+    "newPaidCapacityAdded": false,
+    "automaticDisposableReceiptCreated": false,
+    "allHomesAndWorkspacesRetained": true
+  },
+  "limits": "Installation snapshot precedes account connection and the separate held task attempt. Neither this record nor an Infrastructure tool check proves native model execution, global rollout, production acceptance or a fully healthy Infrastructure lifecycle."
+}

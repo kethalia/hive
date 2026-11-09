@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "baseSourceCommit": "ec273beafdebe6779ee8068aeb89d370a32d70c9",
+  "scope": "historical Coder home resource parser",
+  "result": "passed local focused checks",
+  "observedFailure": "Existing retry reached guardian_runtime_reservation after installed identity succeeded. Captured historical response had eight resources with every agents property absent.",
+  "productionChange": {
+    "historicalOnly": true,
+    "emptyAssociationCondition": "The flattened agent list across the entire historical resource response is empty.",
+    "whenAssociationsExist": "Require exactly one agent on the single workspace deployment and its ID occurs exactly once across all resources.",
+    "resourceAndHomeMetadataGuardsRetained": true
+  },
+  "fixture": {
+    "path": "scripts/fixtures/historical-home-no-agents.json",
+    "sha256": "9507672f119a136413d42dfb55e0b426a864168b2df8940e1cfb32f942b2afb8",
+    "resourceCount": 8,
+    "derivation": "Recorded resource types/names and complete nonsensitive home metadata shape with synthetic resource, workspace and PVC IDs. No resource commands, agent environment or credential values retained.",
+    "privateCapturesPublished": false
+  },
+  "regression": {
+    "baselineCase": "permits absent associations across the complete historical response",
+    "baselineResult": "RegistrationRejected at the historical agent requirement",
+    "fixedPureParserAndCompositionCases": 14,
+    "covers": [
+      "response-wide absent and empty associations",
+      "unique present deployment association",
+      "association only on another resource",
+      "multiple deployment agents",
+      "duplicate agent association",
+      "strict current agent selection",
+      "missing and duplicate workspace deployment",
+      "invalid resource UUID",
+      "sensitive and duplicate metadata",
+      "unknown volume schema field and read-only claim",
+      "start-stop-start lifecycle plus strict current volume and unused-bootstrap anchor",
+      "wrong predecessor build, PVC identity and bound volume denied"
+    ]
+  },
+  "checks": {
+    "focusedVitestPassed": 16,
+    "postgresIntegrationCasesSkippedLocally": 28,
+    "postgresIntegrationReason": "No database fixture was contacted or mutated in this slice. Existing CI PostgreSQL job runs the updated unused-bootstrap integration fixture, whose dependency now calls the actual historical parser with omitted agents.",
+    "typecheck": true,
+    "biomeAffectedFiles": true,
+    "biomeWarning": "One existing noNonNullAssertion warning in unchanged decode logic.",
+    "diffCheck": true
+  },
+  "runtimePins": {
+    "hostManifestSha256": "fe3c0b3dff83cbb37bfbce49cfa73f2ac8e753c9c9b1ef6986b4f03b848b6fe0",
+    "hostRawSha256": "87402971091ac2e2a9fb2168f89c32573002bd6d7c37e6e97b342afead8ac7a0",
+    "hostAssetsChanged": false
+  },
+  "acceptance": {
+    "liveRequestsDuringThisSlice": 0,
+    "retryOrWakeDuringThisSlice": false,
+    "deployedAcceptance": "Pending CI, review and root integration."
+  }
+}

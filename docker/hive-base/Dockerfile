@@ -1,4 +1,29 @@
+# syntax=docker/dockerfile:1
+# Official SDK/toolchain build lives outside all five runtime image variants.
+# The named source context is explicit in build-base-image.yml.
+FROM debian:trixie AS workspace-identity-build
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://go.dev/dl/go1.26.10.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && echo 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5  /tmp/go.tar.gz' | sha256sum --check --status \
+    && mkdir /opt/go \
+    && tar -xzf /tmp/go.tar.gz --strip-components=1 -C /opt/go \
+    && rm /tmp/go.tar.gz
+WORKDIR /src
+COPY --from=workspace-identity . /src/
+RUN python3 /src/build-image.py
+
 FROM debian:trixie
+COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
+COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
+COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
+COPY --from=template-runtime --chmod=0444 assets/codex-host.tar.xz assets/workspace-read.tar.gz assets/voice.tar.gz assets/agent-bridge.tar.gz /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 scripts/install-codex-host.py scripts/install-workspace-read.py scripts/install-voice.py scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
+
+# COPY --chmod protects file contents; the unprivileged runtime must traverse the asset directory.
+RUN chmod 0555 /usr/local/libexec/hive-template-runtime
 
 ARG WORKSPACE_VARIANT=cli
 
@@ -78,8 +103,27 @@ RUN apt-get update \
     && corepack enable \
     && rm -rf /var/lib/apt/lists/*
 
+# Managed host bootstraps decode bounded XZ archives with the standard library.
+RUN python3 -c "import lzma"
+
+# The guarded host uses a fixed /usr/bin:/bin PATH for agent external auth.
+# Install a vendor release into that path, verifying it before extraction.
+ARG CODER_VERSION=2.38.4
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+      amd64) coder_arch="amd64"; coder_sha="d1d906964852c32413402078d8379a9a2693fa17182703fa8fd77aa463841b2b" ;; \
+      arm64) coder_arch="arm64"; coder_sha="7d854fbd7fef8341b1b8c1ebfb9fa85c0e96a244a3f63105c45173994d371de8" ;; \
+      *) echo "Unsupported Coder CLI architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 "https://github.com/coder/coder/releases/download/v${CODER_VERSION}/coder_${CODER_VERSION}_linux_${coder_arch}.tar.gz" -o /tmp/coder.tar.gz && \
+    echo "${coder_sha}  /tmp/coder.tar.gz" | sha256sum -c - && \
+    tar --no-same-owner -xzf /tmp/coder.tar.gz -C /usr/bin ./coder && \
+    chmod 0755 /usr/bin/coder && \
+    rm /tmp/coder.tar.gz && \
+    /usr/bin/coder version
+
 # notesmd-cli v0.3.4 pre-built binary -> /usr/local/bin.
-RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
+RUN curl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 -fsSLo /tmp/notesmd-cli.tar.gz \
         https://github.com/Yakitrak/notesmd-cli/releases/download/v0.3.4/notesmd-cli_0.3.4_linux_amd64.tar.gz \
     && printf '%s  %s\n' \
         'a261198233a50a3134f300236c618f4f3bff7574bf82df05ffb69da0a308d9b6' \
@@ -90,7 +134,7 @@ RUN curl -fsSLo /tmp/notesmd-cli.tar.gz \
 
 # act v0.2.74 pre-built binary -> /usr/local/bin.
 ENV ACT_VERSION=0.2.74
-RUN curl -fsSLo /tmp/act.tar.gz \
+RUN curl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 -fsSLo /tmp/act.tar.gz \
         https://github.com/nektos/act/releases/download/v${ACT_VERSION}/act_Linux_x86_64.tar.gz \
     && printf '%s  %s\n' \
         '7512b40671e073a011470e216eb2256d1b3ae37b5970d53dc23b29375ffb90f6' \
@@ -133,24 +177,24 @@ ARG HELM_SHA256=fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179
 ARG ARGOCD_VERSION=3.3.4
 ARG ARGOCD_SHA256=404bb83c90cdb7f8054187966f26b17d99961d48fa01f4d6000fe0608dcf9c2b
 RUN if [ "$WORKSPACE_VARIANT" = "infrastructure" ]; then \
-      curl -fsSLo /tmp/terraform.zip \
+      curl -fsSLo /tmp/terraform.zip --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
       && printf '%s  %s\n' "$TERRAFORM_SHA256" /tmp/terraform.zip \
           | sha256sum --check --status \
       && unzip -q /tmp/terraform.zip terraform -d /usr/local/bin \
       && chmod 0755 /usr/local/bin/terraform \
-      && curl -fsSLo /tmp/kubectl \
+      && curl -fsSLo /tmp/kubectl --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
       && printf '%s  %s\n' "$KUBECTL_SHA256" /tmp/kubectl \
           | sha256sum --check --status \
       && install -m 0755 /tmp/kubectl /usr/local/bin/kubectl \
-      && curl -fsSLo /tmp/helm.tar.gz \
+      && curl -fsSLo /tmp/helm.tar.gz --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
       && printf '%s  %s\n' "$HELM_SHA256" /tmp/helm.tar.gz \
           | sha256sum --check --status \
       && tar -xzf /tmp/helm.tar.gz -C /tmp linux-amd64/helm \
       && install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm \
-      && curl -fsSLo /tmp/argocd \
+      && curl -fsSLo /tmp/argocd --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 120 \
           "https://github.com/argoproj/argo-cd/releases/download/v${ARGOCD_VERSION}/argocd-linux-amd64" \
       && printf '%s  %s\n' "$ARGOCD_SHA256" /tmp/argocd \
           | sha256sum --check --status \
@@ -322,11 +366,11 @@ WORKDIR /home/coder
 # the profile startup script so updates do not require rebuilding every variant.
 # Verify the native binary before installing it into the standard native layout.
 # Version upgrades must update the SHA-256 from Anthropic's signed manifest.
-ENV CLAUDE_CODE_VERSION=2.1.296
+ENV CLAUDE_CODE_VERSION=2.1.319
 RUN curl -fsSLo /tmp/claude \
         https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude \
     && printf '%s  %s\n' \
-        '24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de' \
+        'dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed' \
         '/tmp/claude' | sha256sum --check --status \
     && install -d -m 0755 /home/coder/.local/bin /home/coder/.local/share/claude/versions \
     && install -m 0755 /tmp/claude /home/coder/.local/share/claude/versions/${CLAUDE_CODE_VERSION} \

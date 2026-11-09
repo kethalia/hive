@@ -1,0 +1,8 @@
+packages/db/src/cloudflare.ts(2,35): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/cloudflare.ts(3,56): error TS2307: Cannot find module './generated/prisma-workerd/client' or its corresponding type declarations.
+packages/db/src/index.ts(1,38): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/index.ts(4,20): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/request-scope.ts(2,35): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/workerd.ts(1,55): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/workerd.ts(6,20): error TS2307: Cannot find module './generated/prisma/client' or its corresponding type declarations.
+packages/db/src/workerd.ts(7,38): error TS2307: Cannot find module './generated/prisma-workerd/client' or its corresponding type declarations.

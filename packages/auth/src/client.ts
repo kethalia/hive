@@ -1,5 +1,7 @@
 import { authServiceHeaders } from "./service-auth";
 import type {
+  CoderDisconnectRequest,
+  CoderDisconnectResult,
   CoderTokenResponse,
   CredentialResponse,
   LoginRequest,
@@ -9,22 +11,98 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export interface AuthServiceTransport {
+  fetch?: typeof fetch;
+  serviceSecret?: string;
+}
+
 export class AuthServiceClient {
   private baseUrl: string;
   private timeoutMs: number;
+  private transport: AuthServiceTransport;
 
-  constructor(baseUrl: string, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  constructor(
+    baseUrl: string,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    transport: AuthServiceTransport = {},
+  ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.timeoutMs = timeoutMs;
+    this.transport = transport;
   }
 
-  async login(req: LoginRequest): Promise<LoginResponse> {
-    const res = await fetch(`${this.baseUrl}/login`, {
+  private async request(
+    path: string,
+    init: RequestInit,
+    timeoutMs = this.timeoutMs,
+  ): Promise<Response> {
+    const response = await (this.transport.fetch ?? fetch)(`${this.baseUrl}${path}`, {
+      ...init,
+      signal: AbortSignal.any([
+        AbortSignal.timeout(timeoutMs),
+        ...(init.signal ? [init.signal] : []),
+      ]),
+      // Workers does not implement redirect:"error". Manual also prevents the
+      // service credential/password from being forwarded to a redirect target.
+      redirect: "manual",
+    });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error("Auth service redirects are not allowed");
+    }
+    return response;
+  }
+  async startCoderOAuth(
+    clientIp?: string,
+    signal?: AbortSignal,
+  ): Promise<{ authorizationUrl: string; browserSecret: string; expiresIn: number }> {
+    const response = await this.request(
+      "/oauth/start",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authServiceHeaders(this.transport.serviceSecret),
+          ...(clientIp ? { "X-Hive-Client-IP": clientIp } : {}),
+        },
+        body: "{}",
+        signal,
+      },
+      20000,
+    );
+    if (!response.ok) throw new Error("coder_oauth_unavailable");
+    return response.json();
+  }
+  async completeCoderOAuth(
+    input: { state: string; browserSecret: string; code?: string; denied?: boolean },
+    signal?: AbortSignal,
+  ): Promise<LoginResponse> {
+    const response = await this.request(
+      "/oauth/callback",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authServiceHeaders(this.transport.serviceSecret),
+        },
+        body: JSON.stringify(input),
+        signal,
+      },
+      20000,
+    );
+    if (!response.ok) throw new Error("coder_oauth_failed");
+    return response.json();
+  }
+
+  async login(req: LoginRequest, clientIp?: string): Promise<LoginResponse> {
+    const res = await this.request("/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
+      headers: {
+        "Content-Type": "application/json",
+        ...authServiceHeaders(this.transport.serviceSecret),
+        ...(clientIp ? { "X-Hive-Client-IP": clientIp } : {}),
+      },
       body: JSON.stringify(req),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (!res.ok) {
@@ -38,12 +116,13 @@ export class AuthServiceClient {
   }
 
   async logout(sessionId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/logout`, {
+    const res = await this.request("/logout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authServiceHeaders() },
+      headers: {
+        "Content-Type": "application/json",
+        ...authServiceHeaders(this.transport.serviceSecret),
+      },
       body: JSON.stringify({ sessionId }),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
     });
 
     if (!res.ok) {
@@ -54,12 +133,64 @@ export class AuthServiceClient {
     }
   }
 
+  async disconnectCoderOAuth(
+    sessionId: string,
+    input: CoderDisconnectRequest,
+    signal?: AbortSignal,
+  ): Promise<CoderDisconnectResult> {
+    const response = await this.request(
+      "/oauth/disconnect",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authServiceHeaders(this.transport.serviceSecret),
+        },
+        body: JSON.stringify({
+          sessionId,
+          credentialId: input.credentialId,
+          version: input.version,
+        }),
+        signal,
+      },
+      20000,
+    );
+    if (!response.ok) {
+      const failure = (await response.json().catch(() => ({}))) as { code?: unknown };
+      const allowed = [
+        "coder_disconnect_unauthorized",
+        "coder_disconnect_changed",
+        "coder_disconnect_busy",
+        "coder_disconnect_unsupported",
+      ];
+      throw new Error(
+        typeof failure.code === "string" && allowed.includes(failure.code)
+          ? failure.code
+          : "coder_disconnect_unavailable",
+      );
+    }
+    const value = (await response.json()) as CoderDisconnectResult;
+    if (
+      value.status !== "disconnected" ||
+      !["acknowledged", "unconfirmed"].includes(value.providerRevocation) ||
+      !["disconnected", "changed", "unknown"].includes(value.currentConnection)
+    )
+      throw new Error("coder_disconnect_unavailable");
+    return {
+      status: value.status,
+      providerRevocation: value.providerRevocation,
+      currentConnection: value.currentConnection,
+    };
+  }
+
   async getSession(sessionId: string): Promise<SessionPayload | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
-      headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
-    });
+    const res = await this.request(
+      `/sessions/${sessionId}`,
+      {
+        headers: authServiceHeaders(this.transport.serviceSecret),
+      },
+      20000,
+    );
 
     if (res.status === 404) {
       return null;
@@ -76,11 +207,13 @@ export class AuthServiceClient {
   }
 
   async getCredentials(sessionId: string): Promise<CredentialResponse | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/credentials`, {
-      headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
-    });
+    const res = await this.request(
+      `/sessions/${sessionId}/credentials`,
+      {
+        headers: authServiceHeaders(this.transport.serviceSecret),
+      },
+      20000,
+    );
 
     if (res.status === 404) {
       return null;
@@ -98,11 +231,13 @@ export class AuthServiceClient {
   }
 
   async getCoderToken(sessionId: string): Promise<CoderTokenResponse | null> {
-    const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/token`, {
-      headers: authServiceHeaders(),
-      signal: AbortSignal.timeout(this.timeoutMs),
-      redirect: "error",
-    });
+    const res = await this.request(
+      `/sessions/${sessionId}/token`,
+      {
+        headers: authServiceHeaders(this.transport.serviceSecret),
+      },
+      20000,
+    );
 
     if (res.status === 404) {
       return null;

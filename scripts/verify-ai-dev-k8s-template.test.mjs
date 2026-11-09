@@ -21,6 +21,34 @@ const GAME_TEMPLATE_ROOT = join(process.cwd(), "templates/game-dev");
 const ELECTRONICS_TEMPLATE_ROOT = join(process.cwd(), "templates/electronics");
 const INFRASTRUCTURE_TEMPLATE_ROOT = join(process.cwd(), "templates/infrastructure");
 
+test("HOME binding completes before deployment volume metadata is published", () => {
+  for (const profile of [
+    "ai-dev-k8s",
+    "browser-testing",
+    "game-dev",
+    "electronics",
+    "infrastructure",
+  ]) {
+    const terraform = readFileSync(join(process.cwd(), "templates", profile, "main.tf"), "utf8");
+    const home = terraform
+      .split('resource "kubernetes_persistent_volume_claim_v1" "home" {')[1]
+      ?.split('\nresource "kubernetes_deployment_v1" "workspace" {')[0];
+    assert.ok(home);
+    assert.match(home, /wait_until_bound\s*=\s*true/);
+    assert.match(home, /storage_class_name\s*=\s*"longhorn"/);
+    assert.match(terraform, /depends_on\s*=\s*\[kubernetes_persistent_volume_claim_v1\.home\]/);
+    assert.match(
+      terraform,
+      /boundVolumeName\s*=\s*kubernetes_persistent_volume_claim_v1\.home\.spec\[0\]\.volume_name/,
+    );
+    assert.match(
+      terraform,
+      /resource_id\s*=\s*kubernetes_deployment_v1\.workspace\[count\.index\]\.id/,
+    );
+    assert.match(terraform, /value\s*=\s*jsonencode\(local\.hive_home_volumes\[count\.index\]\)/);
+  }
+});
+
 test("workspace lifecycle checks provenance independently of agent instructions", () => {
   const result = spawnSync("python3", ["-B", "scripts/workspace-lifecycle.test.py"], {
     encoding: "utf8",
@@ -621,7 +649,7 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
-    /build-test:\n[\s\S]*?if: github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read/,
+    /build-test:\n[\s\S]*?if: \(github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)\) && inputs\.publish_preview != true[\s\S]*?permissions:\n {6}contents: read/,
   );
   assert.match(
     workflow,
@@ -650,6 +678,20 @@ function verifyBaseImageRollout() {
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
     /workflow_dispatch:/,
   );
+  const preview = workflow
+    .split("  publish-preview:\n")[1]
+    ?.split("\n  update-profile-digests:")[0];
+  assert.ok(preview);
+  assert.match(
+    preview,
+    /if: github\.event_name == 'workflow_dispatch' && inputs\.publish_preview == true/,
+  );
+  assert.ok(preview.includes('[[ "$EXPECTED_SOURCE_SHA" == "$GITHUB_SHA" ]]'));
+  assert.ok(preview.includes(`[[ "$GITHUB_REF" == 'refs/heads/codex/delivery-system-design' ]]`));
+  assert.match(preview, /build-args: WORKSPACE_VARIANT=cli/);
+  assert.doesNotMatch(preview, /cli-latest|cache-to:|replace_digest|git push|gh pr/);
+  assert.match(workflow, /build-test-push:[\s\S]*?inputs\.publish_preview != true/);
+  assert.match(workflow, /update-profile-digests:[\s\S]*?inputs\.publish_preview != true/);
   assert.doesNotMatch(workflow, /git push origin main/);
 }
 

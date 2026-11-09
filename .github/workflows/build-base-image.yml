@@ -6,14 +6,37 @@ on:
       - main
     paths:
       - "docker/hive-base/**"
+      - "tools/workspace-identity/**"
+      - "templates/ai-dev-k8s/assets/**"
+      - "templates/ai-dev-k8s/scripts/install-codex-host.py"
+      - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
+      - "templates/ai-dev-k8s/scripts/install-voice.py"
+      - "templates/ai-dev-k8s/scripts/install-agent-bridge.py"
       - ".github/workflows/build-base-image.yml"
   pull_request:
     branches:
       - main
     paths:
       - "docker/hive-base/**"
+      - "tools/workspace-identity/**"
+      - "templates/ai-dev-k8s/assets/**"
+      - "templates/ai-dev-k8s/scripts/install-codex-host.py"
+      - "templates/ai-dev-k8s/scripts/install-workspace-read.py"
+      - "templates/ai-dev-k8s/scripts/install-voice.py"
+      - "templates/ai-dev-k8s/scripts/install-agent-bridge.py"
       - ".github/workflows/build-base-image.yml"
   workflow_dispatch:
+    inputs:
+      publish_preview:
+        description: Publish one reviewed cli preview image; no template activation
+        required: false
+        type: boolean
+        default: false
+      expected_source_sha:
+        description: Exact full source SHA reviewed for this preview
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -25,7 +48,7 @@ concurrency:
 jobs:
   build-test:
     name: Build and smoke test (${{ matrix.variant }})
-    if: github.ref != 'refs/heads/main' || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')
+    if: (github.ref != 'refs/heads/main' || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')) && inputs.publish_preview != true
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -45,6 +68,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker/hive-base
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
           push: false
           load: true
           platforms: linux/amd64
@@ -58,10 +84,14 @@ jobs:
           bash docker/hive-base/smoke-test.sh
           ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
           ${{ matrix.variant }}
+      - name: Verify image bootstrap source and ownership
+        run: >-
+          python3 docker/hive-base/verify-template-image.py
+          ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
 
   build-test-push:
     name: Build, smoke test, and push (${{ matrix.variant }})
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.publish_preview != true
     permissions:
       contents: read
       packages: write
@@ -91,6 +121,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: docker/hive-base
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
           push: false
           load: true
           platforms: linux/amd64
@@ -104,6 +137,10 @@ jobs:
           bash docker/hive-base/smoke-test.sh
           ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
           ${{ matrix.variant }}
+      - name: Verify image bootstrap source and ownership
+        run: >-
+          python3 docker/hive-base/verify-template-image.py
+          ghcr.io/kethalia/hive-base:${{ matrix.variant }}-${{ github.sha }}
 
       - name: Push tested image
         run: |
@@ -130,9 +167,85 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  publish-preview:
+    name: Build and publish reviewed cli preview
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_preview == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    env:
+      EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
+    steps:
+      - name: Checkout exact dispatched revision
+        uses: actions/checkout@v4
+      - name: Verify reviewed source and absent public package tag
+        run: |
+          [[ "$GITHUB_REPOSITORY" == 'kethalia/hive' ]]
+          [[ "$GITHUB_REF" == 'refs/heads/codex/delivery-system-design' ]]
+          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_SOURCE_SHA" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SOURCE_SHA" ]]
+          python3 tools/workspace-identity/preview-image.py absent
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build exact preview image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/hive-base
+          build-contexts: |
+            workspace-identity=./tools/workspace-identity
+            template-runtime=./templates/ai-dev-k8s
+          push: false
+          load: true
+          platforms: linux/amd64
+          build-args: WORKSPACE_VARIANT=cli
+          tags: ghcr.io/kethalia/hive-base:preview-cli-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/kethalia/hive
+            io.hive.preview=true
+          cache-from: type=gha,scope=workspace-cli
+      - name: Smoke exact preview image
+        run: |
+          image="ghcr.io/kethalia/hive-base:preview-cli-${GITHUB_SHA}"
+          bash docker/hive-base/smoke-test.sh "$image" cli
+          docker run --rm "$image" cat /usr/local/libexec/hive-workspace-identity.json > /tmp/workspace-preview-helper.json
+          python3 docker/hive-base/verify-template-image.py "$image" > /tmp/workspace-preview-bootstrap.json
+          {
+            echo '### Verified public bootstrap image files'
+            echo '```json'
+            cat /tmp/workspace-preview-bootstrap.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Log in to existing public GHCR package
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Recheck absence and publish exact smoke-tested image
+        run: |
+          python3 tools/workspace-identity/preview-image.py absent
+          docker push "ghcr.io/kethalia/hive-base:preview-cli-${GITHUB_SHA}"
+      - name: Record exact source, registry digest and helper identity
+        run: |
+          image="ghcr.io/kethalia/hive-base:preview-cli-${GITHUB_SHA}"
+          export EXPECTED_LOCAL_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$image")"
+          python3 tools/workspace-identity/preview-image.py published > /tmp/workspace-preview-proof.json
+          {
+            echo '### Reviewed cli preview image'
+            echo 'No image alias, profile, template or workspace activation was changed.'
+            echo '```json'
+            cat /tmp/workspace-preview-proof.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   update-profile-digests:
     name: Open workspace image digest PR
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.publish_preview != true
     needs: build-test-push
     permissions:
       actions: write

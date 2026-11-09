@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-10-29T23:29:42.252252+00:00",
+  "reviewer": "primary agent independent review",
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "0fcd8c2f07df72d1a284a7bcf7cd3dbe38ee48359a8312f7e3b9ee369a53ac3b",
+    "scripts/agents/test_managed_projects.py": "d02636161a7477a451a1c36d1615eddc78c0ec93d0ef0e39b925223352a15f2a",
+    "scripts/verify-codex-git-metadata.test.mjs": "3d67a3d0120e7fdcee6de7e5f7441dd2bb6e77791ed0a459cc2ccd99bbaac10a"
+  },
+  "sourceStable": true,
+  "actualParentChecks": 13,
+  "blockingFindings": [],
+  "limitations": [
+    "Native startup timeout repeated under parallel old and new fixture; cause unresolved and installed-pilot gate",
+    "Installed independent metadata authority factory remains pending",
+    "Canned model and fixture first-native approval; no account inference or production activation"
+  ],
+  "cleanExportValidation": {
+    "templateTests": 89,
+    "packageTests": 4,
+    "managedHelperTests": 30,
+    "archiveBytes": 140208
+  }
+}

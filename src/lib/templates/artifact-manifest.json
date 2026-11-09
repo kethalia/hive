@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "templates": {
+    "ai-dev-k8s": {
+      "contentHash": "d63cf44f4d009477e44d64b36a7f192a8d6abf316bf7a6773b73799253ed2a84",
+      "archiveDigest": "d5692fa5d8786b47ade2d4b8e9a242a2cca989a790e855ad8b62e540ece6fe64",
+      "archiveBytes": 790528,
+      "fileCount": 76
+    },
+    "browser-testing": {
+      "contentHash": "7ea3b8a54e4f275c2b80b4be76ac1ff6f4ae0fb0d11d4d8bb0cb165e51c988b9",
+      "archiveDigest": "62bf044c61464fc6106148a00c7cf7345ac5a89cc5d1ddd033aeb017b6ae2dfd",
+      "archiveBytes": 785920,
+      "fileCount": 76
+    },
+    "game-dev": {
+      "contentHash": "6d59fd8ca6091b7678d34489e8c9eaf8d6630c11b2cb34ce4735de8ff18613c1",
+      "archiveDigest": "75d5ad888d3775600e926edb82508234d158fe2650100ca4db818834f0f49166",
+      "archiveBytes": 786944,
+      "fileCount": 76
+    },
+    "electronics": {
+      "contentHash": "85544364013cad4efa89e7595524b8aff335708a1ba13cbd4a2e3feb60490246",
+      "archiveDigest": "62c7bd219efd173a4dbbcad246314a68094c2c32f7677019b321c3e2a681d995",
+      "archiveBytes": 786432,
+      "fileCount": 76
+    },
+    "infrastructure": {
+      "contentHash": "8e0b90b123a40ebb6d8376282c57dd98d8128165630b346bce40c576080e72a2",
+      "archiveDigest": "c5e58523e0f05b99a6474ec905d2732a777f9483c4f8f9dbab15e421960df703",
+      "archiveBytes": 786944,
+      "fileCount": 76
+    }
+  }
+}

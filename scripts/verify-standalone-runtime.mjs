@@ -8,6 +8,10 @@ assert.ok(
   existsSync(join(standaloneRoot, "templates/ai-dev-k8s/scripts/agent-tools.py")),
   "standalone output is missing workspace agent tooling",
 );
+assert.ok(
+  existsSync(join(standaloneRoot, "templates/ai-dev-k8s/scripts/github-projects.py")),
+  "standalone output is missing GitHub project discovery tooling",
+);
 const nextPackagePath = realpathSync(join(standaloneRoot, "node_modules/next/package.json"));
 const requireFromNext = createRequire(nextPackagePath);
 const helpersPackagePath = requireFromNext.resolve("@swc/helpers/package.json");

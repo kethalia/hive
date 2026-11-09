@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockServiceClient = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -25,10 +25,13 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("session management", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     process.env.COOKIE_SECRET = "test-secret";
   });
 
@@ -107,6 +110,14 @@ describe("session management", () => {
       expect(result!.session.sessionId).toBe("sess-123");
       expect(result!.session.id).toBe("sess-123");
       expect(result!.session.expiresAt).toBeInstanceOf(Date);
+    });
+
+    it("rejects an existing session bound to another Coder origin", async () => {
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-old" });
+      mockServiceClient.getSession.mockResolvedValue({
+        coderUrl: "https://old.example.com",
+      });
+      expect(await getSession({ get: () => ({ value: "signed" }) })).toBeNull();
     });
 
     it("rejects duplicate session cookies before verifying or looking up either account", async () => {

@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T23:32:38.993332+00:00",
+  "baseCommit": "44fc4251f4b047c3437b89721da4187f52ea5af1",
+  "scope": "Fix predecessor reservation race and host UUID compatibility",
+  "database": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "name": "hive_unused_bootstrap_test",
+    "createdForThisTask": true,
+    "migrations": 54,
+    "appliedMigration": "20261108060000_unused_bootstrap_predecessor",
+    "otherDatabasesChanged": false,
+    "serverReset": false
+  },
+  "validation": {
+    "passed": 70,
+    "failed": 0,
+    "typecheck": true,
+    "diffCheck": true,
+    "biomeErrors": 0,
+    "preexistingBiomeWarnings": 2,
+    "fileParallelism": false,
+    "internalRaceTestsConcurrent": true,
+    "suites": [
+      {
+        "file": "guardian-empty-root.integration.test.ts",
+        "status": "passed",
+        "tests": 7
+      },
+      {
+        "file": "guardian-service.integration.test.ts",
+        "status": "passed",
+        "tests": 31
+      },
+      {
+        "file": "guardian-unused-bootstrap.integration.test.ts",
+        "status": "passed",
+        "tests": 22
+      },
+      {
+        "file": "registration-store.integration.test.ts",
+        "status": "passed",
+        "tests": 10
+      }
+    ]
+  },
+  "invariants": {
+    "verifiedPredecessorBuildPersistedAtomically": true,
+    "predecessorFieldImmutable": true,
+    "exactPredecessorBlockedAcrossAgentSlots": true,
+    "guardianAndLegacyWritersSerializableUnderWorkspaceLock": true,
+    "observedQueuedWaitersBothArrivalOrders": true,
+    "rollbackLeavesNoFence": true,
+    "fenceSurvivesNormalTreeClosure": true,
+    "currentAgentAndLaterBuildsPermitted": true,
+    "noFakeAuthorizationRetirement": true,
+    "uuidV5AcceptedByActualHostMaintenancePredicate": true,
+    "exactGrantReplayStillPassed": true,
+    "noNewEndpoint": true
+  },
+  "earlierRun": {
+    "receipt": "vitest-parallel-ssi.json",
+    "passed": 66,
+    "failed": 4,
+    "reason": "Concurrent independent suites on one small fixture database produced PostgreSQL SERIALIZABLE predicate-lock aborts; final run serialized files while preserving concurrent workspace-race cases. No runtime authority retry or isolation weakening."
+  },
+  "sourceDigests": {
+    "packages/db/prisma/migrations/20261108060000_unused_bootstrap_predecessor/migration.sql": "9f504bc816e91f8352c6607f7c393ac33228ab1091b4b294a37c454103251113",
+    "packages/db/prisma/schema.prisma": "035eec9f477d52389c512699da3c974b82d459727b8504931614b3a1d3be6867",
+    "src/__tests__/lib/codex-session/guardian-unused-bootstrap.integration.test.ts": "e312b79ed2c0aec8d37945d84f9e029fa939aacc7a18f70bca64a7f5e95faed2",
+    "src/__tests__/lib/codex-session/registration-store.integration.test.ts": "4f3fcac8fe2ff0c092766c95534cdb8f033b6ebcae3be7fd1e5eeaf0b9c0d8df",
+    "src/lib/codex-session/guardian-service.server.ts": "3a1203c7459b1c33ca8ad5ef75b41e82c4541f42f23f1c82e8b6c5e41b6500d7",
+    "src/lib/codex-session/guardian-store.server.ts": "d0a6b0a302feca64c105d4c877a0ff434397a39e257e55ad27920c1d077c239f",
+    "src/lib/codex-session/guardian-unused-bootstrap-store.server.ts": "8cc7e66627860cfede8335330ac6dcd7b12c46e0a80e44b9f6e1bdf6c93286eb",
+    "src/lib/codex-session/registration-store.server.ts": "39f6e2f1ed624df5a7bf7ced694a82f0e9d7ad384f63c1ea61f6cdd1ca0eba5b"
+  },
+  "limitations": [
+    "Actual host filesystem plus PostgreSQL composition is independently tested by Native specialist.",
+    "Local migration and fixtures only; no live restart/enrollment or preview migration."
+  ],
+  "productionAccepted": false,
+  "providerOrLiveDatabaseChanged": false,
+  "workspaceLifecycleActions": false
+}

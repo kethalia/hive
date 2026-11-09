@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "task": "hive-autonomous-delivery-epic",
+  "action": "create-private-jobs-worker",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+  "preflight": {
+    "observedAt": "2026-11-05T19:02:45.098Z",
+    "jobsAbsent": true,
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "69cea243-2fb0-45d9-842a-d46bc89592aa",
+      "versionId": "2ae40150-534e-4bf9-8776-fea6f719b39d",
+      "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "repositoryPolicyEnabled": true,
+      "repositoryCatalogSHA256": "5f008843c3b4aea5faee720c7f41d560ebfbc5ede2bd0121513e0353e5030904"
+    },
+    "usageWindow": {
+      "start": "2026-10-05T19:02:43.314Z",
+      "end": "2026-11-05T19:02:43.314Z",
+      "requests": 279770,
+      "conservativeCpuMilliseconds": 20553700.65
+    },
+    "quota": {
+      "additionalCostsAuthorized": false,
+      "newPaidProductsAllowed": false,
+      "remainingRequests": 9720230,
+      "remainingCpuMilliseconds": 9446299.350000001
+    }
+  },
+  "readback": {
+    "observedAt": "2026-11-05T19:03:55.435Z",
+    "app": {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "69cea243-2fb0-45d9-842a-d46bc89592aa",
+      "versionId": "2ae40150-534e-4bf9-8776-fea6f719b39d",
+      "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "repositoryPolicyEnabled": true,
+      "repositoryCatalogSHA256": "5f008843c3b4aea5faee720c7f41d560ebfbc5ede2bd0121513e0353e5030904"
+    },
+    "jobs": {
+      "name": "hive-jobs-compatibility-preview",
+      "exists": true,
+      "tag": "51ca28a89d134c679186635d9162eb21",
+      "createdOn": "2026-11-05T19:03:31.414033Z",
+      "deploymentId": "5ebcc10e-eb86-49a9-b7d0-1186ecb540a0",
+      "versionId": "3e5fd043-f0bf-4333-ac79-fa908eedf677",
+      "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "bindings": [
+        "APP_SERVICE",
+        "HIVE_DELIVERY_PILOT_MODE",
+        "HIVE_PROJECT_TASKS_ENABLED",
+        "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+        "HIVE_RUNTIME_TARGET",
+        "SOURCE_REVISION"
+      ],
+      "bindingTypes": [
+        {
+          "name": "APP_SERVICE",
+          "type": "service"
+        },
+        {
+          "name": "HIVE_DELIVERY_PILOT_MODE",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+          "type": "secret_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASKS_ENABLED",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_RUNTIME_TARGET",
+          "type": "plain_text"
+        },
+        {
+          "name": "SOURCE_REVISION",
+          "type": "plain_text"
+        }
+      ],
+      "appService": "hive-app-compatibility-preview",
+      "projectTasksEnabled": true,
+      "pilotMode": true,
+      "schedules": [],
+      "cpuMilliseconds": 100
+    }
+  },
+  "creationReceipt": {
+    "schemaVersion": 1,
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "name": "hive-jobs-compatibility-preview",
+    "runId": "caa661f3-19ca-4d76-a4ab-c363ac5ec726",
+    "sourceRevision": "01eb03baf28cde2ee771ce33dae49639c35f2562",
+    "tag": "51ca28a89d134c679186635d9162eb21",
+    "createdOn": "2026-11-05T19:03:31.414033Z",
+    "deploymentId": "5ebcc10e-eb86-49a9-b7d0-1186ecb540a0",
+    "versionId": "3e5fd043-f0bf-4333-ac79-fa908eedf677",
+    "action": "create",
+    "observedAt": "2026-11-05T19:03:55.435Z",
+    "schedules": []
+  },
+  "cloudWrites": ["create fixed jobs Worker with empty schedules"],
+  "scheduledInvocationsEnabled": false,
+  "publicUrlsEnabled": false,
+  "secretValuesRecorded": false
+}

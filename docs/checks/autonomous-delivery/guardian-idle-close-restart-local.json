@@ -1,0 +1,169 @@
+{
+  "manifestIdentitySynthetic": true,
+  "schemaVersion": 1,
+  "namespaceUid": 0,
+  "networkNamespaceIsolated": true,
+  "accountInference": false,
+  "cleanupAuthorized": false,
+  "firstInstall": "started",
+  "archiveSha256": "5f467d12ad449f7cdf864abcae3ac361a766277f9eda1e35f9e212141e3e2e7a",
+  "archiveEncoding": "xz",
+  "identities": {
+    "outerIdentity": {
+      "pid": 3274724,
+      "startTime": "1031169968",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "103942645",
+      "parentPid": 3274683
+    },
+    "guardianIdentity": {
+      "pid": 3274733,
+      "startTime": "1031169998",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/share/hive/codex-host/5f467d12ad449f7cdf864abcae3ac361a766277f9eda1e35f9e212141e3e2e7a/codex-native-guardian",
+      "device": "109",
+      "inode": "103942675",
+      "parentPid": 3274724
+    },
+    "workerIdentity": {
+      "pid": 3274734,
+      "startTime": "1031169999",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "103942645",
+      "parentPid": 3274733
+    }
+  },
+  "pins": {
+    "configSha256": "b3e184b19697f44f02cc739e9ca18ab5f6733430c70f0a1a85c0862c7f4142cb",
+    "packageManifestSha256": "93286d39628e3bdff236e23e92839cb7dbe6a51eff85435fc91bed28d6ff1e93",
+    "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+    "workerSha256": "6f7dae9b94ceda0b8b1a97cc700638ddb492c34669a0e805a7c7b0e2a9659661",
+    "guardianSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd"
+  },
+  "repeatInstall": "already_running",
+  "installerParentExited": true,
+  "exactWorkerOwnsListener": true,
+  "rejected": {
+    "nonce": true,
+    "configSha256": true,
+    "packageManifestSha256": true,
+    "oldPidStartTime": true,
+    "wrongParent": true
+  },
+  "missingReadyDoesNotRestart": true,
+  "liveConfigChangeRejected": true,
+  "idleLifetimes": [
+    {
+      "events": [
+        "begin",
+        "ready",
+        "launchIntent",
+        "open",
+        "startupReady",
+        "closing",
+        "workerClosed",
+        "receipt",
+        "idleTreeExited",
+        "idleClosed"
+      ],
+      "lifetimeId": "b3f82235-f575-4bae-b747-398bc290005b",
+      "finalWaitResult": "ECHILD",
+      "outerExitCode": 0,
+      "allChildrenReaped": true
+    },
+    {
+      "events": [
+        "begin",
+        "ready",
+        "launchIntent",
+        "open",
+        "startupReady",
+        "closing",
+        "workerClosed",
+        "receipt",
+        "idleTreeExited",
+        "idleClosed"
+      ],
+      "lifetimeId": "e4649546-d473-4809-a076-3c62b22a131d",
+      "finalWaitResult": "ECHILD",
+      "outerExitCode": 0,
+      "allChildrenReaped": true
+    }
+  ],
+  "idleRestartWithChangedBinding": true,
+  "authenticatedInnerArchive": true,
+  "noAuthenticationFiles": true,
+  "status": "passed",
+  "cleanup": {
+    "allFixtureChildrenReaped": true,
+    "reaped": 0,
+    "deadlineBoundSeconds": 6
+  },
+  "primaryPathsUnchanged": true,
+  "namespaceHostUid": 1000,
+  "guardianArtifact": {
+    "schemaVersion": 1,
+    "platform": "linux",
+    "architecture": "x64",
+    "sourceSha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "recipeSha256": "2e9905ec726242e9b87fb6b186746f43690c58de80a4fe75aceac182e90b8f83",
+    "builderSha256": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fPIE",
+      "-pie",
+      "-fstack-protector-strong",
+      "-D_FORTIFY_SOURCE=3",
+      "-Wl,-z,relro,-z,now",
+      "-Wl,--build-id=none"
+    ],
+    "elfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "compiler": {
+      "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+      "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "target": "x86_64-linux-gnu"
+    },
+    "ci": {
+      "repository": "kethalia/hive",
+      "commit": "bc2bc45da5a9c6063f473f483bcba24ae5593770",
+      "runId": "40968234189",
+      "runAttempt": "1"
+    }
+  },
+  "nativePins": {
+    "bin/codex": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+    "bin/codex-code-mode-host": "522935d4392ec9674fab60b239b5495992c6a93e4deb65113a216b6f5451ccd4",
+    "codex-resources/bwrap": "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36",
+    "codex-path/rg": "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+  },
+  "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+  "primaryHomeMounted": false,
+  "sourceSha256": {
+    "scripts/verify-codex-guarded-install.test.mjs": "db92c31a50d7d0bd2d72266b8b0d82782ea55d63a78a43f01018217f82f408e6",
+    "scripts/fixtures/workspace-identity-install.py": "626ffe6f96f01dca9638223478d42c84ff2a182da6bab14fcb5b5dfe4abaefca",
+    "scripts/build-codex-host-bundle.mjs": "60f6525c39d0a54d2ab5674daa29e4749ba4586ccd90a3bf03826f8100183d6f",
+    "scripts/build-native-guardian.mjs": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "d93283506d61ec476cc7ae4da1f9f1670d55d5c43fb0f97e00f118530249ec84",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "2e03bf3d111c9c32073a7f46c8ff93a7c34b0cfd6d9a97f5e27da0409122c591",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "669ed708894a025556fa867b0a49f733c809a5af006047484596582d62b09540",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "c870da0860daf3aa24bb28a0e7246ac5421b2269cbd4f01d8d2a60ebbb11ca5d",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "0957a486aefd6dadc66171b51aa7fbc85f5b4ce864165aab6c413c17f6a03f55",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-worker.mjs": "cf22f3311d32e15eee4ae91aa0d8d2bad6e1493d4ffaabd4c67440ed31a9d365",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "c1352964b0429367fa9d3f4165db1c6faa08d30a354230cf6d6c8e9ba94e6c7a",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "a290215a54a7e300717ed8ebbd7f55fea4af73f6304a32bc9ebc8994a3ec086d",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "f242fb43a60876b0af5a9edeb3773e18a9ea52e0f98991dd04c6c15aac694600",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c"
+  },
+  "sourceStable": true,
+  "recordedProcessesGone": true
+}

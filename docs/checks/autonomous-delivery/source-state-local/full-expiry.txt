@@ -1,0 +1,14 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/source-state.integration.test.ts (6 tests) 65124ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > reads accepted source after original publication wire expiry with no data writes or new authority  1550ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > rejects foreign owner/task/operation/revision/physical scope  636ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > distinguishes first historical output from second current output without relabeling or rollback  709ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > closed barrier remains closed for factual reads even after feature flags turn off  625ms
+   ✓ fresh accepted-source state (real local guardian/store, synthetic source/native fixtures) > actual61s recovery outlives original publication authority with real registration heartbeat  61332ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  00:05:02
+   Duration  65.65s (transform 295ms, setup 0ms, collect 396ms, tests 65.12s, environment 0ms, prepare 43ms)

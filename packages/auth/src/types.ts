@@ -64,7 +64,6 @@ export interface CredentialResponse {
 }
 
 export interface LoginRequest {
-  coderUrl: string;
   email: string;
   password: string;
 }
@@ -84,4 +83,16 @@ export interface CoderTokenResponse {
   token: string;
   coderUrl: string;
   expiresAt: string | null;
+  credentialSource?: string;
+}
+
+export interface CoderDisconnectRequest {
+  credentialId: string;
+  version: number;
+}
+
+export interface CoderDisconnectResult {
+  status: "disconnected";
+  providerRevocation: "acknowledged" | "unconfirmed";
+  currentConnection: "disconnected" | "changed" | "unknown";
 }

@@ -14,10 +14,15 @@ vi.mock("@/lib/coder/client", () => ({
   CoderClient: vi.fn(),
 }));
 
+vi.mock("../../../../services/auth/src/auth/coder-oauth-credentials", () => ({
+  getUsableCoderCredential: vi.fn(),
+}));
+
 import { tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getUsableCoderCredential } from "../../../../services/auth/src/auth/coder-oauth-credentials";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";
 const MOCK_CODER_URL = "https://coder.example.com";
@@ -56,14 +61,30 @@ describe("getCoderClientForUser", () => {
   };
 
   beforeEach(() => {
+    vi.stubEnv("CODER_URL", "https://coder.example.com");
     vi.mocked(getDb).mockReturnValue(mockDb as never);
     process.env.ENCRYPTION_KEY = "a".repeat(64);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     delete process.env.ENCRYPTION_KEY;
+  });
+
+  it("does not continue credential lookup or create a client after lifetime cancellation", async () => {
+    vi.clearAllMocks();
+    const controller = new AbortController();
+    mockDb.coderToken.findFirst.mockImplementationOnce(async () => {
+      controller.abort();
+      return null;
+    });
+    await expect(
+      getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal }),
+    ).rejects.toThrow();
+    expect(mockDb.user.findUnique).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
   });
 
   it("returns a CoderClient when user and token exist", async () => {
@@ -92,6 +113,44 @@ describe("getCoderClientForUser", () => {
     );
   });
 
+  it("uses the shared OAuth refresh path and carries Bearer provenance to the Coder client", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(
+      mockToken({ user: mockUser(), credentialSource: "oauth" }),
+    );
+    vi.mocked(tryDecrypt).mockClear();
+    vi.mocked(getUsableCoderCredential).mockResolvedValue({
+      token: "synthetic-access",
+      expiresAt: new Date(),
+      credentialSource: "oauth",
+    });
+    await getCoderClientForUser(MOCK_USER_ID);
+    expect(getUsableCoderCredential).toHaveBeenCalledWith(MOCK_USER_ID, {
+      db: mockDb,
+      signal: undefined,
+    });
+    expect(CoderClient).toHaveBeenLastCalledWith({
+      baseUrl: MOCK_CODER_URL,
+      sessionToken: "synthetic-access",
+      credentialSource: "oauth",
+    });
+    expect(tryDecrypt).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a legacy token after OAuth refresh fails", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(
+      mockToken({ user: mockUser(), credentialSource: "oauth" }),
+    );
+    vi.mocked(tryDecrypt).mockClear();
+    vi.mocked(CoderClient).mockClear();
+    vi.mocked(getUsableCoderCredential).mockRejectedValue(new Error("private provider detail"));
+    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toMatchObject({
+      code: UserClientError.OAUTH_RECONNECT,
+      message: "Coder browser sign-in must be reconnected",
+    });
+    expect(tryDecrypt).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
+  });
+
   it("queries for the most recent token", async () => {
     mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
     vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "tok" });
@@ -104,6 +163,21 @@ describe("getCoderClientForUser", () => {
       orderBy: { createdAt: "desc" },
       include: { user: true },
     });
+  });
+
+  it("rejects credentials bound to another origin before decryption or network setup", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(
+      mockToken({
+        user: mockUser({ coderUrl: "https://old-coder.example.com" }),
+      }),
+    );
+    vi.mocked(tryDecrypt).mockClear();
+    vi.mocked(CoderClient).mockClear();
+    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toMatchObject({
+      code: UserClientError.ORIGIN_MISMATCH,
+    });
+    expect(tryDecrypt).not.toHaveBeenCalled();
+    expect(CoderClient).not.toHaveBeenCalled();
   });
 
   it("throws USER_NOT_FOUND when user does not exist", async () => {

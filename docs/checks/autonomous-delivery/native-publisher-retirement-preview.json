@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Retire empty custom native publisher database surface in existing previews",
+  "sourceCommit": "6500f9219b4023734593b0109029385c399398d4",
+  "completedAt": "2026-11-07T16:45:08.066242+00:00",
+  "productionChanged": false,
+  "applicationDeploymentPerformed": false,
+  "newResourcesOrCredentialsCreated": false,
+  "databases": [
+    {
+      "database": "hive_app_preview",
+      "runtimeRole": "hive_app_runtime",
+      "verifiedAt": "2026-11-07T16:44:30.890895+00:00",
+      "completedMigrations": 46,
+      "beforePublisherTableCounts": {
+        "delivery_native_release_artifacts": 0,
+        "delivery_native_release_baselines": 0,
+        "delivery_native_publication_receipts": 0,
+        "delivery_native_publication_grants": 0
+      },
+      "publisherTablesRemoved": 4,
+      "publisherFunctionsRemoved": 3,
+      "prior45HistoryAndChecksumsPreserved": true,
+      "nonpublisherRowsPreserved": true,
+      "runtimeGrantsVerified": true,
+      "recoveryHistoryDeleteAllowed": false,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "createdAt": "2026-11-07T16:38:09.272332+00:00",
+        "bytes": 419505,
+        "customFormat": true,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false,
+        "location": "Private primary workspace archive; no contents or hashes exported"
+      }
+    },
+    {
+      "database": "hive_native_preview",
+      "runtimeRole": "hive_native_runtime",
+      "verifiedAt": "2026-11-07T16:45:08.065128+00:00",
+      "completedMigrations": 46,
+      "beforePublisherTableCounts": {
+        "delivery_native_publication_grants": 0,
+        "delivery_native_publication_receipts": 0,
+        "delivery_native_release_baselines": 0,
+        "delivery_native_release_artifacts": 0
+      },
+      "publisherTablesRemoved": 4,
+      "publisherFunctionsRemoved": 3,
+      "prior45HistoryAndChecksumsPreserved": true,
+      "nonpublisherRowsPreserved": true,
+      "runtimeGrantsVerified": true,
+      "recoveryHistoryDeleteAllowed": false,
+      "oldAppRoleCanConnectNative": false,
+      "backup": {
+        "createdAt": "2026-11-07T16:38:35.337980+00:00",
+        "bytes": 443856,
+        "customFormat": true,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false,
+        "location": "Private primary workspace archive; no contents or hashes exported"
+      }
+    }
+  ],
+  "lockScope": {
+    "explicitExclusiveLocks": "Only four retired publisher tables",
+    "implicitForeignKeyMetadataLocks": ["delivery_releases", "delivery_release_actions"],
+    "lockTimeoutSeconds": 5,
+    "statementTimeoutSeconds": 30
+  },
+  "verificationReconciliation": {
+    "database": "hive_app_preview",
+    "reason": "Private verifier initially expected DELETE on immutable recovery history; canonical grants correctly deny DELETE",
+    "method": "Read-only migration history, schema, all nonpublisher rows and canonical grants reverified",
+    "migrationReplayed": false,
+    "databaseRepairPerformed": false
+  }
+}

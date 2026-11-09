@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "phase": "A",
+  "passed": false,
+  "stage": "open",
+  "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+  "preflightDigest": "307df48e04ff59e3a63100522ba5658880bd152c183c715bcf034c96306b95ce",
+  "checks": {
+    "credentialsOnlyFixedHostLogin": true,
+    "loggedInViaUI": true,
+    "secureCookie": true,
+    "appVersionMatches": true,
+    "appBuildMatches": true,
+    "reviewedBuild": true,
+    "discoveredExpectedRepository": true,
+    "searchMatchesAndMisses": true,
+    "taskNullProjectOpenedViaUI": true,
+    "taskControlsUnavailable": true,
+    "responsiveWithoutHorizontalOverflow": true
+  },
+  "pending": {
+    "conversation": "requires_real_registered_pilot",
+    "reconnect": "requires_real_registered_pilot",
+    "terminal": "requires_real_registered_pilot",
+    "nativePrompt": "not_authorized_in_phase_A"
+  },
+  "budget": {
+    "forwarded": 52,
+    "cumulativeForwarded": 93,
+    "priorForwarded": 41,
+    "limit": 200,
+    "elapsedMs": 24154,
+    "loginPosts": 1,
+    "openPosts": 1,
+    "repositoryReads": 1,
+    "blocked": {
+      "scope": 2
+    }
+  },
+  "requests": {
+    "page": 14,
+    "asset": 31,
+    "auth": 1,
+    "discovery": 1,
+    "repositories": 1,
+    "open": 1
+  },
+  "blockedRequests": [
+    {
+      "sameOrigin": true,
+      "path": "/",
+      "method": "GET",
+      "nextAction": false,
+      "hasQuery": true
+    },
+    {
+      "sameOrigin": true,
+      "path": "/",
+      "method": "GET",
+      "nextAction": false,
+      "hasQuery": true
+    }
+  ],
+  "webSocketsBlocked": 0,
+  "pageErrors": 0,
+  "cleanupAttempted": true,
+  "cleanupSucceeded": true,
+  "browser": "155.0.8059.79",
+  "screenshots": false,
+  "traces": false,
+  "consoleCaptured": false,
+  "projectTasksStarted": false,
+  "nativePromptSent": false,
+  "hostSessionIdentityProven": false,
+  "coderKeyRetainedForRotation": true,
+  "outerPreviewHttpBudgetOnly": true,
+  "backendProviderFanoutMeasured": false,
+  "sourceHashes": {
+    "browser.mjs": "d168e2f02853ad22b143dfe33585eb59cc234c4c4a1827e65e826814d7f384af",
+    "policy.mjs": "50b9a10fc54a6a5a51b7aab184c5cbcbdb2b9c54413c824b2cbcd78e8a8f8c5d",
+    "policy.test.mjs": "ed4360c96afc2f6940898241c8b87411e306f21d7aa45a99e44f7cf3fe0d134c",
+    "package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b"
+  },
+  "controllerSha256": "12b89bd0dfe8f4a98211b3ec8e738fe9b4ad200ccf86c5956af7d03c55594726",
+  "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "buildId": "8e3860b5-5ba2-4b95-a26c-1f673138a26d",
+  "observedAt": "2026-10-30T07:04:14.419837+00:00"
+}

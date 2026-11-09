@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "sourceRevision": "dbe913001d14173b4c127a83b483d8f7bdbfe1f0",
+  "observedAt": "2026-11-05T19:44:53.620Z",
+  "deploymentState": "inactive-production-reservation",
+  "records": [
+    {
+      "name": "hive-auth-production",
+      "tag": "77c9597ce4384bd8bc4f4ee8afcf2f6f",
+      "createdOn": "2026-11-05T19:44:44.023279Z",
+      "subdomain": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "deployment": {
+        "id": "32f3b247-f9f5-497a-813f-4da7e0c0f78c",
+        "source": "api",
+        "strategy": "percentage",
+        "author_email": "b00ste@chillwhales.com",
+        "annotations": {
+          "workers/message": "Automatic deployment on upload.",
+          "workers/triggered_by": "upload"
+        },
+        "versions": [
+          {
+            "version_id": "1e23bb35-4cef-4954-910d-40f19139c900",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-11-05T19:44:44.023279Z"
+      },
+      "schedules": {
+        "schedules": []
+      },
+      "bindings": [
+        {
+          "name": "HIVE_DELIVERY_DATABASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DEPLOYMENT_STATE",
+          "text": "awaiting-main-release",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASKS_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        }
+      ],
+      "limits": {
+        "cpu_ms": 100
+      }
+    },
+    {
+      "name": "hive-app-production",
+      "tag": "542e3a1cdd644f5b8d8526d163a3bd89",
+      "createdOn": "2026-11-05T19:44:47.42816Z",
+      "subdomain": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "deployment": {
+        "id": "0706b895-b1c7-44f5-a465-f29b9b509800",
+        "source": "api",
+        "strategy": "percentage",
+        "author_email": "b00ste@chillwhales.com",
+        "annotations": {
+          "workers/message": "Automatic deployment on upload.",
+          "workers/triggered_by": "upload"
+        },
+        "versions": [
+          {
+            "version_id": "a6bed834-3b6c-4e91-8b59-03cd8dd63c0c",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-11-05T19:44:47.42816Z"
+      },
+      "schedules": {
+        "schedules": []
+      },
+      "bindings": [
+        {
+          "name": "HIVE_DELIVERY_DATABASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DEPLOYMENT_STATE",
+          "text": "awaiting-main-release",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASKS_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        }
+      ],
+      "limits": {
+        "cpu_ms": 100
+      }
+    },
+    {
+      "name": "hive-jobs-production",
+      "tag": "06a054b7b24a40f99c0c1afa2a8105ed",
+      "createdOn": "2026-11-05T19:44:51.259094Z",
+      "subdomain": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "deployment": {
+        "id": "a321f2a0-d3ca-4fb0-9d5a-be385a2d88e8",
+        "source": "api",
+        "strategy": "percentage",
+        "author_email": "b00ste@chillwhales.com",
+        "annotations": {
+          "workers/message": "Automatic deployment on upload.",
+          "workers/triggered_by": "upload"
+        },
+        "versions": [
+          {
+            "version_id": "febc83c4-cb4a-462e-a11e-7f6dbe8cfac3",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-11-05T19:44:51.259094Z"
+      },
+      "schedules": {
+        "schedules": []
+      },
+      "bindings": [
+        {
+          "name": "HIVE_DELIVERY_DATABASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_DEPLOYMENT_STATE",
+          "text": "awaiting-main-release",
+          "type": "plain_text"
+        },
+        {
+          "name": "HIVE_PROJECT_TASKS_ENABLED",
+          "text": "false",
+          "type": "plain_text"
+        }
+      ],
+      "limits": {
+        "cpu_ms": 100
+      }
+    }
+  ],
+  "bootstrapCode": "// An inert reservation: it has no bindings, outbound calls, or scheduled handler.\nexport default {\n  fetch() {\n    return new Response(\"deployment_pending\", {\n      status: 503,\n      headers: {\n        \"cache-control\": \"private, no-store\",\n        \"content-type\": \"text/plain; charset=utf-8\",\n        \"x-content-type-options\": \"nosniff\",\n      },\n    });\n  },\n};\n",
+  "productionCutover": false,
+  "runtimeApplicationDeployed": false,
+  "finalReadback": {
+    "observedAt": "2026-11-05T19:46:32.945Z",
+    "production": [
+      {
+        "name": "hive-app-production",
+        "tag": "542e3a1cdd644f5b8d8526d163a3bd89",
+        "createdOn": "2026-11-05T19:44:47.42816Z",
+        "routes": null,
+        "logpush": false
+      },
+      {
+        "name": "hive-auth-production",
+        "tag": "77c9597ce4384bd8bc4f4ee8afcf2f6f",
+        "createdOn": "2026-11-05T19:44:44.023279Z",
+        "routes": null,
+        "logpush": false
+      },
+      {
+        "name": "hive-jobs-production",
+        "tag": "06a054b7b24a40f99c0c1afa2a8105ed",
+        "createdOn": "2026-11-05T19:44:51.259094Z",
+        "routes": null,
+        "logpush": false
+      }
+    ],
+    "productionDomains": [],
+    "previewAppState": {
+      "enabled": true,
+      "previews_enabled": false
+    }
+  }
+}

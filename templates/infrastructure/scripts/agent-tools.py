@@ -435,15 +435,47 @@ def resume(key):
             return {"sessionName": name}
         command = [agent, "resume" if agent == "codex" else "--resume", record["id"]]
         environment = []
+        unset = []
+        for variable in ("CODEX_HOME", "CLAUDE_CONFIG_DIR"):
+            if variable in os.environ:
+                environment += ["-e", variable + "=" + os.environ[variable]]
+            else:
+                # An existing tmux server may have inherited an obsolete value.
+                unset += ["-u", variable]
         if shutil.which("hive-audio"):
             code, pulse = run(["hive-audio", "prepare", "--", name], timeout=5)
             if code == 0 and pulse.strip().startswith("unix:") and "\n" not in pulse.strip():
-                environment = ["-e", "PULSE_SERVER=" + pulse.strip()]
+                environment += ["-e", "PULSE_SERVER=" + pulse.strip()]
+        if unset:
+            command = ["/usr/bin/env", *unset, *command]
         code, _ = run(["tmux", "-L", "web", "new-session", "-d", "-s", name,
                        "-c", str(cwd), *environment, *command])
         if code:
             raise ValueError("Could not open the recovery terminal; refresh and try again")
         return {"sessionName": name}
+
+
+def terminal_session(request):
+    operation = request.get("operation")
+    keys = {"operation", "oldName", "newName"} if operation == "rename-terminal-session" else {"operation", "sessionName"}
+    if operation not in ("rename-terminal-session", "kill-terminal-session") or set(request) != keys:
+        raise ValueError("Invalid terminal operation")
+    def name(value):
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value) or value.startswith("git-clone-"):
+            raise ValueError("Invalid terminal session")
+        return value
+    if operation == "rename-terminal-session":
+        old, new = name(request["oldName"]), name(request["newName"])
+        args = ["/usr/bin/tmux", "-L", "web", "rename-session", "-t", "=" + old, new]
+        result = {"oldName": old, "newName": new}
+    else:
+        target = name(request["sessionName"])
+        args = ["/usr/bin/tmux", "-L", "web", "kill-session", "-t", "=" + target]
+        result = {"name": target}
+    code, _ = run(args)
+    if code != 0:
+        raise ValueError("Terminal operation failed")
+    return result
 
 
 def main():
@@ -459,7 +491,9 @@ def main():
     request = json.loads(sys.stdin.read(LIMIT + 1))
     operation = request.get("operation")
     try:
-        if operation == "inspect":
+        if operation in ("rename-terminal-session", "kill-terminal-session"):
+            result = terminal_session(request)
+        elif operation == "inspect":
             result = inspect()
         elif operation == "inventory":
             result = inspect_inventory()

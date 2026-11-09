@@ -1,0 +1,242 @@
+{
+  "fixture": "hive_acceptance_test_upgrade",
+  "migrations": {
+    "0_init": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c",
+    "20260602000000_add_navigation_favorites": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2",
+    "20260603000000_add_terminal_controls_beyond_mobile": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4",
+    "20260714000000_add_navigation_favorite_position": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409",
+    "20260814000000_remove_legacy_tasks": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7",
+    "20261016000000_add_agent_notifications": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f",
+    "20261016010000_stage_notification_credentials": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b",
+    "20261029000000_add_delivery_foundation": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04",
+    "20261029010000_delivery_audit_integrity": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12",
+    "20261029020000_delivery_report_event_binding": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb",
+    "20261029030000_delivery_runtime_recovery": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae",
+    "20261029040000_coder_token_key_provenance": "79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b",
+    "20261029050000_codex_host_registration": "4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056",
+    "20261029060000_codex_heartbeat_ack": "a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d",
+    "20261029070000_project_task_intents": "c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2",
+    "20261029071000_project_intent_payload_guards": "d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f",
+    "20261029072000_project_intent_source_context": "06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97",
+    "20261029073000_project_preparation_progress": "dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c",
+    "20261029090000_delivery_manager_binding": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+    "20261029100000_delivery_informational_report": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+    "20261029100100_delivery_report_null_guard": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+    "20261029110000_delivery_manager_progression": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+    "20261029120000_delivery_source_revisions": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+    "20261029130000_guardian_admission": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7",
+    "20261029140000_delivery_source_application": "7a06ad285de5ef6cf47c51b796a0ca15d8a2ec503104c61764caafcbd73b1909",
+    "20261029150000_credential_rotation_scheduler": "6fb7009af531dbe174f0789d7fe98520a6b645b05138dfec8a57720fe70ce488",
+    "20261029160000_template_publication": "54f451575e16aa77ad0a4e58e2c483090db96fbf02afef76c582c2c3b6b3c8dd",
+    "20261029170000_template_publication_creation": "e523c9cf5bebf7927af66887aaa192bcba19e9e9b919444567eae295d6150637",
+    "20261029180000_template_publication_notices": "a590d0839853d4c554168cc5c21dd02231b090dd78a6bb6976902c1d972e0e91",
+    "20261029190000_delivery_repository_policy": "296c5952f0701fcfafe431dca66b22074c5edcd440ed73f678caea45cb3dc1b3",
+    "20261029200000_delivery_acceptance": "0bd8d40821f150e69b76817845e6f37ba8966117cdbb8709144d4d91a1f3488d"
+  },
+  "restrictedRole": {
+    "delivery_acceptance_intents": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": false
+    },
+    "delivery_acceptance_jobs": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": true
+    },
+    "delivery_acceptance_plans": {
+      "DELETE": false,
+      "INSERT": true,
+      "SELECT": true,
+      "TRUNCATE": false,
+      "UPDATE": false
+    }
+  },
+  "schemaVersion": 1,
+  "tables": {
+    "coder_tokens": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "codex_guardian_admissions": {
+      "digest": "f04d4fe9b1da43144a9f10da30588821",
+      "rows": 89
+    },
+    "codex_guardian_barriers": {
+      "digest": "542864adf73a13cd4822eba5377a1671",
+      "rows": 2
+    },
+    "codex_guardian_enrollment_grants": {
+      "digest": "5b8aca182f247279fe48de7824345dff",
+      "rows": 89
+    },
+    "codex_guardian_runtimes": {
+      "digest": "298e93399e4e94cc56987d28c65c57e4",
+      "rows": 89
+    },
+    "codex_guardian_stop_decisions": {
+      "digest": "3a34d87d68ea3460415cef6d067a57dd",
+      "rows": 2
+    },
+    "codex_host_registrations": {
+      "digest": "0d81bf80c2477310a589ae820d0e00fc",
+      "rows": 327
+    },
+    "codex_host_slots": {
+      "digest": "55721fef7e31acfe3da84d01186ddf98",
+      "rows": 319
+    },
+    "codex_registered_threads": {
+      "digest": "3edc49f186c70c974b5bbdbde39d37f0",
+      "rows": 327
+    },
+    "codex_registration_grants": {
+      "digest": "01c9c33eddfd868b855900cc30f2b0d9",
+      "rows": 327
+    },
+    "credential_expiry_notices": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "credential_rotation_operations": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "credential_rotation_schedules": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_acceptance_intents": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_acceptance_jobs": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_acceptance_plans": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "delivery_attempts": {
+      "digest": "8f96dde9990dbe9b7289ae8a924efb70",
+      "rows": 379
+    },
+    "delivery_conversations": {
+      "digest": "bb4238be474cf83597c66a9aea9eb461",
+      "rows": 405
+    },
+    "delivery_epics": {
+      "digest": "00bf4487ddb204df09ab8c5c7b735ad9",
+      "rows": 2
+    },
+    "delivery_events": {
+      "digest": "01e6f45f1a5b0aa8795bd3fb284e9dcf",
+      "rows": 2005
+    },
+    "delivery_evidence": {
+      "digest": "befd3ae99bab805593414d2a2de72acc",
+      "rows": 286
+    },
+    "delivery_manager_bindings": {
+      "digest": "3082e248665bbe7843ab20307e2eac65",
+      "rows": 367
+    },
+    "delivery_outbox": {
+      "digest": "ef52a4fafe1b4054cbf3ff686a97c65c",
+      "rows": 263
+    },
+    "delivery_projects": {
+      "digest": "9290c0a17b0119a4b106eb8f2954c46c",
+      "rows": 522
+    },
+    "delivery_report_evidence": {
+      "digest": "aaff5407075cda004a716c2ed6699db7",
+      "rows": 62
+    },
+    "delivery_repository_policies": {
+      "digest": "44bbf219cf57325c446a73c8a7c8c167",
+      "rows": 140
+    },
+    "delivery_repository_policy_versions": {
+      "digest": "1823097738267cdda954e5d56a55527f",
+      "rows": 159
+    },
+    "delivery_source_applications": {
+      "digest": "09f1eafbc227e9b8fbe08afe1b031bc7",
+      "rows": 6
+    },
+    "delivery_source_revisions": {
+      "digest": "ce4bf5e6905ff73cbd39cd42effd0621",
+      "rows": 101
+    },
+    "delivery_step_dependencies": {
+      "digest": "4da87c45718b094b2227f348ebf6cbf7",
+      "rows": 212
+    },
+    "delivery_step_reports": {
+      "digest": "341b86a86a22a3aac931d3e683217150",
+      "rows": 108
+    },
+    "delivery_steps": {
+      "digest": "5e55991847c5222956bf2d0b21c1cdcf",
+      "rows": 709
+    },
+    "delivery_task_policy_bindings": {
+      "digest": "80eb10a6d3162ff859933df264d9ec8c",
+      "rows": 105
+    },
+    "delivery_tasks": {
+      "digest": "716e0322979c001137c3e018c60a23e5",
+      "rows": 491
+    },
+    "navigation_favorites": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "notification_sources": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "project_task_intents": {
+      "digest": "7334bbfb587b4c7c8e87b7e71cf96479",
+      "rows": 485
+    },
+    "push_subscriptions": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "sessions": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_events": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_jobs": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_notices": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "template_publication_targets": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    },
+    "users": {
+      "digest": "0b415f34a1addae2fa8b7ecc6c799743",
+      "rows": 458
+    },
+    "vapid_keys": {
+      "digest": "d41d8cd98f00b204e9800998ecf8427e",
+      "rows": 0
+    }
+  }
+}

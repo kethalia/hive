@@ -1,0 +1,28 @@
+{"attackResult":"{\"ok\":true}","events":[{"method":"turn/started","params":{"threadId":"01a18b94-ee79-7ce1-94cc-6689122a7372","turn":{"id":"01a18b94-ef2e-72b2-96a0-8b7eba323373","rootTurnId":"01a18b94-ef2e-72b2-96a0-8b7eba323373","items":[],"itemsView":"notLoaded","status":"inProgress","error":null,"startedAt":1793343156,"completedAt":null,"durationMs":null}},"emittedAtMs":1793343156185},{"method":"item/completed","params":{"item":{"type":"userMessage","id":"01a18b94-f055-76c3-b1bb-14b501f18479","clientId":null,"content":[{"type":"text","text":"{\"input\":\"LOCAL_ACCEPTANCE_FIXTURE\",\"inputDigest\":\"16538d5136caba637cf03de2f1dec5a902fe0bef8795122cdd41e1724d9f5b0f\"}","text_elements":[]}]},"threadId":"01a18b94-ee79-7ce1-94cc-6689122a7372","turnId":"01a18b94-ef2e-72b2-96a0-8b7eba323373","completedAtMs":1793343156310},"emittedAtMs":1793343156312},{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m3","text":"{\"ok\":true}","phase":null,"memoryCitation":null,"delivery":null,"questions":null},"threadId":"01a18b94-ee79-7ce1-94cc-6689122a7372","turnId":"01a18b94-ef2e-72b2-96a0-8b7eba323373","completedAtMs":1793343156663},"emittedAtMs":1793343156663},{"method":"turn/completed","params":{"threadId":"01a18b94-ee79-7ce1-94cc-6689122a7372","turn":{"id":"01a18b94-ef2e-72b2-96a0-8b7eba323373","rootTurnId":"01a18b94-ef2e-72b2-96a0-8b7eba323373","items":[{"type":"agentMessage","id":"m3","text":"{\"ok\":true}","phase":null,"memoryCitation":null,"delivery":null,"questions":null}],"itemsView":"summary","status":"completed","error":null,"startedAt":1793343156,"completedAt":1793343156,"durationMs":652}},"emittedAtMs":1793343156670}],"toolReplies":[{"type":"function_call_output","id":"fco_01a18b94-f1a6-7483-8978-5b0bc28366d0","call_id":"incoming-call","output":"agent with id 01a18b94-ee79-7ce1-94cc-6689122a7372 not found"}],"advertised":[["send_message","spawn_agent","functions.exec"],["send_message","spawn_agent","functions.exec"],["send_message","spawn_agent","functions.exec"]],"toolNames":[[],[]]}
+Acceptance fixture retained: /home/coder/projects/kethalia/hive/.ae-C7KP1h
+✖ actual manager cannot contaminate an evaluator result through incoming send_input (2782.461926ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2860.199706
+
+✖ failing tests:
+
+test at scripts/verify-codex-acceptance-native.test.mjs:246:39
+✖ actual manager cannot contaminate an evaluator result through incoming send_input (2782.461926ms)
+  AssertionError [ERR_ASSERTION]: incoming input was accepted
+      at TestContext.<anonymous> (file:///home/coder/projects/kethalia/hive/scripts/verify-codex-acceptance-native.test.mjs:393:547)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'fail',
+    diff: 'simple'
+  }

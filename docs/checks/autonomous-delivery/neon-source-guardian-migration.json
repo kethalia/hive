@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "database": "hive_app_preview",
+  "role": "hive_epic_owner",
+  "host": "ep-jolly-sky-b7fhirib.c-13.us-east-1.aws.neon.tech",
+  "migrationSourceRevision": "d6f9e9f20fe1f32e44e4a0e2af9f0c69f8bac5f9",
+  "beforeMigrationCount": 19,
+  "pending": [
+    "20261029100000_delivery_informational_report",
+    "20261029100100_delivery_report_null_guard",
+    "20261029110000_delivery_manager_progression",
+    "20261029120000_delivery_source_revisions",
+    "20261029130000_guardian_admission"
+  ],
+  "allExistingChecksumsMatch": true,
+  "incompatibleReportedSteps": 0,
+  "beforeCounts": {
+    "users": 1,
+    "sessions": 0,
+    "coderTokens": 1,
+    "projects": 0,
+    "tasks": 0,
+    "steps": 0,
+    "events": 0
+  },
+  "productionDatabaseAccessed": false,
+  "observedAt": "2026-10-30T01:20:29.644510+00:00",
+  "afterMigrationCount": 24,
+  "afterCounts": {
+    "users": 1,
+    "sessions": 0,
+    "coderTokens": 1,
+    "projects": 0,
+    "tasks": 0,
+    "steps": 0,
+    "events": 0
+  },
+  "applied": [
+    {
+      "migration_name": "20261029100000_delivery_informational_report",
+      "checksum": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+      "finished": true,
+      "rolled_back": false
+    },
+    {
+      "migration_name": "20261029100100_delivery_report_null_guard",
+      "checksum": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+      "finished": true,
+      "rolled_back": false
+    },
+    {
+      "migration_name": "20261029110000_delivery_manager_progression",
+      "checksum": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+      "finished": true,
+      "rolled_back": false
+    },
+    {
+      "migration_name": "20261029120000_delivery_source_revisions",
+      "checksum": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+      "finished": true,
+      "rolled_back": false
+    },
+    {
+      "migration_name": "20261029130000_guardian_admission",
+      "checksum": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7",
+      "finished": true,
+      "rolled_back": false
+    }
+  ],
+  "allSourceChecksumsMatch": true,
+  "existingMigrationHistoryPreserved": true,
+  "baselinePreflight": true,
+  "runtimeRolePrivileges": {
+    "canRead": true,
+    "canInsert": true,
+    "canCreateSchema": false
+  },
+  "runtimeRoleUsedForDDL": false,
+  "migrationCommand": "existing services/migrate/src/migrate.mjs via direct owner connection",
+  "runtimeTableGrants": {
+    "tables": [
+      "delivery_source_revisions",
+      "codex_guardian_runtimes",
+      "codex_guardian_enrollment_grants",
+      "codex_guardian_admissions",
+      "codex_guardian_barriers",
+      "codex_guardian_stop_decisions",
+      "delivery_manager_bindings"
+    ],
+    "privileges": ["SELECT", "INSERT", "UPDATE"],
+    "deleteOrDDLGranted": false
+  },
+  "followup": "Actual workerd task-read probe identified missing runtime access to the existing manager binding table; exact SELECT/INSERT/UPDATE grant added, failure retained."
+}

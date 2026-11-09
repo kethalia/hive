@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T12:03:19.102631+00:00",
+  "sourceRevision": "7cdf06a8ab988a737c16eb69cf861c5acee97554",
+  "scope": "existing isolated Preview databases only",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "migration": "20261106110000_native_preview_release_publication",
+  "databases": [
+    {
+      "database": "hive_app_preview",
+      "runtimeRole": "hive_app_runtime",
+      "completedMigrations": 45,
+      "prior44HistoryAndChecksumsPreserved": true,
+      "priorRowsPreserved": true,
+      "newTablesEmpty": true,
+      "newTablesAppendOnlyGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "privateBackupBytes": 394732,
+      "archiveDecodeVerified": true
+    },
+    {
+      "database": "hive_native_preview",
+      "runtimeRole": "hive_native_runtime",
+      "completedMigrations": 45,
+      "prior44HistoryAndChecksumsPreserved": true,
+      "priorRowsPreserved": true,
+      "newTablesEmpty": true,
+      "newTablesAppendOnlyGrantsVerified": true,
+      "oldAppRoleCanConnectNative": false,
+      "privateBackupBytes": 419083,
+      "archiveDecodeVerified": true
+    }
+  ],
+  "productionChanged": false,
+  "releaseAuthorityEnabled": false,
+  "fullBackupRestoreTested": false
+}

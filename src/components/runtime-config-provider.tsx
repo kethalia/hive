@@ -34,8 +34,40 @@ export function useRuntimeConfig(): RuntimeConfig {
   const codexVoiceEnabled = providedConfig
     ? providedConfig.codexVoiceEnabled
     : getClientRuntimeConfig().codexVoiceEnabled;
+  const projectDiscoveryEnabled = providedConfig
+    ? providedConfig.projectDiscoveryEnabled
+    : getClientRuntimeConfig().projectDiscoveryEnabled;
+  const projectTasksEnabled = providedConfig
+    ? providedConfig.projectTasksEnabled
+    : getClientRuntimeConfig().projectTasksEnabled;
+  const deliveryEnabled = providedConfig
+    ? providedConfig.deliveryEnabled
+    : getClientRuntimeConfig().deliveryEnabled;
+  const capabilitiesKey = JSON.stringify(
+    (providedConfig
+      ? providedConfig.workspaceCapabilities
+      : getClientRuntimeConfig().workspaceCapabilities) ?? null,
+  );
+  const workspaceCapabilities = useMemo(
+    () => JSON.parse(capabilitiesKey) as RuntimeConfig["workspaceCapabilities"] | null,
+    [capabilitiesKey],
+  );
   return useMemo(
-    () => ({ terminalWsUrl, ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}) }),
-    [terminalWsUrl, codexVoiceEnabled],
+    () => ({
+      terminalWsUrl,
+      ...(workspaceCapabilities ? { workspaceCapabilities } : {}),
+      ...(projectTasksEnabled ? { projectTasksEnabled } : {}),
+      ...(deliveryEnabled ? { deliveryEnabled } : {}),
+      ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}),
+      ...(projectDiscoveryEnabled ? { projectDiscoveryEnabled } : {}),
+    }),
+    [
+      terminalWsUrl,
+      workspaceCapabilities,
+      codexVoiceEnabled,
+      projectDiscoveryEnabled,
+      projectTasksEnabled,
+      deliveryEnabled,
+    ],
   );
 }

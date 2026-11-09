@@ -3,7 +3,7 @@ import type { Socket } from "node:net";
 import { Duplex } from "node:stream";
 import { WebSocket } from "ws";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
-import { VoiceRpc } from "./voice-rpc";
+import { VoiceRpc, type VoiceSocket } from "./voice-rpc";
 
 export async function connectWorkspaceCodex(
   userId: string,
@@ -42,7 +42,7 @@ export async function connectWorkspaceCodex(
       "ProxyCommand=coder ssh --stdio %h",
       target,
       threadId
-        ? `bash -lc 'umask 077; mkdir -p "\${CODEX_HOME:-$HOME/.codex}/hive-voice" && exec flock -n "\${CODEX_HOME:-$HOME/.codex}/hive-voice/${threadId}.lock" codex app-server proxy'`
+        ? `bash -lc 'umask 077; mkdir -p "$HOME/.codex/hive-voice" && exec flock -n "$HOME/.codex/hive-voice/${threadId.toLowerCase()}.lock" codex app-server proxy'`
         : "bash -lc 'exec codex app-server proxy'",
     ],
     {
@@ -65,7 +65,25 @@ export async function connectWorkspaceCodex(
     child.kill();
     transport.destroy();
   };
-  const rpc = new VoiceRpc(socket, dispose);
+  const transportSocket: VoiceSocket = {
+    get readyState() {
+      return socket.readyState;
+    },
+    onMessage: (listener) => {
+      socket.on("message", (raw) => listener(raw.toString()));
+    },
+    onError: (listener) => {
+      socket.on("error", listener);
+    },
+    onClose: (listener) => {
+      socket.on("close", listener);
+    },
+    send: (data, callback) => {
+      socket.send(data, callback);
+    },
+    close: () => socket.terminate(),
+  };
+  const rpc = new VoiceRpc(transportSocket, dispose);
   child.on("error", () => rpc.close());
   child.on("exit", () => rpc.close());
   const abort = () => rpc.close();

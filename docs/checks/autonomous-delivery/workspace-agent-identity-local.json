@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "sourceStable": true,
+  "sourceDigests": {
+    "tools/workspace-identity/pins.json": "7dd1da9022bf767c64724695463785bd1c23beab91eeb73ed9d0c4ef757b7b02",
+    "tools/workspace-identity/go.sum": "05e5cd00e38f889585c41983fec3b7039849cdbb8ad1e6219936c55b212ca852",
+    "tools/workspace-identity/main_test.go": "4208ddfded86ee63d9a56ea07586da43d763d038862e5ca052ad6f4e9959ddde",
+    "tools/workspace-identity/README.md": "69501971d339aa8ce174f207ca0c1753074864d4964bab3a91f52d5180191918",
+    "tools/workspace-identity/main.go": "1e2084f964f7946c0dee1ad10cf7665e8393c9fe8bfeb316a041839f6e9f8670",
+    "tools/workspace-identity/go.mod": "4e762cd3d765362aeec5a12b9b58c72a77504df8a1b5ae0a7cac8237b8dcd62a"
+  },
+  "toolchain": "go1.26.10",
+  "testsPassed": 21,
+  "testsSkipped": 1,
+  "modulesVerified": true,
+  "compiledPackageCount": 1385,
+  "allModuleEnumeration": "nonessential inspection timed out after 30s; compiled dependency list succeeded",
+  "binary": {
+    "bytes": 54091902,
+    "sha256": "4456833468c60880c5c7cca4c1cea13a8a24ec0fb4296a7e5488a59725805084",
+    "staticELF64AMD64": true,
+    "repeatedBuildIdentical": true
+  },
+  "diagnosticArtifact": {
+    "bytes": 54866046,
+    "sha256": "72a9e66336b5a4ad1e2af5b7c63d63fd198f946adedbdd7eba7aa4441e3dcfa7"
+  },
+  "createdAt": "2026-10-30T05:10:23.040118+00:00",
+  "baseRevisionAtEvidenceWrite": "d91cb4627fbc89f91b2272be0466c2419af38664",
+  "testedSourcesCommitted": false,
+  "sourceIdentity": "exact file digests; base revision is later observation, not a committed test identity",
+  "liveReadOnlyProbe": {
+    "diagnosticExit": 0,
+    "report": {
+      "agentDiffersFromProvisional": true,
+      "agentMatchesOwnerAPI": true,
+      "buildMatches": false,
+      "buildMetadataPresent": false,
+      "normalizationAccepted": false,
+      "rpcRead": true,
+      "schemaVersion": 1,
+      "sdkVersion": "v2.38.4",
+      "workspaceMatches": true
+    },
+    "artifactSha256": "72a9e66336b5a4ad1e2af5b7c63d63fd198f946adedbdd7eba7aa4441e3dcfa7",
+    "elapsedSeconds": 2.509,
+    "manifestReadCount": 1,
+    "workspace": "codex/hive-epic-test",
+    "installedConfigurationChanged": false
+  },
+  "firstFailures": [
+    {
+      "stage": "initial tidy without required upstream fork replacements",
+      "log": "/tmp/hive-agent-identity-tidy.log"
+    },
+    {
+      "stage": "Go1.27.3 SDK dependency link",
+      "error": "tailscale.com/tstime/mono invalid reference to runtime.nanotime1",
+      "log": "/tmp/hive-agent-identity-tests-second.log"
+    },
+    {
+      "stage": "nonessential full-module listing",
+      "error": "timed out after30s; no runtime/test failure"
+    }
+  ],
+  "limitations": [
+    "Current live template lacks HIVE_RUNTIME_BUILD_ID; normalization correctly rejected.",
+    "No image build, template update or installer integration performed.",
+    "No running package/config/service changed.",
+    "Owner UUID remains bound by provisioner and independent Hive owner/app verification; manifest supplies owner name.",
+    "Trusted agent credential/installed helper boundary, not hardware attestation."
+  ]
+}

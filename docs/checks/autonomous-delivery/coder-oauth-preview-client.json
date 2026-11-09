@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T00:47:15.725857+00:00",
+  "coderOrigin": "https://coder.kethalia.com",
+  "clientId": "8a255ae5-7c91-4a6a-a27a-5107e82962d4",
+  "name": "Hive Preview",
+  "redirectUris": [
+    "https://codex-delivery-system-design-hive.b00ste.workers.dev/api/auth/coder/callback"
+  ],
+  "clientAuthentication": "client_secret_basic",
+  "pkce": "S256",
+  "existingApplicationsChanged": false,
+  "productionCallbackConfigured": false,
+  "secretRetainedPrivately": true,
+  "liveOAuthLoginVerified": false
+}

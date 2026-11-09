@@ -4,9 +4,11 @@ import { posix } from "node:path";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { createPortableAgentService } from "@/lib/agents/portable-config.server";
 import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import type { VerifiedHostBinding } from "@/lib/codex-session/registration.server";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
@@ -24,6 +26,11 @@ import {
   getIsolatedWorkspaceAppAuthRedirect,
   getWorkspaceAppIsolationContext,
 } from "@/lib/workspaces/app-access";
+import { toPublicWorkspace } from "@/lib/workspaces/public-workspace";
+import {
+  usesWorkspaceReadTransport,
+  workspaceReadActions,
+} from "@/lib/workspaces/read-actions.server";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 import {
@@ -37,7 +44,7 @@ const WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS = 5_000;
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
   const result = await client.listWorkspaces({ owner: "me" });
-  return result.workspaces;
+  return result.workspaces.map(toPublicWorkspace);
 });
 
 export const listWorkspaceTemplatesAction = authActionClient.action(async ({ ctx }) => {
@@ -70,7 +77,9 @@ export const createWorkspaceAction = authActionClient
         "The orchestrator template is retired. Use ai-dev-k8s for development and orchestration.",
       );
     }
-    return client.createWorkspace(parsedInput.templateId, parsedInput.name);
+    return toPublicWorkspace(
+      await client.createWorkspace(parsedInput.templateId, parsedInput.name),
+    );
   });
 
 const workspaceLifecycleSchema = z.object({
@@ -183,7 +192,7 @@ export const getWorkspaceAction = authActionClient
   .inputSchema(getWorkspaceSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    return client.getWorkspace(parsedInput.workspaceId);
+    return toPublicWorkspace(await client.getWorkspace(parsedInput.workspaceId));
   });
 
 export const getWorkspaceAgentAction = authActionClient
@@ -249,7 +258,37 @@ function resolveWorkspaceFallbackDirectory(value: string | undefined): string | 
     : null;
 }
 
-async function getWorkspaceWithAgent(userId: string, workspaceId: string) {
+async function getWorkspaceWithAgent(
+  userId: string,
+  workspaceId: string,
+  expected?: VerifiedHostBinding,
+) {
+  if (expected) {
+    const client = await getCoderClientForUser(userId);
+    const workspace = await client.getWorkspace(workspaceId);
+    const matches = (value: CoderWorkspace) =>
+      value.id === expected.workspaceId &&
+      value.owner_id === expected.ownerId &&
+      value.template_id === expected.templateId &&
+      value.latest_build.id === expected.buildId &&
+      value.latest_build.status === "running";
+    if (!matches(workspace) || client.getBaseUrl() !== expected.coderOrigin)
+      throw new Error("Workspace changed. Refresh and reopen the tool.");
+    const [resources, applicationsHost] = await Promise.all([
+      client.getWorkspaceResources(workspaceId, expected.buildId),
+      client.getApplicationsHost(),
+    ]);
+    const agents = resources
+      .flatMap((resource) => resource.agents ?? [])
+      .filter((agent) => agent.id === expected.agentId);
+    if (
+      agents.length !== 1 ||
+      agents[0].status !== "connected" ||
+      !matches(await client.getWorkspace(workspaceId))
+    )
+      throw new Error("Workspace changed. Refresh and reopen the tool.");
+    return { client, workspace, agent: agents[0], applicationsHost };
+  }
   const client = await getCoderClientForUser(userId);
   const [workspace, resources, applicationsHost] = await Promise.all([
     client.getWorkspace(workspaceId),
@@ -301,6 +340,8 @@ async function getSessionCurrentDirectory({
 export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
+    if (usesWorkspaceReadTransport())
+      return workspaceReadActions(ctx.user).sessions(parsedInput.workspaceId);
     const client = await getCoderClientForUser(ctx.user.id);
 
     const workspace = await client.getWorkspace(parsedInput.workspaceId);
@@ -364,6 +405,7 @@ export const getExistingTerminalPathsAction = authActionClient
   )
   .action(async ({ parsedInput, ctx }) => {
     if (!parsedInput.paths.length) return [];
+    if (usesWorkspaceReadTransport()) return workspaceReadActions(ctx.user).paths(parsedInput);
     const { agent, client, workspace } = await getWorkspaceWithAgent(
       ctx.user.id,
       parsedInput.workspaceId,
@@ -416,9 +458,16 @@ export const getExistingTerminalPathsAction = authActionClient
 export const getWorkspaceSessionToolsAction = authActionClient
   .inputSchema(workspaceSessionToolsSchema)
   .action(async ({ parsedInput, ctx }) => {
+    const portableDirectory = usesWorkspaceReadTransport()
+      ? await workspaceReadActions(ctx.user).directoryWithBinding(
+          parsedInput.workspaceId,
+          parsedInput.sessionName,
+        )
+      : null;
     const { agent, applicationsHost, client, workspace } = await getWorkspaceWithAgent(
       ctx.user.id,
       parsedInput.workspaceId,
+      portableDirectory?.binding,
     );
     const capabilities = workspaceTemplateCapabilities(workspace.template_name ?? "");
     const toolAvailable =
@@ -429,12 +478,14 @@ export const getWorkspaceSessionToolsAction = authActionClient
       );
     }
 
-    const currentDirectory = await getSessionCurrentDirectory({
-      agentTarget: `${workspace.name}.${agent.name}`,
-      coderUrl: client.getBaseUrl(),
-      sessionName: parsedInput.sessionName,
-      sessionToken: client.getSessionToken(),
-    });
+    const currentDirectory = portableDirectory
+      ? portableDirectory.data.cwd
+      : await getSessionCurrentDirectory({
+          agentTarget: `${workspace.name}.${agent.name}`,
+          coderUrl: client.getBaseUrl(),
+          sessionName: parsedInput.sessionName,
+          sessionToken: client.getSessionToken(),
+        });
     const currentPath =
       currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
     const folderPath = parsedInput.filePath
@@ -578,7 +629,13 @@ const createSessionSchema = z.object({
 export const createSessionAction = authActionClient
   .inputSchema(createSessionSchema)
   .action(async ({ parsedInput }) => {
+    if (
+      process.env.HIVE_RUNTIME_TARGET === "cloudflare" &&
+      process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true"
+    )
+      throw new Error("Generic terminal transport is disabled.");
     const name = parsedInput.sessionName ?? `session-${Date.now()}`;
+    if (name.length > 128) throw new Error("Session name is too long.");
     assertGenericSessionName(name, "create");
 
     console.log(
@@ -598,6 +655,20 @@ export const renameSessionAction = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     assertGenericSessionName(parsedInput.oldName, "rename");
     assertGenericSessionName(parsedInput.newName, "rename");
+
+    if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+      if (process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
+        throw new Error("Generic terminal transport is disabled.");
+      return createPortableAgentService().execute(
+        { hiveUserId: ctx.user.id, coderUserId: ctx.user.coderUserId },
+        parsedInput.workspaceId,
+        {
+          operation: "rename-terminal-session",
+          oldName: parsedInput.oldName,
+          newName: parsedInput.newName,
+        },
+      );
+    }
 
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);
@@ -632,6 +703,16 @@ export const killSessionAction = authActionClient
   .inputSchema(killSessionSchema)
   .action(async ({ parsedInput, ctx }) => {
     assertGenericSessionName(parsedInput.sessionName, "kill");
+
+    if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+      if (process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
+        throw new Error("Generic terminal transport is disabled.");
+      return createPortableAgentService().execute(
+        { hiveUserId: ctx.user.id, coderUserId: ctx.user.coderUserId },
+        parsedInput.workspaceId,
+        { operation: "kill-terminal-session", sessionName: parsedInput.sessionName },
+      );
+    }
 
     const client = await getCoderClientForUser(ctx.user.id);
     const agentTarget = await client.getWorkspaceAgentName(parsedInput.workspaceId);

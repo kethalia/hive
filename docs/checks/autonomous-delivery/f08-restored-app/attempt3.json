@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "52c4b2e0141c450ed8e030b138d491277297b3ce",
+  "archiveSha256": "ee863255e31a43d85a491d80fed83a4a42bf4b60869a145219c9d2e792376a12",
+  "appDigest": "fb9abdf4d96706440a6e2037a3eaa5bc2bf1fe9b5f511d75fd374ef49a15995a",
+  "authDigest": "583617f1bcd4569a43079fe0b8e14b7f70cbdcda960ef97ef3a4b75c73e1d73a",
+  "fixtureId": "a341be1f-dc0e-40bd-b906-42441437fe59",
+  "role": "hive_f08_33add258cd80e0e3",
+  "originalTables": 8,
+  "originalRows": 88,
+  "originalFingerprintsMatch": true,
+  "checks": {
+    "syntheticAuthenticatedRead": true,
+    "tamperedCookieRejected": true,
+    "legacyCookieRejected": true,
+    "expiredSessionRejected": true,
+    "syntheticCredentialDecrypted": true,
+    "wrongEncryptionKeyRejected": true,
+    "wrongServiceKeyRejected": true,
+    "logoutRevoked": true,
+    "secureLogoutCookie": true,
+    "syntheticCleanup": true
+  },
+  "scope": "isolated restored Neon database; no original credential decrypted or live Coder called",
+  "runtimeRoleCleanup": "retained for separately reviewed revocation",
+  "sourceFiles": {
+    "deploy/cloudflare/auth/f08-restored-role.mjs": "8d9a37f8e732c856900146f0a2485d45cf294655eb386cab0dbc0e05f054092b",
+    "deploy/cloudflare/auth/f08-restored-role.test.mjs": "66cc7ecd5864de25631c74bcf5e922364175442ae61810c630cb280e4a26b0ca",
+    "deploy/cloudflare/auth/f08-restored-fixture.worker.ts": "11f4c26c5efb3a81c0f4be5da65aa52468e70569de21e7fbd94b8b84c6a30fb5",
+    "deploy/cloudflare/auth/f08-restored-fingerprint.py": "f99c3fa19f8842a733dae1d2227ade5bd4e2dbb1af0421551c975092814b43e5",
+    "deploy/cloudflare/auth/run-f08-restored.mjs": "2b674c188c6804411111ab90353507791f4362ef475b9742416fa4843d7d098a",
+    "src/__tests__/lib/delivery/f08-fixture.test.ts": "9cbb36786d2e6f9e2a5d4d1198cb1c89e6654c043a3761a1b3026257ecf6c964"
+  }
+}

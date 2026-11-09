@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-11-06T00:43:15.836243+00:00",
+  "scope": "existing Preview databases only",
+  "sourceCommit": "e5ed79622144bbeb238dd77bce0a4a5ffdc6037e",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "endpointId": "ep-jolly-sky-b7fhirib",
+  "directHost": "ep-jolly-sky-b7fhirib.c-13.us-east-1.aws.neon.tech",
+  "newMigrations": [
+    "20261105233000_agent_notification_events",
+    "20261106001000_guardian_operation_receipts"
+  ],
+  "migrationTool": "committed services/migrate/src/migrate.mjs with pinned committed schema/migrations and direct connection",
+  "privateBackupDirectory": "/home/coder/projects/kethalia/.private-hive-preview-migration42/20261106T003928Z-e5ed7962",
+  "backupTool": "PostgreSQL 18 pg_dump custom archive",
+  "restoreValidation": "Complete archive decoding with pg_restore --file=/dev/null; full restore not performed",
+  "productionTouched": false,
+  "providerResourcesCreated": false,
+  "databases": [
+    {
+      "name": "hive_native_preview",
+      "databaseId": 1303554,
+      "owner": "hive_epic_owner",
+      "migrationsBefore": 40,
+      "migrationsAfter": 42,
+      "original40MigrationRecordsAndChecksumsPreserved": true,
+      "failedOrUnfinishedMigrations": 0,
+      "existingTableCount": 67,
+      "existingRowCount": 25,
+      "originalTableDataPreserved": true,
+      "rowVerification": "Private row counts and content comparison over original columns; new operation_receipts_enabled default excluded",
+      "newTablesEmpty": true,
+      "backup": {
+        "archiveFile": "hive_native_preview-before41-42.dump",
+        "bytes": 384178,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "runtimePrivileges": {
+        "role": "hive_native_runtime",
+        "notificationRead": true,
+        "notificationInsert": true,
+        "notificationUpdate": true,
+        "notificationDelete": true,
+        "rateRead": true,
+        "rateInsert": true,
+        "rateUpdate": true,
+        "rateDelete": true,
+        "receiptRead": true,
+        "receiptInsert": true,
+        "receiptUpdate": false,
+        "receiptDelete": false,
+        "oldAppRoleCanConnectNative": false
+      },
+      "oldAppRoleCanConnectNative": false
+    },
+    {
+      "name": "hive_app_preview",
+      "databaseId": 1112631,
+      "owner": "hive_epic_owner",
+      "migrationsBefore": 40,
+      "migrationsAfter": 42,
+      "original40MigrationRecordsAndChecksumsPreserved": true,
+      "failedOrUnfinishedMigrations": 0,
+      "existingTableCount": 67,
+      "existingRowCount": 7,
+      "originalTableDataPreserved": true,
+      "rowVerification": "Private row counts and content comparison over original columns; new operation_receipts_enabled default excluded",
+      "newTablesEmpty": true,
+      "backup": {
+        "archiveFile": "hive_app_preview-before41-42.dump",
+        "bytes": 366634,
+        "archiveDecodeVerified": true,
+        "fullRestoreTested": false
+      },
+      "runtimePrivileges": {
+        "role": "hive_app_runtime",
+        "notificationRead": true,
+        "notificationInsert": true,
+        "notificationUpdate": true,
+        "notificationDelete": true,
+        "rateRead": true,
+        "rateInsert": true,
+        "rateUpdate": true,
+        "rateDelete": true,
+        "receiptRead": true,
+        "receiptInsert": true,
+        "receiptUpdate": false,
+        "receiptDelete": false,
+        "oldAppRoleCanConnectNative": false
+      },
+      "oldAppRoleCanConnectNative": false
+    }
+  ]
+}

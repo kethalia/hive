@@ -1,0 +1,123 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "hive",
+  "account_id": "225177f82b9234ede14e897fe15e0cb5",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    "directory": "../../../.open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "triggers": {
+    "crons": []
+  },
+  "limits": {
+    "cpu_ms": 100
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" },
+      { "name": "HIVE_AGENT_NOTIFICATION_WAKE", "class_name": "AgentNotificationWake" }
+    ]
+  },
+  "migrations": [
+    { "tag": "project-task-wake-v1", "new_sqlite_classes": ["ProjectTaskWake"] },
+    { "tag": "agent-notification-wake-v1", "new_sqlite_classes": ["AgentNotificationWake"] }
+  ],
+  "vars": {
+    "HIVE_NATIVE_MODE": "bootstrap"
+  },
+  "previews": {
+    "durable_objects": {
+      "bindings": [
+        { "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" },
+        { "name": "HIVE_AGENT_NOTIFICATION_WAKE", "class_name": "AgentNotificationWake" }
+      ]
+    },
+    "placement": {
+      "region": "aws:us-east-1"
+    },
+    "vars": {
+      "HIVE_NATIVE_MODE": "preview",
+      "HIVE_NATIVE_PREVIEW_ENABLED": "true",
+      "HIVE_PREVIEW_ACCESS_REQUIRED": "false",
+      "HIVE_RUNTIME_TARGET": "cloudflare",
+      "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
+      "HIVE_PROJECT_DISCOVERY_ENABLED": "true",
+      "HIVE_PROJECT_TASKS_ENABLED": "true",
+      "HIVE_PROJECT_TASK_WAKE_ENABLED": "false",
+      "HIVE_AGENT_NOTIFICATION_WAKE_ENABLED": "false",
+      "HIVE_DELIVERY_ENABLED": "true",
+      "HIVE_CODEX_GATEWAY_ENABLED": "true",
+      "HIVE_DELIVERY_DISPATCH_ENABLED": "false",
+      "HIVE_TOKEN_ROTATION_ENABLED": "false",
+      "HIVE_CODER_OAUTH_ENABLED": "true",
+      "HIVE_CODER_OAUTH_CLIENT_ID": "8a255ae5-7c91-4a6a-a27a-5107e82962d4",
+      "CODER_URL": "https://coder.kethalia.com",
+      "HIVE_GUARDIAN_ENABLED": "true",
+      "HIVE_GUARDIAN_PRODUCER_ENABLED": "true",
+      "HIVE_GUARDIAN_SOURCE_APPLICATION_ENABLED": "true",
+      "HIVE_DELIVERY_MANAGER_ENABLED": "true",
+      "HIVE_DELIVERY_EXECUTION_ENABLED": "true",
+      "HIVE_DELIVERY_REPOSITORY_POLICY_ENABLED": "true",
+      "HIVE_DELIVERY_ACCEPTANCE_ENABLED": "true",
+      "HIVE_DELIVERY_NATIVE_ENABLED": "true",
+      "HIVE_DELIVERY_GITHUB_SOURCE_ENABLED": "true",
+      "HIVE_DELIVERY_SOURCE_PUBLICATION_ENABLED": "true",
+      "HIVE_GENERIC_TERMINAL_ENABLED": "true",
+      "HIVE_TERMINAL_WS_URL": "/",
+      "HIVE_CODEX_TERMINAL_ENABLED": "false",
+      "HIVE_TERMINAL_PASTE_ENABLED": "false",
+      "HIVE_CODEX_VOICE_ENABLED": "false",
+      "HIVE_AGENT_TOOLS_ENABLED": "false",
+      "HIVE_WORKSPACE_READ_ENABLED": "false",
+      "HIVE_DELIVERY_EPICS_ENABLED": "false",
+      "HIVE_DELIVERY_RELEASE_ENABLED": "false",
+      "HIVE_DELIVERY_RELEASE_PRODUCTION_ENABLED": "false",
+      "HIVE_DELIVERY_DATABASE_ENABLED": "false",
+      "HIVE_NATIVE_PRODUCTION_ACTIVE": "false",
+      "HIVE_PUBLIC_ORIGIN": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+      "HIVE_PREVIEW_ORIGIN": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+      "HIVE_CODEX_HIVE_ORIGIN": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+      "HIVE_CODEX_ISSUER_KEY_ID": "hive-native-preview-de4359c7-d56d-4742-8444-887f792162bf",
+      "HIVE_CODEX_ISSUER_PUBLIC_KEY": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAd/bhbOohBVbm3F8un0hWwO20V1VCWAyD2EIJ8ezPraI=\n-----END PUBLIC KEY-----\n",
+      "HIVE_CODEX_SOFTWARE_TEMPLATE_IDS": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+      "HIVE_CODEX_APP_SLUG": "codex-session",
+      "HIVE_CODEX_GATEWAY_PORT": "13341",
+      "HIVE_CODEX_SESSION_TRANSPORT": "relay",
+      "HIVE_CODEX_MANAGER_MODEL": "gpt-6.1-sol",
+      "HIVE_CODEX_MANAGER_EFFORT": "high",
+      "HIVE_GUARDIAN_APPROVED_PACKAGES_JSON": "[{\"packageManifestSha256\":\"36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"80fa379a2dea736517ac5f29113e6d69a3758de8cea6b6ac87abc2cd21addd46\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"5ac58e3b8a6b14c25ec8e376bc7a6f88a92094ae00e5fe88f6e538157cb7d3a4\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"2210b850e6d73e33cd3380f871b73956c00de98a8266de3c1c90ed209b048f77\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"7eb52d53f4c6664743d4da182ff35dbe042bde53017647d18209b4eb885180c7\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe\",\"guardianElfSha256\":\"ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216\",\"guardianElfSha256\":\"0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"ca655fae0c3615fae7ebae04eedf20072cf508c9f180978ae12886cebcc3f472\",\"guardianElfSha256\":\"0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"fe3c0b3dff83cbb37bfbce49cfa73f2ac8e753c9c9b1ef6986b4f03b848b6fe0\",\"guardianElfSha256\":\"0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"},{\"packageManifestSha256\":\"8f2ab255804a1ab03861f34d4e1681c9764330e147c12f4026703d9f007bac2e\",\"guardianElfSha256\":\"0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659\",\"nodeSha256\":\"904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52\",\"protocol\":\"guardian-v1\",\"policyDigest\":\"0c258221d52fe302e5a8017b6029e938379a71337bb8024516bff9f9275dae50\",\"metadataPolicyDigest\":\"6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b\"}]",
+      "HIVE_DELIVERY_REPOSITORY_POLICIES_JSON": "[{\"ownerId\":\"c451e8a7-e931-49c1-a3e6-77b2da005687\",\"repositoryId\":\"1183966024\",\"providerAccountId\":\"62855857\",\"fullName\":\"kethalia/hive\",\"policy\":{\"schemaVersion\":1,\"source\":{\"version\":\"d11-hive-managed-docs-source-v2\",\"authorName\":\"Hive Codex\",\"authorEmail\":\"codex@kethalia.com\",\"baseBranch\":\"codex/delivery-system-design\",\"allowedPrefixes\":[\"docs\"],\"maxFiles\":2,\"maxFileBytes\":8192,\"maxBytes\":16384},\"evidenceGates\":{\"version\":\"d11-hive-managed-docs-evidence-v2\",\"maxAgeMs\":900000,\"checks\":[{\"name\":\"Build / Lint / Test / Build\",\"workflowId\":\"262356269\",\"appId\":\"15368\",\"appSlug\":\"github-actions\",\"events\":[\"pull_request\"],\"criterionIds\":[\"repo:ci-build\"]},{\"name\":\"Build / Lint / Test / Lint\",\"workflowId\":\"262356269\",\"appId\":\"15368\",\"appSlug\":\"github-actions\",\"events\":[\"pull_request\"],\"criterionIds\":[\"repo:ci-lint\"]},{\"name\":\"Build / Lint / Test / Format\",\"workflowId\":\"262356269\",\"appId\":\"15368\",\"appSlug\":\"github-actions\",\"events\":[\"pull_request\"],\"criterionIds\":[\"repo:ci-format\"]},{\"name\":\"Migration preflight / PostgreSQL\",\"workflowId\":\"262356269\",\"appId\":\"15368\",\"appSlug\":\"github-actions\",\"events\":[\"pull_request\"],\"criterionIds\":[\"repo:ci-migrations\"]}],\"codexReview\":{\"userId\":\"199175422\",\"appId\":\"1144995\",\"criterionIds\":[\"repo:codex-review\"]},\"formalReviewers\":[]},\"acceptanceContracts\":[]}}]",
+      "HIVE_DELIVERY_ACCEPTANCE_PRODUCER": "{\"codeDigest\":\"ebe3ca502d891d8c6b52af4cd4d904851f377dc07614cf46450d764e74a80e60\",\"effort\":\"high\",\"maxDurationMs\":300000,\"maxInputBytes\":262144,\"maxOutputBytes\":65536,\"model\":\"gpt-6.1-sol\",\"permissionsDigest\":\"5cb0236664ba9833dc964200828cc6b650583eb0b7d2bd43d587889c5a9b175b\",\"promptDigest\":\"577302f28d00ad9d1c07bd432f18207b0ce12395c6abb5b7044aefafacf1bfb0\",\"runtimeVersion\":\"0.165.0\",\"schemaDigest\":\"67878ee6975eaaa4e211be3e33832d8b72a40d06a55648b185cd50e1c2db0226\",\"schemaVersion\":1}",
+      "HIVE_CODEX_ACCOUNTS_ENABLED": "true",
+      "HIVE_CLAUDE_ACCOUNTS_ENABLED": "true",
+      "HIVE_WORKSPACE_ISSUER_MODE": "shared-host",
+      "HIVE_AGENT_TOOLS_TRANSPORT": "workspace-app",
+      "HIVE_AGENT_TOOLS_HIVE_ORIGIN": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+      "HIVE_AGENT_TOOLS_ISSUER_KEY_ID": "hive-native-preview-de4359c7-d56d-4742-8444-887f792162bf",
+      "HIVE_AGENT_TOOLS_PINS_JSON": "[{\"templateId\":\"06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42\",\"profile\":\"software\",\"manifestSha256\":\"9a6291523cfce559c7a3d9298b3dc06ac5f94e51c76ae696d4d34d0b809c95e3\",\"helperSha256\":\"74a301d1a0cd6a391d525a30eba155537e12e536eac975b76ab4b8c5239f3b14\"}]",
+      "HIVE_GUARDIAN_RECOVERY_RESUMPTIONS_JSON": "[{\"schemaVersion\":1,\"purpose\":\"unused-recovery-resumption\",\"id\":\"57f6b24a-9289-49da-b711-6977d525c5c3\",\"ownerId\":\"c451e8a7-e931-49c1-a3e6-77b2da005687\",\"coderOwnerId\":\"25eabc8a-f9bb-4ae3-b87e-dce06f8d1401\",\"workspaceId\":\"868d3188-181c-466e-b067-e3ff592e79bc\",\"projectId\":\"08d245e8-15bd-4f1d-a384-66edc12a7cab\",\"taskId\":\"f672c7f4-870a-556b-b8cc-c5c7f1e42e63\",\"recoveryId\":\"663d2784-1986-4afa-853c-d893f7d2800d\",\"runtimeId\":\"28fc1617-b049-426a-b3ac-8764668e16a6\",\"retirementEventId\":\"0f87cfb6-4d7b-4a8d-8bc6-1adfd9324e89\",\"attestationDigest\":\"b165166409e563c9ec33b00879ccc2992473aa075bf5ee623c42d2329763765a\",\"continuationDigest\":\"6349c405fffcda687e86b8ac2cc8e07b6e4f32d787f6f3066e5a3448b0909ce9\",\"final\":{\"buildId\":\"6d1fd221-8426-4fa3-91b8-a19780e45409\",\"lifetimeId\":\"01ce6dea-a366-4d02-8fea-403d108777b4\",\"configSha256\":\"9484fcf59369cc4d1f028099994caadcc0a787b423445782121df5f15ab0bd8c\",\"packageManifestSha256\":\"b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216\"},\"originalAuthorityUntil\":1794157401941,\"issuedAt\":1794162143754,\"expiresAt\":1794164843754}]",
+      "HIVE_GUARDIAN_REMOUNT_ATTESTATIONS_JSON": "[{\"schemaVersion\":1,\"purpose\":\"unused-checkout-remount\",\"ownerId\":\"c451e8a7-e931-49c1-a3e6-77b2da005687\",\"coderOwnerId\":\"25eabc8a-f9bb-4ae3-b87e-dce06f8d1401\",\"workspaceId\":\"868d3188-181c-466e-b067-e3ff592e79bc\",\"templateId\":\"06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42\",\"projectId\":\"08d245e8-15bd-4f1d-a384-66edc12a7cab\",\"taskId\":\"f672c7f4-870a-556b-b8cc-c5c7f1e42e63\",\"originalProofDigest\":\"60b4f753ea6d2436ddc9099ae2bf164abe2a12eece132921ba44a9cb7fd37a8c\",\"oldBuildId\":\"2b49d6c5-44cd-4af9-b93f-700be965a9c3\",\"oldLifetimeId\":\"153f5cff-efea-4041-aa64-aeba19a9a617\",\"held\":{\"buildId\":\"5726674a-0da6-4b3c-8642-2757af2d6899\",\"lifetimeId\":\"e491b268-8534-4b58-a43e-91b19fd5c207\",\"configSha256\":\"3a19d9ae2fce0e4b00917253fbefbf2a83a6462ddc7f6ba2cc8fe3fe0f4217b5\",\"packageManifestSha256\":\"b16854fee6f44c96652c5b8bd64b9b3025e28037f93ab4bfe86c9bd218dd4efe\"},\"heldJournalDigests\":{\"lifetime\":\"e57393fe8692e2ed9504abe0b20f0b8552d585cddb36dae21a1ecb50bc8ef9fc\",\"project\":\"5f5b96bc533740da8fa032e8f037dcff7a9c8d2d6ceeadb9901fab7ecf74f124\",\"supervisor\":null,\"config\":\"3a19d9ae2fce0e4b00917253fbefbf2a83a6462ddc7f6ba2cc8fe3fe0f4217b5\",\"controller\":null},\"final\":{\"buildId\":\"6d1fd221-8426-4fa3-91b8-a19780e45409\",\"lifetimeId\":\"01ce6dea-a366-4d02-8fea-403d108777b4\",\"configSha256\":\"9484fcf59369cc4d1f028099994caadcc0a787b423445782121df5f15ab0bd8c\",\"packageManifestSha256\":\"b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216\"},\"finalTemplateVersionId\":\"abcfb91f-d17a-447e-8287-13755492fd03\",\"volume\":{\"pvcUid\":\"6c1d77cc-49ba-4098-aa26-acc68251df90\",\"pvcName\":\"coder-868d3188-181c-466e-b067-e3ff592e79bc-home\",\"namespace\":\"coder\",\"storageClass\":\"longhorn\",\"capacity\":\"20Gi\",\"boundVolumeName\":\"pvc-6c1d77cc-49ba-4098-aa26-acc68251df90\",\"accessModes\":[\"ReadWriteOnce\"],\"containerName\":\"dev\",\"podVolumeName\":\"home\",\"mountPath\":\"/home/coder\",\"subPath\":\"\",\"subPathExpr\":\"\",\"readOnly\":false,\"claimReadOnly\":false},\"mapping\":{\"old\":{\"root\":{\"device\":\"2272\",\"inode\":\"262161\"},\"project\":{\"device\":\"2272\",\"inode\":\"262163\"},\"checkout\":{\"device\":\"2272\",\"inode\":\"262164\"}},\"current\":{\"root\":{\"device\":\"2112\",\"inode\":\"262161\"},\"project\":{\"device\":\"2112\",\"inode\":\"262163\"},\"checkout\":{\"device\":\"2112\",\"inode\":\"262164\"}},\"oldRootRecordSha256\":\"0168d1bc46284eb7c79c30c4a6121086406690f867cd98deb307d03b97635908\",\"oldProjectRecordSha256\":\"0b6b0272419aeb854bb2b9989ed739b1ee43a8eae98906b364d9c1f60d31d3b9\",\"oldLeaseDigest\":\"a17b3506a9dd4c5bdd993089978a59b1c78f4edf41485157e43eeadf961febbb\"},\"expiresAt\":1794160047125}]"
+    },
+    "secrets": {
+      "required": [
+        "DATABASE_URL",
+        "ENCRYPTION_KEY",
+        "COOKIE_SECRET",
+        "AUTH_SERVICE_SECRET",
+        "HIVE_CODER_OAUTH_CLIENT_SECRET"
+      ]
+    },
+    "r2_buckets": [
+      {
+        "binding": "HIVE_DELIVERY_EVIDENCE",
+        "bucket_name": "hive-delivery-pilot-20261105"
+      }
+    ]
+  }
+}

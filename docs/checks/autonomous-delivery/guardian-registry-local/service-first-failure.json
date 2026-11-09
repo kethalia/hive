@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T00:14:23Z",
+  "passed": false,
+  "sourceStable": true,
+  "tests": { "passed": 10, "failed": 1 },
+  "failure": "Issuer-grant delayed-update case got PostgreSQL serialization rollback Prisma P2034 instead of the intended RegistrationRejected.",
+  "cause": "Two integration files installed delay triggers on the same runtime table concurrently; the parallel DDL/transactions interfered with the intended expiry timing.",
+  "resolution": "Consolidate all SQL-delay cases in one integration file so they execute sequentially even in the broad suite. Keep the exact expiry exception and rollback assertions; no production retry or weaker assertion was introduced.",
+  "parentFailurePreserved": "service-parent.json and its referenced private Vitest report remain unchanged.",
+  "cloudMutations": false,
+  "accountInference": false
+}

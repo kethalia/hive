@@ -29,6 +29,7 @@ export interface CoderWorkspace {
   last_used_at?: string;
   health?: { healthy: boolean; failing_agents: string[] };
   latest_build: {
+    template_version_id?: string;
     id: string;
     status: WorkspaceBuildStatus;
     job: {
@@ -55,6 +56,9 @@ export interface WorkspaceBuildRequest {
 export interface CoderClientConfig {
   baseUrl: string;
   sessionToken: string;
+  credentialSource?: string;
+  /** Optional request-local cancellation; never stored in a shared client. */
+  signal?: AbortSignal;
 }
 
 /** Options for the waitForBuild polling method */
@@ -85,6 +89,7 @@ export interface WorkspaceAgent {
 
 /** A resource provisioned by a workspace build (compute, volume, etc.). */
 export interface WorkspaceResource {
+  metadata?: Array<{ key: string; value: string | null; sensitive?: boolean }>;
   id: string;
   name: string;
   type: string;

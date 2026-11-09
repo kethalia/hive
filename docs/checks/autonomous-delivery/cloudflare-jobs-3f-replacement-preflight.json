@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "scope": "read-only jobs replacement preflight",
+  "providerReadback": {
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "observedAt": "2026-11-05T18:24:06.138Z",
+    "identity": {
+      "name": "hive-jobs-compatibility-preview",
+      "tag": "3347a3d29aff4509ae4ed8dfcc2d8479",
+      "createdOn": "2026-11-05T17:38:01.737114Z",
+      "listedRoutes": null
+    },
+    "deployment": {
+      "id": "0e0db0c6-faa7-4e31-b1e5-185dfbb177d7",
+      "source": "wrangler",
+      "strategy": "percentage",
+      "annotations": {
+        "workers/message": "Automatic deployment on upload.",
+        "workers/triggered_by": "upload"
+      },
+      "versions": [
+        {
+          "version_id": "fcf57238-eb4e-47ce-a99f-0250c73afb6f",
+          "percentage": 100
+        }
+      ],
+      "created_on": "2026-11-05T17:38:01.737114Z"
+    },
+    "publicState": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "schedules": [],
+    "bindings": [
+      {
+        "name": "APP_SERVICE",
+        "type": "service",
+        "service": "hive-app-compatibility-preview",
+        "environment": "production"
+      },
+      {
+        "name": "HIVE_DELIVERY_PILOT_MODE",
+        "type": "plain_text",
+        "value": "true"
+      },
+      {
+        "name": "HIVE_PROJECT_TASK_RECONCILE_SECRET",
+        "type": "secret_text"
+      },
+      {
+        "name": "HIVE_PROJECT_TASKS_ENABLED",
+        "type": "plain_text",
+        "value": "true"
+      },
+      {
+        "name": "HIVE_RUNTIME_TARGET",
+        "type": "plain_text",
+        "value": "cloudflare"
+      },
+      {
+        "name": "SOURCE_REVISION",
+        "type": "plain_text",
+        "value": "6dc61a5056708592fb5d77226f221c8897f6936a"
+      }
+    ],
+    "limits": {
+      "cpu_ms": 100
+    },
+    "customDomains": [],
+    "zoneCount": 17,
+    "matchingRoutes": []
+  },
+  "routeAudit": {
+    "zoneCount": 17,
+    "matchingRoutes": 0,
+    "customDomains": 0,
+    "visibleNonInternalZoneRoutePagesChecked": true,
+    "note": "All 17 visible non-internal zones and the separately listed zero internal zones were checked.",
+    "internalZoneCount": 0,
+    "internalZoneObservedAt": "2026-11-05T18:25:05.081Z"
+  },
+  "previewDatabase": {
+    "database": "hive_app_preview",
+    "role": "hive_app_runtime",
+    "allRepositoryPolicyRows": 0,
+    "matchingPolicyRows": 0
+  },
+  "candidate": {
+    "runId": "8232e055-2e88-4183-8ec5-42933aa96668",
+    "sourceRevision": "3f5b203ca3c6b27f411b9afa2da4382661d65eb7",
+    "workerName": "hive-jobs-compatibility-preview",
+    "workerSha256": "5b642d1f1401d32b3e68169a9fc4a6dc6c91c512abb934cba01443d772d0989b",
+    "workersDev": false,
+    "previewUrls": false,
+    "schedules": [],
+    "cpuMilliseconds": 100,
+    "uploadKiB": 3120.84,
+    "gzipKiB": 992.21,
+    "cloudWrites": 0
+  },
+  "actionTaken": "none",
+  "note": "Existing task-owned identity and creation receipt must be rechecked before any separately authorized retirement; existing code makes no provider writes and no task enrollment was found."
+}

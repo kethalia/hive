@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T15:49:31.798Z",
+  "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+  "buildId": "b4e2bc6c-315b-4d7d-8c16-5e47466feecf",
+  "agentId": "b4416746-1dc3-4bc8-a5f2-4183781eb8fb",
+  "templateVersionId": "14ab2429-13dc-4de6-a6a1-cd215d6a9045",
+  "originalErrors": [
+    {
+      "logId": 180401,
+      "code": "agent_bridge_install_failed"
+    },
+    {
+      "logId": 180402,
+      "code": "voice_install_failed"
+    }
+  ],
+  "otherAgentErrors": ["File Browser", "Agent integrations", "code-server"],
+  "sourceComparison": "both installer scripts are identical between 24a454c6 and inspected current source",
+  "imagePins": {
+    "voice": {
+      "installer": "bd56ae1ede30c8f3685c5676abeb3fbde5497c43a57b8320a5dbe7003791d0d1",
+      "archive": "6a77644cdca2385a06bb3d179737cc4b341a2ce5cc8a31bdfca8ac89a9b53db1",
+      "requestMatches": true
+    },
+    "agent": {
+      "installer": "73655d2e29658e715c589bc191122475cf72db73f95157007f2402164fc3bc5c",
+      "archive": "d8a5df26ff3ed572f6447589dae724d355eb21e5333a90f5d79a338b56d79910",
+      "requestMatches": true
+    }
+  },
+  "priorRecords": {
+    "phase": "ready",
+    "buildId": "6e8eeb1e-3f35-4dd3-b1d0-aa13fb02a2aa",
+    "priorProcesses": "absent",
+    "modifiedAt": "2026-10-30; before current start",
+    "signaturesValid": true
+  },
+  "readOnlyReplay": [
+    "image pin and packet reconstruction",
+    "bootstrap and effective config validation",
+    "current agent identity",
+    "prior-build identity and process absence",
+    "package files and private permissions",
+    "installer locks",
+    "ports available",
+    "node version"
+  ],
+  "retry": {
+    "explicitlyAuthorized": true,
+    "usedExactImageBakedInstallerAndMountedRequest": true,
+    "voiceReady": true,
+    "agentReady": true,
+    "receiptsBoundToCurrentBuild": true,
+    "credentialsCopied": false
+  },
+  "conclusion": "Original precise failure stage cannot be established from generic historical stderr; successful later validation and retry do not prove a timing cause.",
+  "diagnosticsChange": "New installers emit fixed stage labels only, with no exception, input or credential values; no retry behavior was added.",
+  "templateActivationChanged": false,
+  "packagesReplaced": false
+}

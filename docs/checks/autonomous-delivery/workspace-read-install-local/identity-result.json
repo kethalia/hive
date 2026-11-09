@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T05:18:09.567Z",
+  "baseRevision": "6a55bb59c764fad75b7329e7ba6c1fcb3de7caea",
+  "endingBaseRevision": "6a55bb59c764fad75b7329e7ba6c1fcb3de7caea",
+  "sourceStable": true,
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/install-workspace-read.py": "711235506badd6e7bc4c569be17b0ad60a516fe0dd9b7c6ef6e8896796977423",
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.mjs": "daa64b16a068d76a92ab4419b96472c062043d131e7fcad8fc97a5748fb4db0d",
+    "templates/ai-dev-k8s/scripts/hive-workspace-read.py": "617bcc9fd343eecd16bcd6108bde4ba0fe8c8b8e251bde4211172617e7a93da5",
+    "scripts/build-workspace-read-package.mjs": "d2cf53392b395751248d9d2cb9b12b0b0a3c39dd0824b3d9301213f17d2910a4",
+    "scripts/agents/test_workspace_read_install.py": "1ee230587f39fe6af485a76da2e7b63f1ff111121a8e681591d87f01a3eabf57",
+    "scripts/verify-workspace-read-install.test.mjs": "fb500591ab379b57fbbd16fbcb7101ce43684565e43439d677711e46fee68df6",
+    "scripts/fixtures/workspace-read-install.py": "53b557c664aef0b9b342af644c0c874d9c6f5fea5cc3b3ea72f85b7f42263858",
+    "scripts/fixtures/workspace-read-install-entry.py": "667826992fb24006745a69c7a831d8186a595b1494d9af5f9913dd8f57f0c9fc",
+    "scripts/fixtures/workspace-identity-install.py": "626ffe6f96f01dca9638223478d42c84ff2a182da6bab14fcb5b5dfe4abaefca",
+    "scripts/probe-workspace-read-install.mjs": "38e511b59eefb89809ade61dbc7e4723fbcf9a8d30443c42641e8f34cd9bb5b9"
+  },
+  "testedSourcesCommitted": false,
+  "passed": true,
+  "tests": {
+    "pure": 8,
+    "actual": 1
+  },
+  "actual": {
+    "observedAt": "2026-10-30T05:18:09.551Z",
+    "passed": true,
+    "checks": {
+      "manifestIdentitySynthetic": true,
+      "bootstrapAndEffectiveIdentityRecorded": true,
+      "actualNodeRepeatedVerifiedIdentity": true,
+      "existingConfigParentsUnchanged": true,
+      "changedLiveRequestRejectedWithoutRestart": true,
+      "samePidSameStartChangedExecutableHeld": true,
+      "unknownListenerNeverKilledOrAdopted": true,
+      "provedAbsentProcessCanRestartOnFreePort": true,
+      "reusedPidDoesNotKillUnrelatedLiveProcess": true,
+      "priorBootAbsenceCanRestartOnFreePort": true,
+      "actualUncertainStartupRetainedAndNotRetried": true,
+      "historyAndPriorBuildStatePreserved": true
+    },
+    "networkNamespace": "net:[4026534824]",
+    "homeInode": "86544835",
+    "syntheticNodeRootOwnershipObservation": true,
+    "nodePin": {
+      "uid": 0,
+      "device": "109",
+      "inode": "76286448",
+      "size": 126595440,
+      "sha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+      "version": "v24.21.0"
+    }
+  },
+  "checks": {
+    "noProductNodeOwnershipBypass": true,
+    "noPrimaryHomeOrPortBind": true,
+    "noProcessAdoptionOrKill": true,
+    "pidReuseDistinctFromSameIdentityExecutableChange": true,
+    "uncertainStartupHeld": true,
+    "historyPreserved": true
+  },
+  "limitations": [
+    "The unprivileged user namespace maps the root-owned Node inode to UID65534. Only the test entry translates this exact inode/hash's ownership after outer independent UID0/version/hash verification.",
+    "The actual Node CLI, service package/config/health, kernel PID/start/executable/argv and private13342 listener checks are real; no production config or environment bypass exists.",
+    "Reboot/PID-reuse negative records are deliberately re-signed fixture history; no real host reboot or unrelated process is altered.",
+    "The package is not installed into a Coder workspace/template and no app/deployment flag is activated."
+  ],
+  "cloudMutations": false,
+  "newWorkspaces": false,
+  "accountInference": false
+}

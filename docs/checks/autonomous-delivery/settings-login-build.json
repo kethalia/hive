@@ -1,0 +1,15 @@
+{
+  "observedAt": "2026-10-29T21:25:43.097423+00:00",
+  "sourceRevision": "3d17cbbce15b8d8e9a6db1c5635f7172d8226cc9",
+  "normalBuildAndStandalone": "passed",
+  "cloudflareBuild": "passed",
+  "rootAndRecursiveTypechecks": "passed",
+  "localActualAppAuthChecks": 23,
+  "readinessSha256": "972f29e5806d1f4ced46ce946c8c139a04f21ed0f1de0e8353ecd68d74c9d678",
+  "scope": "Built committed settings/login checkpoint and actual local workerd authentication against isolated Neon fixtures; no upload or real Coder login.",
+  "limitations": [
+    "New Settings HTTP route and real UI sign-out remain pending built preview browser acceptance",
+    "Normal hydration fix has actual SSR/hydration unit evidence, not a new live browser run"
+  ],
+  "currentDeploymentSource": "106721df264ae25e860229efb43362d7d77d23b2"
+}

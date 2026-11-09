@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "status": "partial_desktop_pass_mobile_hold",
+  "phaseId": "212ee85c-5721-45ce-8cd1-16c781192bbb",
+  "sourceSha": "26ecc67aed3f080a73f49cf3bbf38cf8bdd14a7c",
+  "appBuildId": "66a34b25-2d5e-4866-9d65-c8b22362b05f",
+  "softwareWorkspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+  "softwareBuildId": "8579341b-8ef9-4ea2-bed8-b141afb3057f",
+  "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "browserBuildId": "fb2d6854-e6d6-468b-8496-d52b247f0bb0",
+  "browserReusedPersistent": true,
+  "servingSourceVerifiedBeforePageNavigation": true,
+  "accepted": {
+    "agentsOpenAccountsNavigation": true,
+    "agentsAccountReadersBeforeNavigation": 0,
+    "nativeAccountsDesktop": true,
+    "actualLauncherSingletonWithoutExtraAccountRead": true,
+    "savedWorkspaceBuildReload": true,
+    "desktopVisualInspected": true,
+    "strictRealCodexStatusResponses": [
+      {
+        "httpStatus": 200,
+        "state": "signed-in",
+        "lifetimeId": "5471f9f1-4ea1-49f9-be7d-b21d0d5cb3c2",
+        "generation": 0,
+        "pending": false
+      },
+      {
+        "httpStatus": 200,
+        "state": "signed-in",
+        "lifetimeId": "5471f9f1-4ea1-49f9-be7d-b21d0d5cb3c2",
+        "generation": 0,
+        "pending": false
+      },
+      {
+        "httpStatus": 200,
+        "state": "signed-in",
+        "lifetimeId": "5471f9f1-4ea1-49f9-be7d-b21d0d5cb3c2",
+        "generation": 0,
+        "pending": false
+      }
+    ]
+  },
+  "incomplete": {
+    "mobileLayout": true,
+    "staleBuildUi": true,
+    "missingWorkspaceUi": true,
+    "exactMobileFailureCause": true
+  },
+  "failure": {
+    "stage": "mobile-deep-link",
+    "category": "bounded_read_only_acceptance_hold",
+    "mobileScreenshotExists": false
+  },
+  "counts": {
+    "attemptedHttp": 84,
+    "forwardedHttp": 66,
+    "codexStatus": 3,
+    "workspaceReads": 5,
+    "versionReads": 1,
+    "localOnlyAccounts": 6,
+    "blocked": 12
+  },
+  "interception": {
+    "claudeAndMaintenanceStatusResponses": "Six locally fulfilled404 responses, never forwarded. Their provider/UI acceptance remains separate.",
+    "accountActionsForwarded": ["codex/status"],
+    "allOtherPostActionsBlocked": true,
+    "webSocketsAndExternalOriginsBlocked": true
+  },
+  "cleanup": {
+    "contextsClosed": [true, true],
+    "browserClosed": true,
+    "foregroundHarnessSshExited": true,
+    "independentRecordedPidPostcheckPassed": true,
+    "sameUidReadableLiveChromeCount": 0,
+    "unreadableSameUidProcessEntries": 2,
+    "signalsSent": 0,
+    "workspaceRetainedRunning": true
+  },
+  "privateEvidence": {
+    "directory": "/home/coder/projects/kethalia/.private-hive-f10-accounts-ui-20261108/native-window-execution-212ee85c-5721-45ce-8cd1-16c781192bbb",
+    "fileModes": "0600",
+    "directoryMode": "0700",
+    "returnedFileSha256": {
+      "events.jsonl": "d57cfbe3cb07311ed3750cfcffc2555ef318d20c6f3c0fe5df43e1be266b6b4c",
+      "desktop-launcher-private.png": "5f6d85a0db941508135cce0cc452e21befbdad46e4a667905ba0d8ec2dd9620b",
+      "result.json": "9d041dc65d7ff4afa86de94e691751757ef98ce38ba94d14f639f1eb8ca37be9",
+      "desktop-private.png": "ad4809d5c40e7b5d7a656c26b63a1651eea236d3d72d732053e402a9b22568a1",
+      "observer-started.json": "a5c2296c4ee41a8089b2a83fe305864cf8dfe646cfd8e276875e557f7fb6a90f",
+      "desktop-restored-private.png": "8299163ba298bb1532ccc73176a73169f1d2f07b1cbedab4517e7a2757ead725",
+      "outcome-before-teardown.json": "4601df5138aa3128bdc6d2c58dfc2307a04fd7eb253fa249a6862adc8c0f7396",
+      "progress.json": "90502e3567d49387458432644d241637f86206d66335db1d0a7270fa60486155"
+    }
+  },
+  "limits": [
+    "One approved attempt. The generic mobile catch preserved no sub-check or mobile DOM/geometry/screenshot, so the product-versus-harness cause is unresolved.",
+    "Desktop launcher screenshot includes a closing palette animation. Initial and reloaded desktop screenshots provide the clear card-layout observations.",
+    "Independent postcheck confirms every recorded harness/Chrome identity gone. Two unrelated same-UID proc entries were unreadable, which limits the broader process scan.",
+    "Credential authentication prerequisite is established by the three current signed-in statuses. A later native pilot may change account lock/state.",
+    "Claude and maintenance requests were intercepted locally404. No auth mutation, maintenance flow, model/task execution, normal-user or production acceptance follows from this receipt."
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "buildId": "62fb1228-0c3a-4c45-b040-216c8c81b5cf",
+  "status": "stopped",
+  "outcome": "success",
+  "createdOn": "2026-11-05T20:15:24.437Z",
+  "stoppedOn": "2026-11-05T20:18:36.660Z",
+  "metadata": {
+    "build_trigger_source": "push_event",
+    "branch": "codex/delivery-system-design",
+    "commit_hash": "feecfcb7fa06281173abac45250897c9875ab3ca",
+    "commit_message": "feat(cloudflare): consolidate Hive into native branch previews",
+    "author": "default",
+    "build_command": "pnpm build:cloudflare",
+    "deploy_command": "node deploy/cloudflare/native/deploy.mjs preview",
+    "root_directory": "/",
+    "build_token_uuid": "2679d15a-9e19-4f0d-982e-e83bda156164",
+    "build_token_name": "hive",
+    "environment_variables": {
+      "NODE_VERSION": {
+        "is_secret": false,
+        "created_on": "2026-11-05T20:15:23.850Z",
+        "value": "24.21.0"
+      },
+      "PNPM_VERSION": {
+        "is_secret": false,
+        "created_on": "2026-11-05T20:15:23.850Z",
+        "value": "10.32.1"
+      }
+    },
+    "repo_name": "hive",
+    "provider_account_name": "kethalia",
+    "provider_type": "github"
+  },
+  "issue": "Build succeeded but helper created a custom-named Preview instead of the PR-managed Preview; corrected publication still needs validation"
+}

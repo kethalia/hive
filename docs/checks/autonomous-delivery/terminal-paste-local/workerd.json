@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "credentialMode": "oauth",
+  "observedAt": "2026-11-06T01:13:57.642Z",
+  "sourceStable": true,
+  "sourceHashes": {
+    "packages/auth/src/coder-credential-headers.ts": "1683e236f31b0bdb2a2e469fe189d71514e2f6b097a6dbc4e5804e43eb30ce48",
+    "deploy/cloudflare/app/terminal-paste-transport.ts": "e8020dd7f11cbce28fd2e34efe784d262af3ba11b66b60543f3eb38daf7cf59c",
+    "deploy/cloudflare/app/terminal-paste-runtime.ts": "11ed0fea4cb57e59348cc6087cf0a0fe79354b1f58e101a17a754b8fb897e73d",
+    "deploy/cloudflare/app/generic-terminal-runtime.ts": "dcabb4b4ab120930f6a8cb22cd123d2013f40091930cad70055f746dc6171df4",
+    "deploy/cloudflare/app/local-terminal-paste.worker.ts": "c13cbd1fe0c989bfb9042251644dbcb8474c11308c6e100555379f916d4ca749",
+    "deploy/cloudflare/app/local-terminal-paste-provider.ts": "2cb487212faf32d6b2761579410ece239723bf4a74bc4023a23714b2a39e22bc",
+    "deploy/cloudflare/app/local-generic-terminal-provider.ts": "885f0bae91cf5a37dd6769f4eeedbe6ef1515f9a80eaeca9e1b536001529a233",
+    "deploy/cloudflare/app/run-local-terminal-paste.mjs": "b413261024e5bb48e2b3faa96a688b20db910d48d3740d8fd79a65805db45c44",
+    "src/lib/workspace/paste-writer.ts": "1d057814041f53c8c340c4c201a35e6ef6ae9172267235fc9c14f9b50a4eb045",
+    "src/lib/workspace/paste-request.ts": "d3b6cc9051766b93fe851f0753e36c77a034c36e214ae30f522a1dfc67eb17a6",
+    "src/lib/terminal/generic-auth.server.ts": "76dfe3c3bbd511e63486ada3cfa94541a21bb8529605278dcd9eb3c5dce2bd4c"
+  },
+  "checks": {
+    "defaultOff": true,
+    "binaryExactDigestAndEmptyFile": true,
+    "actualPrivateAuthAndOwner": true,
+    "exact20MiBContract": true,
+    "originRejected": true,
+    "sessionRequired": true,
+    "mismatchedAckNoRetry": true,
+    "lostAckUnknownNoRetry": true,
+    "revokedBeforeEffect": true
+  },
+  "passed": true,
+  "processGroupDrained": true,
+  "provider": "synthetic private auth/Coder service binding; actual workerd WebSockets",
+  "cloudMutation": false
+}

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-29T23:26:49.273773+00:00",
+  "baseCommit": "92f7b2523687f90dde779177b2f1f3927b37f62d",
+  "scope": "Optional fixed-inventory native Git metadata protection; no installed factory activation",
+  "validation": {
+    "sequentialPassed": 57,
+    "sequentialFailed": 0,
+    "metadataCases": 13,
+    "managedHelperPassed": 30,
+    "parallelEarlierPassed": 57,
+    "parallelFinalPassed": 55,
+    "parallelFinalFailed": 2,
+    "parallelFailure": "native_start_timeout in metadata and existing legacy namespace fixtures; unresolved cause",
+    "nativeEvidence": "native-sequential.json",
+    "command": "HIVE_TEST_NATIVE_CODEX=1 node --test --test-concurrency=1 scripts/verify-codex-git-metadata.test.mjs scripts/verify-codex-project-supervisor.test.mjs scripts/verify-codex-native-namespace.test.mjs",
+    "pythonCommand": "python3 -B -m unittest scripts/agents/test_managed_projects.py"
+  },
+  "metadataPolicyDigest": "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b",
+  "authority": {
+    "installedFactory": false,
+    "templateActivation": false,
+    "accountInference": false,
+    "providerWrites": false,
+    "cleanupAuthority": false,
+    "nativeStartupAvailabilityResolved": false
+  },
+  "sourceSha256": {
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "57310557a01a82e1c6a5a2a34a2faeb4fa3bd9bee0055c1c5f0ff9ae2ff2a6a9",
+    "templates/ai-dev-k8s/scripts/managed-projects.py": "0fcd8c2f07df72d1a284a7bcf7cd3dbe38ee48359a8312f7e3b9ee369a53ac3b",
+    "scripts/agents/test_managed_projects.py": "d02636161a7477a451a1c36d1615eddc78c0ec93d0ef0e39b925223352a15f2a",
+    "scripts/verify-codex-git-metadata.test.mjs": "3d67a3d0120e7fdcee6de7e5f7441dd2bb6e77791ed0a459cc2ccd99bbaac10a",
+    "docs/checks/autonomous-delivery/git-metadata-read-only.md": "e3e0b9964d4d39c0bc296fbb7da0124b670cc2162395af28eae6c2cd7fa65cf5"
+  },
+  "artifactSha256": {
+    "native-after-observer.json": "791e40cd685021eead62485ab88df5e293bc68563db658fcf8f0cf7cc466c8ad",
+    "native-after-readiness.json": "57fd6689ac97e7d20b64b23c2cf590f2ffb3eb78091ce91442745ca1386b5637",
+    "native-complete.json": "19b8accf6b022e743fba1511b41ba52368f1acc9ef371d7ece274d1d65715f51",
+    "native-final.json": "6e993a55a9df7305f7319687e7941a2fda2340cb9ad0d1474a91e6e3d2dde79e",
+    "native-first-failure.json": "ea995e994128ffdb414cf61759b3aad0fdd8ff50b45c89345e8f947d2a9d74fc",
+    "native-frozen.json": "5e348142862b9e24607b2878096022d01520e95425ecf3a8607aa4d6a300e163",
+    "native-sequential.json": "635f8a485abb12eef6a13b98c2a1c0ac06dd427759e2ae83a65937cc6513bdfc",
+    "native-targeted.json": "5e348142862b9e24607b2878096022d01520e95425ecf3a8607aa4d6a300e163",
+    "parallel-earlier-tests.txt": "3ea012af267b59ad1645aefe4f42c793b6573220e118d918e367a75288bd4332",
+    "parallel-failure-tests.txt": "047608ecd8ffa845faa47e0087e08e5619795718ddfc16b83d6a1a6277500647",
+    "readiness-diagnosis.json": "65ffa45cfbfdcc1b3bc21ab493ef911a1a43d6c5a5b1d99789e0c0a0ea439a65",
+    "sequential-tests.txt": "1557b6e3e7c0d036559333fbd260a30dbfbe2b3a6c4b6c023f2f53802012b1ae"
+  }
+}

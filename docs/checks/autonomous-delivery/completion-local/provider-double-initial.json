@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "actualNativeVersion": "0.165.0",
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "managerThreadId": "01a18bf4-cfc3-79b2-b7dd-f26b435536f5",
+  "initialTurnId": "01a18bf4-d066-7ba3-8a36-e4db62585fcd",
+  "repairTurnId": "01a18bf4-d6ed-75c1-8206-8abd6de824d0",
+  "evaluatorThreadIds": [
+    "01a18bf4-d446-7001-86e1-402b38237ba5",
+    "01a18bf4-d8fa-7962-ac25-af6171b33e05"
+  ],
+  "reviewOutcomes": ["fail", "pass"],
+  "candidateHeads": [
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "cccccccccccccccccccccccccccccccccccccccc"
+  ],
+  "sameStepId": "1512a3de-4de7-4d16-acbe-1ecdd7ecf67e",
+  "attemptIds": ["33a78cd1-4af2-46f5-a683-46442abb23c0", "1eab2ad4-a4c8-4f66-8898-e594337ac5e2"],
+  "criteriaUnchanged": true,
+  "physicalWriterHeld": true,
+  "requests": 5,
+  "accountInference": false,
+  "providerPublication": "explicit-local-double",
+  "nativeChildFacts": "explicit-local-double",
+  "inputBarrierReceipt": "explicit-local-double",
+  "productionCompletion": false,
+  "controllerCompletion": "succeeded with explicit provider gate and observer doubles",
+  "completionEventId": "098e91b8-085d-42f9-9184-db9e7f08f83f"
+}

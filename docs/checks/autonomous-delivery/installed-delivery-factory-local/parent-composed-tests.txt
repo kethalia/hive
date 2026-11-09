@@ -1,0 +1,9 @@
+
+ RUN  v3.2.4 /tmp/hive-composed-parent-gqpasey0
+
+ ✓ src/__tests__/lib/codex-session/installed-delivery-factory.integration.test.ts > actual installed factory publishes, completes and applies accepted source before continuation through signed services 8321ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  03:29:19
+   Duration  9.02s (transform 410ms, setup 0ms, collect 558ms, tests 8.32s, environment 0ms, prepare 40ms)

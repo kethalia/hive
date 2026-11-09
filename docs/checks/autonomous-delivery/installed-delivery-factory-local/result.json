@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "baseRevisionAtEvidenceWrite": "328283fa787602eafa64024282f5cfd2c7d1b4a3",
+  "testedSourcesCommitted": false,
+  "sourceHashesAreAuthority": true,
+  "sources": {
+    "templates/ai-dev-k8s/scripts/codex-delivery-runtime.mjs": "e4a57b41abaf3e55cace8c2d4b276c69deba777b4f7ed5475c9a7fce75b756e6",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "61c0c1e8c0ca910a0065f1e6fb0814eef33b5efae1865156dab479e235ece712",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "5e8a5748d2cd2a62ad21f036a5ae555ad19c2d5c3028b3fc76798b18f3ee0205",
+    "src/lib/codex-session/guardian-config.server.ts": "8ee28598bfb2855684c1e5c8fd09a040f1ed9d19374f5e15bd22280b820693b8",
+    "scripts/verify-codex-delivery-runtime.test.mjs": "e25a224fc1a40dd9bea8649c380dbdab7d3aeafdff1783061349ed413bb91abd",
+    "scripts/agents/test_codex_host_install.py": "2bc5ae9a4a96db76abfbb0a636e4b98e71e40c5517c6358da71571d5adfdee7c",
+    "src/__tests__/lib/codex-session/guardian-policy.test.ts": "23adc3aef7d28606b1346caaa0fdf2a0e3b230d2f0b4ad85d8d4c419de34e884",
+    "docs/checks/autonomous-delivery/installed-delivery-factory.md": "6440fc465a4037ae7ff5c13e07213ed983e4645a5b22d6d1d58d7366dd3bd250",
+    "templates/ai-dev-k8s/scripts/codex-source-application.mjs": "5f1e4dd0bbce8be7a8c9dcdc3d0dfe64dec086aec68cd718a4e97adf0e8c67bc",
+    "scripts/verify-codex-source-application.test.mjs": "dca5aca3d7c0ebf6d1cccfa15f871a5937f2ed2ac259dbabfc51b84e40eec9c1"
+  },
+  "checks": {
+    "factoryAndController": {
+      "passed": 40,
+      "failed": 0,
+      "note": "Before guardian-FD cancellation review; final evidence below supersedes this source set."
+    },
+    "installer": {
+      "passed": 14,
+      "failed": 0
+    },
+    "deploymentPolicy": {
+      "passed": 3,
+      "failed": 0
+    },
+    "scopedBiome": "passed",
+    "globalTypecheck": "blocked by concurrent template-publication fixture UUID/nullability and route nullability errors; no owned factory/config errors",
+    "factoryCoordinatorControllerFinal": {
+      "passed": 61,
+      "failed": 0,
+      "optionalReplayFixtureSkipped": 1
+    }
+  },
+  "logs": {
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/node.txt": "7ede12a09d93f33ac3a5b27aabe67278d5f390c0e89f25ea96ae272a368bafb6",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/python.txt": "9b109a2ae02e95f2121ae223ab07cbf97924a504b75bbc567dc9e1f57847d102",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/policy.txt": "3fb863c5abf805281e8b18be7af262fb975f745d1cb59838b4a6ff1aeff6d03e",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/types.txt": "f8a3765e82ea622af2ec8283ebabb15b1cc674dbe834b9b2858bc71bf6df120a",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/abort.txt": "d845cbd013e30d962c1f16299306f0dc4028846348155d343c952429cc0fff54",
+    "docs/checks/autonomous-delivery/installed-delivery-factory-local/node-final.txt": "e6791227c4b0168156f94f7dac3ab8d84d54251b64730e9f556ae9b165422d57"
+  },
+  "actualAccountInference": false,
+  "cloudOperations": false,
+  "installedActivation": false,
+  "physicalWriterHoldsRetained": true,
+  "limitations": [
+    "synthetic native/guardian facts in factory fixture",
+    "no full factory-to-signed-Postgres-source advance in this checkpoint",
+    "model-readable evidence status tool pending",
+    "8s close timeout is uncertain hold, not process-drain proof"
+  ],
+  "logNormalization": "Trailing whitespace and blank EOF removed; originals retained in /tmp/hive-factory-*-original-*",
+  "revocationProof": [
+    "native/registration/close while fetch ignores abort",
+    "factory currentMetadata stalls during registration revocation",
+    "all four guardian late replies rejected on coordinator lifetime abort",
+    "actual private FD worker killed/reaped on coordinator abort; original input hold retained"
+  ]
+}

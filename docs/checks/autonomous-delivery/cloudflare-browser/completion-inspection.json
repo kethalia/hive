@@ -1,0 +1,8 @@
+{
+  "activeTaskProcesses": [],
+  "chromeProcessCount": 0,
+  "taskPath": "/tmp/hive-cloudflare-browser-ld5o18ur",
+  "observedAt": "2026-10-29T21:08:23.596822+00:00",
+  "workspaceId": "6bc1ff4f-c190-4d8f-becd-b7b3e01e9535",
+  "inspection": "Primary independent read-only process metadata, no process arguments persisted"
+}

@@ -1,0 +1,25 @@
+{
+  "activation": {
+    "observedAt": "2026-10-29T21:06:55.322Z",
+    "purpose": "One reviewed hydration follow-up;21 requests precharged,179 remaining inclcleanup;150seconds;maxone login acrossboth runs",
+    "appVersion": "9dd91379-967f-47b8-85e1-67c82dcd73b9",
+    "authRemainsPrivate": true,
+    "state": {
+      "enabled": true,
+      "previews_enabled": false
+    }
+  },
+  "deactivation": {
+    "observedAt": "2026-10-29T21:07:24.243Z",
+    "app": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "auth": {
+      "enabled": false,
+      "previews_enabled": false
+    }
+  },
+  "combinedRequests": 54,
+  "combinedBrowserElapsedMs": 26021
+}

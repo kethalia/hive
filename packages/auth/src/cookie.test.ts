@@ -40,6 +40,14 @@ describe("signCookie / verifyCookie", () => {
     expect(verifyCookie(parts.join("."), SECRET)).toBeNull();
   });
 
+  it("rejects signature suffixes that the hex decoder would silently discard", () => {
+    const cookie = signCookie("session-1", SECRET);
+    for (const suffix of ["a", "zz", " ", "\n"]) {
+      expect(verifyCookie(cookie + suffix, SECRET)).toBeNull();
+    }
+    expect(verifyCookie(cookie.slice(0, -1), SECRET)).toBeNull();
+  });
+
   it("returns null for wrong secret", () => {
     const cookie = signCookie("session-1", SECRET);
     expect(verifyCookie(cookie, "wrong-secret")).toBeNull();

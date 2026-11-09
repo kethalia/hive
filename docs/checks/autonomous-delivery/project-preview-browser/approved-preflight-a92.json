@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "schemaVersion": 1,
+    "sourceRevision": "a92e3052953ac04d3657596e55edec7b2767a044",
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "repositoryId": "1183966024",
+    "providerAccountId": "62855857",
+    "preflightDigest": "307df48e04ff59e3a63100522ba5658880bd152c183c715bcf034c96306b95ce",
+    "expectedAppVersion": "2.31.0",
+    "expectedAppBuild": "aac59968-630b-43fe-91d8-217ecd02c7da",
+    "priorForwarded": 13
+  },
+  "evidenceDigests": {
+    "project-preview-browser/database-preflight.json": "5bd3afa9f5431f2c52e36269a857d669da18222309c47fa15e1da20b69de5ebb",
+    "project-preview-browser/controller-preflight-a92.json": "f7e5bb633dd99a6debc062c0c15f43046a340732fb6d94fb5ea9f51bd20b23c4",
+    "cloudflare-project-preview-deployed-a92.json": "1283d22a74b7f2cd3d801b2b3db1fd0b8fc4fad1e0175f1968543ea3243f0517"
+  },
+  "oneTaskNullEnrollmentApproved": true,
+  "managerDisabled": true,
+  "backendFanoutMeasured": false,
+  "productionChanges": false
+}

@@ -1,0 +1,354 @@
+  1:  a0dbf021 =   1:  52f01d61 docs(delivery): define autonomous delivery architecture and rollout roadmap
+  2:  d02e5543 <   -:  -------- feat(workspaces): add Neon integration and scheduled official updates
+  3:  2fb4a796 <   -:  -------- chore(epic): retain released test runner formatting
+  4:  c1962bbd =   2:  06ac4d01 chore(delivery): track epic execution and enable integration PR checks
+  5:  279e30cf =   3:  1a70fcf7 feat(delivery): add revision-bound eligibility observation and capability evidence
+  6:  26a98647 =   4:  d2d35b90 style(delivery): format isolated session capability probe
+  7:  9cd50055 =   5:  7a234031 feat(auth): bind Hive login and sessions to configured Coder host
+  8:  0e9c101c =   6:  3f5645ad feat(delivery): add isolated preview and shared-session read adapter
+  9:  a3549b4f =   7:  60161b2c feat(preview): verify Prisma transactions in Workers runtime
+ 10:  90e646ac =   8:  8c7b3913 feat(projects): discover GitHub repositories without cloning
+ 11:  e7110466 =   9:  af5cc690 fix(preview): classify Coder upstream failures without exposing secrets
+ 12:  98cf4e95 =  10:  f3b7723f fix(coder): reject redirects with portable fetch handling
+ 13:  6189255e =  11:  a2400d34 docs(delivery): record isolated Cloudflare and Neon validation
+ 14:  e483581d =  12:  a649378d feat(session): add renewable owner-bound native session bridge
+ 15:  c607525b =  13:  54b1690b style(delivery): format Neon validation evidence
+ 16:  d56d6a1d =  14:  b3bb5ca7 feat(delivery): persist fenced steps and atomic completion reports
+ 17:  5f7d3a53 =  15:  918e265f feat(delivery): show owner-scoped tasks and step reports
+ 18:  7338bef1 =  16:  87d5eb8d test(delivery): add browser component validation harness
+ 19:  6943bc68 =  17:  fe14766d feat(projects): add guarded managed checkout lifecycle
+ 20:  c9619948 =  18:  0f7792c8 docs(delivery): preserve browser and full-schema preview evidence
+ 21:  3edbf227 =  19:  2d6bc3a5 ci(delivery): validate PostgreSQL ownership and replay behavior
+ 22:  62c8d91a =  20:  f17e04e8 docs(delivery): update epic progress and coordinated release scope
+ 23:  fbafe435 =  21:  a69a00fe feat(cloudflare): build Hive with scoped Neon database access
+ 24:  e3a196ee =  22:  3d45045d feat(sessions): supervise durable Codex threads and verify checkout leases
+ 25:  53bf3884 =  23:  13d7d072 docs(cloudflare): record clean application build and runtime evidence
+ 26:  63845118 =  24:  245432b9 feat(auth): serve authentication through Cloudflare service bindings
+ 27:  6650f43d =  25:  cf8bb73b feat(delivery): persist retryable notices and show task activity
+ 28:  7a0b3da5 =  26:  0576edd2 feat(delivery): reconcile interrupted attempts with verified runtime observations
+ 29:  35087ed9 =  27:  6368e771 fix(workspaces): fence cleanup requests across checkout incarnations
+ 30:  4c0eedf3 =  28:  948f2a81 fix(cloudflare): resolve the Prisma workerd export after Next bundling
+ 31:  79a6ce5b =  29:  df69646a feat(auth): track Hive-created Coder credential provenance
+ 32:  9afbcd7b =  30:  6c5e4e67 feat(sessions): bridge registered project threads through signed capabilities
+ 33:  1307b4ca =  31:  1e47c28f feat(notifications): dispatch durable delivery notices from Workers
+ 34:  6ae325d2 =  32:  4732febc fix(auth): rotate only positively identified Hive credentials
+ 35:  b0e278c0 =  33:  47008c28 feat(delivery): bind manager operations to registered native hosts
+ 36:  e31115a2 =  34:  437b3872 docs(delivery): record host validation and remaining acceptance gates
+ 37:  c30588c8 =  35:  795021a5 feat(cloudflare): guard preview assets and bind deployment to validated artifacts
+ 38:  e2f4ee65 =  36:  44bbd01c fix(cloudflare): isolate discovery reads to each request lifetime
+ 39:  534d774c =  37:  ebcaf7ce fix(auth): resolve shared domain imports in both application builds
+ 40:  76351640 =  38:  3f6addbe feat(delivery): persist project preparation and bind native workspace views
+ 41:  15ddaf0f =  39:  3bf57ab3 docs(delivery): record project integration and preview migration evidence
+ 42:  811219db =  40:  44b0fcfd fix(projects): recover blocked status details without resubmitting tasks
+ 43:  01485898 =  41:  7d06bc5a feat(templates): package verified artifacts for Cloudflare builds
+ 44:  9a788a1d =  42:  66cd3a39 feat(projects): add owner-authorized preparation recovery
+ 45:  b67f343c =  43:  9790a71d docs(delivery): record native producer isolation acceptance gate
+ 46:  4c287f27 =  44:  ac3f8396 feat(cloudflare): guard browser preview and relay registered project sessions
+ 47:  3ad51083 =  45:  9a4a4c8c fix(cloudflare): accept bounded empty preview bootstrap streams
+ 48:  b80a3e1e =  46:  b2595b49 fix(cloudflare): release WebSocket handshake timeout after upgrade
+ 49:  bada7bd7 =  47:  c56dc5fb fix(projects): renew live leases and fence expired native execution
+ 50:  4d5f7034 !  48:  2c6dc893 feat(templates): install pinned managed project hosts from workspace configuration
+    @@ scripts/sync-workspace-profile-templates.mjs: const targetRoots = [
+      
+      async function collectFiles(directory) {
+        const entries = await readdir(directory, { withFileTypes: true });
+    -@@ scripts/sync-workspace-profile-templates.mjs: const canonicalScriptRelativePaths = new Set(
+    - const sharedRelativePaths = [
+    +@@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+        ".terraform.lock.hcl",
+        "main.tf",
+    +   "docker.tf",
+     +  "hive-host.tf",
+     +  "assets/codex-host.tar",
+        "WORKSPACE_ROUTING.md",
+    @@ scripts/verify-workspace-profile-templates.test.mjs: test("specialist templates
+     -  mkdirSync(join(canonical, "scripts"), { recursive: true });
+     -  writeFileSync(join(canonical, ".terraform.lock.hcl"), "canonical lock\n");
+     -  writeFileSync(join(canonical, "main.tf"), "# canonical Terraform\n");
+    +-  writeFileSync(join(canonical, "docker.tf"), "# canonical Docker engine\n");
+     +  cpSync(join(templateRoot, "ai-dev-k8s"), canonical, { recursive: true });
+     +  mkdirSync(join(fixtureRoot, "scripts"));
+     +  cpSync(
+    @@ templates/ai-dev-k8s/hive-host.tf (new)
+     +}
+     
+      ## templates/ai-dev-k8s/main.tf ##
+    -@@
+    - terraform {
+    +@@ templates/ai-dev-k8s/main.tf: terraform {
+    +   required_version = ">= 1.9"
+    + 
+        required_providers {
+     +    external = {
+     +      source  = "hashicorp/external"
+    @@ templates/browser-testing/hive-host.tf (new)
+     +}
+     
+      ## templates/browser-testing/main.tf ##
+    -@@
+    - terraform {
+    +@@ templates/browser-testing/main.tf: terraform {
+    +   required_version = ">= 1.9"
+    + 
+        required_providers {
+     +    external = {
+     +      source  = "hashicorp/external"
+    @@ templates/electronics/hive-host.tf (new)
+     +}
+     
+      ## templates/electronics/main.tf ##
+    -@@
+    - terraform {
+    +@@ templates/electronics/main.tf: terraform {
+    +   required_version = ">= 1.9"
+    + 
+        required_providers {
+     +    external = {
+     +      source  = "hashicorp/external"
+    @@ templates/game-dev/hive-host.tf (new)
+     +}
+     
+      ## templates/game-dev/main.tf ##
+    -@@
+    - terraform {
+    +@@ templates/game-dev/main.tf: terraform {
+    +   required_version = ">= 1.9"
+    + 
+        required_providers {
+     +    external = {
+     +      source  = "hashicorp/external"
+    @@ templates/infrastructure/hive-host.tf (new)
+     +}
+     
+      ## templates/infrastructure/main.tf ##
+    -@@
+    - terraform {
+    +@@ templates/infrastructure/main.tf: terraform {
+    +   required_version = ">= 1.9"
+    + 
+        required_providers {
+     +    external = {
+     +      source  = "hashicorp/external"
+ 51:  5698da63 =  49:  df2fedb2 feat(projects): retry proven pre-execution failures without resubmitting prompts
+ 52:  7f7b89c3 =  50:  e6953442 fix(templates): keep GitHub credentials out of workspace startup metadata
+ 53:  a6c8f77d =  51:  06d102bf feat(templates): defer managed project clones until task preparation
+ 54:  6005d2de =  52:  a1179e1f feat(delivery): bind native child observations to verified checkout attempts
+ 55:  68b4aaf5 =  53:  62dc112e docs(delivery): preserve guarded Cloudflare deployment and template validation evidence
+ 56:  0bc78947 =  54:  a31f5a3d test(projects): prove managed native command authority isolation
+ 57:  4522e76d !  55:  cafd4c4f fix(templates): mount managed host bootstrap outside shell argument limits
+    @@ templates/ai-dev-k8s/hive-host.tf: resource "coder_script" "hive_projects" {
+     
+      ## templates/ai-dev-k8s/main.tf ##
+     @@ templates/ai-dev-k8s/main.tf: resource "kubernetes_deployment_v1" "workspace" {
+    -             name       = "home"
+    -             mount_path = "/home/coder"
+    +               sub_path   = "run"
+    +             }
+                }
+     +
+     +          dynamic "volume_mount" {
+    @@ templates/browser-testing/hive-host.tf: resource "coder_script" "hive_projects"
+     
+      ## templates/browser-testing/main.tf ##
+     @@ templates/browser-testing/main.tf: resource "kubernetes_deployment_v1" "workspace" {
+    -             name       = "home"
+    -             mount_path = "/home/coder"
+    +               sub_path   = "run"
+    +             }
+                }
+     +
+     +          dynamic "volume_mount" {
+    @@ templates/electronics/hive-host.tf: resource "coder_script" "hive_projects" {
+     
+      ## templates/electronics/main.tf ##
+     @@ templates/electronics/main.tf: resource "kubernetes_deployment_v1" "workspace" {
+    -             name       = "home"
+    -             mount_path = "/home/coder"
+    +               sub_path   = "run"
+    +             }
+                }
+     +
+     +          dynamic "volume_mount" {
+    @@ templates/game-dev/hive-host.tf: resource "coder_script" "hive_projects" {
+     
+      ## templates/game-dev/main.tf ##
+     @@ templates/game-dev/main.tf: resource "kubernetes_deployment_v1" "workspace" {
+    -             name       = "home"
+    -             mount_path = "/home/coder"
+    +               sub_path   = "run"
+    +             }
+                }
+     +
+     +          dynamic "volume_mount" {
+    @@ templates/infrastructure/hive-host.tf: resource "coder_script" "hive_projects" {
+     
+      ## templates/infrastructure/main.tf ##
+     @@ templates/infrastructure/main.tf: resource "kubernetes_deployment_v1" "workspace" {
+    -             name       = "home"
+    -             mount_path = "/home/coder"
+    +               sub_path   = "run"
+    +             }
+                }
+     +
+     +          dynamic "volume_mount" {
+ 58:  06e00dae !  56:  8b5059f5 fix(templates): deliver bounded bootstrap through existing pod permissions
+    @@ scripts/build-codex-host-archive.test.mjs: test("host archive has the same diges
+     
+      ## scripts/sync-workspace-profile-templates.mjs ##
+     @@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+    -   "main.tf",
+    +   "docker.tf",
+        "hive-host.tf",
+        "assets/codex-host.tar",
+     +  "assets/codex-host.tar.gz",
+ 59:  d600c5d6 =  57:  6214442b docs(delivery): record live host installation and GitHub discovery validation
+ 60:  1107907a =  58:  37c1041b fix(cloudflare): reauthorize sustained project relays and bound host callbacks
+ 61:  e79447eb =  59:  4131e7f6 docs(delivery): record preview native binding migration validation
+ 62:  b00af301 =  60:  1d58e483 feat(projects): isolate native agents behind pinned process and permission boundaries
+ 63:  2e7aa31b !  61:  28770669 fix(templates): keep published archives within Coder upload capacity
+    @@ scripts/build-template-artifacts.test.mjs: test("a missing entrypoint or oversiz
+     
+      ## scripts/sync-workspace-profile-templates.mjs ##
+     @@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+    -   ".terraform.lock.hcl",
+        "main.tf",
+    +   "docker.tf",
+        "hive-host.tf",
+     -  "assets/codex-host.tar",
+     +  "assets/codex-host.tar.sha256",
+ 64:  60f74a8f =  62:  5cfb1436 feat(delivery): authenticate GitHub evidence and verify immutable artifact storage
+ 65:  faa95306 =  63:  08300f51 test(delivery): verify writer drain boundary and record native compatibility blocker
+ 66:  a1e30c9f =  64:  5065e978 fix(cloudflare): bind preview updates to owned resources and verified artifacts
+ 67:  576b889b =  65:  6b06f4a5 fix(runtime): support isolated native commands in real home directories
+ 68:  a4fa3381 =  66:  0f3ad10e fix(delivery): retire expired authenticated GitHub retry records
+ 69:  f1e8291a =  67:  53614fe0 style(checks): format preserved native readiness evidence
+ 70:  8571cd1a =  68:  2a4d6fc4 feat(delivery): enforce shared controller policy on manager results
+ 71:  eff17278 =  69:  ae89b828 test(delivery): run manager policy regressions against PostgreSQL in CI
+ 72:  d10cc02a =  70:  9a0c0f55 test(runtime): verify real account manager and subagent execution
+ 73:  106721df =  71:  0b82bf34 fix(cloudflare): route signed host callbacks through browser middleware
+ 74:  87c8b077 =  72:  6b094947 test(storage): verify live R2 retention integrity and complete bounded cleanup
+ 75:  7a4ea08d =  73:  f9ac9b85 fix(runtime): expose only pinned ripgrep to isolated commands
+ 76:  daa61ae1 =  74:  90d68fb3 test(runtime): reproduce PID resume blocker over native WebSocket
+ 77:  91fb4a81 =  75:  68ce67e0 test(cloudflare): prepare bounded real browser authentication validation
+ 78:  8a09369b =  76:  124add94 test(cloudflare): bound browser login and failure cleanup
+ 79:  b5215c11 =  77:  560f7364 style(checks): format native writer evidence for CI
+ 80:  2e3c10ee =  78:  594823c8 feat(delivery): distinguish informational step reports from verified results
+ 81:  848c7157 =  79:  1ea0e7f3 docs(checks): preserve first Cloudflare browser failure and shutdown
+ 82:  13624f5c =  80:  73f09a8b test(cloudflare): wait for form hydration within remaining preview budget
+ 83:  99267e9a =  81:  d1b20c75 docs(checks): record real Cloudflare login and logout acceptance
+ 84:  d68c8bf8 =  82:  6aaa01da docs(cloudflare): record verified preview update and retain deployment history
+ 85:  3ae9e5b0 =  83:  3a2b3c41 docs(checks): confirm disposable browser workspace cleanup
+ 86:  6f78adf7 =  84:  2d2e7ff5 docs(delivery): clarify delegated child completion ordering
+ 87:  605b4050 =  85:  c7eb2a7e feat(settings): use authenticated portable reads for the settings window
+ 88:  d72c92a7 =  86:  ae723d8a docs(delivery): define same-manager step progression boundaries
+ 89:  3d17cbbc =  87:  cf863f02 fix(auth): keep login controls disabled until hydration completes
+ 90:  b19e3765 =  88:  be274dba docs(checks): validate settings and login in the Cloudflare build
+ 91:  409036d7 =  89:  66c6864b test(delivery): prove native turn boundaries and scoped process drain candidates
+ 92:  61b01736 =  90:  90649ae7 docs(delivery): update progression and cleanup validation status
+ 93:  9f6d4224 =  91:  2011b43b feat(delivery): advance logical steps while retaining the native writer
+ 94:  bbd498f4 =  92:  3259c63b docs(delivery): record guardian and source publication implementation boundaries
+ 95:  32c815f7 =  93:  a306f455 docs(delivery): align next roadmap steps with validated foundations
+ 96:  3604c1a2 =  94:  729c6d78 feat(delivery): expose safe owner scheduling controls
+ 97:  d8722db1 =  95:  ecb4c35a style(checks): format scheduling control evidence
+ 98:  accccac3 =  96:  b9e286b4 feat(delivery): open each task’s exact manager session
+ 99:  753ca566 =  97:  0545e91d feat(delivery): add fixture-verified source publication broker
+100:  eabe2913 =  98:  44656ad4 feat(runtime): add pinned native process guardian foundation
+101:  eea5b453 =  99:  8364a6ce docs(delivery): record reviewed foundations and admission findings
+102:  a03f4976 = 100:  a1b552e3 test(cloudflare): verify template comparison in workerd
+103:  fe7f9a1e = 101:  557a8f6b fix(runtime): handle guardian child error writes under fortify
+104:  e53f561b = 102:  c65a3e10 build(runtime): produce and validate pinned guardian artifacts
+105:  69a868b9 = 103:  d7753bcc feat(delivery): continue native manager steps with current authority
+106:  ea8bfd79 = 104:  2929e58d docs(delivery): track accepted progression and guardian build evidence
+107:  17dbf256 = 105:  578f2a53 feat(runtime): guard host worker ownership and durable closure
+108:  5b7168eb = 106:  b4653874 test(runtime): pin private Node fixture for guardian checks
+109:  c63506eb = 107:  c3ad32b1 feat(delivery): preserve source revisions and accepted attempt outputs
+110:  5437bd29 = 108:  9e1f34f2 feat(runtime): bind guarded host startup and execution admission
+111:  92f7b252 = 109:  95675972 test(runtime): verify fixed guarded installer end to end
+112:  234bfa1e = 110:  53d2f893 feat(delivery): add protected source publication broker
+113:  e0672e16 = 111:  d1bf56cb feat(runtime): protect native Git metadata with pinned mounts
+114:  5db87fff = 112:  306ed442 style(checks): format native metadata validation evidence
+115:  fe396ffe = 113:  4c6b2c80 fix(delivery): bound source publication work and helper shutdown
+116:  dc7211a6 = 114:  07791931 fix(runtime): bound native startup with a monotonic deadline
+117:  9d8ce3cf = 115:  20142622 feat(delivery): persist guardian authority and scoped source grants
+118:  585477b8 = 116:  0da6fe1f fix(projects): deduplicate concurrent task submissions in PostgreSQL
+119:  6f1e10be = 117:  423df160 feat(delivery): package the protected source publisher
+120:  3ec009f9 = 118:  74cf6e41 feat(delivery): read accepted source under fresh host authority
+121:  ad616325 = 119:  70feccc0 feat(runtime): authenticate guardian bootstrap and control requests
+122:  89531e58 = 120:  f4371fd5 test(runtime): accept CI loopback database hostname
+123:  87de625d = 121:  937c8f39 feat(runtime): preserve work across accepted source updates
+124:  a1b8b06d = 122:  9641afba feat(runtime): enroll the installed guardian before task preparation
+125:  d6f9e9f2 = 123:  6a0748e0 fix(cloudflare): route enabled host callbacks to signature checks
+126:  05721d46 = 124:  2b6b3d61 test(cloudflare): align preview schema and retain failed proof
+127:  1e2c1d12 = 125:  b4baad85 test(runtime): pin the installed guardian fixture executable
+128:  16a153f0 = 126:  4363e4e2 test(cloudflare): verify host callbacks in workerd and Neon
+129:  1bddd593 = 127:  8562cfaf feat(delivery): fence progression on acknowledged source application
+130:  9807fbc3 = 128:  ae1d3b2a docs(delivery): normalize preserved package test evidence
+131:  9a0a5562 = 129:  de5325e9 feat(cloudflare): admit reviewed workspace actions by build identity
+132:  1034cfef = 130:  776424fc feat(auth): add durable bounded credential rotation scheduling
+133:  f2c7a0f4 = 131:  a42f7578 test(cloudflare): verify portable workspace actions in workerd
+134:  fdc3020f = 132:  5886a776 test(neon): verify preview source and rotation schema upgrade
+135:  1a7fea23 ! 133:  cf70c7f0 feat(runtime): package acknowledged source application with input barriers
+    @@ scripts/host-archive-codec.test.mjs (new)
+     
+      ## scripts/sync-workspace-profile-templates.mjs ##
+     @@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+    -   "main.tf",
+    +   "docker.tf",
+        "hive-host.tf",
+        "assets/codex-host.tar.sha256",
+     -  "assets/codex-host.tar.gz",
+136:  d4a19433 = 134:  fd3c9f76 feat(auth): isolate legacy rotation shutdown for scheduler cutover
+137:  793f3b94 = 135:  e5d04733 test(cloudflare): validate assembled input runtime on Neon preview
+138:  d01d786a = 136:  3dc39912 test(runtime): isolate nested source recovery test runner
+139:  328283fa = 137:  146c1d91 feat(runtime): bind signed source application to physical workspace state
+140:  e4191aa8 = 138:  c3fe21b7 feat(runtime): compose installed delivery with revocation-aware helpers
+141:  8b29a9f6 = 139:  e7bee90b feat(templates): add durable Cloudflare publication stages
+142:  c3448f8d = 140:  ee34e051 fix(runtime): validate installed source progression against actual spool
+143:  5c7ea179 = 141:  fc80c0f5 feat(templates): preserve creation and provisioner tag parity
+144:  2294726c ! 142:  81b244ff feat(workspaces): add portable reads and factual delivery status
+    @@ scripts/sync-workspace-profile-templates.mjs: const targetRoots = [
+      async function collectFiles(directory) {
+        const entries = await readdir(directory, { withFileTypes: true });
+     @@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+    -   ".terraform.lock.hcl",
+        "main.tf",
+    +   "docker.tf",
+        "hive-host.tf",
+     +  "hive-read.tf",
+        "assets/codex-host.tar.sha256",
+145:  f14f5696 = 143:  47a8815c fix(validation): keep status refresh test alive on Node 22
+146:  55c18b5e = 144:  ecb527fa fix(projects): propagate reconciliation aborts through host requests
+147:  9ea8aca8 = 145:  20d52b9d fix(templates): include parent directories in published archives
+148:  2970a7d3 = 146:  881f3fb6 feat(cloudflare): reconcile tasks and expose template outcomes
+149:  169d9737 = 147:  66d939e7 docs(validation): record preview migration and assembled app checks
+150:  5558999e = 148:  37c60762 fix(ci): create restricted role before migration grant checks
+151:  a1c70c7b = 149:  063da06f test(terminal): mock server actions at client boundary
+152:  d91cb462 = 150:  6a49569c feat(delivery): pin repository policy to task intent
+153:  6a55bb59 = 151:  0778f5b5 build(templates): refresh policy runtime manifest
+154:  014d08e3 = 152:  f2932a9e feat(delivery): bind workspace identity and epic source
+155:  6006d6b4 = 153:  2efec740 feat(cloudflare): add bounded terminal and project preview transport
+156:  e9230f13 = 154:  27df48b9 fix(workspace): verify canonical Coder application names
+157:  a92e3052 = 155:  7434eb65 feat(cloudflare): preserve project access and clipboard uploads
+158:  9c2c40b5 = 156:  c569b76e test(terminal): type paste fixtures for binary uploads
+159:  c53c7851 = 157:  6cdcc5dd feat(delivery): verify independent acceptance against sealed source
+160:  7cc2bfb5 = 158:  c415d64a test(projects): verify deployed repository discovery and opening
+161:  4207534a = 159:  b5b7cb74 test(delivery): verify preview acceptance migration and app
+162:  177973bf = 160:  1a817e36 feat(migrate): prepare private snapshot rehearsal capture
+163:  9db3f5fd ! 161:  b40f5c3f feat(delivery): add verified repair and completion runtime
+    @@ scripts/sync-workspace-profile-templates.mjs: const targetRoots = [
+      async function collectFiles(directory) {
+        const entries = await readdir(directory, { withFileTypes: true });
+     @@ scripts/sync-workspace-profile-templates.mjs: const sharedRelativePaths = [
+    -   "main.tf",
+    +   "docker.tf",
+        "hive-host.tf",
+        "hive-read.tf",
+     +  "hive-voice.tf",
+164:  fe62afbe = 162:  c4736597 fix(test): preserve Prisma exports in guardian fixture
+165:  494cf3e0 = 163:  b5359ba2 fix(ci): report workspace image bootstrap rejection details
+166:  369006dc = 164:  018b7eee test(delivery): verify preview repair migration and runtime
+167:  781bb9dd = 165:  5b2111db fix(image): make pinned runtime directory traversable
+168:  16b73958 = 166:  2fb641a6 test(cloudflare): correct full app validation evidence
+169:  24a454c6 = 167:  095f61b5 feat(agents): add scoped Cloudflare workspace tools bridge
+170:  773021c6 = 168:  a352b11e docs(delivery): record reviewed bridge and remaining integration gates
+171:  bf42dc8d = 169:  6b11dc09 test(cloudflare): verify reviewed agent bridge application build

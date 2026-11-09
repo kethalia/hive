@@ -1,0 +1,11 @@
+{
+  "verifiedCommit": "7338bef1a5674f7bff4aacf3ee183d75671f1f1a",
+  "sourceDigestsMatchCommit": {
+    "src/components/delivery/DeliveryPanel.tsx": true,
+    "src/components/projects/ConversationView.tsx": true,
+    "src/lib/delivery/read-contracts.ts": true,
+    "src/app/globals.css": true,
+    "scripts/checks/delivery-ui/main.tsx": true
+  },
+  "note": "Harness was run with uncommitted source; these exact source files were then committed without edits. Original observation is preserved."
+}

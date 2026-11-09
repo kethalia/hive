@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T23:58:50.595Z",
+  "baseRevision": "fe396ffeb19dec92cca048f45aace5b7419ab764",
+  "endingBaseRevision": "fe396ffeb19dec92cca048f45aace5b7419ab764",
+  "testedSourcesCommitted": false,
+  "sourceDigests": {
+    "packages/db/prisma/schema.prisma": "742026558e679979f858dafb9af48980715123224bcfda86b0f754b18e82b151",
+    "src/lib/codex-session/guardian-contracts.ts": "dd70d737646619019180949d05c00513155d0261bd7e4b3daaf660d7073cbbc4",
+    "src/lib/codex-session/guardian-config.server.ts": "54739cad4db53fadc297a9d8fa1387718f055fa302e1ca1edda4b1f2163251ed",
+    "src/lib/codex-session/guardian-store.server.ts": "2110b067eb055065f7f798949658199db7e7cd0c03c43025f562833048d590c5",
+    "src/lib/codex-session/registration-store.server.ts": "a4daed37b02986afff80ae6c9257da6029b5190840e9e9bf7edb817b6d4debbd",
+    "src/lib/projects/task-intents.server.ts": "d7037992e84b124f5440324085907a2dfb85e171faeede44ac4f7c493beef8c2",
+    "src/lib/delivery/manager-binding.server.ts": "b3c844855de4042acd170bf152dbaf400c3569e8a76d17b33409112c1de78e84",
+    "src/lib/delivery/manager.server.ts": "a47defba58432aa0d3f64e635af68726fef2e1db4a570b4029c584b87d48bb69",
+    "src/lib/delivery/native.server.ts": "5c6ac487b150b697da91b4a5c484e2eac03c859a2b7b952075e842567534791e",
+    "src/lib/delivery/repository.ts": "68c180b718d82f2115f5e99996e51c591fc58973d2f6f49bdce559f540f704d9",
+    "src/lib/delivery/progression.server.ts": "2f6f25994faddc8bdcea66d26d391f79c08dc722e2e205eae29c934b3afefa67",
+    "src/lib/delivery/source-resolver.server.ts": "bb60c7cc8f1172608475a9ba7dbde6cff73bc09deb9e3fbc570a4ce2432bdf27",
+    "src/__tests__/lib/codex-session/guardian-fixture.ts": "d4beeca91654185ee880fe4348148d08fb6e05c2f20ee1a9e51a98f208a48aa4",
+    "src/__tests__/lib/codex-session/guardian-policy.test.ts": "7b76479a70389d86f2e8181d5d8842970ec0519e7f82458799d998b9a27450aa",
+    "src/__tests__/lib/codex-session/guardian-store.integration.test.ts": "27ccc008db9d59284f65c3a3c0d5d6a2a428f2398594f75e7223184215ce6d29",
+    "src/__tests__/lib/delivery/native-fixture.ts": "4c0685ae172ceee60a8a82a3c22ab0f726eb2d0caec6e3b6e983e435323ceff8",
+    "templates/ai-dev-k8s/scripts/codex-native-namespace.mjs": "33550f4d7ac4e3c5532429d7a71d57c8cec285bec3c3423a7803b79d5695b8d7",
+    "scripts/probe-guardian-registry.mjs": "90cca395949e193fdb0e5fe962d27c0fcde86920839ac9d89e448613f94571bd",
+    "packages/db/prisma/migrations/0_init/migration.sql": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c",
+    "packages/db/prisma/migrations/20260602000000_add_navigation_favorites/migration.sql": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2",
+    "packages/db/prisma/migrations/20260603000000_add_terminal_controls_beyond_mobile/migration.sql": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4",
+    "packages/db/prisma/migrations/20260714000000_add_navigation_favorite_position/migration.sql": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409",
+    "packages/db/prisma/migrations/20260814000000_remove_legacy_tasks/migration.sql": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7",
+    "packages/db/prisma/migrations/20261016000000_add_agent_notifications/migration.sql": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f",
+    "packages/db/prisma/migrations/20261016010000_stage_notification_credentials/migration.sql": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b",
+    "packages/db/prisma/migrations/20261029000000_add_delivery_foundation/migration.sql": "5afb3dcb698bdae86a0ed905b35bea9255681f9f85f89e893165e549d830dc04",
+    "packages/db/prisma/migrations/20261029010000_delivery_audit_integrity/migration.sql": "3f7bd5aa766c76446d4ba03f13950869aa9834afa6a71ca1d3e4cfb91be10f12",
+    "packages/db/prisma/migrations/20261029020000_delivery_report_event_binding/migration.sql": "b3f460809b36fd2f465d86c2510fd771d5b82830195fd5f569d0af5de2703ddb",
+    "packages/db/prisma/migrations/20261029030000_delivery_runtime_recovery/migration.sql": "22df1aff4ead962203f7297269593721094a69af6cf52b93031ea2b6ceeb2fae",
+    "packages/db/prisma/migrations/20261029040000_coder_token_key_provenance/migration.sql": "79490e708067bd2a75014c431485ec2fb9acf8a30b15657d88a9f846b24ce07b",
+    "packages/db/prisma/migrations/20261029050000_codex_host_registration/migration.sql": "4cdf9506b033b22a4f7a587d7a3666693505d048c1ad199b8b8cc01fbfc45056",
+    "packages/db/prisma/migrations/20261029060000_codex_heartbeat_ack/migration.sql": "a32ca679ad7cb1929be51abf19fd0f7ad8af0c8a1ef0ff7f7ebfca6273a0aa8d",
+    "packages/db/prisma/migrations/20261029070000_project_task_intents/migration.sql": "c00bd0778d1f73de833de0b96399a222cc5d68768a9145e3e409055b42b237b2",
+    "packages/db/prisma/migrations/20261029071000_project_intent_payload_guards/migration.sql": "d99beaaed25ab0fcbeb4cfb8d92053a21079ddf7aab76e9652ddd3816b63350f",
+    "packages/db/prisma/migrations/20261029072000_project_intent_source_context/migration.sql": "06464c8432ee644586f3006c63eda777ab862767f2bb2c2bb085c942594ead97",
+    "packages/db/prisma/migrations/20261029073000_project_preparation_progress/migration.sql": "dd841feb7df1fc095c64f4ceaec0fcfc0b36a7a4f2310fa3f5c8f147343fa97c",
+    "packages/db/prisma/migrations/20261029090000_delivery_manager_binding/migration.sql": "a936070d0bba5543e943f51ba706db39fd947fd33adf7907fbbf64c9a6abbdf2",
+    "packages/db/prisma/migrations/20261029100000_delivery_informational_report/migration.sql": "8238c4aea40963721be20c5bd50485d06c6b42a86e7376cf7167af1e1482ac05",
+    "packages/db/prisma/migrations/20261029100100_delivery_report_null_guard/migration.sql": "c222e57502fd35dab8cf4509248573ee83a4f20c648c9ac29082226f1b847865",
+    "packages/db/prisma/migrations/20261029110000_delivery_manager_progression/migration.sql": "4fcff3d44749f4af283860f299a930da227cb20fcb8b57be9109f6d52d1086df",
+    "packages/db/prisma/migrations/20261029120000_delivery_source_revisions/migration.sql": "fd8777426fd15a9417e4e3f3e6914b0b1d28e499fd01f1e7ab5fe6d8e3416bb1",
+    "packages/db/prisma/migrations/20261029130000_guardian_admission/migration.sql": "c490ae633e12272d821a5b2203637711182789139627a17bf7fa2e60cc8e24b7"
+  },
+  "sourceStable": true,
+  "passed": true,
+  "database": {
+    "host": "127.0.0.1",
+    "port": 39989,
+    "name": "hive_delivery_test",
+    "schemaMigrations": 24,
+    "allMigrationChecksumsMatch": true,
+    "rowsPreserved": true
+  },
+  "tests": {
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0,
+    "groups": [
+      {
+        "name": "guardian-policy.test.ts",
+        "passed": true
+      },
+      {
+        "name": "guardian-store.integration.test.ts",
+        "passed": true
+      }
+    ]
+  },
+  "limitations": [
+    "Storage and real server manager/native mutation integration with synthetic owner/Coder policy and metadata evidence; signature/bootstrap routes and installed outer factory are next gate.",
+    "No physical quiescence, tree receipt ingestion, source publication live or resource cleanup authorized."
+  ],
+  "accountInference": false,
+  "cloudMutations": false
+}

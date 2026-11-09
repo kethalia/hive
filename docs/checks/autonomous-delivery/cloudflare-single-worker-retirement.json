@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-11-05T22:40:05.678Z",
+  "remainingHiveWorkers": [
+    {
+      "name": "hive",
+      "tag": "4d36354d2c86462e971b32a875e8b549"
+    }
+  ],
+  "preview": {
+    "id": "9b772c5c22f84deeb1af85e68f819798",
+    "name": "codex/delivery-system-design",
+    "urls": ["https://codex-delivery-system-design-hive.b00ste.workers.dev"],
+    "deploymentId": "93f55b0f-e3b2-4c7c-a4ce-edc93072c94f",
+    "tag": "4fc81c3",
+    "externalServiceBindings": []
+  },
+  "storageAndDatabaseDeletionRequested": false,
+  "deleted": [
+    {
+      "name": "hive-jobs-compatibility-preview",
+      "tag": "e9e70650970f4012a6ff87a7a3063b23",
+      "createdOn": "2026-11-05T20:00:12.007381Z",
+      "deleted": true,
+      "observedAt": "2026-11-05T22:39:05.243Z",
+      "forced": false
+    },
+    {
+      "name": "hive-app-compatibility-preview",
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deleted": true,
+      "observedAt": "2026-11-05T22:39:09.748Z",
+      "forced": false
+    },
+    {
+      "name": "hive-auth-compatibility-preview",
+      "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+      "createdOn": "2026-10-29T19:13:42.822748Z",
+      "deleted": true,
+      "observedAt": "2026-11-05T22:39:13.874Z",
+      "forced": false
+    },
+    {
+      "name": "hive-delivery-capability-preview",
+      "tag": "6cdd88fe6aa54f929bcb9a9e4437b4f5",
+      "createdOn": "2026-10-29T16:15:43.885896Z",
+      "deleted": true,
+      "observedAt": "2026-11-05T22:39:17.901Z",
+      "forced": false
+    }
+  ],
+  "productionDeploymentUnchanged": true,
+  "codeAndSettingsPrivatelyArchived": true,
+  "retiredWriteOnlySecretValuesArchived": false
+}

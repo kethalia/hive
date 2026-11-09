@@ -1,0 +1,36 @@
+{
+  "database": "hive_app_preview",
+  "projectId": "purple-math-59583745",
+  "branchId": "br-ancient-violet-b7pcun87",
+  "observedAt": "2026-10-29T17:56:55.489505+00:00",
+  "sourceRevision": "b0e278c0ec40490c3a5a9a2cce258d27c9ef5bf1",
+  "migrations": [
+    "0_init",
+    "20260602000000_add_navigation_favorites",
+    "20260603000000_add_terminal_controls_beyond_mobile",
+    "20260714000000_add_navigation_favorite_position",
+    "20260814000000_remove_legacy_tasks",
+    "20261016000000_add_agent_notifications",
+    "20261016010000_stage_notification_credentials",
+    "20261029000000_add_delivery_foundation",
+    "20261029010000_delivery_audit_integrity",
+    "20261029020000_delivery_report_event_binding",
+    "20261029030000_delivery_runtime_recovery",
+    "20261029040000_coder_token_key_provenance",
+    "20261029050000_codex_host_registration",
+    "20261029060000_codex_heartbeat_ack"
+  ],
+  "runtimeCrudTablesAdded": [
+    "codex_host_slots",
+    "codex_registration_grants",
+    "codex_host_registrations",
+    "codex_registered_threads"
+  ],
+  "runtimeRoleRestrictions": {
+    "superuser": false,
+    "createRole": false,
+    "createDatabase": false,
+    "canCreateSchema": false
+  },
+  "productionChanged": false
+}

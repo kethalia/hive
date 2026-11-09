@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T20:45:58Z",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "workersSubdomain": "b00ste",
+  "plan": "paid-user-confirmed",
+  "source": "connected Cloudflare API account/scripts + GraphQL account-wide overview datasets; local Wrangler whoami",
+  "targets": [
+    {
+      "name": "hive-app-compatibility-preview",
+      "exists": true,
+      "tag": "d2c4ddb811af4b268d1245e8fd2c8009",
+      "createdOn": "2026-10-29T19:15:01.671691Z",
+      "deploymentId": "beb77274-466b-4dfd-b3d1-5a701c3d3778",
+      "versionId": "c9401e7b-a3f0-43c0-8f18-5b170d4ee5a9",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "usageModel": "standard",
+      "limits": {
+        "cpu_ms": 100
+      },
+      "routes": null,
+      "logpush": false
+    },
+    {
+      "name": "hive-auth-compatibility-preview",
+      "exists": true,
+      "tag": "731fb2f125fb472e8682ea6ed4d1f53d",
+      "createdOn": "2026-10-29T19:13:42.822748Z",
+      "deploymentId": "cf315309-8602-402a-9e6c-4ed45ee708fd",
+      "versionId": "cf6cd1be-4060-4fcb-99fa-be73d39cd6f2",
+      "publicState": {
+        "enabled": false,
+        "previews_enabled": false
+      },
+      "usageModel": "standard",
+      "limits": {
+        "cpu_ms": 100
+      },
+      "routes": null,
+      "logpush": false
+    }
+  ],
+  "workerCount": 11,
+  "wrangler": {
+    "version": "4.155.0",
+    "authenticated": true,
+    "accountId": "225177f82b9234ede14e897fe15e0cb5",
+    "requiredScopesPresent": ["account:read", "workers:write", "workers_scripts:write"],
+    "unrelatedMissingScopes": ["k2.read", "k2.write"],
+    "credentialsReadOrExportedByAgent": false
+  },
+  "window": {
+    "startInclusive": "2026-09-28T00:00:00Z",
+    "endExclusive": "2026-10-29T20:45:58Z"
+  },
+  "usage": {
+    "requests": 277090,
+    "rawCpuTimeUs": 20356916910,
+    "standardCpuTimeUs": 2325520636,
+    "conservativeCpuMilliseconds": 20356916.91
+  },
+  "publishedIncludedAllowance": {
+    "requestsPerMonth": 10000000,
+    "cpuMillisecondsPerMonth": 30000000,
+    "source": "https://developers.cloudflare.com/workers/platform/pricing/"
+  },
+  "interpretation": "Adaptive/sampled analytics, not invoice usage or a future billing guarantee. The larger CPU sum conservatively bounds observed usage over a window covering the possible current monthly cycle. Billing read scope is unavailable; no additional costs authorized.",
+  "exactInvoiceUsageVerified": false,
+  "futureHeadroomReserved": false,
+  "approvedProbeRequestMaximum": 200,
+  "maximumCpuMillisecondsPerWorkerInvocation": 100,
+  "additionalCostsAuthorized": false,
+  "newPaidProductsAllowed": false,
+  "cloudWrites": 0,
+  "sizeLimit": {
+    "uncompressedMiB": 64,
+    "compressedLimit": false,
+    "source": "https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/"
+  },
+  "maximumProbeWallSeconds": 180,
+  "phase": "update-owned-preview-login-browser",
+  "probeScope": {
+    "nativeGatewayEnabled": false,
+    "managerEnabled": false,
+    "scheduledJobsEnabled": false,
+    "terminalEnabled": false,
+    "r2Enabled": false,
+    "realTestAccountLoginMaximum": 1,
+    "trackedHiveCoderKeyMintMaximum": 1
+  },
+  "maximumWorkerInvocationsPerOuterRequest": 3,
+  "conservativeProbeCpuMilliseconds": 60000
+}

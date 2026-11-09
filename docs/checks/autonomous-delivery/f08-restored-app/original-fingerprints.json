@@ -1,0 +1,42 @@
+{
+  "_prisma_migrations": {
+    "count": 7,
+    "matches": true,
+    "sha256": "73b6bc0ade69b392215bd725b1e5ff79120a06411efe58de0f45087ad463a1d7"
+  },
+  "coder_tokens": {
+    "count": 7,
+    "matches": true,
+    "sha256": "777482e6d8c6aab86960a5753d72cc29584e097fa145e80a386a373bb1c42fd5"
+  },
+  "navigation_favorites": {
+    "count": 16,
+    "matches": true,
+    "sha256": "373c39540712919fb07a61f64ba74fd193e4dcc696db82cf076c9d96e588ebba"
+  },
+  "notification_sources": {
+    "count": 1,
+    "matches": true,
+    "sha256": "39f1206610631ec9701d7e67d0e575613cc233359572ec9c68ae61a5e9a2d9cf"
+  },
+  "push_subscriptions": {
+    "count": 10,
+    "matches": true,
+    "sha256": "fb75fc2468ba20b301ccc4bf7b758cfa32eb43cb078fc3e2a2fc19fe69217c60"
+  },
+  "sessions": {
+    "count": 39,
+    "matches": true,
+    "sha256": "b97d905d79f54146d5194dc9e0aabfe82c1ec959c6cb920911ad5ef2dd0506a0"
+  },
+  "users": {
+    "count": 7,
+    "matches": true,
+    "sha256": "2a137ef7bfe9ed7a6c658abb09c28bd4ca1c86dc3dc52c0ad29226d553dc9b26"
+  },
+  "vapid_keys": {
+    "count": 1,
+    "matches": true,
+    "sha256": "ad0e93b33736c43c039fb79247f88e68b88f71d6d3ff61022c1e23d35f1b50cb"
+  }
+}

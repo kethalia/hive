@@ -1,0 +1,638 @@
+import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+function http(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const r = httpRequest(
+      url,
+      { method: options.method ?? "GET", headers: options.headers },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode,
+            json: async () => JSON.parse(Buffer.concat(chunks).toString()),
+          }),
+        );
+      },
+    );
+    r.on("error", reject);
+    r.end(options.body);
+  });
+}
+
+import {
+  createProjectDiscovery,
+  startDiscoveryGateway,
+} from "../templates/ai-dev-k8s/scripts/codex-project-discovery.mjs";
+
+function fixture(controller, helperCode, mergeCode, productionCode) {
+  const root = mkdtempSync(join(tmpdir(), "hive-discovery-")),
+    helperPath = join(root, "helper.py"),
+    issuer = generateKeyPairSync("ed25519");
+  const code =
+    helperCode ??
+    `import json,sys,os\nr=json.load(sys.stdin)\nassert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ and 'OPENAI_API_KEY' not in os.environ\nprint(json.dumps({'schemaVersion':1,'provider':'github','providerAccountId':'123','repositories':[],'page':r['page'],'perPage':r['perPage'],'nextPage':None}))\n`;
+  writeFileSync(helperPath, code, { mode: 0o600 });
+  const config = {
+    binding: {
+      coderOrigin: "https://coder.example.com",
+      hiveUserId: randomUUID(),
+      ownerId: randomUUID(),
+      workspaceId: randomUUID(),
+      buildId: randomUUID(),
+      agentId: randomUUID(),
+      templateId: randomUUID(),
+      appOrigin: "https://app.example.com",
+      appId: randomUUID(),
+    },
+    hiveOrigin: "https://hive.example.com",
+    issuerPublicKeyPem: issuer.publicKey.export({ format: "pem", type: "spki" }).toString(),
+    issuerKeyId: "issuer",
+    stateDirectory: root,
+    helperPath,
+    helperSha256: createHash("sha256").update(code).digest("hex"),
+  };
+  if (mergeCode) {
+    config.epicMergePath = join(root, "epic-merge-host.mjs");
+    writeFileSync(config.epicMergePath, mergeCode, { mode: 0o600 });
+    config.epicMergeSha256 = createHash("sha256").update(mergeCode).digest("hex");
+  }
+  if (productionCode) {
+    config.productionReleasePath = join(root, "production-release-host.mjs");
+    writeFileSync(config.productionReleasePath, productionCode, { mode: 0o600 });
+    config.productionReleaseSha256 = createHash("sha256").update(productionCode).digest("hex");
+  }
+  const host = createProjectDiscovery(config, controller);
+  const ticket = (patch = {}) => {
+    const now = Math.floor(Date.now() / 1000),
+      claims = {
+        iss: config.hiveOrigin,
+        aud: config.binding.appOrigin,
+        scope: "projects:discover",
+        jti: randomUUID(),
+        iat: now,
+        exp: now + 60,
+        binding: config.binding,
+        request: { schemaVersion: 1, page: 1, perPage: 10 },
+        ...patch,
+      };
+    const head = Buffer.from(JSON.stringify({ alg: "EdDSA", typ: "JWT", kid: "issuer" })).toString(
+        "base64url",
+      ),
+      body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    return `${head}.${body}.${sign(null, Buffer.from(`${head}.${body}`), issuer.privateKey).toString("base64url")}`;
+  };
+  return {
+    host,
+    config,
+    ticket,
+    root,
+    close() {
+      host.close();
+      rmSync(root, { recursive: true, force: true });
+    },
+  };
+}
+test("pre-project discovery needs no native session and persists nonce replay rejection across restart", async () => {
+  const f = fixture();
+  try {
+    const ticket = f.ticket();
+    const result = await f.host.discover({ ticket });
+    assert.equal(result.provider, "github");
+    assert.equal(result.page, 1);
+    await assert.rejects(f.host.discover({ ticket }));
+    assert.throws(() => createProjectDiscovery(f.config));
+    f.host.close();
+    const restarted = createProjectDiscovery(f.config);
+    try {
+      await assert.rejects(restarted.discover({ ticket }));
+    } finally {
+      restarted.close();
+    }
+  } finally {
+    f.close();
+  }
+});
+test("signed pagination, exact owner/build/app and scope cannot be substituted", async () => {
+  const f = fixture();
+  try {
+    for (const patch of [
+      { scope: "session:read" },
+      { binding: { ...f.config.binding, ownerId: randomUUID() } },
+      { binding: { ...f.config.binding, buildId: randomUUID() } },
+      { request: { schemaVersion: 1, page: 0, perPage: 100 } },
+      { request: { schemaVersion: 1, page: 1, perPage: 101 } },
+      { request: { schemaVersion: 1, page: 1, perPage: 10, command: "touch bad" } },
+    ])
+      await assert.rejects(f.host.discover({ ticket: f.ticket(patch) }));
+    await assert.rejects(f.host.discover({ ticket: f.ticket(), page: 2 }));
+  } finally {
+    f.close();
+  }
+});
+test("signed epic GET-only helper observations use the existing account bridge and reject forged scope", async () => {
+  const code = `import json,sys,os
+r=json.load(sys.stdin)
+assert 'GITHUB_TOKEN' not in os.environ and 'CODER_SESSION_TOKEN' not in os.environ
+print(json.dumps(dict(schemaVersion=1,operation=r['operation'],requestId=r['requestId'],providerAccountId=r['expectedAccountId'],repository=dict(providerRepositoryId=r['repositoryId']),baseBranch=r['baseBranch'],headSha=r['headSha'],branchHeadSha='c'*40,pullRequestId=r['pullRequestId'],pullNumber=r['pullNumber'],sourceBranch=r['sourceBranch'],merged=True,mergeSha='c'*40)))
+`;
+  const f = fixture(
+    {
+      handle() {
+        throw Error("must not enter native controller");
+      },
+    },
+    code,
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/epic-read",
+      request = {
+        schemaVersion: 1,
+        requestId: randomUUID(),
+        operation: "observe_merge",
+        repositoryId: "123",
+        expectedAccountId: "456",
+        baseBranch: "epic/fixture",
+        headSha: "b".repeat(40),
+        pullRequestId: "900",
+        pullNumber: 7,
+        sourceBranch: "codex/delivery/task/operation",
+      };
+    const send = (scope, input = request) =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: input }) }),
+      });
+    const response = await send("projects:epic:read");
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).mergeSha, "c".repeat(40));
+    assert.equal((await send("projects:resolve")).status, 403);
+    assert.equal(
+      (await send("projects:epic:read", { ...request, url: "https://example.invalid" })).status,
+      403,
+    );
+    assert.equal(
+      (await send("projects:epic:read", { ...request, operation: "merge" })).status,
+      403,
+    );
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+test("installed helper content replacement is rejected and never executes", async () => {
+  const f = fixture();
+  try {
+    writeFileSync(f.config.helperPath, 'raise Exception("changed")');
+    await assert.rejects(f.host.discover({ ticket: f.ticket() }));
+  } finally {
+    f.close();
+  }
+});
+test("loopback HTTP route admits signed discovery and rejects forged app headers/arbitrary routes", async () => {
+  const f = fixture(),
+    gateway = await startDiscoveryGateway(
+      { port: 0, appOrigin: f.config.binding.appOrigin },
+      f.host,
+    );
+  try {
+    const base = `http://127.0.0.1:${gateway.port}`,
+      headers = { Host: "app.example.com", "Content-Type": "application/json" };
+    const r = await http(`${base}/projects/discover`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ticket: f.ticket() }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).provider, "github");
+    const forged = await http(`${base}/projects/discover`, {
+      method: "POST",
+      headers: { ...headers, "Coder-Session-Token": "forged" },
+      body: JSON.stringify({ ticket: "forged" }),
+    });
+    assert.equal(forged.status, 403);
+    assert.equal((await http(`${base}/thread/start`, { method: "POST", headers })).status, 404);
+    assert.equal(
+      (
+        await http(`${base}/projects/discover`, {
+          method: "POST",
+          headers: { ...headers, Host: "evil.example" },
+          body: "{}",
+        })
+      ).status,
+      403,
+    );
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("signed project operations are exact-path scoped and accept bounded escaped first-task text", async () => {
+  const calls = [];
+  const f = fixture({
+    async handle(path, request) {
+      calls.push({ path, request });
+      return { accepted: true };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/tasks/start",
+      request = {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        repositoryId: "123",
+        expectedAccountId: "456",
+        taskId: randomUUID(),
+        requestId: randomUUID(),
+        revision: "a".repeat(40),
+        model: "gpt-6.1-sol",
+        effort: "low",
+        text: `x${"\n".repeat(32767)}`,
+      };
+    const headers = { Host: "app.example.com", "Content-Type": "application/json" },
+      base = `http://127.0.0.1:${gateway.port}`;
+    const r = await http(base + path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ticket: f.ticket({ scope: "projects:task:start", request }) }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].request.text, request.text);
+    for (const patch of [
+      { scope: "projects:discover" },
+      { request: { ...request, text: "\u0000" } },
+      { request: { ...request, command: "bad" } },
+    ]) {
+      const denied = await http(base + path, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          ticket: f.ticket({ scope: "projects:task:start", request, ...patch }),
+        }),
+      });
+      assert.equal(denied.status, 403);
+    }
+    assert.equal(calls.length, 1);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("retry gateway requires separate exact scope and cannot carry replacement input", async () => {
+  const calls = [],
+    f = fixture({
+      async handle(path, request) {
+        calls.push({ path, request });
+        return { phase: "blocked" };
+      },
+    });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const path = "/projects/tasks/retry",
+      request = {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        taskId: randomUUID(),
+        requestId: randomUUID(),
+      };
+    for (const [patch, expected] of [
+      [{}, 200],
+      [{ scope: "projects:task:start" }, 403],
+      [{ request: { ...request, text: "replacement" } }, 403],
+    ]) {
+      const result = await http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticket: f.ticket({ scope: "projects:task:retry", request, ...patch }),
+        }),
+      });
+      assert.equal(result.status, expected);
+    }
+    assert.deepEqual(calls, [{ path, request }]);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("a pending catalog result after closure cannot return an accepted project operation", async () => {
+  let release, entered;
+  const waiting = new Promise((done) => {
+    entered = done;
+  });
+  const gate = new Promise((done) => {
+    release = done;
+  });
+  const f = fixture({
+    async handle() {
+      entered();
+      await gate;
+      return { accepted: true };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const pending = http(`http://127.0.0.1:${gateway.port}/projects/open`, {
+      method: "POST",
+      headers: { Host: "app.example.com", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticket: f.ticket({
+          scope: "projects:open",
+          request: {
+            schemaVersion: 1,
+            repositoryId: "123",
+            expectedAccountId: "456",
+            projectId: randomUUID(),
+            requestId: randomUUID(),
+          },
+        }),
+      }),
+    });
+    await waiting;
+    f.host.close();
+    release();
+    assert.equal((await pending).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("exact ref tickets cannot substitute resolve scope or inject branch expressions", async () => {
+  const calls = [];
+  const f = fixture({
+    handle: async (path, request) => {
+      calls.push({ path, request });
+      return { schemaVersion: 1, branch: request.branch, revision: "b".repeat(40) };
+    },
+  });
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const url = `http://127.0.0.1:${gateway.port}/projects/resolve-ref`;
+    const request = {
+      schemaVersion: 1,
+      repositoryId: "123",
+      expectedAccountId: "456",
+      branch: "codex/epic",
+    };
+    const send = (scope, value) =>
+      http(url, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:resolve-ref", request)).status, 200);
+    assert.equal((await send("projects:resolve", request)).status, 403);
+    assert.equal((await send("projects:resolve-ref", { ...request, branch: "main^" })).status, 403);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { path: "/projects/resolve-ref", request });
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("epic merge RPC has a separate signed capability, pinned sidecar and no native-controller dispatch", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("Must not enter native controller");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+assert len(os.environ["HIVE_EPIC_MERGE_DEADLINE_MS"]) == 13
+assert os.path.isabs(os.environ['HIVE_EPIC_MERGE_NODE']) and os.path.isabs(os.environ['HIVE_EPIC_MERGE_ENTRY'])
+assert 'CODER_SESSION_TOKEN' not in os.environ and 'GITHUB_TOKEN' not in os.environ
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':None}))
+`,
+    "// pinned fixed merge entry\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "prepare",
+      config: {},
+      gates: {},
+      source: {
+        repositoryId: "123",
+        pullRequestId: "900",
+        pullNumber: 7,
+        headSha: "a".repeat(40),
+        baseRef: "epic/fixture",
+        sourceBranch: "codex/fixture",
+      },
+    };
+    const send = (scope, value = request, path = "/projects/epic-merge") =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:epic:merge")).status, 200);
+    assert.equal((await send("projects:epic:read")).status, 403);
+    assert.equal((await send("projects:epic:merge", request, "/projects/epic-read")).status, 403);
+    assert.equal(
+      (
+        await send("projects:epic:merge", {
+          ...request,
+          source: { ...request.source, baseRef: "main" },
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await send("projects:epic:merge", { ...request, command: "arbitrary" })).status,
+      403,
+    );
+    writeFileSync(f.config.epicMergePath, "// altered sidecar\n", { mode: 0o500 });
+    assert.equal((await send("projects:epic:merge")).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("production merge/read capability uses its own pinned entry and cannot expand epic main authority", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("Not a native action");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+assert os.environ['HIVE_EPIC_MERGE_ENTRY'].endswith('production-release-host.mjs')
+assert 'GITHUB_TOKEN' not in os.environ and len(os.environ['HIVE_EPIC_MERGE_DEADLINE_MS'])==13
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':None}))
+`,
+    "// epic-only pinned entry\n",
+    "// production-only pinned entry\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "prepare",
+      config: {},
+      gates: {},
+      source: {
+        repositoryId: "123",
+        pullRequestId: "900",
+        pullNumber: 7,
+        headSha: "a".repeat(40),
+        baseRef: "main",
+        sourceBranch: "codex/fixture",
+      },
+    };
+    const send = (scope, value = request, path = "/projects/production-release") =>
+      http(`http://127.0.0.1:${gateway.port}${path}`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket: f.ticket({ scope, request: value }) }),
+      });
+    assert.equal((await send("projects:release:production")).status, 200);
+    assert.equal((await send("projects:epic:merge")).status, 403);
+    assert.equal(
+      (await send("projects:release:production", request, "/projects/epic-merge")).status,
+      403,
+    );
+    assert.equal((await send("projects:epic:merge", request, "/projects/epic-merge")).status, 403);
+    assert.equal(
+      (
+        await send("projects:release:production", {
+          ...request,
+          operation: "builds",
+          mergeSha: "b".repeat(40),
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await send("projects:release:production", {
+          ...request,
+          operation: "dispatch",
+          identity: {},
+        })
+      ).status,
+      403,
+    );
+    writeFileSync(f.config.productionReleasePath, "// replaced companion\n", { mode: 0o500 });
+    assert.equal((await send("projects:release:production")).status, 403);
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});
+
+test("expanded database frames require the production signature and retain exact non-database limits", async () => {
+  const f = fixture(
+    {
+      handle() {
+        throw Error("No public/native tool dispatch");
+      },
+    },
+    `import json,sys,os
+r=json.load(sys.stdin)
+with open(os.path.join(os.path.dirname(__file__),'calls'),'a') as out: out.write('1')
+print(json.dumps({'schemaVersion':1,'operation':r['operation'],'requestId':r['requestId'],'result':{'bytes':len(json.dumps(r,separators=(',',':')).encode())}}))
+`,
+    undefined,
+    "// fixed production sidecar fixture\n",
+  );
+  const gateway = await startDiscoveryGateway(
+    { port: 0, appOrigin: f.config.binding.appOrigin },
+    f.host,
+  );
+  try {
+    const request = {
+      schemaVersion: 1,
+      requestId: randomUUID(),
+      operation: "database",
+      config: { mode: "automatic-main-builds" },
+      catalog: { padding: "" },
+      command: { action: "baseline" },
+      gates: {},
+      source: {
+        repositoryId: "1",
+        pullRequestId: "2",
+        pullNumber: 1,
+        headSha: "a".repeat(40),
+        baseRef: "main",
+        sourceBranch: "codex/delivery/fixture",
+      },
+    };
+    request.catalog.padding = "x".repeat(98304 - Buffer.byteLength(JSON.stringify(request)));
+    const send = (value, ticket) =>
+      http(`http://127.0.0.1:${gateway.port}/projects/production-release`, {
+        method: "POST",
+        headers: { Host: "app.example.com", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticket: ticket ?? f.ticket({ scope: "projects:release:production", request: value }),
+        }),
+      });
+    const accepted = await send(request);
+    assert.equal(accepted.status, 200);
+    assert.equal((await accepted.json()).result.bytes, 98304);
+    assert.equal(
+      (await send({ ...request, catalog: { padding: `${request.catalog.padding}x` } })).status,
+      403,
+    );
+    const parts = f.ticket({ scope: "projects:release:production", request }).split(".");
+    parts[2] = (parts[2][0] === "A" ? "B" : "A") + parts[2].slice(1);
+    assert.equal((await send(request, parts.join("."))).status, 403);
+    assert.equal(
+      (await send(request, f.ticket({ scope: "projects:epic:merge", request }))).status,
+      403,
+    );
+    const { catalog: _catalog, command: _command, ...base } = request;
+    assert.equal(
+      (await send({ ...base, operation: "prepare", config: { padding: "x".repeat(12000) } }))
+        .status,
+      403,
+    );
+    assert.equal(readFileSync(join(f.root, "calls"), "utf8"), "1");
+  } finally {
+    await gateway.close();
+    f.close();
+  }
+});

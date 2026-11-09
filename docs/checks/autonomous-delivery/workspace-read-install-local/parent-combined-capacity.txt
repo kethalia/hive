@@ -1,0 +1,12 @@
+✔ read package is deterministic and pins only its two independent service members (14.461634ms)
+✔ check rejects stale package or changed source until deliberate resynchronization (9.533222ms)
+✔ combined public bootstrap retains room for both configs under unchanged metadata budget (268.689521ms)
+ℹ {"hostCompressedBytes":140104,"readCompressedBytes":9382,"installerCompressedBytes":5690,"fixedBytes":229256,"configReserve":8192,"limit":240000}
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 349.554432

@@ -1,3 +1,4 @@
+import { coderCredentialHeaders } from "@hive/auth";
 import { fetchCoderApi } from "./coder-fetch.js";
 
 const WORKSPACE_AUTHORIZATION_TIMEOUT_MS = 5_000;
@@ -7,6 +8,7 @@ export type WorkspaceAgentAccessResult = { ok: true } | { ok: false; status: 403
 interface WorkspaceAgentAccessInput {
   coderUrl: string;
   token: string;
+  credentialSource?: string;
   workspaceId: string;
   agentId: string;
 }
@@ -29,6 +31,7 @@ function workspaceContainsAgent(workspace: unknown, agentId: string): boolean {
 export async function verifyWorkspaceAgentAccess({
   coderUrl,
   token,
+  credentialSource,
   workspaceId,
   agentId,
 }: WorkspaceAgentAccessInput): Promise<WorkspaceAgentAccessResult> {
@@ -41,7 +44,7 @@ export async function verifyWorkspaceAgentAccess({
         {
           headers: {
             "Content-Type": "application/json",
-            "Coder-Session-Token": token,
+            ...coderCredentialHeaders(token, credentialSource),
           },
           signal: controller.signal,
         },

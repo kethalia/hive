@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "fixtureRemoved": true,
+  "sourceHashesVerified": {
+    "test_intervals.py": "1ad50aa41abf50bf2c57ab34701f705ce387fbe761c59d57b53a54a2c29e66cc",
+    "intervals.py": "1393fb683af1854c3a0e26f538cfdc0300cfeb0a6311131a3651204c8b7b193d"
+  },
+  "processReferences": [],
+  "uninspectableSameUidProcesses": [],
+  "recordedNativeChainExited": true,
+  "officialHostHealth": 200,
+  "officialSupervisorUntouched": true,
+  "dedicatedAuthPreserved": true,
+  "nativeHistoryPreserved": true,
+  "privatePilotEvidenceRetained": "/home/coder/.local/state/hive/native-account-pilot-06c0d523-1298-46b9-8030-b71b5b4bb6e4",
+  "productionCleanupAuthorized": false,
+  "quiescenceClaim": false
+}

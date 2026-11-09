@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-05T16:52:12.419130+00:00",
+  "assumption": "Operator accepts isolation under trusted Coder/Kubernetes provisioning of distinct dedicated PVCs. This is not independent kernel or hardware attestation. The child Terraform state has no bound PV name.",
+  "builds": [
+    {
+      "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+      "buildId": "570c514a-cbf7-4cd2-b39e-c7cc6c4c7bb3",
+      "namespace": "coder",
+      "claimName": "coder-22c4f094-46f0-4a76-86ca-37ad74254872-home",
+      "pvcUid": "d3b279cb-7577-4ee6-8b72-9288e836e3d6",
+      "devWritableMounts": ["home:/home/coder"],
+      "initWritableMounts": ["home:/target"],
+      "otherVolumes": "read-only downward API bootstrap only",
+      "hostPathPresent": false
+    },
+    {
+      "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "buildId": "7aa402a0-47d6-4069-93e1-05520e220236",
+      "namespace": "coder",
+      "claimName": "coder-23023679-3c7b-4a50-ba52-4ca31673148e-home",
+      "pvcUid": "072c460b-1424-4e20-80b9-dc2cf0ec17fa",
+      "devWritableMounts": ["home:/home/coder"],
+      "initWritableMounts": ["home:/target"],
+      "otherVolumes": "read-only downward API bootstrap only",
+      "hostPathPresent": false
+    }
+  ],
+  "expiresAt": 1793983932418,
+  "guardianPins": {
+    "packageManifestSha256": "b2cdf19a1977d89ca65a63160b6e0acf0c0a688bc1b5280e667635e8bee8b172",
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    "protocol": "guardian-v1",
+    "policyDigest": "556269ffeaec5f61c312d3701a8e093fa0bb753318d2d601b2c28d11e5df6b7e",
+    "metadataPolicyDigest": "6401e70984f10dc9994a22563ccbdd9395947ddd9e69413463b097d7e18d539b"
+  },
+  "hostConfiguredModel": "gpt-6.1-sol",
+  "hostConfiguredEffort": "high",
+  "effectiveInferenceNotYetObserved": true
+}

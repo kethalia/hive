@@ -1,0 +1,70 @@
+templates/ai-dev-k8s/hive-read.tf
+--- old/templates/ai-dev-k8s/hive-read.tf
++++ new/templates/ai-dev-k8s/hive-read.tf
+@@ -41,8 +41,8 @@
+
+ locals {
+   hive_read_bootstrap_data = local.hive_read_enabled ? {
+-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
+-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
++    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
++    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
+     "hive.kethalia.com/read-request" = jsonencode({
+       schemaVersion  = 1
+templates/browser-testing/hive-read.tf
+--- old/templates/browser-testing/hive-read.tf
++++ new/templates/browser-testing/hive-read.tf
+@@ -41,8 +41,8 @@
+
+ locals {
+   hive_read_bootstrap_data = local.hive_read_enabled ? {
+-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
+-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
++    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
++    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
+     "hive.kethalia.com/read-request" = jsonencode({
+       schemaVersion  = 1
+templates/electronics/hive-read.tf
+--- old/templates/electronics/hive-read.tf
++++ new/templates/electronics/hive-read.tf
+@@ -41,8 +41,8 @@
+
+ locals {
+   hive_read_bootstrap_data = local.hive_read_enabled ? {
+-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
+-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
++    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
++    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
+     "hive.kethalia.com/read-request" = jsonencode({
+       schemaVersion  = 1
+templates/game-dev/hive-read.tf
+--- old/templates/game-dev/hive-read.tf
++++ new/templates/game-dev/hive-read.tf
+@@ -41,8 +41,8 @@
+
+ locals {
+   hive_read_bootstrap_data = local.hive_read_enabled ? {
+-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
+-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
++    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
++    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
+     "hive.kethalia.com/read-request" = jsonencode({
+       schemaVersion  = 1
+templates/infrastructure/hive-read.tf
+--- old/templates/infrastructure/hive-read.tf
++++ new/templates/infrastructure/hive-read.tf
+@@ -41,8 +41,8 @@
+
+ locals {
+   hive_read_bootstrap_data = local.hive_read_enabled ? {
+-    "hive.kethalia.com/read-start" = file("${path.module}/scripts/start-workspace-read.py")
+-    "hive.kethalia.com/read-installer" = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
++    "hive.kethalia.com/read-start"            = file("${path.module}/scripts/start-workspace-read.py")
++    "hive.kethalia.com/read-installer"        = filebase64("${path.module}/assets/workspace-read-installer.py.gz")
+     "hive.kethalia.com/read-installer-sha256" = trimspace(file("${path.module}/assets/workspace-read-installer.sha256"))
+     "hive.kethalia.com/read-request" = jsonencode({
+       schemaVersion  = 1

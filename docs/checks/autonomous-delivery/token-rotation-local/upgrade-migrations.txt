@@ -1,0 +1,17 @@
+> @hive/db@0.3.0 migrate:deploy /home/coder/projects/kethalia/hive/packages/db
+> prisma migrate deploy --schema prisma/schema.prisma
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_rotation_upgrade_test", schema "public" at "127.0.0.1:43055"
+
+26 migrations found in prisma/migrations
+
+Applying migration `20261029150000_credential_rotation_scheduler`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261029150000_credential_rotation_scheduler/
+    └─ migration.sql
+
+All migrations have been successfully applied.

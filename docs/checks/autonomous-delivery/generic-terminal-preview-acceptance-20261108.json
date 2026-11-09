@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-08T21:27:32.801359+00:00",
+  "purpose": "bounded-real-preview-generic-terminal-transport-acceptance",
+  "finalized": true,
+  "sourceSha": "37437e4cee0a1a3b6bb4cc42d9fc048c367548e7",
+  "appBuildId": "53b64447-eecd-4684-ac1a-d7b22f747750",
+  "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "deploymentId": "f96542f4-c28c-4881-ac42-5371b3db6086",
+  "deploymentFlags": {
+    "genericTerminal": true,
+    "terminalWsUrl": "/",
+    "workspaceRead": false,
+    "codexProjectTerminal": false,
+    "nativeProductionActive": false,
+    "releaseProduction": false
+  },
+  "scope": {
+    "hiveUserId": "c451e8a7-e931-49c1-a3e6-77b2da005687",
+    "coderOwnerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "workspaceId": "868d3188-181c-466e-b067-e3ff592e79bc",
+    "buildId": "6d1fd221-8426-4fa3-91b8-a19780e45409",
+    "agentId": "8feffdb9-1d80-4e3e-89f9-8c6a0ec6ede1",
+    "lifetimeId": "01ce6dea-a366-4d02-8fea-403d108777b4",
+    "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "browserBuildId": "65b410c2-1894-47ce-a54d-10c46a129efe",
+    "browserWorkspaceReusedPersistent": true,
+    "allWorkspacesRetained": true
+  },
+  "phases": [
+    {
+      "name": "phase6-direct-node",
+      "phaseId": "3dcdc209-a335-4c81-93a6-e1136ce8d614",
+      "sourceSha": "37437e4cee0a1a3b6bb4cc42d9fc048c367548e7",
+      "appBuildId": "53b64447-eecd-4684-ac1a-d7b22f747750",
+      "observedAt": "2026-11-08T21:02:42.020885+00:00",
+      "ticket200": 1,
+      "socketAttempts": 1,
+      "httpUpgradeStatus": 101,
+      "selectedProtocolMatches": true,
+      "ready": 1,
+      "fixedInputFrames": 2,
+      "inputs": ["first_PID_printf", "exact_exit"],
+      "firstPid": 92017,
+      "exitSent": true,
+      "closeCode": 1013,
+      "socketClosed": true,
+      "exactSessionAbsent": true,
+      "shellPidAbsent": true,
+      "chromeLaunched": false,
+      "naturalAudioZeroAt": "2026-11-08T21:07:24.472Z",
+      "physicalClean": true,
+      "fourOriginalJournalsUnchanged": true,
+      "journalNames": ["lifetime", "project", "controller", "supervisor"],
+      "nativeAppServers": 0,
+      "nativeTaskModelCalls": 0,
+      "driverVersionGETs": 1,
+      "extraPrimaryVersionPreflightGETs": 1
+    },
+    {
+      "name": "phase7-real-chrome-harness-false-negative",
+      "phaseId": "fdc5a63e-155b-40f4-b01a-04ee5dfc60bb",
+      "sourceSha": "37437e4cee0a1a3b6bb4cc42d9fc048c367548e7",
+      "appBuildId": "53b64447-eecd-4684-ac1a-d7b22f747750",
+      "observedAt": "2026-11-08T21:18:15.583407+00:00",
+      "ticket200": 1,
+      "socketAttempts": 1,
+      "httpUpgradeStatus": 101,
+      "ready": 1,
+      "fixedInputFrames": 3,
+      "inputs": ["first_PID_printf", "resize_100x35", "stty_size"],
+      "firstPid": 95037,
+      "harnessOutcome": "failed_resize_acknowledgement",
+      "actualPane": {
+        "paneHeight": 35,
+        "paneWidth": 100,
+        "windowHeight": 35,
+        "windowWidth": 100
+      },
+      "actualClientDimensions": [
+        {
+          "width": 100,
+          "height": 35
+        }
+      ],
+      "filteredSttyOutput": [
+        {
+          "rows": 35,
+          "cols": 100
+        }
+      ],
+      "rawOutputIncluded": false,
+      "historicalWireControlBytesRecorded": false,
+      "cleanupNormalFixedExitViaVerifiedPane": true,
+      "exactSessionAbsent": true,
+      "shellPidAbsent": true,
+      "initialDriverCleanupComplete": false,
+      "independentlyReconciledTrackedBrowserAndNodeAbsent": true,
+      "liveSameUidChromeCommCount": 0,
+      "unreadableProcessStatEntries": 0,
+      "naturalAudioZeroAt": "2026-11-08T21:21:50.501Z",
+      "physicalClean": true,
+      "fourOriginalJournalsUnchanged": true,
+      "journalNames": ["lifetime", "project", "controller", "supervisor"],
+      "nativeAppServers": 0,
+      "nativeTaskModelCalls": 0,
+      "driverVersionGETs": 1,
+      "extraPrimaryVersionPreflightGETs": 0
+    },
+    {
+      "name": "phase8-real-chrome-full-transport",
+      "phaseId": "05b8ee80-e63a-4f6a-bd18-62f6e7f5ef35",
+      "sourceSha": "37437e4cee0a1a3b6bb4cc42d9fc048c367548e7",
+      "appBuildId": "53b64447-eecd-4684-ac1a-d7b22f747750",
+      "observedAt": "2026-11-08T21:24:34.705917+00:00",
+      "ticket200": 2,
+      "socketAttempts": 2,
+      "httpUpgradeStatuses": [101, 101],
+      "selectedProtocolsMatch": true,
+      "ready": 2,
+      "fixedInputFrames": 5,
+      "inputs": [
+        "first_PID_printf",
+        "resize_100x35",
+        "stty_size",
+        "second_PID_printf",
+        "exact_exit"
+      ],
+      "firstPid": 99897,
+      "secondPid": 99897,
+      "sameShellPidAfterReconnect": true,
+      "reconnectId": "f8f674ae-7784-491b-b66a-56fa03acf448",
+      "resizeAcknowledgedRows": 35,
+      "resizeAcknowledgedCols": 100,
+      "resizeAcknowledgementFromBrowserOutput": true,
+      "exitSent": true,
+      "closeCode": 1013,
+      "exactSessionAbsent": true,
+      "shellPidAbsent": true,
+      "contextClosed": true,
+      "browserClosed": true,
+      "finalBrowserProcessInventoryCaptured": true,
+      "recordedChromeCount": 7,
+      "allRecordedChromeAbsent": true,
+      "driverExited": true,
+      "driverExitCode": 0,
+      "socketAndBrowserCleanupComplete": true,
+      "audioWinddown": {
+        "pending": false,
+        "naturalZeroObservedAt": "2026-11-08T21:28:46.539Z",
+        "audioProcesses": 0,
+        "pulseProcesses": 0,
+        "signalsSent": 0
+      },
+      "physicalClean": true,
+      "fourOriginalJournalsUnchanged": true,
+      "journalNames": ["lifetime", "project", "controller", "supervisor"],
+      "nativeAppServers": 0,
+      "nativeTaskModelCalls": 0,
+      "driverVersionGETs": 1,
+      "extraPrimaryVersionPreflightGETs": 0
+    }
+  ],
+  "harnessCorrection": {
+    "scope": "Only bounded transient CSI/OSC normalization before the unchanged numeric size-line test. Network/input budgets and flow unchanged.",
+    "offlineCasesPassed": 14,
+    "syntaxFilesPassed": 5,
+    "historicalExactControlSequenceCauseClaimed": false,
+    "syntheticControlSequenceRegressionSupport": true
+  },
+  "acceptance": {
+    "dedicatedAccountActualNodeTerminal": true,
+    "dedicatedAccountActualChromeReadyOutputResizeReconnectExit": true,
+    "normalUserDanielWorkspaces": false,
+    "managedProjectConversationTerminal": false,
+    "originalNativePilot": false,
+    "production": false
+  },
+  "remaining": {
+    "normalPeerExitCodeObserved": 1013,
+    "normalExitWithoutAutomaticReactHookReconnect": "Pending PR439 deployment and acceptance; this receipt does not claim close1000.",
+    "phase8NaturalAudioWinddownPending": false
+  },
+  "history": {
+    "olderFailedAndUnknownAttemptsPreserved": true,
+    "phase2EffectCountsRemainUnknown": true,
+    "noHistoricalAttemptReplayed": true,
+    "coveredPhasesTicket200": 4,
+    "coveredPhasesSocketAttempts": 4,
+    "earlierAttemptsNotIncludedInThoseCounts": true
+  },
+  "rawDataExcluded": [
+    "credentials",
+    "cookies",
+    "tickets",
+    "headers",
+    "shell output",
+    "private configuration"
+  ],
+  "deploymentCredentialOrWorkspaceStartStopChanges": false,
+  "ordinaryTerminalSideEffects": {
+    "ownedPtyAndTmuxCreationResizeInput": true,
+    "associatedAudioPulseStartup": true,
+    "normalOwnedWorkspaceDeadlineExtensionPermitted": true,
+    "actualDeadlineExtensionCountIndependentlyMeasured": false,
+    "newCapacityOrCredentials": false
+  },
+  "finalizedAt": "2026-11-08T21:28:46.539Z",
+  "finalHostProcessCounts": {
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "webTmuxProcesses": 0,
+    "audioProcesses": 0,
+    "pulseProcesses": 0,
+    "unreadableEntries": 0
+  },
+  "finalOriginalJournalsUnchanged": true
+}

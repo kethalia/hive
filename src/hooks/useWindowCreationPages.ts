@@ -16,11 +16,15 @@ export function useWindowCreationPages({
   initialWorkspaceId,
   open,
   onOpenPane,
+  allowProjectClone = true,
+  allowTerminalCreation = true,
 }: {
   workspaces: CoderWorkspace[];
   initialWorkspaceId?: string;
   open: boolean;
   onOpenPane: (pane: GeneralPane) => void;
+  allowProjectClone?: boolean;
+  allowTerminalCreation?: boolean;
 }) {
   const client = useQueryClient();
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -40,6 +44,11 @@ export function useWindowCreationPages({
   }, [open]);
   const beginCreation = useCallback(
     (kind: "terminal" | "project") => {
+      if (kind === "terminal" && !allowTerminalCreation) return { page: "terminal-capability" };
+      if (kind === "project" && !allowProjectClone) {
+        onOpenPane({ kind: "hive", tool: "projects", label: "Projects" });
+        return;
+      }
       const running = workspaces.filter((w) => w.latest_build.status === "running");
       const workspace =
         running.find((w) => w.id === initialWorkspaceId) ??
@@ -50,7 +59,7 @@ export function useWindowCreationPages({
       setOrganization("");
       return { page: kind === "terminal" ? "create-terminal" : "create-project" };
     },
-    [workspaces, initialWorkspaceId],
+    [workspaces, initialWorkspaceId, allowProjectClone, allowTerminalCreation, onOpenPane],
   );
   const pages = useMemo<Record<string, CommandPalettePage>>(() => {
     const running = workspaces.filter((w) => w.latest_build.status === "running");
@@ -69,6 +78,8 @@ export function useWindowCreationPages({
       if (!workspace) throw new Error("Choose a running Coder workspace.");
       let pane: GeneralPane;
       if (kind === "terminal") {
+        if (!allowTerminalCreation)
+          throw new Error("Terminal connections are not enabled for this Hive preview.");
         if (!name) throw new Error("Enter a session name.");
         const invalid = terminalNameError(name);
         if (invalid) throw new Error(invalid);
@@ -81,6 +92,7 @@ export function useWindowCreationPages({
           label: result.data.name,
         };
       } else {
+        if (!allowProjectClone) throw new Error("Choose a repository from GitHub projects.");
         const input = cloneProjectSchema.safeParse({
           workspaceId: workspace.id,
           organization,
@@ -100,7 +112,7 @@ export function useWindowCreationPages({
       });
       if (mounted.current) onOpenPane(pane);
     }
-    return {
+    const pages: Record<string, CommandPalettePage> = {
       "create-terminal": {
         title: "Create terminal",
         searchPlaceholder: "Session name…",
@@ -158,6 +170,20 @@ export function useWindowCreationPages({
         })),
       },
     };
-  }, [workspaces, chosenId, organization, client, onOpenPane]);
+    if (!allowTerminalCreation) delete pages["create-terminal"];
+    if (!allowProjectClone) {
+      delete pages["create-project"];
+      delete pages["create-project-repository"];
+    }
+    return pages;
+  }, [
+    workspaces,
+    chosenId,
+    organization,
+    client,
+    onOpenPane,
+    allowProjectClone,
+    allowTerminalCreation,
+  ]);
   return { pages, beginCreation };
 }

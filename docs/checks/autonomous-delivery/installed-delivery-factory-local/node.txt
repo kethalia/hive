@@ -1,0 +1,48 @@
+✔ explicit delivery capability cannot be inferred from legacy manager-only config (1.295691ms)
+✔ factory fails before constructing effects without all installed prerequisites (0.702712ms)
+✔ actual installed adapter exposes source protocol and signs immutable physical task context (39.275743ms)
+✔ foreign manager cannot select a checkout or mint a signed call (4.18886ms)
+✔ changed native lifetime stops signed effects and trusted status (3.735843ms)
+✔ recorded child completion reaches the fixed protected source policy and cannot bypass rejection (66.583079ms)
+✔ in-flight native revocation aborts even an uncooperative transport and rejects late ACK (10.887818ms)
+✔ in-flight registration revocation aborts even an uncooperative transport and rejects late ACK (6.321591ms)
+✔ in-flight close revocation aborts even an uncooperative transport and rejects late ACK (7.095507ms)
+✔ enrollment is durable without clone/native; queued start waits registration then submits actual prompt once (47.467891ms)
+✔ restart recovers exact durable intent and never repeats checkout preparation or first prompt (44.327696ms)
+✔ ambiguous first prompt blocks replay without another inference (29.713494ms)
+✔ owned interrupted checkout preparation reuses verified lease without cleaning dirty edits (30.251427ms)
+✔ private journal rejects competing writer, forgery, identity changes and unknown authority (13.919146ms)
+✔ request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts (6.373221ms)
+✔ manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs (35.712454ms)
+✔ safe lease renewal keeps immutable intent and failed renewal revokes only execution (50.963804ms)
+✔ revoked execution can re-register existing history after restart without new prompt or attach (47.505652ms)
+✔ lease expiry revokes awaitingRegistration native execution without renewing or discarding history (50.382033ms)
+✔ lease expiry revokes blocked native execution without renewing or discarding history (34.561366ms)
+✔ pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt (100.819133ms)
+✔ retry receipt cannot automatically retry a second failure (27.171005ms)
+✔ ready live empty native thread retries registration failure without recreating checkout or thread (28.56911ms)
+✔ retry refuses interrupted checkout/native proof (21.739906ms)
+✔ retry refuses incarnation checkout/native proof (23.665066ms)
+✔ retry refuses expired checkout/native proof (20.220699ms)
+✔ retry refuses history checkout/native proof (18.057161ms)
+✔ retry cannot reopen uncertain first prompt or accept caller execution fields (19.878499ms)
+✔ retry rejects legacy durable intent authority (21.061412ms)
+✔ retry rejects creationAttempted durable intent authority (18.528554ms)
+✔ retry rejects promptAttempted durable intent authority (17.368904ms)
+✔ retry rejects revoked durable intent authority (16.263641ms)
+✔ unavailable empty native history returns the existing blocked status without scheduling (16.820725ms)
+✔ guardian admission is durable before preparation and final binding is a separate immutable record (29.01851ms)
+✔ closing while preparation is in flight retains uncertainty and cannot enroll or start native execution (18.670623ms)
+✔ lost guardian channel persists a closed admission fence and prevents helper dispatch (11.076704ms)
+✔ a new admitted project refreshes existing generation tokens before shared helper work (40.057176ms)
+✔ closure during repository resolution cannot dispatch checkout inspection or preparation (17.00423ms)
+✔ late lease renewal after the close barrier cannot rewrite the closed controller snapshot (35.616277ms)
+✔ source input closure persists accepted context and enforces lease expiry without racing metadata lock (36.707732ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 999.556532

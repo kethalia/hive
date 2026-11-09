@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T21:53:06.137Z",
+  "baseRevision": "32c815f7b0f284479d89357fbf80aaac1dd33934",
+  "sourceDigests": {
+    "templates/ai-dev-k8s/scripts/delivery-manager-adapter.mjs": "0cd9cd610340d5a0e03cdaac448fc49dfad1fdac9228714a41e3714b1988b0fd",
+    "templates/ai-dev-k8s/scripts/delivery-native-spool.mjs": "fbdac790c850c1f711b0667c197a8f7e010d90473c5abfe52db4fb25d46cf4b8",
+    "templates/ai-dev-k8s/scripts/codex-project-supervisor.mjs": "8017da1a2f0195300ce7d89dd277eb9ac787534016e9740817a8e198a316818b",
+    "src/__tests__/lib/delivery/host-progression.integration.test.ts": "78a56c7de13889754cce4521a09de7edabb58ba94cc5e5947374feb8afbb22d4",
+    "src/lib/delivery/manager.server.ts": "bf871c27081f0d860a251d719db788c6524590915561862bba9968dbdd020613",
+    "src/lib/delivery/progression.server.ts": "e53a242c7bab60a90cbb8c49bcddd9092c094e9c8f56318e78027ef20fb89c54",
+    "src/lib/delivery/repository.ts": "0032d6c12d9cbc8d79747e2b3108fe2a7d7986d6b3012a4651a4eefb3230804b"
+  },
+  "testedSourcesCommitted": false,
+  "nativeVersion": "0.165.0",
+  "runtimeSha256": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+  "accountCredentials": false,
+  "accountInference": false,
+  "cloudMutations": false,
+  "passed": false,
+  "checks": {},
+  "limitations": [
+    "Mocked Responses and simulated trusted fixture check evidence; not real CI or model inference.",
+    "Injected signed local controller transport and managed checkout inspection; no production Coder callbacks or source advance.",
+    "Physical anchor and unknown background/external writer state remain held; no cleanup/handoff/quiescence authority.",
+    "Lost native start or historical claim replay retains a hold; runnable restart recovery is deliberately not accepted."
+  ],
+  "failure": "three_step_progression_timeout",
+  "providerRequests": 4,
+  "controllerOperations": [
+    {
+      "path": "/api/delivery/host",
+      "operation": "create_task",
+      "source": null,
+      "sequence": null
+    },
+    {
+      "path": "/api/delivery/host",
+      "operation": "claim_step",
+      "source": null,
+      "sequence": null
+    }
+  ],
+  "safeErrorCodes": [],
+  "spool": {
+    "pending": 0,
+    "held": 1,
+    "blocked": 1,
+    "attempts": 1,
+    "currentCursors": {
+      "01a189a7-0692-7eb0-b93d-e232eb382aa4": {
+        "attemptId": "ff3b8956-029d-4d7e-b1c9-55af4e9a0a71",
+        "cursorVersion": 1,
+        "sequence": 0,
+        "acknowledgedSequence": 0
+      }
+    },
+    "violations": 0
+  }
+}

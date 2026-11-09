@@ -1,0 +1,37 @@
+✔ compiled namespace preserves actual native WS, CLI, child and resume isolation (12334.103847ms)
+ℹ TAP version 13
+# Subtest: isolated execution is an explicit configuration mode
+ok 1 - isolated execution is an explicit configuration mode
+  ---
+  duration_ms: 0.963723
+  type: 'test'
+  ...
+# Subtest: actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity
+ok 2 - actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity
+  ---
+  duration_ms: 8155.378074
+  type: 'test'
+  ...
+# Subtest: actual wrapper, monitor and host crashes terminate pinned native and release inherited lock
+ok 3 - actual wrapper, monitor and host crashes terminate pinned native and release inherited lock
+  ---
+  duration_ms: 3678.002834
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12197.169035
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12379.109171

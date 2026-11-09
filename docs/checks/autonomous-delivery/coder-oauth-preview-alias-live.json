@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T10:07:29.628022+00:00",
+  "sourceRevision": "81e5e0841bc01267182ca86c27d01c880faa0ced",
+  "cloudflareBuild": "b8339f00-c886-456b-90be-833725624ff7",
+  "deploymentId": "14acead0-aa8a-4859-923b-fd5d60415bf4",
+  "canonicalOrigin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "deploymentOrigin": "https://14acead0-hive.b00ste.workers.dev",
+  "productionChanged": false,
+  "checks": {
+    "canonicalLoginTargetsRegisteredOrigin": true,
+    "deploymentLoginTargetsRegisteredOrigin": true,
+    "noncanonicalStartIsReadableAndAllocatesNoBrowserFlow": true,
+    "canonicalStartRedirectsToRegisteredCoderOAuth": true
+  },
+  "passed": true,
+  "httpRequests": 4,
+  "focusedTestsPassed": 22,
+  "typecheckPassed": true,
+  "independentReviewPassed": true,
+  "limitations": [
+    "HTTP and rendered-link acceptance; no Safari browser automation.",
+    "Previously published immutable deployments retain their prior code; use the stable Preview address.",
+    "This does not complete whole-epic or production acceptance."
+  ]
+}

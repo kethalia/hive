@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "e9230f136939e0749e0c77f85d62d91b53adae67",
+  "image": "ghcr.io/kethalia/hive-base@sha256:eab0d69ad7e50a53b3f6f48f1a5d8915e91c70acd0f616f48d48126408e51962",
+  "imageConfigDigest": "sha256:8b9eb0c072a75d137edc84fe9a10eee9ac3625bbe00ce9f49b1ef37013bd375e",
+  "helperSha256": "56ce474cb0a3b4b0e4910f6ec934ee2800633294ae5dfb4cc370dd826e82db3a",
+  "helperBytes": 54095998,
+  "sdkVersion": "v2.38.4",
+  "goVersion": "go1.26.10",
+  "registryManifestDigestVerified": true,
+  "registryConfigDigestVerified": true,
+  "configSourceLabelVerified": true,
+  "configPlatformVerified": true,
+  "helperAndPinLayers": [
+    {
+      "index": 1,
+      "digest": "sha256:2f330011a17927ca58e1ce5ca3c0b7a98cff96f92e7fa7b620b197013eae27af",
+      "compressedBytes": 17300852,
+      "diffId": "sha256:f8a5f3a96969638743392e9002082c9bbd08521aa65acf1cd625213500a7ee2d"
+    },
+    {
+      "index": 2,
+      "digest": "sha256:86fe617304634769ef05711b86bcaf38e4e8cff95b01caa7ceb084f5da6de2f6",
+      "compressedBytes": 298,
+      "diffId": "sha256:3956bd038845775e2fb4ca7f1eac4f471e19a59b36535c3f608b565462f8010c"
+    }
+  ],
+  "helperFileMatchesRootOwnedPin": true,
+  "readOnlyRegistryVerification": true,
+  "rebuilt": false,
+  "repushed": false,
+  "activated": false,
+  "successfulWorkflowRun": 41012609666,
+  "verifiedAt": "2026-10-30T06:25:02.775051+00:00",
+  "workflow": {
+    "runId": 41012609666,
+    "url": "https://github.com/kethalia/hive/actions/runs/41012609666",
+    "jobId": 123921645483,
+    "headSha": "e9230f136939e0749e0c77f85d62d91b53adae67",
+    "conclusion": "success",
+    "steps": [
+      {
+        "conclusion": "success",
+        "name": "Set up job",
+        "number": 1
+      },
+      {
+        "conclusion": "success",
+        "name": "Checkout exact dispatched revision",
+        "number": 2
+      },
+      {
+        "conclusion": "success",
+        "name": "Verify reviewed source and absent public package tag",
+        "number": 3
+      },
+      {
+        "conclusion": "success",
+        "name": "Set up Docker Buildx",
+        "number": 4
+      },
+      {
+        "conclusion": "success",
+        "name": "Build exact preview image locally",
+        "number": 5
+      },
+      {
+        "conclusion": "success",
+        "name": "Smoke exact preview image",
+        "number": 6
+      },
+      {
+        "conclusion": "success",
+        "name": "Log in to existing public GHCR package",
+        "number": 7
+      },
+      {
+        "conclusion": "success",
+        "name": "Recheck absence and publish exact smoke-tested image",
+        "number": 8
+      },
+      {
+        "conclusion": "success",
+        "name": "Record exact source, registry digest and helper identity",
+        "number": 9
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Log in to existing public GHCR package",
+        "number": 15
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Build exact preview image locally",
+        "number": 16
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Set up Docker Buildx",
+        "number": 17
+      },
+      {
+        "conclusion": "success",
+        "name": "Post Checkout exact dispatched revision",
+        "number": 18
+      },
+      {
+        "conclusion": "success",
+        "name": "Complete job",
+        "number": 19
+      }
+    ]
+  },
+  "jobLogSha256": "95c2e6ab2e5d378dd30db50562e53daa6f28784663aaf2791469816bcf2e9b1e",
+  "verifierScript": {
+    "path": "/tmp/hive-preview-e923-verify.py",
+    "sha256": "2b7f0a7089d1f644184e13322db39cc5476d919c4842a0aafe896962d78af15a"
+  },
+  "localActorActions": {
+    "registryReads": true,
+    "workflowDispatched": false,
+    "imageRebuilt": false,
+    "imageRepushed": false,
+    "templateImported": false,
+    "workspaceUpdated": false,
+    "liveProbeRun": false
+  },
+  "limitations": [
+    "The successful recording step was independently checked through job metadata; this verifier independently reconstructs registry/source/helper facts rather than claiming to read its runner-local JSON file.",
+    "Actual runtime normalization and signed app reads are pending the new image/template build."
+  ]
+}

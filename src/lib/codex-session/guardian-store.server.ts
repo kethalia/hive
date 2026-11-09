@@ -1,0 +1,2769 @@
+import { createHash, createPublicKey, randomUUID } from "node:crypto";
+import { type CodexGuardianRuntime, Prisma, type PrismaClient } from "@hive/db";
+import { maintenanceExternalEffectsHeld } from "@/lib/delivery/account-maintenance-effects.server";
+import { commitMaintenanceNativeReceipt } from "@/lib/delivery/account-maintenance-epoch.server";
+import { epicConfig } from "@/lib/delivery/epic-config.server";
+import { epicNativeAdmission } from "@/lib/delivery/epic-native-admission.server";
+import { currentExecutionActor } from "@/lib/delivery/execution-authority.server";
+import { dependencySatisfied } from "@/lib/delivery/state";
+import { ProjectTaskIntents } from "@/lib/projects/task-intents.server";
+import {
+  type RecoveryInspection,
+  type RecoveryScope,
+  recoveryInspectionSchema,
+  recoveryScopeSchema,
+} from "@/lib/projects/task-recovery-contracts";
+import { assertTaskRecoveryOperation } from "@/lib/projects/task-recovery-store.server";
+import {
+  type AccountMaintenanceIdleSnapshot,
+  accountMaintenanceIdleSnapshotSchema,
+  type MaintenanceNativeRebind,
+  maintenanceNativeRebindSchema,
+  maintenanceOwnerResumeSchema,
+  maintenanceReadyAuthorization,
+  maintenanceReadyResponseSchema,
+  maintenanceResumeScopeSchema,
+} from "./account-maintenance-contracts";
+import {
+  accountMaintenanceTreeClosed,
+  assertAccountMaintenanceAdmission,
+  lockAccountMaintenanceWorkspace,
+  parseAccountMaintenance,
+  updateAccountMaintenanceState,
+} from "./account-maintenance-store.server";
+import { type GuardianTreeReceipt, guardianTreeReceiptSchema } from "./guardian-closure-contracts";
+import {
+  type GuardianCheckout,
+  type GuardianIdleSnapshot,
+  type GuardianMetadataEvidence,
+  type GuardianPolicy,
+  type GuardianPreparation,
+  type GuardianProducerAdmission,
+  type GuardianProducerScope,
+  guardianCheckoutSchema,
+  guardianDeploymentPolicy,
+  guardianDigest,
+  guardianIdleSnapshotSchema,
+  guardianMetadataEvidenceSchema,
+  guardianPreparationSchema,
+  preparationDigest,
+  producerScopeSchema,
+} from "./guardian-contracts";
+import { assertRemountCheckout } from "./guardian-remount.server";
+import type {
+  GuardianRemountAttestation,
+  GuardianTransferContinuation,
+} from "./guardian-remount-contracts";
+import { readRecoveryResumption } from "./guardian-resumption.server";
+import type {
+  GuardianIdentityResponse,
+  GuardianOperationEnvelope,
+} from "./guardian-transport-contracts";
+import type { GuardianUnstartedTransfer } from "./guardian-unstarted-contracts";
+import { retireUnstartedAuthorization } from "./guardian-unstarted-store.server";
+import { isUnusedBootstrapPredecessor } from "./guardian-unused-bootstrap-store.server";
+import type { RegistrationBinding } from "./registration.server";
+import { lockActiveRegistration, RegistrationRejected } from "./registration-store.server";
+
+if (typeof window !== "undefined") throw new Error("Guardian storage is server-only.");
+type Tx = Prisma.TransactionClient;
+export const GUARDIAN_MAX_OPERATION_RECEIPTS = 1024;
+const requireGuardian: (value: unknown) => asserts value = (value) => {
+  if (!value) throw new RegistrationRejected();
+};
+
+/** Acquire BEFORE intent/manager/task locks. Never cache this result or infer
+ * producer approval from a host journal, unregistered preparation, or old ACK. */
+export async function lockProducerAdmission(
+  tx: Tx,
+  rawScope: GuardianProducerScope,
+  policy: GuardianPolicy = guardianDeploymentPolicy(),
+): Promise<GuardianProducerAdmission> {
+  requireGuardian(policy.enabled && policy.producerEnabled);
+  const scope = producerScopeSchema.parse(rawScope);
+  const { registration, slot, now } = await lockActiveRegistration(tx, {
+    ownerId: scope.hiveUserId,
+    registrationId: scope.registrationId,
+  });
+  requireGuardian(
+    slot.workspaceId === scope.workspaceId &&
+      registration.buildId === scope.buildId &&
+      registration.serverInstanceId === scope.serverInstanceId,
+  );
+  const thread = registration.threads.find(
+    (t) => t.projectId === scope.projectId && t.nativeThreadId === scope.managerThreadId,
+  );
+  requireGuardian(thread);
+  // lockActiveRegistration independently derives/checks Coder owner from persisted
+  // User/slot. No caller-provided Coder owner participates in this scope.
+  const candidate = await tx.codexGuardianRuntime.findFirst({
+    where: {
+      ownerId: scope.hiveUserId,
+      slotId: slot.id,
+      phase: "open",
+      workspaceId: scope.workspaceId,
+      buildId: scope.buildId,
+      serverInstanceId: scope.serverInstanceId,
+    },
+  });
+  requireGuardian(candidate);
+  const locked = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM codex_guardian_runtimes WHERE owner_id=${scope.hiveUserId}::uuid AND id=${candidate.id}::uuid FOR UPDATE`;
+  requireGuardian(locked.length === 1);
+  const runtime = await tx.codexGuardianRuntime.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId: scope.hiveUserId, id: candidate.id } },
+  });
+  requireGuardian(
+    runtime.phase === "open" &&
+      !runtime.closedBarrierId &&
+      runtime.producerApproved &&
+      runtime.authorityUntil > now &&
+      runtime.nativeLaunchId &&
+      runtime.hostKeyFingerprint === registration.hostKeyFingerprint &&
+      policy.packages.some(
+        (p) =>
+          p.protocol === "guardian-v1" &&
+          p.packageManifestSha256 === runtime.packageManifestSha256 &&
+          p.guardianElfSha256 === runtime.guardianElfSha256 &&
+          p.nodeSha256 === runtime.nodeSha256 &&
+          p.policyDigest === runtime.policyDigest &&
+          p.metadataPolicyDigest === runtime.metadataPolicyDigest,
+      ),
+  );
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM codex_guardian_admissions WHERE owner_id=${scope.hiveUserId}::uuid AND runtime_id=${runtime.id}::uuid AND project_id=${scope.projectId}::uuid FOR UPDATE`;
+  requireGuardian(rows.length === 1);
+  const admission = await tx.codexGuardianAdmission.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId: scope.hiveUserId, id: rows[0].id } },
+  });
+  requireGuardian(
+    admission.phase === "native" &&
+      admission.registrationId === registration.id &&
+      admission.nativeThreadId === scope.managerThreadId &&
+      admission.preparationIntentId === scope.preparationIntentId &&
+      admission.leaseId === scope.leaseId &&
+      admission.leaseGeneration === scope.leaseGeneration &&
+      admission.producerDigest &&
+      admission.checkoutIncarnation,
+  );
+  const checkout = guardianCheckoutSchema.parse(admission.checkoutBinding);
+  requireGuardian(
+    checkout.projectId === scope.projectId &&
+      checkout.preparationIntentId === scope.preparationIntentId &&
+      checkout.repositoryId === scope.repositoryId &&
+      checkout.leaseId === scope.leaseId &&
+      checkout.leaseGeneration === scope.leaseGeneration &&
+      checkout.checkoutIncarnation === admission.checkoutIncarnation,
+  );
+  const intents = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM project_task_intents WHERE owner_id=${scope.hiveUserId}::uuid AND project_id=${scope.projectId}::uuid AND id=${scope.preparationIntentId}::uuid FOR UPDATE`;
+  requireGuardian(intents.length === 1);
+  const intent = await tx.projectTaskIntent.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId: scope.hiveUserId, id: scope.preparationIntentId } },
+  });
+  requireGuardian(
+    intent.workspaceId === scope.workspaceId &&
+      intent.repositoryId === scope.repositoryId &&
+      intent.sourceSha === checkout.revision &&
+      intent.requestDigest === admission.intentRequestDigest &&
+      intent.phase !== "blocked",
+  );
+  const [time] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
+  requireGuardian(time && registration.expiresAt > time.now && runtime.authorityUntil > time.now);
+  return {
+    runtimeId: runtime.id,
+    runtimeGeneration: runtime.generation,
+    admissionId: admission.id,
+    admissionGeneration: admission.generation,
+    producerDigest: admission.producerDigest,
+    checkoutIncarnation: admission.checkoutIncarnation,
+    barrierGeneration: 0,
+  };
+}
+
+export interface GuardianRuntimeIdentity {
+  lifetimeId: string;
+  bindingDigest: string;
+  outerPublicKeyPem: string;
+  packageManifestSha256: string;
+  guardianElfSha256: string;
+  nodeSha256: string;
+  policyDigest: string;
+  metadataPolicyDigest: string;
+  configSha256: string;
+}
+export interface GuardianStoreOptions {
+  policy: GuardianPolicy;
+  encryptionKey: string;
+  expectedConfigSha256(binding: RegistrationBinding): string;
+  authorizationExpiresAt?: number;
+  signal?: AbortSignal;
+  operation?: GuardianOperationReceiptInput;
+}
+export interface GuardianOperationReceiptInput {
+  ownerId: string;
+  runtimeId: string;
+  eventId: string;
+  action: GuardianOperationEnvelope["action"];
+  inputRuntimeGeneration: number;
+  requestDigest: string;
+  projectId?: string;
+  recovery?: { recoveryId: string; authorizationDigest: string };
+}
+type OperationReceipt = {
+  action: GuardianOperationEnvelope["action"];
+  requestDigest: string;
+  inputRuntimeGeneration: number;
+  resultRuntimeGeneration: number;
+  resultAdmissionGeneration: number;
+  response: Prisma.JsonObject;
+  responseDigest: string;
+  committedAt: Date;
+  lifetimeId: string;
+  buildId: string;
+  configSha256: string;
+  outerKeyFingerprint: string;
+};
+function operationResponse(value: unknown) {
+  const encoded = JSON.stringify(value);
+  requireGuardian(encoded && Buffer.byteLength(encoded) <= 65536);
+  const json = JSON.parse(encoded) as Prisma.JsonObject;
+  const runtime = json.runtime as Prisma.JsonObject,
+    admission = json.admission as Prisma.JsonObject;
+  requireGuardian(
+    runtime &&
+      admission &&
+      Number.isSafeInteger(runtime.generation) &&
+      Number(runtime.generation) > 0 &&
+      Number.isSafeInteger(admission.generation) &&
+      Number(admission.generation) > 0 &&
+      admission.runtimeId === runtime.id,
+  );
+  return {
+    json,
+    runtimeGeneration: Number(runtime.generation),
+    admissionGeneration: Number(admission.generation),
+  };
+}
+async function operationReceipt(
+  tx: Tx,
+  runtime: CodexGuardianRuntime,
+  input: GuardianOperationReceiptInput,
+) {
+  const [row] = await tx.$queryRaw<OperationReceipt[]>`
+    SELECT action,request_digest AS "requestDigest",input_runtime_generation AS "inputRuntimeGeneration",
+      result_runtime_generation AS "resultRuntimeGeneration",result_admission_generation AS "resultAdmissionGeneration",
+      response,response_digest AS "responseDigest",committed_at AS "committedAt",lifetime_id AS "lifetimeId",
+      build_id AS "buildId",config_sha256 AS "configSha256",outer_key_fingerprint AS "outerKeyFingerprint"
+    FROM codex_guardian_operation_receipts WHERE owner_id=${input.ownerId}::uuid
+      AND runtime_id=${input.runtimeId}::uuid AND event_id=${input.eventId}::uuid`;
+  if (!row) return null;
+  const result = operationResponse(row.response);
+  requireGuardian(
+    row.action === input.action &&
+      row.requestDigest === input.requestDigest &&
+      row.inputRuntimeGeneration === input.inputRuntimeGeneration &&
+      row.lifetimeId === runtime.lifetimeId &&
+      row.buildId === runtime.buildId &&
+      row.configSha256 === runtime.configSha256 &&
+      row.outerKeyFingerprint === runtime.outerKeyFingerprint &&
+      row.responseDigest === guardianDigest(result.json) &&
+      row.resultRuntimeGeneration === result.runtimeGeneration &&
+      row.resultAdmissionGeneration === result.admissionGeneration &&
+      (result.json.runtime as Prisma.JsonObject).id === runtime.id &&
+      (result.json.runtime as Prisma.JsonObject).ownerId === runtime.ownerId,
+  );
+  return row;
+}
+const bytesDigest = (value: string) => createHash("sha256").update(value).digest("hex");
+const fingerprint = (pem: string) => {
+  const key = createPublicKey(pem);
+  requireGuardian(key.asymmetricKeyType === "ed25519");
+  return createHash("sha256")
+    .update(key.export({ type: "spki", format: "der" }))
+    .digest("hex");
+};
+async function databaseNow(tx: Tx) {
+  const [row] = await tx.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
+  requireGuardian(row);
+  return row.now;
+}
+/** Historical enrollment stays at its original deadline. A retained renewal
+ * explains the current unused deadline without altering the consumed grant. */
+async function unusedEnrollmentAuthority(tx: Tx, runtime: CodexGuardianRuntime) {
+  requireGuardian(runtime.enrolledAt);
+  const original = runtime.enrolledAt.getTime() + 180000;
+  if (runtime.authorityUntil.getTime() !== original) {
+    const events = await tx.codexGuardianOperationReceipt.findMany({
+      where: { ownerId: runtime.ownerId, runtimeId: runtime.id, action: "unused_recovery_resumed" },
+      take: 2,
+    });
+    const r = events[0]?.response as Prisma.JsonObject | undefined;
+    const value = r?.resumption as Prisma.JsonObject | undefined;
+    requireGuardian(
+      events.length === 1 &&
+        value?.originalAuthorityUntil === original &&
+        value.authorityUntil === runtime.authorityUntil.getTime(),
+    );
+  }
+  return original;
+}
+async function lockGuardianSlot(tx: Tx, ownerId: string, slotId: string) {
+  const hint = await tx.codexHostSlot.findUnique({
+    where: { ownerId_id: { ownerId, id: slotId } },
+  });
+  requireGuardian(hint);
+  await lockAccountMaintenanceWorkspace(tx, {
+    hiveUserId: ownerId,
+    coderOrigin: hint.coderOrigin,
+    workspaceId: hint.workspaceId,
+  });
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM codex_host_slots WHERE owner_id=${ownerId}::uuid AND id=${slotId}::uuid FOR UPDATE`;
+  requireGuardian(rows.length === 1);
+  const slot = await tx.codexHostSlot.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId, id: slotId } },
+  });
+  const user = await tx.user.findUnique({ where: { id: ownerId } });
+  requireGuardian(
+    user && user.coderUserId === slot.coderOwnerId && user.coderUrl === slot.coderOrigin,
+  );
+  return slot;
+}
+async function lockGuardianRuntime(tx: Tx, ownerId: string, runtimeId: string) {
+  const hint = await tx.codexGuardianRuntime.findUnique({
+    where: { ownerId_id: { ownerId, id: runtimeId } },
+  });
+  requireGuardian(hint);
+  const slot = await lockGuardianSlot(tx, ownerId, hint.slotId);
+  if (slot.activeRegistrationId) {
+    const registrations = await tx.$queryRaw<
+      { id: string }[]
+    >`SELECT id FROM codex_host_registrations WHERE owner_id=${ownerId}::uuid AND slot_id=${slot.id}::uuid AND id=${slot.activeRegistrationId}::uuid FOR UPDATE`;
+    requireGuardian(registrations.length === 1);
+  }
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM codex_guardian_runtimes WHERE owner_id=${ownerId}::uuid AND id=${runtimeId}::uuid FOR UPDATE`;
+  requireGuardian(rows.length === 1);
+  const runtime = await tx.codexGuardianRuntime.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId, id: runtimeId } },
+  });
+  requireGuardian(runtime.workspaceId === slot.workspaceId);
+  return { runtime, slot, now: await databaseNow(tx) };
+}
+async function lockGuardianAdmission(
+  tx: Tx,
+  ownerId: string,
+  runtimeId: string,
+  projectId: string,
+) {
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM codex_guardian_admissions WHERE owner_id=${ownerId}::uuid AND runtime_id=${runtimeId}::uuid AND project_id=${projectId}::uuid FOR UPDATE`;
+  requireGuardian(rows.length === 1);
+  return tx.codexGuardianAdmission.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId, id: rows[0].id } },
+  });
+}
+async function lockAdmissionIntent(
+  tx: Tx,
+  runtime: CodexGuardianRuntime,
+  admission: {
+    ownerId: string;
+    projectId: string;
+    preparationIntentId: string;
+    intentRequestDigest: string;
+    preparation: Prisma.JsonValue;
+  },
+) {
+  const rows = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM project_task_intents WHERE owner_id=${admission.ownerId}::uuid AND project_id=${admission.projectId}::uuid AND id=${admission.preparationIntentId}::uuid FOR UPDATE`;
+  requireGuardian(rows.length === 1);
+  const intent = await tx.projectTaskIntent.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId: admission.ownerId, id: admission.preparationIntentId } },
+  });
+  const preparation = guardianPreparationSchema.parse(admission.preparation);
+  const project = await tx.deliveryProject.findUnique({
+    where: { ownerId_id: { ownerId: admission.ownerId, id: admission.projectId } },
+  });
+  requireGuardian(
+    intent.phase !== "blocked" &&
+      intent.workspaceId === runtime.workspaceId &&
+      intent.requestDigest === admission.intentRequestDigest &&
+      intent.requestId === preparation.requestId &&
+      intent.repositoryId === preparation.repositoryId &&
+      intent.providerAccountId === preparation.providerAccountId &&
+      intent.sourceSha === preparation.baseSha &&
+      project?.provider === "github" &&
+      project.providerRepositoryId === preparation.repositoryId &&
+      project.providerAccountId === preparation.providerAccountId,
+  );
+  requireGuardian(runtime.authorityUntil > (await databaseNow(tx)));
+  return intent;
+}
+function approvedRuntime(runtime: CodexGuardianRuntime, policy: GuardianPolicy) {
+  requireGuardian(
+    policy.enabled &&
+      policy.packages.some(
+        (p) =>
+          p.protocol === "guardian-v1" &&
+          p.packageManifestSha256 === runtime.packageManifestSha256 &&
+          p.guardianElfSha256 === runtime.guardianElfSha256 &&
+          p.nodeSha256 === runtime.nodeSha256 &&
+          p.policyDigest === runtime.policyDigest &&
+          p.metadataPolicyDigest === runtime.metadataPolicyDigest,
+      ),
+  );
+}
+function openRuntime(
+  runtime: CodexGuardianRuntime,
+  now: Date,
+  generation: number,
+  policy: GuardianPolicy,
+) {
+  approvedRuntime(runtime, policy);
+  requireGuardian(
+    runtime.phase === "open" &&
+      !runtime.closedBarrierId &&
+      runtime.generation === generation &&
+      runtime.authorityUntil > now,
+  );
+}
+
+/** Storage accepts only service-authenticated identity. Public routes must verify
+ * outer proof + fresh owner/Coder scope before calling, including every fence. */
+export class GuardianAdmissionStore {
+  constructor(
+    private readonly db: PrismaClient,
+    private readonly options: GuardianStoreOptions,
+  ) {}
+  private transaction<T>(
+    work: (tx: Tx) => Promise<T>,
+    isolationLevel: Prisma.TransactionIsolationLevel = Prisma.TransactionIsolationLevel
+      .Serializable,
+  ) {
+    const assertCurrent = () => {
+      this.options.signal?.throwIfAborted();
+      if (this.options.authorizationExpiresAt !== undefined)
+        requireGuardian(
+          Number.isSafeInteger(this.options.authorizationExpiresAt) &&
+            this.options.authorizationExpiresAt > Date.now(),
+        );
+    };
+    assertCurrent();
+    const remaining =
+      this.options.authorizationExpiresAt === undefined
+        ? 10000
+        : Math.max(1, this.options.authorizationExpiresAt - Date.now());
+    if (this.options.authorizationExpiresAt !== undefined) requireGuardian(remaining >= 2);
+    const maxWait = Math.min(2000, Math.max(1, Math.floor(remaining / 4)));
+    const timeout =
+      this.options.authorizationExpiresAt === undefined
+        ? 10000
+        : Math.min(10000, remaining - maxWait);
+    return this.db
+      .$transaction(
+        async (tx) => {
+          assertCurrent();
+          const operation = this.options.operation;
+          let receiptRuntime: CodexGuardianRuntime | undefined;
+          let historical: OperationReceipt | null = null;
+          let recoveryExpiresAt: number | undefined;
+          if (operation) {
+            const { runtime } = await lockGuardianRuntime(
+              tx,
+              operation.ownerId,
+              operation.runtimeId,
+            );
+            approvedRuntime(runtime, this.options.policy);
+            receiptRuntime = runtime;
+            if (runtime.operationReceiptsEnabled)
+              historical = await operationReceipt(tx, runtime, operation);
+            if (!historical && operation.projectId)
+              recoveryExpiresAt = await assertTaskRecoveryOperation(tx, {
+                ownerId: operation.ownerId,
+                projectId: operation.projectId,
+                runtime,
+                recovery: operation.recovery,
+              });
+            if (runtime.operationReceiptsEnabled && !historical) {
+              const [count] = await tx.$queryRaw<{ n: bigint }[]>`
+              SELECT count(*) AS n FROM codex_guardian_operation_receipts
+              WHERE owner_id=${operation.ownerId}::uuid AND runtime_id=${operation.runtimeId}::uuid`;
+              // Exhaustion holds before any new operation effect. Existing exact
+              // receipts/readbacks and factual closure remain available forever.
+              requireGuardian(Number(count.n) < GUARDIAN_MAX_OPERATION_RECEIPTS);
+            }
+          }
+          // An exact receipt is consulted before action generation/intent checks.
+          // Its historical response never extends authority or repeats mutations.
+          let result = historical ? (historical.response as T) : await work(tx);
+          if (operation && receiptRuntime?.operationReceiptsEnabled && !historical) {
+            const response = operationResponse(result);
+            await tx.$executeRaw`
+            INSERT INTO codex_guardian_operation_receipts(owner_id,runtime_id,event_id,action,request_digest,
+              input_runtime_generation,result_runtime_generation,result_admission_generation,response,response_digest,
+              lifetime_id,build_id,config_sha256,outer_key_fingerprint)
+            VALUES(${operation.ownerId}::uuid,${operation.runtimeId}::uuid,${operation.eventId}::uuid,
+              ${operation.action},${operation.requestDigest},${operation.inputRuntimeGeneration},
+              ${response.runtimeGeneration},${response.admissionGeneration},${JSON.stringify(response.json)}::jsonb,
+              ${guardianDigest(response.json)},${receiptRuntime.lifetimeId}::uuid,${receiptRuntime.buildId}::uuid,
+              ${receiptRuntime.configSha256},${receiptRuntime.outerKeyFingerprint})`;
+            if (operation.action === "native")
+              await commitMaintenanceNativeReceipt(tx, {
+                ownerId: operation.ownerId,
+                runtimeId: operation.runtimeId,
+                eventId: operation.eventId,
+              });
+            // Receipt-enabled service calls return JSON wire data: model dates are
+            // ISO strings here, exactly as in the response retained for readback.
+            result = response.json as T;
+          }
+          if (recoveryExpiresAt !== undefined)
+            requireGuardian((await databaseNow(tx)).getTime() < recoveryExpiresAt);
+          if (this.options.authorizationExpiresAt !== undefined) {
+            const now = await databaseNow(tx);
+            requireGuardian(now.getTime() < this.options.authorizationExpiresAt);
+          }
+          assertCurrent();
+          return result;
+        },
+        {
+          isolationLevel,
+          timeout,
+          maxWait,
+        },
+      )
+      .catch((error: unknown) => {
+        // Prisma can close a transaction while its last SQL statement drains.
+        // Preserve the same fail-closed expiry/cancellation result after draining.
+        assertCurrent();
+        throw error;
+      });
+  }
+  /** Factual evidence only, including after runtime/intent authority expires. */
+  async operationReadback(input: GuardianOperationReceiptInput, required = true) {
+    return this.transaction(async (tx) => {
+      const { runtime } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      const receipt = runtime.operationReceiptsEnabled
+        ? await operationReceipt(tx, runtime, input)
+        : null;
+      if (required) requireGuardian(receipt);
+      return receipt;
+    });
+  }
+  async reserveRuntime(
+    binding: RegistrationBinding,
+    identity: GuardianRuntimeIdentity,
+    unstartedTransfer?: GuardianUnstartedTransfer,
+    continuation?: GuardianTransferContinuation,
+    remountAttestations: readonly GuardianRemountAttestation[] = [],
+  ) {
+    requireGuardian(
+      this.options.policy.enabled &&
+        identity.configSha256 === this.options.expectedConfigSha256(binding),
+    );
+    const keyFingerprint = fingerprint(identity.outerPublicKeyPem);
+    return this.transaction(
+      async (tx) => {
+        const remountDeadline = async () => {
+          if (!continuation) return;
+          const matching = remountAttestations.filter(
+            (a) => a.ownerId === binding.hiveUserId && a.taskId === unstartedTransfer?.taskId,
+          );
+          requireGuardian(
+            matching.length === 1 && matching[0].expiresAt > (await databaseNow(tx)).getTime(),
+          );
+        };
+        const user = await tx.user.findUnique({ where: { id: binding.hiveUserId } });
+        requireGuardian(
+          user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
+        );
+        await assertAccountMaintenanceAdmission(tx, binding, {
+          kind: "enroll",
+          empty: binding.projects.length === 0,
+        });
+        requireGuardian(!(await isUnusedBootstrapPredecessor(tx, binding)));
+        requireGuardian(!continuation || unstartedTransfer);
+        if (unstartedTransfer)
+          await retireUnstartedAuthorization(tx, {
+            binding,
+            identity,
+            transfer: unstartedTransfer,
+            continuation,
+            remountAttestations,
+            policy: this.options.policy,
+          });
+        const candidate = await tx.codexHostSlot.upsert({
+          where: {
+            ownerId_coderOrigin_workspaceId_agentId: {
+              ownerId: user.id,
+              coderOrigin: binding.coderOrigin,
+              workspaceId: binding.workspaceId,
+              agentId: binding.agentId,
+            },
+          },
+          create: {
+            ownerId: user.id,
+            coderOrigin: binding.coderOrigin,
+            coderOwnerId: user.coderUserId,
+            workspaceId: binding.workspaceId,
+            agentId: binding.agentId,
+          },
+          update: {},
+        });
+        const slot = await lockGuardianSlot(tx, user.id, candidate.id);
+        const existing = await tx.codexGuardianRuntime.findFirst({
+          where: {
+            ownerId: user.id,
+            slotId: slot.id,
+            phase: { notIn: ["tree_closed", "authorization_retired"] },
+          },
+        });
+        if (existing) {
+          const { runtime: current, now } = await lockGuardianRuntime(tx, user.id, existing.id);
+          requireGuardian(
+            current.lifetimeId === identity.lifetimeId &&
+              current.outerKeyFingerprint === keyFingerprint &&
+              current.bindingDigest === identity.bindingDigest &&
+              current.configSha256 === identity.configSha256 &&
+              current.buildId === binding.buildId &&
+              current.packageManifestSha256 === identity.packageManifestSha256 &&
+              current.guardianElfSha256 === identity.guardianElfSha256 &&
+              current.nodeSha256 === identity.nodeSha256 &&
+              current.policyDigest === identity.policyDigest &&
+              current.metadataPolicyDigest === identity.metadataPolicyDigest &&
+              guardianDigest(current.binding) === guardianDigest(binding) &&
+              current.authorityUntil > now,
+          );
+          approvedRuntime(current, this.options.policy);
+          let registrationExpiresAt: Date | undefined;
+          if (current.phase === "open") {
+            openRuntime(current, now, current.generation, this.options.policy);
+            if (current.nativeLaunchId) requireGuardian(this.options.policy.producerEnabled);
+            if (current.serverInstanceId)
+              requireGuardian(current.producerApproved && slot.activeRegistrationId);
+            if (slot.activeRegistrationId) {
+              const { registration } = await lockActiveRegistration(tx, {
+                ownerId: user.id,
+                registrationId: slot.activeRegistrationId,
+              });
+              registrationExpiresAt = registration.expiresAt;
+              requireGuardian(
+                current.nativeLaunchId &&
+                  registration.slotId === slot.id &&
+                  registration.buildId === current.buildId &&
+                  (!current.serverInstanceId ||
+                    (registration.serverInstanceId === current.serverInstanceId &&
+                      registration.hostKeyFingerprint === current.hostKeyFingerprint)),
+              );
+            }
+          }
+          const fresh = await databaseNow(tx);
+          requireGuardian(
+            current.authorityUntil > fresh &&
+              (!registrationExpiresAt || registrationExpiresAt > fresh),
+          );
+          await remountDeadline();
+          return current;
+        }
+        // No native registration can be retroactively reclassified as guardian-owned.
+        requireGuardian(!slot.activeRegistrationId);
+        const now = await databaseNow(tx);
+        const row = await tx.codexGuardianRuntime.create({
+          data: {
+            ownerId: user.id,
+            slotId: slot.id,
+            ...identity,
+            outerKeyFingerprint: keyFingerprint,
+            binding: binding as unknown as Prisma.InputJsonObject,
+            workspaceId: binding.workspaceId,
+            buildId: binding.buildId,
+            authorityUntil: new Date(now.getTime() + 60000),
+            operationReceiptsEnabled: true,
+          },
+        });
+        approvedRuntime(row, this.options.policy);
+        await remountDeadline();
+        return row;
+      },
+      continuation
+        ? Prisma.TransactionIsolationLevel.ReadCommitted
+        : Prisma.TransactionIsolationLevel.Serializable,
+    );
+  }
+  /** First enrollment after an explicitly proven unused bootstrap. The semantic
+   * UUID binds the complete stable service-verified proof; it is not authority.
+   * First reservation and grant are committed together. A replay reconstructs
+   * and verifies the ONE existing grant, never creates a replacement deadline. */
+  async reserveUnusedBootstrap(
+    binding: RegistrationBinding,
+    identity: GuardianRuntimeIdentity,
+    semanticDigest: string,
+    predecessorBuildId: string,
+    observedAt: number,
+    signGrant: (
+      runtime: CodexGuardianRuntime,
+      grant: { id: string; issuedAt: Date; expiresAt: Date },
+    ) => {
+      token: string;
+      bindingDigest: string;
+    },
+  ) {
+    requireGuardian(
+      /^[a-f0-9]{64}$/.test(semanticDigest) &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(
+          predecessorBuildId,
+        ) &&
+        predecessorBuildId !== binding.buildId &&
+        this.options.policy.enabled &&
+        identity.configSha256 === this.options.expectedConfigSha256(binding),
+    );
+    // RFC 9562 UUIDv5: DNS namespace plus a purpose-bound, canonical SHA-256
+    // name. Existing host maintenance accepts UUID versions 1–5.
+    const bytes = createHash("sha1")
+      .update(Buffer.from("6ba7b8109dad11d180b400c04fd430c8", "hex"))
+      .update("hive-unused-bootstrap-reservation-v1\n")
+      .update(guardianDigest({ binding, identity, semanticDigest, predecessorBuildId }))
+      .digest()
+      .subarray(0, 16);
+    bytes[6] = (bytes[6] & 15) | 0x50;
+    bytes[8] = (bytes[8] & 63) | 0x80;
+    const hex = bytes.toString("hex"),
+      id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    return this.transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: binding.hiveUserId } });
+      requireGuardian(
+        user && user.coderUserId === binding.ownerId && user.coderUrl === binding.coderOrigin,
+      );
+      await assertAccountMaintenanceAdmission(tx, binding, { kind: "enroll", empty: true });
+      const scope = {
+        ownerId: binding.hiveUserId,
+        coderOrigin: binding.coderOrigin,
+        workspaceId: binding.workspaceId,
+      };
+      const slots = await tx.codexHostSlot.findMany({ where: scope });
+      requireGuardian(
+        slots.every((s) => !s.activeRegistrationId && s.generation === 0 && !s.accountMaintenance),
+      );
+      const slotIds = slots.map((s) => s.id);
+      const histories = await Promise.all([
+        tx.codexHostRegistration.count({
+          where: { ownerId: binding.hiveUserId, slotId: { in: slotIds } },
+        }),
+        tx.codexRegistrationGrant.count({
+          where: { ownerId: binding.hiveUserId, slotId: { in: slotIds } },
+        }),
+      ]);
+      requireGuardian(histories.every((n) => n === 0));
+      const runtimes = await tx.codexGuardianRuntime.findMany({
+        where: { ownerId: binding.hiveUserId, workspaceId: binding.workspaceId },
+      });
+      requireGuardian(runtimes.length <= 1 && runtimes.every((r) => r.id === id));
+      const now = await databaseNow(tx);
+      requireGuardian(
+        Number.isSafeInteger(observedAt) &&
+          observedAt <= now.getTime() &&
+          now.getTime() - observedAt <= 30000,
+      );
+      let runtime = runtimes[0];
+      let stored:
+        | Awaited<ReturnType<typeof tx.codexGuardianEnrollmentGrant.findMany>>[number]
+        | undefined;
+      if (runtime) {
+        requireGuardian(
+          Object.entries(identity).every(
+            ([k, v]) => runtime[k as keyof CodexGuardianRuntime] === v,
+          ) &&
+            runtime.unusedBootstrapPredecessorBuildId === predecessorBuildId &&
+            guardianDigest(runtime.binding) === guardianDigest(binding) &&
+            runtime.outerKeyFingerprint === fingerprint(identity.outerPublicKeyPem) &&
+            ["reserved", "open"].includes(runtime.phase) &&
+            runtime.generation === 1 &&
+            !runtime.nativeLaunchId &&
+            !runtime.nativeLaunchDigest &&
+            !runtime.nativeLaunchAt &&
+            runtime.operationReceiptsEnabled &&
+            !runtime.producerApproved &&
+            !runtime.serverInstanceId &&
+            !runtime.hostKeyFingerprint &&
+            !runtime.closedBarrierId &&
+            runtime.authorityUntil > now,
+        );
+        const [grants, admissions, operations] = await Promise.all([
+          tx.codexGuardianEnrollmentGrant.findMany({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+          tx.codexGuardianAdmission.count({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+          tx.codexGuardianOperationReceipt.count({
+            where: { ownerId: binding.hiveUserId, runtimeId: id },
+          }),
+        ]);
+        requireGuardian(grants.length === 1 && admissions === 0 && operations === 0);
+        stored = grants[0];
+        requireGuardian(
+          stored.expiresAt > now &&
+            (runtime.phase === "reserved" ? !stored.consumedAt : !!stored.consumedAt),
+        );
+      } else {
+        const slot = await tx.codexHostSlot.upsert({
+          where: {
+            ownerId_coderOrigin_workspaceId_agentId: { ...scope, agentId: binding.agentId },
+          },
+          create: { ...scope, coderOwnerId: binding.ownerId, agentId: binding.agentId },
+          update: {},
+        });
+        runtime = await tx.codexGuardianRuntime.create({
+          data: {
+            id,
+            unusedBootstrapPredecessorBuildId: predecessorBuildId,
+            ownerId: binding.hiveUserId,
+            slotId: slot.id,
+            ...identity,
+            outerKeyFingerprint: fingerprint(identity.outerPublicKeyPem),
+            binding: binding as unknown as Prisma.InputJsonObject,
+            workspaceId: binding.workspaceId,
+            buildId: binding.buildId,
+            authorityUntil: new Date(now.getTime() + 60000),
+            operationReceiptsEnabled: true,
+          },
+        });
+      }
+      approvedRuntime(runtime, this.options.policy);
+      const grant = stored ?? {
+        id: randomUUID(),
+        issuedAt: new Date(observedAt),
+        expiresAt: new Date(
+          Math.floor(Math.min(observedAt + 30000, runtime.authorityUntil.getTime()) / 1000) * 1000,
+        ),
+      };
+      const signed = signGrant(runtime, grant);
+      const tokenDigest = createHash("sha256").update(signed.token).digest("hex");
+      if (stored)
+        requireGuardian(
+          stored.tokenDigest === tokenDigest && stored.bindingDigest === signed.bindingDigest,
+        );
+      else
+        await tx.codexGuardianEnrollmentGrant.create({
+          data: {
+            ...grant,
+            ownerId: binding.hiveUserId,
+            runtimeId: runtime.id,
+            tokenDigest,
+            bindingDigest: signed.bindingDigest,
+          },
+        });
+      requireGuardian(grant.expiresAt > (await databaseNow(tx)));
+      return { runtime, grant: signed.token };
+    });
+  }
+  /** Service-verified current identity and owner inspection only. Generic reserve
+   * never calls this; one retained event permits one bounded deadline change. */
+  async resumeUnusedRecovery(
+    binding: RegistrationBinding,
+    packet: GuardianIdentityResponse,
+    rawScope: RecoveryScope,
+    rawInspection: RecoveryInspection,
+    env: Record<string, string | undefined>,
+    authorize: (tx: Tx) => Promise<void>,
+  ) {
+    const scope = recoveryScopeSchema.parse(rawScope),
+      inspection = recoveryInspectionSchema.parse(rawInspection);
+    requireGuardian(
+      this.options.policy.enabled &&
+        this.options.policy.producerEnabled &&
+        scope.ownerId === binding.hiveUserId &&
+        scope.coderOwnerId === binding.ownerId &&
+        scope.workspaceId === binding.workspaceId &&
+        packet.unstartedTransfer &&
+        packet.unstartedTransferContinuation &&
+        packet.unstartedTransferReceipt &&
+        binding.projects.length === 0 &&
+        packet.startup.generation === 1 &&
+        packet.startup.projects.length === 0 &&
+        packet.nonce === guardianDigest({ scope, inspection }) &&
+        inspection.outcome === "existing_preexecution" &&
+        inspection.guardianGeneration === 1 &&
+        inspection.buildId === binding.buildId &&
+        inspection.lifetimeId === packet.identity.lifetimeId &&
+        packet.identity.configSha256 === this.options.expectedConfigSha256(binding),
+    );
+    return this.transaction(async (tx) => {
+      await assertAccountMaintenanceAdmission(tx, binding, { kind: "enroll", empty: true });
+      const context = await readRecoveryResumption(tx, env, scope);
+      requireGuardian(context);
+      const { runtime, slot, now } = await lockGuardianRuntime(
+        tx,
+        scope.ownerId,
+        context.runtime.id,
+      );
+      approvedRuntime(runtime, this.options.policy);
+      const a = context.approval,
+        ticket = context.ticket;
+      requireGuardian(
+        guardianDigest(runtime.binding) === guardianDigest(binding) &&
+          guardianDigest(context.retirement.newIdentity) === guardianDigest(packet.identity) &&
+          guardianDigest(packet.unstartedTransfer) === context.retirement.proofDigest &&
+          guardianDigest(packet.unstartedTransferContinuation) === a.continuationDigest &&
+          guardianDigest(packet.unstartedTransferReceipt) ===
+            guardianDigest({
+              transferId: a.retirementEventId,
+              oldRuntimeId: packet.unstartedTransfer!.oldRuntimeId,
+              proofDigest: context.retirement.proofDigest,
+              continuationDigest: a.continuationDigest,
+              attestationDigest: a.attestationDigest,
+            }) &&
+          inspection.remount?.attestationDigest === a.attestationDigest &&
+          inspection.remount.continuationDigest === a.continuationDigest &&
+          inspection.remount.mappingDigest === guardianDigest(ticket.mapping) &&
+          inspection.remount.volumeDigest === guardianDigest(ticket.volume) &&
+          guardianDigest(inspection.remount.mapping) === guardianDigest(ticket.mapping) &&
+          runtime.phase === "open" &&
+          runtime.operationReceiptsEnabled &&
+          runtime.generation === 1 &&
+          runtime.enrolledAt &&
+          !runtime.nativeLaunchId &&
+          !runtime.nativeLaunchDigest &&
+          !runtime.nativeLaunchAt &&
+          !runtime.serverInstanceId &&
+          !runtime.hostKeyFingerprint &&
+          !runtime.producerApproved &&
+          !runtime.closedBarrierId &&
+          !slot.activeRegistrationId,
+      );
+      await tx.$queryRaw`SELECT id FROM project_task_intents WHERE owner_id=${scope.ownerId}::uuid AND id=${scope.taskId}::uuid FOR UPDATE`;
+      const [intent] = await tx.$queryRaw<
+        {
+          phase: string;
+          request_digest: string;
+          source_sha: string;
+          project_id: string;
+          workspace_id: string;
+          version: string;
+        }[]
+      >`
+        SELECT phase,request_digest,source_sha,project_id,workspace_id,to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US') AS version
+        FROM project_task_intents WHERE owner_id=${scope.ownerId}::uuid AND id=${scope.taskId}::uuid`;
+      const recoveries = await tx.$queryRaw<
+        {
+          id: string;
+          phase: string;
+          scope: unknown;
+          inspection: unknown;
+          authorization: unknown;
+          receipt: unknown;
+        }[]
+      >`
+        SELECT id,phase,scope,inspection,"authorization",receipt FROM project_task_recoveries
+        WHERE owner_id=${scope.ownerId}::uuid AND task_id=${scope.taskId}::uuid AND phase<>'consumed' FOR UPDATE`;
+      requireGuardian(
+        intent?.phase === "blocked" &&
+          intent.request_digest === scope.intentDigest &&
+          intent.source_sha === scope.revision &&
+          intent.project_id === scope.projectId &&
+          intent.workspace_id === scope.workspaceId &&
+          intent.version === scope.intentVersion &&
+          recoveries.length === 1 &&
+          recoveries[0].id === scope.recoveryId &&
+          recoveries[0].phase === "inspecting" &&
+          !recoveries[0].inspection &&
+          !recoveries[0].authorization &&
+          !recoveries[0].receipt &&
+          guardianDigest(recoveries[0].scope) === guardianDigest(scope),
+      );
+      const [grants, admissions, registrations, registrationGrants] = await Promise.all([
+        tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: scope.ownerId, runtimeId: runtime.id },
+          take: 2,
+        }),
+        tx.codexGuardianAdmission.count({
+          where: { ownerId: scope.ownerId, runtimeId: runtime.id },
+        }),
+        tx.codexHostRegistration.count({ where: { ownerId: scope.ownerId, slotId: slot.id } }),
+        tx.codexRegistrationGrant.count({ where: { ownerId: scope.ownerId, slotId: slot.id } }),
+      ]);
+      requireGuardian(
+        grants.length === 1 &&
+          grants[0].consumedAt &&
+          grants[0].consumptionDigest &&
+          grants[0].consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+          a.originalAuthorityUntil === runtime.enrolledAt.getTime() + 180000 &&
+          admissions === 0 &&
+          registrations === 0 &&
+          registrationGrants === 0,
+      );
+      await authorize(tx);
+      const [competition] = await tx.$queryRaw<{ present: boolean }[]>`SELECT
+        EXISTS(SELECT 1 FROM codex_guardian_runtimes WHERE owner_id=${scope.ownerId}::uuid AND workspace_id=${scope.workspaceId}::uuid
+          AND id<>${runtime.id}::uuid AND phase NOT IN ('tree_closed','authorization_retired'))
+        OR EXISTS(SELECT 1 FROM codex_registration_grants g JOIN codex_host_slots s ON s.owner_id=g.owner_id AND s.id=g.slot_id
+          WHERE s.owner_id=${scope.ownerId}::uuid AND s.workspace_id=${scope.workspaceId}::uuid)
+        OR EXISTS(SELECT 1 FROM codex_host_registrations g JOIN codex_host_slots s ON s.owner_id=g.owner_id AND s.id=g.slot_id
+          WHERE s.owner_id=${scope.ownerId}::uuid AND s.workspace_id=${scope.workspaceId}::uuid) AS present`;
+      requireGuardian(competition && !competition.present);
+      const prior = await tx.codexGuardianOperationReceipt.findUnique({
+        where: {
+          ownerId_runtimeId_eventId: {
+            ownerId: scope.ownerId,
+            runtimeId: runtime.id,
+            eventId: a.id,
+          },
+        },
+      });
+      const fresh = await databaseNow(tx);
+      requireGuardian(
+        fresh.getTime() < a.expiresAt &&
+          fresh.getTime() < packet.expiresAt &&
+          packet.issuedAt <= fresh.getTime(),
+      );
+      if (prior) {
+        const r = (prior.response as Prisma.JsonObject).resumption as Prisma.JsonObject;
+        requireGuardian(
+          prior.action === "unused_recovery_resumed" &&
+            prior.requestDigest === guardianDigest(a) &&
+            r.inspectionDigest === guardianDigest(inspection) &&
+            guardianDigest(r.scope) === guardianDigest(scope) &&
+            guardianDigest(r.ticket) === guardianDigest(ticket) &&
+            r.authorityUntil === runtime.authorityUntil.getTime() &&
+            runtime.authorityUntil > fresh,
+        );
+        return runtime; // Exact replay never extends even if an earlier ACK was lost.
+      }
+      requireGuardian(
+        runtime.authorityUntil.getTime() === a.originalAuthorityUntil &&
+          runtime.authorityUntil <= now,
+      );
+      const authorityUntil = Math.min(fresh.getTime() + 180000, a.expiresAt);
+      const response = {
+        resumption: {
+          schemaVersion: 1,
+          recoveryId: scope.recoveryId,
+          approval: a,
+          scope,
+          retirementEventId: a.retirementEventId,
+          originalAuthorityUntil: a.originalAuthorityUntil,
+          authorityUntil,
+          identityDigest: guardianDigest(packet.identity),
+          inspectionDigest: guardianDigest(inspection),
+          inspection,
+          ticket,
+          identityIssuedAt: packet.issuedAt,
+          identityExpiresAt: packet.expiresAt,
+          nativeTreeExited: false,
+          cleanupAuthorized: false,
+          writerReleased: false,
+        },
+      };
+      await tx.codexGuardianOperationReceipt.create({
+        data: {
+          ownerId: scope.ownerId,
+          runtimeId: runtime.id,
+          eventId: a.id,
+          action: "unused_recovery_resumed",
+          requestDigest: guardianDigest(a),
+          inputRuntimeGeneration: 1,
+          resultRuntimeGeneration: 1,
+          resultAdmissionGeneration: 0,
+          response: response as unknown as Prisma.InputJsonObject,
+          responseDigest: guardianDigest(response),
+          lifetimeId: runtime.lifetimeId,
+          buildId: runtime.buildId,
+          configSha256: runtime.configSha256,
+          outerKeyFingerprint: runtime.outerKeyFingerprint,
+        },
+      });
+      const updated = await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { authorityUntil: new Date(authorityUntil) },
+      });
+      requireGuardian(
+        (await databaseNow(tx)).getTime() < Math.min(a.expiresAt, packet.expiresAt, authorityUntil),
+      );
+      return updated;
+    }, Prisma.TransactionIsolationLevel.ReadCommitted);
+  }
+  async sealGrant(input: {
+    ownerId: string;
+    runtimeId: string;
+    id: string;
+    tokenDigest: string;
+    bindingDigest: string;
+    issuedAt: Date;
+    expiresAt: Date;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        runtime.phase === "reserved" &&
+          input.issuedAt <= now &&
+          input.expiresAt > now &&
+          input.expiresAt.getTime() - input.issuedAt.getTime() <= 60000,
+      );
+      return tx.codexGuardianEnrollmentGrant.create({ data: input });
+    });
+  }
+  async enroll(input: {
+    ownerId: string;
+    runtimeId: string;
+    grantId: string;
+    tokenDigest: string;
+    bindingDigest: string;
+    consumptionDigest: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      const grant = await tx.codexGuardianEnrollmentGrant.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.grantId } },
+      });
+      requireGuardian(
+        grant &&
+          grant.runtimeId === runtime.id &&
+          grant.tokenDigest === input.tokenDigest &&
+          grant.bindingDigest === input.bindingDigest &&
+          grant.issuedAt <= now &&
+          grant.expiresAt > now &&
+          !grant.consumedAt &&
+          runtime.phase === "reserved",
+      );
+      await tx.codexGuardianEnrollmentGrant.update({
+        where: { id: grant.id },
+        data: { consumedAt: now, consumptionDigest: input.consumptionDigest },
+      });
+      return tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { phase: "open", enrolledAt: now, authorityUntil: new Date(now.getTime() + 180000) },
+      });
+    });
+  }
+  /** Read only: the original enrollment remains historical even when expired. */
+  async enrollmentReadback(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    grantId: string;
+    tokenDigest: string;
+    claimsDigest: string;
+    consumptionDigest: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        input.runtimeGeneration === 1 &&
+          runtime.generation === 1 &&
+          runtime.phase === "open" &&
+          runtime.enrolledAt &&
+          !runtime.closedBarrierId &&
+          !runtime.nativeLaunchId &&
+          !runtime.nativeLaunchDigest &&
+          !runtime.nativeLaunchAt &&
+          !runtime.serverInstanceId &&
+          !runtime.hostKeyFingerprint &&
+          !runtime.producerApproved &&
+          !slot.activeRegistrationId,
+      );
+      const [grants, admissions, registrations] = await Promise.all([
+        tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        }),
+        tx.codexGuardianAdmission.count({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        }),
+        tx.codexHostRegistration.count({ where: { ownerId: input.ownerId, slotId: slot.id } }),
+      ]);
+      const grant = grants[0];
+      requireGuardian(
+        grants.length === 1 &&
+          grant.id === input.grantId &&
+          grant.consumedAt &&
+          grant.tokenDigest === input.tokenDigest &&
+          grant.bindingDigest === input.claimsDigest &&
+          grant.consumptionDigest === input.consumptionDigest &&
+          admissions === 0 &&
+          registrations === 0 &&
+          grant.consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+          (await unusedEnrollmentAuthority(tx, runtime)) === runtime.enrolledAt.getTime() + 180000,
+      );
+      return {
+        enrolledAt: runtime.enrolledAt.getTime(),
+        authorityUntil: runtime.enrolledAt.getTime() + 180000,
+      };
+    });
+  }
+  /** Owner-requested recovery is possible only for an expired, never-used lifetime. */
+  async expiredEmptyReady(input: {
+    ownerId: string;
+    runtimeId: string;
+    workspaceId: string;
+    bindingDigest: string;
+    configSha256: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        runtime.workspaceId === input.workspaceId &&
+          guardianDigest(runtime.binding) === input.bindingDigest &&
+          runtime.configSha256 === input.configSha256 &&
+          runtime.phase === "open" &&
+          runtime.generation === 1 &&
+          runtime.enrolledAt &&
+          runtime.authorityUntil <= now &&
+          !runtime.closedBarrierId &&
+          !runtime.nativeLaunchId &&
+          !runtime.nativeLaunchDigest &&
+          !runtime.nativeLaunchAt &&
+          !runtime.serverInstanceId &&
+          !runtime.hostKeyFingerprint &&
+          !runtime.producerApproved &&
+          !slot.activeRegistrationId,
+      );
+      const [grants, admissions, registrations] = await Promise.all([
+        tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        }),
+        tx.codexGuardianAdmission.count({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        }),
+        tx.codexHostRegistration.count({ where: { ownerId: input.ownerId, slotId: slot.id } }),
+      ]);
+      requireGuardian(
+        grants.length === 1 &&
+          grants[0].consumedAt &&
+          grants[0].consumptionDigest &&
+          grants[0].consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+          (await unusedEnrollmentAuthority(tx, runtime)) ===
+            runtime.enrolledAt.getTime() + 180000 &&
+          admissions === 0 &&
+          registrations === 0,
+      );
+      return {
+        runtimeId: runtime.id,
+        lifetimeId: runtime.lifetimeId,
+        generation: runtime.generation,
+        workspaceId: runtime.workspaceId,
+        buildId: runtime.buildId,
+      };
+    });
+  }
+  async prepare(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    preparation: GuardianPreparation;
+    preparationDigest: string;
+  }) {
+    const preparation = guardianPreparationSchema.parse(input.preparation);
+    requireGuardian(preparationDigest(preparation) === input.preparationDigest);
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: preparation.projectId,
+          preparationIntentId: preparation.taskId,
+        },
+      );
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      requireGuardian(
+        !runtime.nativeLaunchId &&
+          preparation.ownerId === slot.coderOwnerId &&
+          preparation.workspaceId === runtime.workspaceId &&
+          preparation.buildId === runtime.buildId,
+      );
+      const existing = await tx.codexGuardianAdmission.findUnique({
+        where: {
+          ownerId_runtimeId_projectId: {
+            ownerId: input.ownerId,
+            runtimeId: runtime.id,
+            projectId: preparation.projectId,
+          },
+        },
+      });
+      if (existing) {
+        await lockAdmissionIntent(tx, runtime, existing);
+        requireGuardian(
+          existing.preparationDigest === input.preparationDigest &&
+            guardianDigest(existing.preparation) === guardianDigest(preparation),
+        );
+        return { runtime, admission: existing, replayed: true };
+      }
+      const held = await tx.$queryRaw<
+        { id: string }[]
+      >`SELECT id FROM project_task_intents WHERE owner_id=${input.ownerId}::uuid AND project_id=${preparation.projectId}::uuid AND id=${preparation.taskId}::uuid FOR UPDATE`;
+      requireGuardian(held.length === 1);
+      const intent = await tx.projectTaskIntent.findUniqueOrThrow({
+        where: { ownerId_id: { ownerId: input.ownerId, id: preparation.taskId } },
+      });
+      const project = await tx.deliveryProject.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: preparation.projectId } },
+      });
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      let retainedPreparation = false;
+      if (maintenance?.phase === "resuming") {
+        requireGuardian(
+          maintenance.idleRuntimeId === runtime.id &&
+            maintenance.resumeIntentRuntimeId &&
+            maintenance.resumeIntentEventId,
+        );
+        const ownerIntent = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+          where: {
+            ownerId_runtimeId_eventId: {
+              ownerId: input.ownerId,
+              runtimeId: maintenance.resumeIntentRuntimeId,
+              eventId: maintenance.resumeIntentEventId,
+            },
+          },
+        });
+        requireGuardian(ownerIntent.action === "maintenance_resume_intent");
+        const ownerScope = maintenanceOwnerResumeSchema.parse(
+          (ownerIntent.response as Prisma.JsonObject).maintenance,
+        );
+        const parked = ownerScope.projects.find((p) => p.preparationIntentId === intent.id);
+        requireGuardian(
+          ownerScope.maintenanceId === maintenance.id &&
+            ownerScope.idleRuntimeId === runtime.id &&
+            ownerScope.requestId === maintenance.resumeRequestId &&
+            parked &&
+            parked.sourceSha === intent.sourceSha &&
+            parked.requestDigest === intent.requestDigest &&
+            parked.requestId === intent.requestId,
+        );
+        const original = await tx.codexGuardianAdmission.findUniqueOrThrow({
+          where: {
+            ownerId_runtimeId_projectId: {
+              ownerId: input.ownerId,
+              runtimeId: parked.oldRuntimeId,
+              projectId: preparation.projectId,
+            },
+          },
+        });
+        requireGuardian(
+          original.preparationIntentId === intent.id &&
+            original.preparationDigest === input.preparationDigest &&
+            guardianDigest(original.preparation) === guardianDigest(preparation),
+        );
+        retainedPreparation = true;
+      }
+      requireGuardian(
+        project &&
+          project.provider === "github" &&
+          project.providerRepositoryId === preparation.repositoryId &&
+          project.providerAccountId === preparation.providerAccountId &&
+          intent.workspaceId === runtime.workspaceId &&
+          intent.requestId === preparation.requestId &&
+          intent.repositoryId === preparation.repositoryId &&
+          intent.providerAccountId === preparation.providerAccountId &&
+          intent.sourceSha === preparation.baseSha &&
+          (["queued", "preparing"].includes(intent.phase) ||
+            (retainedPreparation && intent.phase === "running")),
+      );
+      if (!retainedPreparation) {
+        const payload = new ProjectTaskIntents(this.db, this.options.encryptionKey).payload(intent);
+        requireGuardian(
+          bytesDigest(JSON.stringify(payload.hostRequest)) === preparation.requestDigest,
+        );
+      }
+      const count = await tx.codexGuardianAdmission.count({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+      });
+      requireGuardian(count < 32);
+      const admission = await tx.codexGuardianAdmission.create({
+        data: {
+          ownerId: input.ownerId,
+          runtimeId: runtime.id,
+          projectId: preparation.projectId,
+          preparationIntentId: intent.id,
+          preparationDigest: input.preparationDigest,
+          preparation,
+          intentRequestDigest: intent.requestDigest,
+        },
+      });
+      const updated = await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { generation: { increment: 1 }, authorityUntil: new Date(now.getTime() + 180000) },
+      });
+      return { runtime: updated, admission, replayed: false };
+    });
+  }
+  async bindCheckout(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    checkout: GuardianCheckout;
+  }) {
+    const checkout = guardianCheckoutSchema.parse(input.checkout);
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: checkout.projectId,
+          preparationIntentId: checkout.preparationIntentId,
+        },
+      );
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      requireGuardian(!runtime.nativeLaunchId);
+      const admission = await lockGuardianAdmission(
+        tx,
+        input.ownerId,
+        runtime.id,
+        checkout.projectId,
+      );
+      await lockAdmissionIntent(tx, runtime, admission);
+      const preparation = guardianPreparationSchema.parse(admission.preparation);
+      requireGuardian(
+        admission.preparationIntentId === checkout.preparationIntentId &&
+          preparation.repositoryId === checkout.repositoryId &&
+          preparation.baseSha === checkout.revision,
+      );
+      if (admission.checkoutBinding) {
+        requireGuardian(guardianDigest(admission.checkoutBinding) === guardianDigest(checkout));
+        return { runtime, admission, replayed: true };
+      }
+      await assertRemountCheckout(tx, runtime, checkout);
+      requireGuardian(admission.phase === "preparation");
+      const next = await tx.codexGuardianAdmission.update({
+        where: { id: admission.id },
+        data: {
+          phase: "checkout",
+          generation: { increment: 1 },
+          checkoutBinding: checkout,
+          checkoutBindingDigest: guardianDigest(checkout),
+          checkoutIncarnation: checkout.checkoutIncarnation,
+          leaseId: checkout.leaseId,
+          leaseGeneration: checkout.leaseGeneration,
+          checkoutBoundAt: now,
+        },
+      });
+      return { runtime, admission: next, replayed: false };
+    });
+  }
+  async reserveNativeLaunch(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    nativeLaunchId: string;
+    launchIntentDigest: string;
+    projectIds: string[];
+    authorityVersion?: 1;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        { kind: "native", runtimeId: runtime.id },
+      );
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      requireGuardian(!runtime.nativeLaunchId && this.options.policy.producerEnabled);
+      const projects = [...input.projectIds].sort();
+      requireGuardian(
+        projects.length > 0 && projects.length <= 32 && new Set(projects).size === projects.length,
+      );
+      const admissions = [];
+      for (const projectId of projects)
+        admissions.push(await lockGuardianAdmission(tx, input.ownerId, runtime.id, projectId));
+      const count = await tx.codexGuardianAdmission.count({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+      });
+      requireGuardian(
+        count === projects.length &&
+          admissions.every((a) => a.phase === "checkout" && a.checkoutBinding),
+      );
+      let isolationValidUntil = Number.POSITIVE_INFINITY;
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      for (const a of admissions) {
+        await lockAdmissionIntent(tx, runtime, a);
+        const holds = await tx.deliveryManagerBinding.findMany({
+          where: { ownerId: input.ownerId, preparationIntentId: a.preparationIntentId },
+        });
+        if (maintenance?.phase === "resuming") {
+          requireGuardian(
+            maintenance.idleRuntimeId === runtime.id &&
+              maintenance.resumeIntentRuntimeId &&
+              maintenance.resumeIntentEventId &&
+              holds.length <= 1,
+          );
+          const ownerIntent = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+            where: {
+              ownerId_runtimeId_eventId: {
+                ownerId: input.ownerId,
+                runtimeId: maintenance.resumeIntentRuntimeId,
+                eventId: maintenance.resumeIntentEventId,
+              },
+            },
+          });
+          requireGuardian(ownerIntent.action === "maintenance_resume_intent");
+          const resume = maintenanceOwnerResumeSchema.parse(
+            (ownerIntent.response as Prisma.JsonObject).maintenance,
+          );
+          const parked = resume.projects.find(
+            (p) => p.preparationIntentId === a.preparationIntentId,
+          );
+          requireGuardian(
+            resume.maintenanceId === maintenance.id &&
+              resume.idleRuntimeId === runtime.id &&
+              resume.requestId === maintenance.resumeRequestId &&
+              parked &&
+              parked.checkoutDigest === guardianDigest(a.checkoutBinding),
+          );
+          const old = await tx.codexGuardianRuntime.findUniqueOrThrow({
+            where: { id: parked.oldRuntimeId },
+          });
+          requireGuardian(
+            old.ownerId === input.ownerId &&
+              old.phase === "tree_closed" &&
+              old.closedBarrierId === parked.oldBarrierId &&
+              old.workspaceId === runtime.workspaceId &&
+              old.buildId === runtime.buildId,
+          );
+          for (const held of holds) {
+            await tx.$queryRaw`SELECT id FROM delivery_manager_bindings WHERE owner_id=${input.ownerId}::uuid AND id=${held.id}::uuid FOR UPDATE`;
+            const current = await tx.deliveryManagerBinding.findUniqueOrThrow({
+              where: { id: held.id },
+            });
+            requireGuardian(
+              !current.blockedReason &&
+                current.nativeThreadId === parked.nativeThreadId &&
+                current.sourceSha === parked.sourceSha &&
+                current.workspaceId === runtime.workspaceId &&
+                current.buildId === runtime.buildId &&
+                current.leaseId === parked.leaseId &&
+                current.leaseGeneration === parked.leaseGeneration,
+            );
+            if (current.activeAttemptId) {
+              await tx.$queryRaw`SELECT id FROM delivery_attempts WHERE owner_id=${input.ownerId}::uuid AND id=${current.activeAttemptId}::uuid FOR UPDATE`;
+              const writer = await tx.deliveryAttempt.findUniqueOrThrow({
+                where: { id: current.activeAttemptId },
+              });
+              requireGuardian(
+                writer.managerBindingId === current.id &&
+                  writer.leaseExpiresAt > (await databaseNow(tx)),
+              );
+              isolationValidUntil = Math.min(isolationValidUntil, writer.leaseExpiresAt.getTime());
+            }
+          }
+        } else requireGuardian(holds.length === 0); // Ordinary first launch never adopts a writer.
+        // Bound only live/uncertain registrations. Closed historical sessions
+        // remain readable without eventually exhausting native admission.
+        const priorThreads = await tx.$queryRaw<{ registrationId: string }[]>`
+          SELECT DISTINCT t.registration_id AS "registrationId" FROM codex_registered_threads t
+          WHERE t.owner_id=${input.ownerId}::uuid AND t.project_id=${a.projectId}::uuid
+          AND NOT EXISTS (SELECT 1 FROM codex_guardian_admissions a
+            JOIN codex_guardian_runtimes r ON r.owner_id=a.owner_id AND r.id=a.runtime_id
+            WHERE a.owner_id=t.owner_id AND a.project_id=t.project_id
+            AND a.registration_id=t.registration_id AND r.phase='tree_closed') LIMIT 33`;
+        const unclosed = [...new Set(priorThreads.map((thread) => thread.registrationId))];
+        requireGuardian(unclosed.length <= 32);
+        if (unclosed.length) {
+          const isolation = await epicNativeAdmission(tx, {
+            runtime,
+            admission: a,
+            priorRegistrationIds: unclosed,
+            guardianPolicy: this.options.policy,
+            isolationPolicy: epicConfig()?.isolationPolicy,
+          });
+          requireGuardian(isolation);
+          isolationValidUntil = Math.min(isolationValidUntil, isolation.validUntil);
+        } // Ordinary tasks still require true tree exit; revocation/expiry is not closure.
+      }
+      const inventory = admissions.map((a) => ({
+        admissionId: a.id,
+        admissionGeneration: a.generation,
+        checkout: guardianCheckoutSchema.parse(a.checkoutBinding),
+      }));
+      const expected = guardianDigest({
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+        nativeLaunchId: input.nativeLaunchId,
+        inventory,
+      });
+      requireGuardian(expected === input.launchIntentDigest);
+      openRuntime(runtime, await databaseNow(tx), input.runtimeGeneration, this.options.policy);
+      await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: {
+          nativeLaunchId: input.nativeLaunchId,
+          nativeLaunchDigest: expected,
+          nativeLaunchAt: now,
+        },
+      });
+      requireGuardian(isolationValidUntil > (await databaseNow(tx)).getTime());
+      const authorityUntil = Math.min(
+        runtime.authorityUntil.getTime(),
+        isolationValidUntil,
+        this.options.authorizationExpiresAt ?? Number.POSITIVE_INFINITY,
+      );
+      requireGuardian(authorityUntil > (await databaseNow(tx)).getTime());
+      return {
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+        policyDigest: runtime.policyDigest,
+        metadataPolicyDigest: runtime.metadataPolicyDigest,
+        nativeLaunchId: input.nativeLaunchId,
+        launchIntentDigest: expected,
+        ...(input.authorityVersion === 1 ? { authorityUntil } : {}),
+        approvals: inventory.map(({ admissionId, admissionGeneration, checkout }) => ({
+          projectId: checkout.projectId,
+          repositoryId: checkout.repositoryId,
+          taskId: checkout.preparationIntentId,
+          leaseId: checkout.leaseId,
+          leaseGeneration: checkout.leaseGeneration,
+          checkoutIncarnation: checkout.checkoutIncarnation,
+          checkoutIdentity: checkout.checkoutIdentity,
+          revision: checkout.revision,
+          admissionId,
+          admissionGeneration,
+          firstNative: true as const,
+        })),
+      };
+    });
+  }
+  async finalizeNative(input: {
+    scope: GuardianProducerScope;
+    runtimeId: string;
+    runtimeGeneration: number;
+    metadata: GuardianMetadataEvidence;
+    maintenanceRebind?: MaintenanceNativeRebind;
+  }) {
+    const metadata = guardianMetadataEvidenceSchema.parse(input.metadata);
+    const scope = producerScopeSchema.parse(input.scope);
+    return this.transaction(async (tx) => {
+      const { registration, slot, now } = await lockActiveRegistration(tx, {
+        ownerId: scope.hiveUserId,
+        registrationId: scope.registrationId,
+      });
+      const { runtime } = await lockGuardianRuntime(tx, scope.hiveUserId, input.runtimeId);
+      await assertAccountMaintenanceAdmission(
+        tx,
+        {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        },
+        {
+          kind: "native",
+          runtimeId: runtime.id,
+          projectId: scope.projectId,
+          preparationIntentId: scope.preparationIntentId,
+        },
+      );
+      openRuntime(runtime, await databaseNow(tx), input.runtimeGeneration, this.options.policy);
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      const rebind = input.maintenanceRebind
+        ? maintenanceNativeRebindSchema.parse(input.maintenanceRebind)
+        : null;
+      if (maintenance && maintenance.phase !== "finished") {
+        requireGuardian(
+          maintenance.phase === "resuming" &&
+            rebind &&
+            maintenance.idleRuntimeId === runtime.id &&
+            rebind.maintenanceId === maintenance.id &&
+            maintenance.resumeIntentRuntimeId === rebind.ownerIntentRuntimeId &&
+            maintenance.resumeIntentEventId === rebind.ownerIntentEventId,
+        );
+        const ownerIntent = await tx.codexGuardianOperationReceipt.findUnique({
+          where: {
+            ownerId_runtimeId_eventId: {
+              ownerId: scope.hiveUserId,
+              runtimeId: rebind.ownerIntentRuntimeId,
+              eventId: rebind.ownerIntentEventId,
+            },
+          },
+        });
+        requireGuardian(ownerIntent?.action === "maintenance_resume_intent");
+        const resume = maintenanceOwnerResumeSchema.parse(
+          (ownerIntent.response as Prisma.JsonObject).maintenance,
+        );
+        const retained = resume.projects.find(
+          (p) => p.preparationIntentId === scope.preparationIntentId,
+        );
+        requireGuardian(
+          resume.maintenanceId === maintenance.id &&
+            resume.ownerId === runtime.ownerId &&
+            resume.workspaceId === runtime.workspaceId &&
+            resume.buildId === runtime.buildId &&
+            resume.idleRuntimeId === runtime.id &&
+            resume.parkedJournalDigest === rebind.parkedJournalDigest &&
+            retained &&
+            retained.historyDigest === rebind.historyDigest &&
+            retained.nativeThreadId === scope.managerThreadId &&
+            retained.leaseId === scope.leaseId &&
+            retained.leaseGeneration === scope.leaseGeneration &&
+            Date.parse(rebind.leaseValidUntil) > (await databaseNow(tx)).getTime(),
+        );
+      } else requireGuardian(!rebind);
+      requireGuardian(
+        this.options.policy.producerEnabled &&
+          (!runtime.serverInstanceId || runtime.producerApproved),
+      );
+      requireGuardian(
+        runtime.nativeLaunchId &&
+          runtime.slotId === slot.id &&
+          runtime.workspaceId === scope.workspaceId &&
+          runtime.buildId === scope.buildId &&
+          registration.buildId === scope.buildId &&
+          registration.serverInstanceId === scope.serverInstanceId &&
+          registration.threads.some(
+            (t) => t.projectId === scope.projectId && t.nativeThreadId === scope.managerThreadId,
+          ) &&
+          (!runtime.serverInstanceId || runtime.serverInstanceId === scope.serverInstanceId) &&
+          (!runtime.hostKeyFingerprint ||
+            runtime.hostKeyFingerprint === registration.hostKeyFingerprint),
+      );
+      const admission = await lockGuardianAdmission(
+        tx,
+        scope.hiveUserId,
+        runtime.id,
+        scope.projectId,
+      );
+      await lockAdmissionIntent(tx, runtime, admission);
+      requireGuardian(registration.expiresAt > (await databaseNow(tx)));
+      const checkout = guardianCheckoutSchema.parse(admission.checkoutBinding);
+      requireGuardian(
+        metadata.nativeLaunchId === runtime.nativeLaunchId &&
+          metadata.launchIntentDigest === runtime.nativeLaunchDigest &&
+          metadata.metadataPolicyDigest === runtime.metadataPolicyDigest &&
+          guardianDigest(metadata.pins.checkout) === guardianDigest(checkout.checkoutIdentity),
+      );
+      requireGuardian(
+        checkout.preparationIntentId === scope.preparationIntentId &&
+          checkout.repositoryId === scope.repositoryId &&
+          checkout.leaseId === scope.leaseId &&
+          checkout.leaseGeneration === scope.leaseGeneration,
+      );
+      if (admission.phase === "native") {
+        requireGuardian(
+          admission.registrationId === registration.id &&
+            admission.nativeThreadId === scope.managerThreadId &&
+            admission.metadataPinsDigest === guardianDigest(metadata) &&
+            guardianDigest(admission.metadataPins) === guardianDigest(metadata),
+        );
+        return {
+          runtime,
+          admission,
+          replayed: true,
+          ...(rebind ? { maintenanceRebind: rebind } : {}),
+        };
+      }
+      requireGuardian(admission.phase === "checkout" && this.options.policy.producerEnabled);
+      const producerDigest = guardianDigest({
+        runtimeId: runtime.id,
+        admissionId: admission.id,
+        registrationId: registration.id,
+        hostKeyFingerprint: registration.hostKeyFingerprint,
+        scope,
+        checkout,
+        policyDigest: runtime.policyDigest,
+        metadataPolicyDigest: runtime.metadataPolicyDigest,
+        metadata,
+      });
+      const next = await tx.codexGuardianAdmission.update({
+        where: { id: admission.id },
+        data: {
+          phase: "native",
+          generation: { increment: 1 },
+          registrationId: registration.id,
+          nativeThreadId: scope.managerThreadId,
+          producerDigest,
+          metadataPins: metadata,
+          metadataPinsDigest: guardianDigest(metadata),
+          nativeBoundAt: now,
+        },
+      });
+      const updated = await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: {
+          serverInstanceId: scope.serverInstanceId,
+          hostKeyFingerprint: registration.hostKeyFingerprint,
+          producerApproved: true,
+          authorityUntil: new Date(now.getTime() + 180000),
+        },
+      });
+      return {
+        runtime: updated,
+        admission: next,
+        replayed: false,
+        ...(rebind ? { maintenanceRebind: rebind } : {}),
+      };
+    });
+  }
+  async maintenanceResumeReady(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    maintenanceId: string;
+    ownerIntentRuntimeId: string;
+    ownerIntentEventId: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      const state = parseAccountMaintenance(slot.accountMaintenance);
+      requireGuardian(
+        state?.phase === "finished" &&
+          state.id === input.maintenanceId &&
+          state.idleRuntimeId === runtime.id &&
+          state.resumeIntentRuntimeId === input.ownerIntentRuntimeId &&
+          state.resumeIntentEventId === input.ownerIntentEventId &&
+          runtime.producerApproved &&
+          slot.activeRegistrationId,
+      );
+      const { registration } = await lockActiveRegistration(tx, {
+        ownerId: input.ownerId,
+        registrationId: slot.activeRegistrationId,
+      });
+      requireGuardian(
+        registration.serverInstanceId === runtime.serverInstanceId &&
+          registration.hostKeyFingerprint === runtime.hostKeyFingerprint,
+      );
+      const receipt = await tx.codexGuardianOperationReceipt.findUniqueOrThrow({
+        where: {
+          ownerId_runtimeId_eventId: {
+            ownerId: input.ownerId,
+            runtimeId: input.ownerIntentRuntimeId,
+            eventId: input.ownerIntentEventId,
+          },
+        },
+      });
+      requireGuardian(receipt.action === "maintenance_resume_intent");
+      const resume = maintenanceOwnerResumeSchema.parse(
+        (receipt.response as Prisma.JsonObject).maintenance,
+      );
+      const runnableProjectIds: string[] = [];
+      const authorizations: Array<ReturnType<typeof maintenanceReadyAuthorization>> = [];
+      const deadlines = [runtime.authorityUntil.getTime(), registration.expiresAt.getTime()];
+      for (const p of resume.projects) {
+        const admission = await lockGuardianAdmission(tx, input.ownerId, runtime.id, p.projectId);
+        await lockAdmissionIntent(tx, runtime, admission);
+        requireGuardian(
+          admission.phase === "native" &&
+            admission.registrationId === registration.id &&
+            admission.nativeThreadId === p.nativeThreadId,
+        );
+        const native = await tx.codexGuardianOperationReceipt.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id, action: "native" },
+        });
+        const matching = native.filter((r) => {
+          const data = r.response as Prisma.JsonObject,
+            a = data.admission as Prisma.JsonObject;
+          return a?.preparationIntentId === p.preparationIntentId;
+        });
+        requireGuardian(matching.length === 1);
+        const rebind = maintenanceNativeRebindSchema.parse(
+          (matching[0].response as Prisma.JsonObject).maintenanceRebind,
+        );
+        requireGuardian(
+          rebind.ownerIntentRuntimeId === receipt.runtimeId &&
+            rebind.ownerIntentEventId === receipt.eventId &&
+            rebind.parkedJournalDigest === resume.parkedJournalDigest &&
+            rebind.historyDigest === p.historyDigest,
+        );
+        deadlines.push(Date.parse(rebind.leaseValidUntil));
+        await tx.$queryRaw`SELECT id FROM delivery_manager_bindings WHERE owner_id=${input.ownerId}::uuid
+          AND preparation_intent_id=${p.preparationIntentId}::uuid ORDER BY id FOR UPDATE`;
+        const bindings = await tx.deliveryManagerBinding.findMany({
+          where: { ownerId: input.ownerId, preparationIntentId: p.preparationIntentId },
+          take: 2,
+        });
+        requireGuardian(bindings.length <= 1);
+        let runnable = true,
+          completed = false;
+        let holdReason: ReturnType<typeof maintenanceReadyAuthorization>["holdReason"] = null;
+        let claimContinuation: ReturnType<
+          typeof maintenanceReadyAuthorization
+        >["claimContinuation"] = null;
+        const completionStates: boolean[] = [];
+        if (bindings.length && bindings[0].executionEpochVersion === 0) {
+          const freshBinding = bindings[0];
+          requireGuardian(
+            state.tasks.length === 0 &&
+              freshBinding.serverInstanceId === runtime.serverInstanceId &&
+              freshBinding.workspaceId === runtime.workspaceId &&
+              freshBinding.buildId === runtime.buildId &&
+              freshBinding.nativeThreadId === p.nativeThreadId &&
+              !freshBinding.executionEpochRuntimeId &&
+              !freshBinding.executionEpochEventId &&
+              !freshBinding.executionEpochResumeEventId,
+          );
+          // The original zero-binding ready acknowledgment remains provenance.
+          // Fresh normal create/claim may already exist after its one owner input.
+          // Do not turn them into a second owner continuation or an epoch alias.
+        } else if (bindings.length) {
+          const b = bindings[0];
+          requireGuardian(
+            b.executionEpochVersion > 0 &&
+              b.executionEpochRuntimeId === runtime.id &&
+              b.executionEpochEventId === matching[0].eventId &&
+              b.executionEpochResumeEventId &&
+              !b.blockedReason,
+          );
+          const event = await tx.deliveryEvent.findUniqueOrThrow({
+            where: { id: b.executionEpochResumeEventId },
+          });
+          const scope = maintenanceResumeScopeSchema.parse(event.payload);
+          requireGuardian(
+            scope.ownerIntentRuntimeId === receipt.runtimeId &&
+              scope.ownerIntentEventId === receipt.eventId,
+          );
+          for (const saved of scope.tasks) {
+            await tx.$queryRaw`SELECT id FROM delivery_tasks WHERE owner_id=${input.ownerId}::uuid AND id=${saved.taskId}::uuid FOR UPDATE`;
+            const task = await tx.deliveryTask.findUniqueOrThrow({
+              where: { id: saved.taskId },
+              include: { steps: { orderBy: { id: "asc" } } },
+            });
+            requireGuardian(
+              task.ownerId === input.ownerId &&
+                task.managerBindingId === b.id &&
+                task.sourceVersion === saved.sourceVersion &&
+                task.sourceRevisionId === saved.sourceRevisionId &&
+                task.sourceSha === saved.sourceSha,
+            );
+            if (task.pauseRequested || task.schedulingPaused) runnable = false;
+            requireGuardian(task.steps.length <= 64);
+            completionStates.push(task.steps.length > 0 && task.steps.every(dependencySatisfied));
+          }
+          completed = completionStates.length > 0 && completionStates.every(Boolean);
+          if (b.activeAttemptId && !completed) {
+            const prior =
+              b.currentAttemptId &&
+              (await tx.deliveryAttempt.findUnique({
+                where: { id: b.currentAttemptId },
+                include: { step: true },
+              }));
+            if (
+              !prior ||
+              prior.managerBindingId !== b.id ||
+              !["reported", "succeeded"].includes(prior.outcome) ||
+              prior.step.state !== prior.outcome ||
+              prior.leaseExpiresAt <= now
+            ) {
+              runnable = false;
+              holdReason = "maintenance_previous_attempt_held";
+            } else {
+              deadlines.push(prior.leaseExpiresAt.getTime());
+              claimContinuation = {
+                ownerIntentRuntimeId: receipt.runtimeId,
+                ownerIntentEventId: receipt.eventId,
+                epochRuntimeId: runtime.id,
+                nativeReceiptEventId: matching[0].eventId,
+                epochResumeEventId: b.executionEpochResumeEventId,
+                epochVersion: b.executionEpochVersion,
+                inputRequestId: resume.requestId,
+              };
+            }
+          }
+        }
+        const projectTasks = state.tasks.length
+          ? await tx.deliveryTask.findMany({
+              where: {
+                ownerId: input.ownerId,
+                managerBinding: { is: { preparationIntentId: p.preparationIntentId } },
+              },
+              select: { id: true },
+              take: 33,
+            })
+          : [];
+        requireGuardian(projectTasks.length <= 32);
+        if (
+          await maintenanceExternalEffectsHeld(
+            tx,
+            input.ownerId,
+            projectTasks.map((t) => t.id),
+            { lockTasks: true },
+          )
+        ) {
+          runnable = false;
+          holdReason = "maintenance_external_effect_held";
+        }
+        if (runnable) runnableProjectIds.push(p.projectId);
+        authorizations.push(
+          maintenanceReadyAuthorization({
+            projectId: p.projectId,
+            nativeReceiptEventId: matching[0].eventId,
+            managerBindingId: bindings[0]?.executionEpochVersion > 0 ? bindings[0].id : null,
+            executionEpochVersion: bindings[0]?.executionEpochVersion ?? 0,
+            runnable,
+            completed,
+            claimContinuation,
+            holdReason,
+          }),
+        );
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(deadlines.every((deadline) => deadline > fresh.getTime()));
+      requireGuardian(Buffer.byteLength(JSON.stringify(authorizations)) <= 28000);
+      return maintenanceReadyResponseSchema.parse({
+        ready: true,
+        maintenanceId: state.id,
+        ownerIntentRuntimeId: receipt.runtimeId,
+        ownerIntentEventId: receipt.eventId,
+        runnableProjectIds,
+        authorizations,
+      });
+    });
+  }
+  async fence(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    projectId: string;
+    preparationDigest: string;
+  }) {
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      const admission = await lockGuardianAdmission(tx, input.ownerId, runtime.id, input.projectId);
+      requireGuardian(admission.preparationDigest === input.preparationDigest);
+      await lockAdmissionIntent(tx, runtime, admission);
+      if (admission.phase === "native") {
+        requireGuardian(this.options.policy.producerEnabled && runtime.producerApproved);
+        requireGuardian(admission.registrationId && admission.nativeThreadId);
+        const active = await lockActiveRegistration(tx, {
+          ownerId: input.ownerId,
+          registrationId: admission.registrationId,
+        });
+        requireGuardian(
+          active.registration.serverInstanceId === runtime.serverInstanceId &&
+            active.registration.hostKeyFingerprint === runtime.hostKeyFingerprint &&
+            active.registration.buildId === runtime.buildId &&
+            active.registration.threads.some(
+              (t) =>
+                t.projectId === admission.projectId &&
+                t.nativeThreadId === admission.nativeThreadId,
+            ),
+        );
+        requireGuardian(active.registration.expiresAt > (await databaseNow(tx)));
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(runtime.authorityUntil > fresh);
+      const updated = await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { authorityUntil: new Date(fresh.getTime() + 180000) },
+      });
+      return { runtime: updated, admission };
+    });
+  }
+  /** Advisory preflight only. Actual closure still requires the fresh native
+   * snapshots and transactional closeBarrier checks after fencing inputs. */
+  async drainReady(input: { ownerId: string; runtimeId: string; runtimeGeneration: number }) {
+    return this.transaction(async (tx) => {
+      const { runtime, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(runtime.generation === input.runtimeGeneration);
+      const result = (ready: boolean) => ({
+        ready,
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+      });
+      if (runtime.phase !== "open" || runtime.authorityUntil <= now) return result(false);
+      const admissions = await tx.codexGuardianAdmission.findMany({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+      });
+      if (!admissions.length || admissions.some((a) => a.phase !== "native")) return result(false);
+      for (const admission of admissions) {
+        const tasks = await tx.deliveryTask.findMany({
+          where: {
+            ownerId: input.ownerId,
+            managerBinding: { is: { preparationIntentId: admission.preparationIntentId } },
+          },
+          include: { steps: { include: { attempts: true } } },
+          take: 33,
+        });
+        if (!tasks.length || tasks.length > 32) return result(false);
+        for (const task of tasks) {
+          if (
+            task.pauseRequested ||
+            task.schedulingPaused ||
+            !task.sourceRevisionId ||
+            !task.steps.length ||
+            task.steps.some(
+              (step) =>
+                (step.state !== "succeeded" &&
+                  !(
+                    step.state === "reported" &&
+                    step.kind === "understand" &&
+                    step.requiredEvidenceKinds.length === 1 &&
+                    step.requiredEvidenceKinds[0] === "analysis"
+                  )) ||
+                step.attempts.some((a) => a.outcome === "running"),
+            )
+          )
+            return result(false);
+          const release = await tx.deliveryRelease.findFirst({
+            where: {
+              ownerId: input.ownerId,
+              taskId: task.id,
+              sourceRevisionId: task.sourceRevisionId,
+              phase: "healthy",
+            },
+            include: { actions: true },
+          });
+          if (
+            !release ||
+            release.actions.some((action) => !["observed", "canceled"].includes(action.phase))
+          )
+            return result(false);
+        }
+      }
+      return result(true);
+    });
+  }
+  async closeTree(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    barrierId: string;
+    receipt: GuardianTreeReceipt;
+  }) {
+    const receipt = guardianTreeReceiptSchema.parse(input.receipt);
+    const receiptDigest = guardianDigest(receipt);
+    return this.transaction(async (tx) => {
+      const { runtime } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      requireGuardian(
+        ["barrier_closed", "tree_closed"].includes(runtime.phase) &&
+          runtime.closedBarrierId === input.barrierId &&
+          runtime.generation === input.runtimeGeneration &&
+          receipt.lifetimeId === runtime.lifetimeId &&
+          receipt.bindingDigest === runtime.bindingDigest &&
+          receipt.generation === runtime.generation &&
+          receipt.guardianSha256 === runtime.guardianElfSha256 &&
+          receipt.packageManifestSha256 === runtime.packageManifestSha256 &&
+          receipt.nodeSha256 === runtime.nodeSha256 &&
+          receipt.workerBarrier.lifetimeId === runtime.lifetimeId &&
+          receipt.workerBarrier.barrierId === input.barrierId &&
+          receipt.workerBarrier.generation + 1 === runtime.generation &&
+          receipt.workerBarrier.ownershipDigest === receipt.ownershipDigest &&
+          receipt.drainRequestId > receipt.closedRequestId,
+      );
+      const barrier = await tx.codexGuardianBarrier.findUniqueOrThrow({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+        include: { decisions: { include: { admission: true } } },
+      });
+      requireGuardian(
+        barrier.runtimeId === runtime.id &&
+          barrier.generation === runtime.generation &&
+          barrier.ownershipDigest === receipt.ownershipDigest &&
+          receipt.projects.length === barrier.decisions.length &&
+          receipt.decisions.length === barrier.decisions.length &&
+          new Set(receipt.projects.map((p) => p.projectId)).size === receipt.projects.length &&
+          new Set(receipt.decisions.map((p) => p.projectId)).size === receipt.decisions.length,
+      );
+      for (const d of barrier.decisions) {
+        requireGuardian(
+          receipt.projects.some(
+            (p) =>
+              p.projectId === d.admission.projectId &&
+              p.bindingDigest === d.admission.preparationDigest,
+          ) &&
+            receipt.decisions.some(
+              (p) =>
+                p.projectId === d.admission.projectId &&
+                p.bindingDigest === d.admission.preparationDigest &&
+                p.decisionId === d.id,
+            ),
+        );
+      }
+      const saved = await tx.$queryRaw<
+        { digest: string }[]
+      >`SELECT digest FROM codex_guardian_tree_receipts WHERE owner_id=${input.ownerId}::uuid AND runtime_id=${runtime.id}::uuid`;
+      if (saved.length)
+        requireGuardian(
+          saved.length === 1 &&
+            saved[0].digest === receiptDigest &&
+            runtime.phase === "tree_closed",
+        );
+      else {
+        requireGuardian(runtime.phase === "barrier_closed");
+        await tx.$executeRaw`INSERT INTO codex_guardian_tree_receipts(owner_id,runtime_id,barrier_id,receipt_id,digest,body) VALUES(${input.ownerId}::uuid,${runtime.id}::uuid,${input.barrierId}::uuid,${receipt.receiptId}::uuid,${receiptDigest},${JSON.stringify(receipt)}::jsonb)`;
+        await tx.codexGuardianRuntime.update({
+          where: { id: runtime.id },
+          data: { phase: "tree_closed", producerApproved: false },
+        });
+      }
+      if (barrier.purpose === "account-maintenance") {
+        await accountMaintenanceTreeClosed(tx, runtime.id, {
+          hiveUserId: runtime.ownerId,
+          coderOrigin: (runtime.binding as unknown as RegistrationBinding).coderOrigin,
+          workspaceId: runtime.workspaceId,
+        });
+      }
+      return {
+        runtimeId: runtime.id,
+        runtimeGeneration: runtime.generation,
+        barrierId: input.barrierId,
+        receiptDigest,
+        treeExited: true,
+        cleanupAuthorized: false,
+      };
+    });
+  }
+  async closeMaintenanceBarrier(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    maintenanceId: string;
+    barrierId: string;
+    ownershipDigest: string;
+    projectBindings: { projectId: string; bindingDigest: string }[];
+    snapshots: AccountMaintenanceIdleSnapshot[];
+  }) {
+    const snapshots = input.snapshots.map((s) => accountMaintenanceIdleSnapshotSchema.parse(s));
+    requireGuardian(
+      /^[a-f0-9]{64}$/.test(input.ownershipDigest) &&
+        snapshots.length > 0 &&
+        snapshots.length <= 32,
+    );
+    const requestDigest = guardianDigest(input);
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      const maintenance = parseAccountMaintenance(slot.accountMaintenance);
+      requireGuardian(
+        maintenance?.id === input.maintenanceId &&
+          maintenance.ownerId === runtime.ownerId &&
+          maintenance.buildId === runtime.buildId &&
+          maintenance.runtimes.some(
+            (r) =>
+              r.runtimeId === runtime.id &&
+              r.runtimeGeneration === input.runtimeGeneration &&
+              r.lifetimeId === runtime.lifetimeId,
+          ),
+      );
+      const saved = await tx.codexGuardianBarrier.findUnique({
+        where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+        include: { decisions: true },
+      });
+      const answer = (barrier: typeof saved) => {
+        requireGuardian(barrier);
+        return {
+          runtimeId: runtime.id,
+          runtimeGeneration: barrier.generation,
+          barrierId: barrier.id,
+          ownershipDigest: barrier.ownershipDigest,
+          decisions: barrier.decisions.map((d) => ({
+            admissionId: d.admissionId,
+            admissionGeneration: d.admissionGeneration,
+            decisionId: d.id,
+            stateDigest: d.stateDigest,
+          })),
+          treeExited: false,
+          cleanupAuthorized: false,
+        };
+      };
+      if (saved) {
+        requireGuardian(
+          saved.purpose === "account-maintenance" &&
+            saved.maintenanceId === maintenance.id &&
+            saved.runtimeId === runtime.id &&
+            saved.generation === runtime.generation &&
+            runtime.closedBarrierId === saved.id &&
+            saved.requestDigest === requestDigest,
+        );
+        return answer(saved);
+      }
+      requireGuardian(["requested", "waiting-boundary", "closing"].includes(maintenance.phase));
+      openRuntime(runtime, now, input.runtimeGeneration, this.options.policy);
+      requireGuardian(!runtime.closedBarrierId);
+      const admissions = await tx.codexGuardianAdmission.findMany({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        orderBy: { projectId: "asc" },
+      });
+      requireGuardian(
+        admissions.length === snapshots.length &&
+          admissions.length === input.projectBindings.length &&
+          new Set(snapshots.map((p) => p.projectId)).size === admissions.length &&
+          new Set(input.projectBindings.map((p) => p.projectId)).size === admissions.length,
+      );
+      const decisions = [];
+      for (const candidate of admissions) {
+        const admission = await lockGuardianAdmission(
+          tx,
+          input.ownerId,
+          runtime.id,
+          candidate.projectId,
+        );
+        const observation = snapshots.find((p) => p.projectId === admission.projectId);
+        const parked = maintenance.projects.find((p) => p.projectId === admission.projectId);
+        requireGuardian(
+          observation &&
+            parked &&
+            admission.phase === "native" &&
+            input.projectBindings.some(
+              (p) =>
+                p.projectId === admission.projectId &&
+                p.bindingDigest === admission.preparationDigest,
+            ) &&
+            observation.admissionId === admission.id &&
+            observation.admissionGeneration === admission.generation &&
+            observation.managerThreadId === admission.nativeThreadId &&
+            parked.nativeThreadId === admission.nativeThreadId &&
+            parked.preparationIntentId === admission.preparationIntentId &&
+            parked.leaseId === admission.leaseId &&
+            parked.leaseGeneration === admission.leaseGeneration &&
+            parked.checkoutDigest === guardianDigest(admission.checkoutBinding) &&
+            Date.parse(observation.observedAt) <= now.getTime() &&
+            now.getTime() - Date.parse(observation.observedAt) <= 5000,
+        );
+        const intent = await tx.projectTaskIntent.findUniqueOrThrow({
+          where: { ownerId_id: { ownerId: input.ownerId, id: admission.preparationIntentId } },
+        });
+        requireGuardian(
+          observation.firstPromptRequestId === intent.requestId && observation.rootTurns > 0,
+        );
+        const tasks = await tx.deliveryTask.findMany({
+          where: {
+            ownerId: input.ownerId,
+            managerBinding: { is: { preparationIntentId: admission.preparationIntentId } },
+          },
+          orderBy: { id: "asc" },
+        });
+        requireGuardian(
+          tasks.every((t) => t.pauseRequested && maintenance.tasks.some((p) => p.taskId === t.id)),
+        );
+        const state = {
+          purpose: "account-maintenance",
+          maintenanceId: maintenance.id,
+          checkoutBinding: admission.checkoutBinding,
+          producerDigest: admission.producerDigest,
+          taskVersions: tasks.map((t) => ({
+            id: t.id,
+            version: t.version,
+            sourceVersion: t.sourceVersion,
+          })),
+          observation,
+          // Factual physical-stop authority only. Running attempts and uncertain
+          // external grants remain intact; they are NOT marked completed here.
+          writerCleanupAuthorized: false,
+        } as unknown as Prisma.InputJsonObject;
+        decisions.push({
+          admissionId: admission.id,
+          admissionGeneration: admission.generation,
+          state,
+          stateDigest: guardianDigest(state),
+        });
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(
+        snapshots.every(
+          (p) =>
+            Date.parse(p.observedAt) <= fresh.getTime() &&
+            fresh.getTime() - Date.parse(p.observedAt) <= 5000,
+        ),
+      );
+      const generation = runtime.generation + 1;
+      await tx.codexGuardianBarrier.create({
+        data: {
+          id: input.barrierId,
+          ownerId: input.ownerId,
+          runtimeId: runtime.id,
+          purpose: "account-maintenance",
+          maintenanceId: maintenance.id,
+          generation,
+          ownershipDigest: input.ownershipDigest,
+          requestDigest,
+          closedAt: fresh,
+        },
+      });
+      for (const decision of decisions)
+        await tx.codexGuardianStopDecision.create({
+          data: {
+            id: randomUUID(),
+            ownerId: input.ownerId,
+            runtimeId: runtime.id,
+            barrierId: input.barrierId,
+            ...decision,
+            decidedAt: fresh,
+          },
+        });
+      await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { phase: "barrier_closed", generation, closedBarrierId: input.barrierId },
+      });
+      await updateAccountMaintenanceState(tx, { ...maintenance, phase: "closing" });
+      return answer(
+        await tx.codexGuardianBarrier.findUnique({
+          where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+          include: { decisions: true },
+        }),
+      );
+    });
+  }
+  async closeBarrier(input: {
+    ownerId: string;
+    runtimeId: string;
+    runtimeGeneration: number;
+    barrierId: string;
+    ownershipDigest: string;
+    projectBindings: { projectId: string; bindingDigest: string }[];
+    snapshots: GuardianIdleSnapshot[];
+    emptyCloseGrantDigest?: string;
+  }) {
+    const snapshots = input.snapshots.map((s) => guardianIdleSnapshotSchema.parse(s));
+    requireGuardian(/^[a-f0-9]{64}$/.test(input.ownershipDigest) && snapshots.length <= 32);
+    return this.transaction(async (tx) => {
+      const { runtime, slot, now } = await lockGuardianRuntime(tx, input.ownerId, input.runtimeId);
+      approvedRuntime(runtime, this.options.policy);
+      // A lost ACK must replay the exact committed barrier. Rechecking freshness
+      // here would turn a successfully closed input barrier into an unrecoverable
+      // timeout; no new authority or changed snapshot is accepted on this path.
+      if (["barrier_closed", "tree_closed"].includes(runtime.phase)) {
+        const saved = await tx.codexGuardianBarrier.findUnique({
+          where: { ownerId_id: { ownerId: input.ownerId, id: input.barrierId } },
+          include: { decisions: true },
+        });
+        requireGuardian(
+          saved &&
+            saved.runtimeId === runtime.id &&
+            runtime.closedBarrierId === saved.id &&
+            runtime.generation === input.runtimeGeneration + 1 &&
+            saved.generation === runtime.generation &&
+            saved.requestDigest === guardianDigest(input),
+        );
+        return {
+          runtimeId: runtime.id,
+          runtimeGeneration: saved.generation,
+          barrierId: saved.id,
+          ownershipDigest: saved.ownershipDigest,
+          decisions: saved.decisions.map((r) => ({
+            admissionId: r.admissionId,
+            admissionGeneration: r.admissionGeneration,
+            decisionId: r.id,
+            stateDigest: r.stateDigest,
+          })),
+          treeExited: false,
+          cleanupAuthorized: false,
+        };
+      }
+      requireGuardian(
+        runtime.phase === "open" &&
+          !runtime.closedBarrierId &&
+          runtime.generation === input.runtimeGeneration,
+      );
+      requireGuardian(
+        !parseAccountMaintenance(slot.accountMaintenance) ||
+          parseAccountMaintenance(slot.accountMaintenance)?.phase === "finished",
+      );
+      const projects = [...input.projectBindings].sort((a, b) =>
+        a.projectId.localeCompare(b.projectId),
+      );
+      const all = await tx.codexGuardianAdmission.findMany({
+        where: { ownerId: input.ownerId, runtimeId: runtime.id },
+        orderBy: { projectId: "asc" },
+      });
+      if (all.length === 0 && runtime.authorityUntil <= now) {
+        requireGuardian(
+          input.emptyCloseGrantDigest &&
+            /^[a-f0-9]{64}$/.test(input.emptyCloseGrantDigest) &&
+            runtime.generation === 1 &&
+            runtime.enrolledAt &&
+            !runtime.nativeLaunchId &&
+            !runtime.nativeLaunchDigest &&
+            !runtime.nativeLaunchAt &&
+            !runtime.serverInstanceId &&
+            !runtime.hostKeyFingerprint &&
+            !runtime.producerApproved &&
+            !slot.activeRegistrationId,
+        );
+        const grants = await tx.codexGuardianEnrollmentGrant.findMany({
+          where: { ownerId: input.ownerId, runtimeId: runtime.id },
+          take: 2,
+        });
+        const registrations = await tx.codexHostRegistration.count({
+          where: { ownerId: input.ownerId, slotId: slot.id },
+        });
+        requireGuardian(
+          grants.length === 1 &&
+            grants[0].consumedAt &&
+            grants[0].consumptionDigest &&
+            grants[0].consumedAt.getTime() === runtime.enrolledAt.getTime() &&
+            (await unusedEnrollmentAuthority(tx, runtime)) ===
+              runtime.enrolledAt.getTime() + 180000 &&
+            registrations === 0,
+        );
+      } else requireGuardian(!input.emptyCloseGrantDigest);
+      requireGuardian(
+        projects.length === all.length &&
+          new Set(projects.map((p) => p.projectId)).size === all.length &&
+          snapshots.length === all.length,
+      );
+      const decisions: {
+        admissionId: string;
+        admissionGeneration: number;
+        state: Prisma.InputJsonObject;
+        stateDigest: string;
+      }[] = [];
+      for (const candidate of all) {
+        const admission = await lockGuardianAdmission(
+          tx,
+          input.ownerId,
+          runtime.id,
+          candidate.projectId,
+        );
+        requireGuardian(
+          admission.phase === "native" &&
+            projects.some(
+              (p) =>
+                p.projectId === admission.projectId &&
+                p.bindingDigest === admission.preparationDigest,
+            ),
+        );
+        const observation = snapshots.find((s) => s.projectId === admission.projectId);
+        requireGuardian(
+          observation &&
+            observation.admissionId === admission.id &&
+            observation.admissionGeneration === admission.generation &&
+            observation.managerThreadId === admission.nativeThreadId &&
+            Date.parse(observation.observedAt) <= now.getTime() &&
+            now.getTime() - Date.parse(observation.observedAt) <= 5000,
+        );
+        requireGuardian(
+          admission.registrationId === slot.activeRegistrationId && admission.registrationId,
+        );
+        const active = await lockActiveRegistration(tx, {
+          ownerId: input.ownerId,
+          registrationId: admission.registrationId,
+        });
+        requireGuardian(
+          active.registration.buildId === runtime.buildId &&
+            active.registration.serverInstanceId === runtime.serverInstanceId &&
+            active.registration.hostKeyFingerprint === runtime.hostKeyFingerprint &&
+            active.registration.threads.some(
+              (t) =>
+                t.projectId === admission.projectId &&
+                t.nativeThreadId === admission.nativeThreadId,
+            ),
+        );
+        await lockAdmissionIntent(tx, runtime, admission);
+        const bindings = await tx.$queryRaw<
+          { id: string }[]
+        >`SELECT id FROM delivery_manager_bindings WHERE owner_id=${input.ownerId}::uuid AND preparation_intent_id=${admission.preparationIntentId}::uuid ORDER BY id FOR UPDATE`;
+        requireGuardian(bindings.length === 1 && bindings[0].id === observation.managerBindingId);
+        const binding = await tx.deliveryManagerBinding.findUniqueOrThrow({
+          where: { ownerId_id: { ownerId: input.ownerId, id: bindings[0].id } },
+        });
+        const actor = await currentExecutionActor(tx, binding);
+        requireGuardian(
+          !binding.blockedReason &&
+            actor.serverInstanceId === runtime.serverInstanceId &&
+            binding.nativeThreadId === admission.nativeThreadId &&
+            binding.currentAttemptId === observation.currentAttemptId &&
+            binding.cursorVersion === observation.cursorVersion &&
+            binding.nativeSequence === observation.nativeSequence,
+        );
+        const taskLocks = await tx.$queryRaw<
+          { id: string }[]
+        >`SELECT id FROM delivery_tasks WHERE owner_id=${input.ownerId}::uuid AND manager_binding_id=${binding.id}::uuid ORDER BY id FOR UPDATE`;
+        requireGuardian(taskLocks.length > 0 && taskLocks.length <= 32);
+        const tasks = await tx.deliveryTask.findMany({
+          where: { ownerId: input.ownerId, managerBindingId: binding.id },
+          include: { steps: { include: { attempts: true } } },
+        });
+        requireGuardian(
+          tasks.every(
+            (task) =>
+              task.steps.length > 0 &&
+              task.steps.every(
+                (step) =>
+                  step.state === "succeeded" ||
+                  (step.state === "reported" &&
+                    step.kind === "understand" &&
+                    step.requiredEvidenceKinds.length === 1 &&
+                    step.requiredEvidenceKinds[0] === "analysis"),
+              ),
+          ),
+        );
+        for (const task of tasks)
+          for (const step of task.steps)
+            for (const attempt of step.attempts) {
+              requireGuardian(attempt.outcome !== "running");
+              if (attempt.runtimeBindingDigest) {
+                const terminal = await tx.deliveryEvent.findFirst({
+                  where: {
+                    ownerId: input.ownerId,
+                    attemptId: attempt.id,
+                    type: { in: ["native_attempt_observed", "native_source_conflict"] },
+                  },
+                  orderBy: { aggregateVersion: "desc" },
+                });
+                const payload = terminal?.payload as {
+                  nativeSourceKind?: unknown;
+                  turnStatus?: unknown;
+                } | null;
+                requireGuardian(
+                  terminal?.type === "native_attempt_observed" &&
+                    payload?.nativeSourceKind === "turn_completed" &&
+                    ["completed", "failed", "interrupted"].includes(String(payload.turnStatus)),
+                );
+              }
+            }
+        const currentClaim = await tx.deliveryEvent.findFirst({
+          where: {
+            ownerId: input.ownerId,
+            attemptId: binding.currentAttemptId,
+            type: "attempt_started",
+          },
+        });
+        const nativeClaim = (
+          currentClaim?.payload as {
+            nativeClaim?: { managerThreadId?: unknown; parentTurnId?: unknown };
+          } | null
+        )?.nativeClaim;
+        requireGuardian(
+          nativeClaim?.managerThreadId === admission.nativeThreadId &&
+            nativeClaim.parentTurnId === observation.parentTurnId,
+        );
+        const grants = await tx.deliveryEvent.findMany({
+          where: {
+            ownerId: input.ownerId,
+            taskId: { in: tasks.map((t) => t.id) },
+            type: "source_publication_grant",
+          },
+        });
+        for (const grant of grants) {
+          const consumed = await tx.deliveryEvent.findFirst({
+            where: {
+              ownerId: input.ownerId,
+              taskId: grant.taskId,
+              type: "source_publication_consumed",
+              payload: { path: ["challengeId"], equals: grant.id },
+            },
+          });
+          requireGuardian(consumed); // Expiry/revocation alone cannot prove no external effect.
+        }
+        const state = {
+          bindingId: binding.id,
+          cursorVersion: binding.cursorVersion,
+          nativeSequence: binding.nativeSequence,
+          activeAttemptId: binding.activeAttemptId,
+          currentAttemptId: binding.currentAttemptId,
+          checkoutBinding: admission.checkoutBinding,
+          producerDigest: admission.producerDigest,
+          metadataPinsDigest: admission.metadataPinsDigest,
+          taskVersions: tasks.map((t) => ({
+            id: t.id,
+            version: t.version,
+            sourceVersion: t.sourceVersion,
+          })),
+          observation,
+        } as Prisma.InputJsonObject;
+        decisions.push({
+          admissionId: admission.id,
+          admissionGeneration: admission.generation,
+          state,
+          stateDigest: guardianDigest(state),
+        });
+      }
+      const fresh = await databaseNow(tx);
+      requireGuardian(
+        snapshots.every(
+          (s) =>
+            Date.parse(s.observedAt) <= fresh.getTime() &&
+            fresh.getTime() - Date.parse(s.observedAt) <= 5000,
+        ),
+      );
+      const generation = runtime.generation + 1;
+      const requestDigest = guardianDigest(input);
+      await tx.codexGuardianBarrier.create({
+        data: {
+          id: input.barrierId,
+          ownerId: input.ownerId,
+          runtimeId: runtime.id,
+          generation,
+          ownershipDigest: input.ownershipDigest,
+          requestDigest,
+          closedAt: fresh,
+        },
+      });
+      const rows = [];
+      for (const decision of decisions)
+        rows.push(
+          await tx.codexGuardianStopDecision.create({
+            data: {
+              id: randomUUID(),
+              ownerId: input.ownerId,
+              runtimeId: runtime.id,
+              barrierId: input.barrierId,
+              ...decision,
+              decidedAt: fresh,
+            },
+          }),
+        );
+      await tx.codexGuardianRuntime.update({
+        where: { id: runtime.id },
+        data: { phase: "barrier_closed", generation, closedBarrierId: input.barrierId },
+      });
+      return {
+        runtimeId: runtime.id,
+        runtimeGeneration: generation,
+        barrierId: input.barrierId,
+        ownershipDigest: input.ownershipDigest,
+        decisions: rows.map((r) => ({
+          admissionId: r.admissionId,
+          admissionGeneration: r.admissionGeneration,
+          decisionId: r.id,
+          stateDigest: r.stateDigest,
+        })),
+        treeExited: false,
+        cleanupAuthorized: false,
+      };
+    });
+  }
+}
+
+export async function lockProducerMetadata(
+  tx: Tx,
+  scope: GuardianProducerScope,
+  policy: GuardianPolicy = guardianDeploymentPolicy(),
+) {
+  const authority = await lockProducerAdmission(tx, scope, policy);
+  const admission = await tx.codexGuardianAdmission.findUniqueOrThrow({
+    where: { ownerId_id: { ownerId: scope.hiveUserId, id: authority.admissionId } },
+  });
+  const metadata = guardianMetadataEvidenceSchema.parse(admission.metadataPins);
+  requireGuardian(admission.metadataPinsDigest === guardianDigest(metadata));
+  const checkout = guardianCheckoutSchema.parse(admission.checkoutBinding);
+  requireGuardian(
+    guardianDigest(metadata.pins.checkout) === guardianDigest(checkout.checkoutIdentity),
+  );
+  return {
+    ...authority,
+    metadataPins: metadata.pins,
+    metadataPinsDigest: admission.metadataPinsDigest,
+    metadataPolicyDigest: metadata.metadataPolicyDigest,
+    namespaceReceiptDigest: metadata.namespaceReceiptDigest,
+  };
+}

@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "namespaceUid": 0,
+  "networkNamespaceIsolated": true,
+  "accountInference": false,
+  "cleanupAuthorized": false,
+  "firstInstall": "started",
+  "archiveSha256": "683520d5550e49cc87411264b8b83091b37052525967c5ae2be77348929ac102",
+  "archiveEncoding": "xz",
+  "identities": {
+    "outerIdentity": {
+      "pid": 876263,
+      "startTime": "972707524",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "88116386",
+      "parentPid": 875545
+    },
+    "guardianIdentity": {
+      "pid": 876636,
+      "startTime": "972707564",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/home/coder/.local/share/hive/codex-host/683520d5550e49cc87411264b8b83091b37052525967c5ae2be77348929ac102/codex-native-guardian",
+      "device": "109",
+      "inode": "88116585",
+      "parentPid": 876263
+    },
+    "workerIdentity": {
+      "pid": 876646,
+      "startTime": "972707566",
+      "bootId": "f7e39069-a3dd-4916-a67b-ab52d6462f97",
+      "executable": "/usr/bin/node",
+      "device": "109",
+      "inode": "88116386",
+      "parentPid": 876636
+    }
+  },
+  "pins": {
+    "configSha256": "cc8f21794798dfccc129871973a5fbff595ca3c75fa78386b682167aa6d3332d",
+    "packageManifestSha256": "2fe7c137e0b485aa59a231664d382ecbcd1c454c7edffb74d425056cdd1bd2f2",
+    "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+    "workerSha256": "b2630196086b3fd557e36a92ac8be429f18aa3c005dba12c3e04503482e229df",
+    "guardianSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd"
+  },
+  "repeatInstall": "already_running",
+  "installerParentExited": true,
+  "exactWorkerOwnsListener": true,
+  "rejected": {
+    "nonce": true,
+    "configSha256": true,
+    "packageManifestSha256": true,
+    "oldPidStartTime": true,
+    "wrongParent": true
+  },
+  "missingReadyDoesNotRestart": true,
+  "liveConfigChangeRejected": true,
+  "defaultPreparationDenied": true,
+  "noNativeRuntimeStarted": true,
+  "noAuthenticationFiles": true,
+  "status": "passed",
+  "cleanup": {
+    "allFixtureChildrenReaped": true,
+    "reaped": 1,
+    "deadlineBoundSeconds": 6
+  },
+  "primaryPathsUnchanged": true,
+  "namespaceHostUid": 1000,
+  "guardianArtifact": {
+    "schemaVersion": 1,
+    "platform": "linux",
+    "architecture": "x64",
+    "sourceSha256": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "recipeSha256": "2e9905ec726242e9b87fb6b186746f43690c58de80a4fe75aceac182e90b8f83",
+    "builderSha256": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fPIE",
+      "-pie",
+      "-fstack-protector-strong",
+      "-D_FORTIFY_SOURCE=3",
+      "-Wl,-z,relro,-z,now",
+      "-Wl,--build-id=none"
+    ],
+    "elfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "compiler": {
+      "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+      "version": "x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "target": "x86_64-linux-gnu"
+    },
+    "ci": {
+      "repository": "kethalia/hive",
+      "commit": "bc2bc45da5a9c6063f473f483bcba24ae5593770",
+      "runId": "40968234189",
+      "runAttempt": "1"
+    }
+  },
+  "nativePins": {
+    "bin/codex": "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5",
+    "bin/codex-code-mode-host": "522935d4392ec9674fab60b239b5495992c6a93e4deb65113a216b6f5451ccd4",
+    "codex-resources/bwrap": "755c8d6a9b893905a4aabab058bd6c02c453e5e8653adb84fc08e570607f3f36",
+    "codex-path/rg": "e62198eb19b136b88c330af83647b5a962cb99b6b1f066758568f12de1974849"
+  },
+  "nodeSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c",
+  "primaryHomeMounted": false,
+  "sourceSha256": {
+    "scripts/verify-codex-guarded-install.test.mjs": "9d381399799855279f28d96044818a31f369db0d6b1bc4bc1c543cf590c3d1b3",
+    "scripts/build-codex-host-bundle.mjs": "9c4111da4f14df2be34c76d24ac171348288e1100ddc07297db92335dcc864c5",
+    "scripts/build-native-guardian.mjs": "49f73abdaefa8fc120c2a154fb51f31137a731d4913cb04e9f123ef00795113f",
+    "templates/ai-dev-k8s/scripts/install-codex-host.py": "e92ade044bb502767ea9ad021be04e85b2b363f73c79d6bbd10fa70bb66a4680",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.c": "644104c2d0865cecd6d165fc2c813c8e3ce7169576a6b62e3f69dd7e08062108",
+    "templates/ai-dev-k8s/scripts/codex-native-guardian.mjs": "731228834e262f4bfe930c3fa8a711d3b7ae2e2fc55d93f658b76dbff5648537",
+    "templates/ai-dev-k8s/scripts/codex-guardian-startup.mjs": "f5cc40737bd7497fc18f9001ab63117b2a8a5c5175ab7a84ee4b1948e31bba04",
+    "templates/ai-dev-k8s/scripts/codex-guardian-worker.mjs": "956da3b44b606c650aa34d99ce669989698e9364563f7a6dae8133bc5a0a966f",
+    "templates/ai-dev-k8s/scripts/codex-host-guardian.mjs": "e1c25c2e1acc21fea7d73acf21b734282b1a5f435bcd8115d8bfea0c57ed6d9e",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-outer.mjs": "886e369804078aae0c8a98fc7e7c805bab84ad550def5dcdba6cbffac9424943",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host-worker.mjs": "8d6d99ecbe352f55a0db21dc757f70a85e6f49ef5ad59775b183cbde4951dc50",
+    "templates/ai-dev-k8s/scripts/codex-workspace-host.mjs": "eeb52fdd279bb1dd050636d6cac4f417f4e0ff160951370ee709619c02b1f276",
+    "templates/ai-dev-k8s/scripts/codex-project-controller.mjs": "d39dba4afa57585727c3ed7041d10991020abe5e02bb44e5813c537705d20c99",
+    "templates/ai-dev-k8s/scripts/codex-project-discovery.mjs": "ca0f0387e3e59b665b88fd4cf342a325467f416917d3d192c7dd7de6f82eed2e",
+    "templates/ai-dev-k8s/scripts/codex-process-identity.mjs": "c93b5845f0d4b9eb0c98177ed0746f86a521332f0568403082d6aed5fd6da24c"
+  },
+  "sourceStable": true,
+  "recordedProcessesGone": true
+}

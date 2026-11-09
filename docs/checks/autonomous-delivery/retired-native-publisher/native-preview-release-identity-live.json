@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-06T10:27:39.695Z",
+  "implementationBaseRevision": "892c67d8",
+  "sourceCommittedAtObservation": false,
+  "scope": "Actual native Preview identity controller; GET only",
+  "productionWrites": false,
+  "requests": [
+    {
+      "status": 200
+    },
+    {
+      "status": 200
+    },
+    {
+      "status": 200
+    },
+    {
+      "status": 200
+    }
+  ],
+  "passed": true,
+  "fact": {
+    "kind": "native-preview-identity",
+    "state": "observed",
+    "eligibility": "unverified",
+    "identity": {
+      "scope": "native-preview-current-identity",
+      "targetDigest": "0a0bc40b6a6580cacd66b77214c646b0136c69c5a6d6a0ee08e6987a66d97e1d",
+      "previewId": "9b772c5c22f84deeb1af85e68f819798",
+      "previewName": "codex/delivery-system-design",
+      "previewSlug": "codex-delivery-system-design",
+      "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+      "deploymentId": "9edad607-b052-4f79-b5ac-7576d06557a7",
+      "annotatedSourceSha": null,
+      "annotatedActionId": null
+    }
+  },
+  "sourceHashes": {
+    "src/lib/delivery/release-native-preview-reader.server.ts": "3860b8946b335e4413f1f31158d16508d30615fd8105a63296d2e6c8aef4af6e",
+    "src/lib/delivery/release-controller.server.ts": "41b58c3abb6860cdf84e66ff74fd4ac7c9a9affb7320ffec3d51cac3e5b2e794",
+    "src/lib/delivery/release-observer.server.ts": "23e89750692445187e1a7c8aed84d47a395530e723eb7b0ca5c604b8e4e892db"
+  },
+  "focusedTestsPassed": 31,
+  "independentSourceReviewPassed": true,
+  "limitations": [
+    "Read-only identity observation, not source/build/artifact/config/health/effect authorization.",
+    "Two matching reads do not provide atomic provider compare-and-swap or protect against a subsequent external writer.",
+    "Source and action annotations are absent in actual read; no inference from current Git/CI state.",
+    "Production mutation guard and default-off constructor are unchanged."
+  ]
+}

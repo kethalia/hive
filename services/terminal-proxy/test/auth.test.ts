@@ -23,6 +23,7 @@ describe("authenticateUpgrade", () => {
     process.env = {
       ...originalEnv,
       COOKIE_SECRET: "test-secret",
+      CODER_URL: "https://coder.test",
       AUTH_SERVICE_URL: "http://localhost:4400",
       AUTH_SERVICE_SECRET: "a".repeat(64),
     };
@@ -34,6 +35,51 @@ describe("authenticateUpgrade", () => {
   afterEach(() => {
     process.env = originalEnv;
     vi.unstubAllGlobals();
+  });
+
+  it("retains OAuth provenance when refresh exceeds five seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      mockVerifyCookie.mockReturnValue({ sessionId: "sess-oauth", timestamp: Date.now() });
+      fetchMock.mockImplementation(
+        (url: string, init: RequestInit) =>
+          new Promise((resolve, reject) => {
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  status: 200,
+                  json: async () =>
+                    url.endsWith("/token")
+                      ? {
+                          token: "oauth-access",
+                          coderUrl: "https://coder.test",
+                          credentialSource: "oauth",
+                        }
+                      : { username: "test-user" },
+                }),
+              6_000,
+            );
+            init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+          }),
+      );
+      let settled = false;
+      const result = authenticateUpgrade(makeReq({ cookie: "hive-session=fixture" })).then(
+        (value) => {
+          settled = true;
+          return value;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(await result).toMatchObject({
+        ok: true,
+        value: { token: "oauth-access", credentialSource: "oauth" },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("returns 502 when COOKIE_SECRET is not configured", async () => {
@@ -64,7 +110,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+      json: async () => ({ token: "tok", coderUrl: "https://coder.test" }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -151,7 +197,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ token: "tok", coderUrl: "https://coder" }),
+      json: async () => ({ token: "tok", coderUrl: "https://coder.test" }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -198,7 +244,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+      json: async () => ({ token: "tok", coderUrl: "https://coder.test" }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -230,7 +276,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ token: "tok", coderUrl: "http://coder" }),
+      json: async () => ({ token: "tok", coderUrl: "https://coder.test" }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -262,7 +308,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ token: "tok", coderUrl: "https://coder" }),
+      json: async () => ({ token: "tok", coderUrl: "https://coder.test" }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -305,13 +351,15 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://coder", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "tok", coderUrl: "https://coder.test", expiresAt: null }),
     });
     // second fetch for session
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://coder", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "tok", coderUrl: "https://coder.test", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -372,6 +420,28 @@ describe("authenticateUpgrade", () => {
     }
   });
 
+  it.each([
+    "https://old-coder.test",
+    "",
+    "https://coder.test/path",
+  ])("rejects stored origin %s before opening a terminal", async (coderUrl) => {
+    mockVerifyCookie.mockReturnValue({ sessionId: "sess-old" });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "synthetic-token", coderUrl }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ username: "alice" }),
+    });
+    expect(await authenticateUpgrade(makeReq({ cookie: "hive-session=valid" }))).toMatchObject({
+      ok: false,
+      value: { status: 401, reason: "coder_origin_mismatch" },
+    });
+  });
+
   it("returns success with token and coderUrl on valid auth", async () => {
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-abc", timestamp: Date.now() });
     fetchMock.mockResolvedValueOnce({
@@ -380,7 +450,7 @@ describe("authenticateUpgrade", () => {
       json: () =>
         Promise.resolve({
           token: "coder-token-123",
-          coderUrl: "http://coder.test",
+          coderUrl: "https://coder.test",
           expiresAt: null,
         }),
     });
@@ -399,7 +469,7 @@ describe("authenticateUpgrade", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.token).toBe("coder-token-123");
-      expect(result.value.coderUrl).toBe("http://coder.test");
+      expect(result.value.coderUrl).toBe("https://coder.test");
       expect(result.value.sessionId).toBe("sess-abc");
       expect(result.value.username).toBe("alice");
     }
@@ -439,7 +509,8 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "tok", coderUrl: "https://coder.test", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -476,7 +547,11 @@ describe("authenticateUpgrade", () => {
       ok: true,
       status: 200,
       json: () =>
-        Promise.resolve({ token: "secret-token-xyz", coderUrl: "http://c", expiresAt: null }),
+        Promise.resolve({
+          token: "secret-token-xyz",
+          coderUrl: "https://coder.test",
+          expiresAt: null,
+        }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -523,7 +598,7 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ coderUrl: "http://c", expiresAt: null }),
+      json: () => Promise.resolve({ coderUrl: "https://coder.test", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -545,7 +620,8 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "tok", coderUrl: "https://coder.test", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -564,7 +640,8 @@ describe("authenticateUpgrade", () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ token: "tok", coderUrl: "http://c", expiresAt: null }),
+      json: () =>
+        Promise.resolve({ token: "tok", coderUrl: "https://coder.test", expiresAt: null }),
     });
     fetchMock.mockResolvedValueOnce({
       ok: false,

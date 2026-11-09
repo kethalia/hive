@@ -67,6 +67,28 @@ function deferred<T>() {
 }
 
 describe("bounded discovery cache", () => {
+  it("never shares pending request IO or connects Redis in Workers", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("REDIS_URL", "redis://should-not-connect.invalid");
+    redis.connect.mockClear();
+    redis.get.mockClear();
+    redis.eval.mockClear();
+    const first = deferred<string>();
+    const second = deferred<string>();
+    const load = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const one = cachedDiscovery({ key, ttl: 1000, load });
+    const two = cachedDiscovery({ key, ttl: 1000, load });
+    expect(load).toHaveBeenCalledTimes(2);
+    second.resolve("second-request");
+    expect(await two).toBe("second-request");
+    first.resolve("first-request");
+    expect(await one).toBe("first-request");
+    await invalidateDiscovery(key);
+    expect(await cachedDiscovery({ key, ttl: 1000, load: async () => "fresh" })).toBe("fresh");
+    expect(redis.connect).not.toHaveBeenCalled();
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.eval).not.toHaveBeenCalled();
+  });
   it("deduplicates concurrent reads, caches empty successes and expires them", async () => {
     vi.useFakeTimers();
     const result = deferred<string[]>();

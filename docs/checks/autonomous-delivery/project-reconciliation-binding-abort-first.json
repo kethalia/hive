@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T04:18:34.536Z",
+  "baseRevision": "2294726c5d931d83e1c7a760c61862037ecfbeb4",
+  "testedSourcesCommitted": false,
+  "passed": false,
+  "checks": {
+    "authBeforeClaim": true,
+    "oneIntentPerWake": true,
+    "secondWakeSeparateIntent": true,
+    "cancelledHostRetainsClaim": true
+  },
+  "sourceDigests": {
+    "src/lib/projects/reconcile-transport.ts": "839d76abcc7a8f63ef25a277ebbc959f102b57da144c15132d91ab1faf8f1fe2",
+    "src/lib/projects/reconcile-route.server.ts": "1b3f0851a5c1967ddc1365eecc5787b5b9b31a37568202d72d3e21f69a44e0c2",
+    "src/lib/projects/task.server.ts": "8b94330a595888f38dbcbfedb02b26faa13874b030028d27a691ab7b2c2071a4",
+    "src/lib/projects/task-intents.server.ts": "4872d87fa1488c27036ce101a021767e90367076aa19ab7df4dd7b5b398cb10d",
+    "src/lib/projects/host.server.ts": "42dd5a9f5404d76cc4457be948b528cae7b34a59cfc7214d6aa7b989d15dfb19",
+    "src/lib/coder/user-client.ts": "43c0a6aae1abde72d8e94fd5ec87847c959128d595d4933b476960c6967011f7",
+    "src/lib/coder/client.ts": "b163082ea75bbb88cf94489e41fba31b965ea30b4c5c4c69046e941b329d2222",
+    "src/lib/coder/fetch.ts": "b3d3bf2eb986dbee72dd0868381f3029705df1c8b7464efcf32cb285f9077cac",
+    "src/lib/codex-session/bootstrap-delivery.server.ts": "086ebf19991a9c04468d8a32d7f768e6f4ca4e04e9a721575a43d6e171be8a6e",
+    "src/lib/codex-session/guardian-factory.server.ts": "ca5a0c51661e0b299ac7271f683df7f644c53917d637b70e01b541f7e3ee2ded",
+    "deploy/cloudflare/app/project-tasks.ts": "e29b88c34cd0485fd24f44db9fc4286ad65e85561a0c76328ea1cf3d84f530c5",
+    "deploy/cloudflare/app/request-lifetime.ts": "e0a29d32d10d8f4d84a1b605630ae42aace6e28b4f837a53f4214fbe398ae600",
+    "deploy/cloudflare/jobs/project-tasks.ts": "336b2a7071d28667337ec9f18a61eff5e925ead73ab252949b474953222ac651",
+    "deploy/cloudflare/jobs/worker.ts": "1bf53be968767300c6684f515ee736a0175a3ed955cbd8383a0d86ee5b92bb34",
+    "deploy/cloudflare/jobs/local-project-tasks.worker.ts": "e3182ff284d1245e03da9eb41c04cd0799ab6fd20ce4f0bc6da60f3813a05bcc",
+    "deploy/cloudflare/jobs/local-project-coder.worker.ts": "a55d46a2c678329b4b1005f7191fb3558b0f8a158d8a1fdbf9a620ffb44bcb8e",
+    "deploy/cloudflare/jobs/run-local-project-tasks.mjs": "e7fd15e73a6e98cb97e7e534351b6ad61aae427079d1d748d7176611431323fd",
+    "packages/db/prisma/schema.prisma": "44ec6ee8ef6dbaeca1f68f5dae2233510a8364f64a6bd03d7c5ba5b673f509a9",
+    "packages/db/src/cloudflare.ts": "17dfe24fa8c076329099a1e428dd3579f6fc1d2c820a2eca06046203e15f323f",
+    "packages/db/src/generated/prisma-workerd/client.ts": "14c4daea99d67978f1eb01cfea44f5d1d1209bd17a190e050938d7bc10bf4043"
+  },
+  "scope": {
+    "actualWorkerd": true,
+    "actualPrivateServiceBinding": true,
+    "actualLocalPostgreSQL": true,
+    "actualEncryptedIntent": true,
+    "fullNextFramework": false,
+    "syntheticCoderAndWorkspace": true,
+    "localAcceleratedJobsCancellation": true,
+    "externalProviderRequests": 0,
+    "remoteMutations": 0
+  },
+  "scratch": "/tmp/hive-project-reconcile-workerd-uk4TRG",
+  "databaseName": "hive_reconcile_b3fe71cd3d85"
+}

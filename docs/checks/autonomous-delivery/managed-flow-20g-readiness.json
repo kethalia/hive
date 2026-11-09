@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-07T16:15:01.636750+00:00",
+  "workspaceId": "35dded27-d8bd-479c-a44a-f20b766349af",
+  "buildId": "fe760ceb-5b53-4810-9848-22077c24ffc1",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-07T16:05:41.255738Z",
+  "templateVersionId": "1e400654-ecba-49b7-af95-63f0926e0a77",
+  "agentId": "115b1798-7c60-4078-8baf-c7aefec26a23",
+  "healthy": true,
+  "image": "ghcr.io/kethalia/hive-base@sha256:a840cda894bbd5ac0c581a78b5623eb7c848f4446399852a4f5961515d5047c6",
+  "devAndInitImageMatch": true,
+  "deploymentUid": "36bdd734-51b1-4b6c-b576-cf64a54a4031",
+  "pvc": {
+    "uid": "008bee15-98cc-4d17-abac-18618771a256",
+    "claimName": "coder-35dded27-d8bd-479c-a44a-f20b766349af-home",
+    "namespace": "coder",
+    "storageClass": "longhorn",
+    "accessModes": ["ReadWriteOnce"]
+  },
+  "hostPathPresent": false,
+  "privateHomeMountVerified": true,
+  "distinctFromRetainedAndPrimaryPvc": true,
+  "retainedPvcComparisons": [
+    {
+      "workspaceId": "3e2e5966-6b15-46e7-abde-f3fed711d360",
+      "status": "stopped",
+      "uid": "d20fb656-0fea-4ec3-add9-fa5d554dfb3e",
+      "claimName": "coder-3e2e5966-6b15-46e7-abde-f3fed711d360-home",
+      "namespace": "coder",
+      "storageClass": "longhorn",
+      "accessModes": ["ReadWriteOnce"]
+    },
+    {
+      "workspaceId": "5390bdfc-b004-4489-96c8-2b9f1de20f1f",
+      "status": "stopped",
+      "uid": "848070d2-cb17-48c0-9b71-e5e91094c76e",
+      "claimName": "coder-5390bdfc-b004-4489-96c8-2b9f1de20f1f-home",
+      "namespace": "coder",
+      "storageClass": "longhorn",
+      "accessModes": ["ReadWriteOnce"]
+    },
+    {
+      "workspaceId": "49dfbaf2-f475-4053-8c6b-2fc09d0db8bf",
+      "status": "running",
+      "uid": "634f3cc6-e74c-4289-b928-828c26b16c2a",
+      "claimName": "coder-49dfbaf2-f475-4053-8c6b-2fc09d0db8bf-home",
+      "namespace": "coder",
+      "storageClass": "longhorn",
+      "accessModes": ["ReadWriteOnce"]
+    }
+  ],
+  "primaryComparison": {
+    "workspaceId": "eef6cbdd-b092-41d2-9e0a-a4c7d07d4224",
+    "pvcUid": "26911756-30c9-4df4-ad5d-743985339da3",
+    "claimName": "coder-eef6cbdd-b092-41d2-9e0a-a4c7d07d4224-home",
+    "pvcUidBasis": "Primary independently verified df/dev/Longhorn observation supplied by root; workspace identity fresh Coder API"
+  },
+  "hostChecks": {
+    "coderRootOwned": true,
+    "coderVersion": "Coder v2.38.4+d16b1ca Wed Oct 28 19:44:12 UTC 2026",
+    "healthStatus": 200,
+    "workerGuardedPath": true,
+    "guardianPackageSha256": "36895da38fa1ff06c43e60cdfc37c67d084cafb2649b809c0a14726455b544aa",
+    "packageMatches": true,
+    "elfMatches": true,
+    "guardianElfSha256": "ad7facb0f9605c70694f366978408c8b4d5e7a886cb93bdba580835a1255c0fd",
+    "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+    "workspaceMatches": true,
+    "buildMatches": true,
+    "hiveUserMatches": true,
+    "hiveOriginMatches": true,
+    "issuerKeyMatches": true,
+    "nativeAuthPresent": false,
+    "model": "gpt-6.1-sol",
+    "effort": "high"
+  },
+  "preexecutionChecks": {
+    "guardianJournalSignatureValid": true,
+    "workerPid": 910,
+    "workerStartTime": "122603326",
+    "guardianPhase": "startupReady",
+    "guardianEventNames": ["begin", "ready", "launchIntent", "open", "startupReady"],
+    "admissionEventCount": 0,
+    "guardianController": {
+      "present": false
+    },
+    "projectJournalPresent": true,
+    "projectJournalSignatureValid": true,
+    "projectCount": 0,
+    "projectTaskCount": 0,
+    "supervisorRegistryPresent": false,
+    "supervisorRegistrySignatureValid": null,
+    "supervisorProjectCount": null,
+    "workerIdentityAndPathVerified": true,
+    "managedCodexExecutableProcessCount": 0,
+    "tmuxExecutableProcessCount": 0,
+    "procUnreadableOrExitedCount": 1,
+    "supervisorTmuxSocketPresent": false,
+    "supervisorTmuxSessionCount": null,
+    "liveInventoryLimitation": "process and durable journal snapshot; in-memory native guardian inventory not independently queried"
+  },
+  "globalActiveTemplateUnchanged": true,
+  "operatorAuthorizationIssued": false,
+  "authenticationTransferred": false,
+  "providerMutations": false,
+  "limitation": "Provider-reported provisioner state plus read-only process/journal snapshot; not hardware/kernel attestation or independent in-memory native inventory"
+}

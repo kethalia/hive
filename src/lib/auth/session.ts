@@ -1,4 +1,4 @@
-import { sessionCookieName, signCookie, verifyCookie } from "@hive/auth";
+import { isConfiguredCoderUrl, sessionCookieName, signCookie, verifyCookie } from "@hive/auth";
 import { cookies, headers } from "next/headers";
 import { getAuthServiceClient } from "./service-client";
 import {
@@ -47,7 +47,7 @@ export async function getSession(
     console.log("[session] Auth service error, treating as unauthenticated");
     return null;
   }
-  if (!payload) return null;
+  if (!payload || !isConfiguredCoderUrl(payload.coderUrl)) return null;
   return {
     user: {
       id: payload.userId,

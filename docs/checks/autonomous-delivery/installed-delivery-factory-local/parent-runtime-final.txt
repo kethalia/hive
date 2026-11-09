@@ -1,0 +1,1605 @@
+
+> hive-web@2.31.0 test:runtime /tmp/hive-factory-parent-bu5266t7
+> node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs scripts/verify-codex-session-bridge.test.mjs scripts/verify-codex-project-supervisor.test.mjs scripts/verify-codex-native-startup.test.mjs scripts/probe-native-startup.test.mjs scripts/verify-codex-native-namespace.test.mjs scripts/verify-codex-git-metadata.test.mjs scripts/verify-codex-native-guardian.test.mjs scripts/verify-codex-host-guardian.test.mjs scripts/verify-codex-guardian-controller.test.mjs scripts/verify-codex-guarded-controller.test.mjs scripts/verify-codex-guarded-install.test.mjs scripts/build-native-guardian.test.mjs scripts/verify-codex-project-gateway.test.mjs scripts/verify-codex-host-registration.test.mjs scripts/verify-codex-project-discovery.test.mjs scripts/verify-codex-host-package.test.mjs scripts/verify-codex-compiled-host.test.mjs scripts/verify-codex-project-controller.test.mjs scripts/verify-codex-project-terminal.test.mjs scripts/verify-codex-source-input.test.mjs scripts/verify-codex-source-application.test.mjs scripts/verify-codex-delivery-runtime.test.mjs scripts/verify-delivery-manager-adapter.test.mjs scripts/verify-delivery-native-spool.test.mjs scripts/verify-delivery-github-collector.test.mjs scripts/verify-delivery-source-publisher.test.mjs scripts/verify-delivery-source-state-client.test.mjs deploy/cloudflare/app/deployment-plan.test.mjs deploy/cloudflare/app/deployment-identity.test.mjs deploy/cloudflare/app/build-integrity.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/app/prepared-artifact.test.mjs deploy/cloudflare/app/redeployment-policy.test.mjs deploy/cloudflare/app/host-identity.test.mjs
+
+✔ interrupted or failed builds cannot be previewed without a readiness record (13.587527ms)
+✔ changing the generated action allowlist invalidates the prepared Worker (51.700346ms)
+✔ ready builds require empty generated environment and unchanged source/output (70.184337ms)
+✔ a build with changed sources or unsafe environment cannot create readiness (27.659465ms)
+✔ new source files and ignored generated client changes invalidate readiness (52.685378ms)
+✔ auth worker edits and newly added auth modules invalidate a prepared readiness record (45.60848ms)
+✔ two artifact preparations preserve encryption/session identity and app/auth key agreement (15.486345ms)
+✔ missing identity requires explicit first-create and forbidden scope never rewrites it (14.990704ms)
+✔ identity rejects readable modes, file/directory symlinks and hardlinks (11.164568ms)
+✔ malformed identity keys are rejected without replacement (6.300292ms)
+✔ preparation requires fresh account/name/headroom evidence (2.284507ms)
+✔ request budgets are explicit, bounded200, and reserve CPU for three Worker invocations (5.981992ms)
+✔ preparation rejects asset bypass, public routing, cron and added products (2.271047ms)
+✔ runtime credential cannot bind an owner, production database or other endpoint (1.100473ms)
+✔ loads only a private matching Ed25519 issuer and preserves the identity (15.318168ms)
+✔ rejects foreign app/Coder/template scopes or a mismatched public key (9.181467ms)
+✔ only reviewed exact exports from the built workspace page become portable (3.746862ms)
+✔ missing or changed framework action mappings fail the build closed (2.675679ms)
+✔ accepts the exact prepared source, outputs and private binding files (1.442919ms)
+✔ rejects old prepared configs after checkout advances or artifact changes (2.116535ms)
+✔ rejects mutated config, changed credential file or extra secret binding (0.904674ms)
+✔ accepts only the existing task-created identities and unchanged private deployments (1.997309ms)
+✔ existing targets require explicit prior evidence and still require fresh included headroom (1.85261ms)
+✔ rejects replaced workers, unexpected versions, partially existing resources and public URLs (3.360172ms)
+✔ rejects foreign account or incomplete/unproven prior deployment evidence (0.96671ms)
+✔ guardian build is repeatable and rejects changed source, recipe, ELF and unsafe artifact files (956.652026ms)
+✔ startup diagnostic rejects source drift and never changes readiness bounds (5.592893ms)
+✔ startup stderr/error diagnostics retain only bounded categories (31.231426ms)
+✔ production web image never runs the unpinned Coder installer (1.175431ms)
+✔ production version/hash pins match the independently verified release artifacts (0.475808ms)
+✔ installs the verified amd64 archive and smoke-checks the executable (24.425138ms)
+✔ installs the verified arm64 archive and smoke-checks the executable (17.216333ms)
+✔ a checksum mismatch fails before extraction, installation, or execution (12.911329ms)
+✔ a failed download cannot fall back to an unverified installer or binary (28.445605ms)
+✔ rejects unsupported/missing architecture (s390x) before download (8.239701ms)
+✔ rejects unsupported/missing architecture (empty) before download (11.470214ms)
+✔ compiled package preserves controller, startup fences and session bridge behavior (7406.31558ms)
+ℹ TAP version 13
+# Subtest: one authenticated listener may finish durable startup beyond the old four-second retry window
+ok 1 - one authenticated listener may finish durable startup beyond the old four-second retry window
+  ---
+  duration_ms: 4574.638713
+  type: 'test'
+  ...
+# Subtest: absolute deadline stops the one child and closes pending handshake
+ok 2 - absolute deadline stops the one child and closes pending handshake
+  ---
+  duration_ms: 153.914436
+  type: 'test'
+  ...
+# Subtest: revocation interrupts readiness before any native initialization
+ok 3 - revocation interrupts readiness before any native initialization
+  ---
+  duration_ms: 103.868662
+  type: 'test'
+  ...
+# Subtest: deadline bounds a stalled authority fence without accepting its late completion
+ok 4 - deadline bounds a stalled authority fence without accepting its late completion
+  ---
+  duration_ms: 102.087248
+  type: 'test'
+  ...
+# Subtest: authority is checked again after authenticated WebSocket open
+ok 5 - authority is checked again after authenticated WebSocket open
+  ---
+  duration_ms: 9.915499
+  type: 'test'
+  ...
+# Subtest: cancellation and early child exit abort readiness without relaunch
+ok 6 - cancellation and early child exit abort readiness without relaunch
+  ---
+  duration_ms: 67.365077
+  type: 'test'
+  ...
+# Subtest: wrong authentication is a terminal handshake rejection, not a retry
+ok 7 - wrong authentication is a terminal handshake rejection, not a retry
+  ---
+  duration_ms: 5.657057
+  type: 'test'
+  ...
+# Subtest: enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+ok 8 - enrollment is durable without clone/native; queued start waits registration then submits actual prompt once
+  ---
+  duration_ms: 148.379399
+  type: 'test'
+  ...
+# Subtest: restart recovers exact durable intent and never repeats checkout preparation or first prompt
+ok 9 - restart recovers exact durable intent and never repeats checkout preparation or first prompt
+  ---
+  duration_ms: 57.78962
+  type: 'test'
+  ...
+# Subtest: ambiguous first prompt blocks replay without another inference
+ok 10 - ambiguous first prompt blocks replay without another inference
+  ---
+  duration_ms: 39.769486
+  type: 'test'
+  ...
+# Subtest: owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+ok 11 - owned interrupted checkout preparation reuses verified lease without cleaning dirty edits
+  ---
+  duration_ms: 35.093979
+  type: 'test'
+  ...
+# Subtest: private journal rejects competing writer, forgery, identity changes and unknown authority
+ok 12 - private journal rejects competing writer, forgery, identity changes and unknown authority
+  ---
+  duration_ms: 21.637195
+  type: 'test'
+  ...
+# Subtest: request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+ok 13 - request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts
+  ---
+  duration_ms: 8.640757
+  type: 'test'
+  ...
+# Subtest: manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+ok 14 - manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs
+  ---
+  duration_ms: 71.330711
+  type: 'test'
+  ...
+# Subtest: safe lease renewal keeps immutable intent and failed renewal revokes only execution
+ok 15 - safe lease renewal keeps immutable intent and failed renewal revokes only execution
+  ---
+  duration_ms: 124.029441
+  type: 'test'
+  ...
+# Subtest: revoked execution can re-register existing history after restart without new prompt or attach
+ok 16 - revoked execution can re-register existing history after restart without new prompt or attach
+  ---
+  duration_ms: 57.46175
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+ok 17 - lease expiry revokes awaitingRegistration native execution without renewing or discarding history
+  ---
+  duration_ms: 74.857648
+  type: 'test'
+  ...
+# Subtest: lease expiry revokes blocked native execution without renewing or discarding history
+ok 18 - lease expiry revokes blocked native execution without renewing or discarding history
+  ---
+  duration_ms: 49.327882
+  type: 'test'
+  ...
+# Subtest: pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+ok 19 - pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt
+  ---
+  duration_ms: 65.632414
+  type: 'test'
+  ...
+# Subtest: retry receipt cannot automatically retry a second failure
+ok 20 - retry receipt cannot automatically retry a second failure
+  ---
+  duration_ms: 62.300136
+  type: 'test'
+  ...
+# Subtest: ready live empty native thread retries registration failure without recreating checkout or thread
+ok 21 - ready live empty native thread retries registration failure without recreating checkout or thread
+  ---
+  duration_ms: 44.606109
+  type: 'test'
+  ...
+# Subtest: retry refuses interrupted checkout/native proof
+ok 22 - retry refuses interrupted checkout/native proof
+  ---
+  duration_ms: 34.00876
+  type: 'test'
+  ...
+# Subtest: retry refuses incarnation checkout/native proof
+ok 23 - retry refuses incarnation checkout/native proof
+  ---
+  duration_ms: 30.146912
+  type: 'test'
+  ...
+# Subtest: retry refuses expired checkout/native proof
+ok 24 - retry refuses expired checkout/native proof
+  ---
+  duration_ms: 30.340589
+  type: 'test'
+  ...
+# Subtest: retry refuses history checkout/native proof
+ok 25 - retry refuses history checkout/native proof
+  ---
+  duration_ms: 80.816486
+  type: 'test'
+  ...
+# Subtest: retry cannot reopen uncertain first prompt or accept caller execution fields
+ok 26 - retry cannot reopen uncertain first prompt or accept caller execution fields
+  ---
+  duration_ms: 72.708792
+  type: 'test'
+  ...
+# Subtest: retry rejects legacy durable intent authority
+ok 27 - retry rejects legacy durable intent authority
+  ---
+  duration_ms: 30.659444
+  type: 'test'
+  ...
+# Subtest: retry rejects creationAttempted durable intent authority
+ok 28 - retry rejects creationAttempted durable intent authority
+  ---
+  duration_ms: 46.853009
+  type: 'test'
+  ...
+# Subtest: retry rejects promptAttempted durable intent authority
+ok 29 - retry rejects promptAttempted durable intent authority
+  ---
+  duration_ms: 29.074775
+  type: 'test'
+  ...
+# Subtest: retry rejects revoked durable intent authority
+ok 30 - retry rejects revoked durable intent authority
+  ---
+  duration_ms: 43.248512
+  type: 'test'
+  ...
+# Subtest: unavailable empty native history returns the existing blocked status without scheduling
+ok 31 - unavailable empty native history returns the existing blocked status without scheduling
+  ---
+  duration_ms: 54.802289
+  type: 'test'
+  ...
+# Subtest: guardian admission is durable before preparation and final binding is a separate immutable record
+ok 32 - guardian admission is durable before preparation and final binding is a separate immutable record
+  ---
+  duration_ms: 46.254256
+  type: 'test'
+  ...
+# Subtest: closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+ok 33 - closing while preparation is in flight retains uncertainty and cannot enroll or start native execution
+  ---
+  duration_ms: 47.247754
+  type: 'test'
+  ...
+# Subtest: lost guardian channel persists a closed admission fence and prevents helper dispatch
+ok 34 - lost guardian channel persists a closed admission fence and prevents helper dispatch
+  ---
+  duration_ms: 15.279898
+  type: 'test'
+  ...
+# Subtest: a new admitted project refreshes existing generation tokens before shared helper work
+ok 35 - a new admitted project refreshes existing generation tokens before shared helper work
+  ---
+  duration_ms: 88.970674
+  type: 'test'
+  ...
+# Subtest: closure during repository resolution cannot dispatch checkout inspection or preparation
+ok 36 - closure during repository resolution cannot dispatch checkout inspection or preparation
+  ---
+  duration_ms: 51.865186
+  type: 'test'
+  ...
+# Subtest: late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+ok 37 - late lease renewal after the close barrier cannot rewrite the closed controller snapshot
+  ---
+  duration_ms: 60.493668
+  type: 'test'
+  ...
+# Subtest: source input closure persists accepted context and enforces lease expiry without racing metadata lock
+ok 38 - source input closure persists accepted context and enforces lease expiry without racing metadata lock
+  ---
+  duration_ms: 94.840825
+  type: 'test'
+  ...
+# Subtest: signed owner capability reads the exact existing native thread and streams allowed events
+ok 39 - signed owner capability reads the exact existing native thread and streams allowed events
+  ---
+  duration_ms: 58.467617
+  type: 'test'
+  ...
+# Subtest: wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+ok 40 - wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access
+  ---
+  duration_ms: 26.408104
+  type: 'test'
+  ...
+# Subtest: Origin, Host, URL query credentials, and forged Coder headers do not grant access
+ok 41 - Origin, Host, URL query credentials, and forged Coder headers do not grant access
+  ---
+  duration_ms: 12.96269
+  type: 'test'
+  ...
+# Subtest: ticket replay remains rejected after a bridge restart
+ok 42 - ticket replay remains rejected after a bridge restart
+  ---
+  duration_ms: 15.164062
+  type: 'test'
+  ...
+# Subtest: active sockets close at ticket expiry
+ok 43 - active sockets close at ticket expiry
+  ---
+  duration_ms: 1586.050689
+  type: 'test'
+  ...
+# Subtest: fresh renewal extends one socket and native connection, with replay rejected
+ok 44 - fresh renewal extends one socket and native connection, with replay rejected
+  ---
+  duration_ms: 2998.976869
+  type: 'test'
+  ...
+# Subtest: a changed-binding renewal cannot extend the old capability deadline
+ok 45 - a changed-binding renewal cannot extend the old capability deadline
+  ---
+  duration_ms: 2000.838304
+  type: 'test'
+  ...
+# Subtest: execution, model overrides, arbitrary threads, and server request responses are rejected
+ok 46 - execution, model overrides, arbitrary threads, and server request responses are rejected
+  ---
+  duration_ms: 26.975273
+  type: 'test'
+  ...
+# Subtest: an unloaded thread is not resumed and unsupported native versions fail closed
+ok 47 - an unloaded thread is not resumed and unsupported native versions fail closed
+  ---
+  duration_ms: 12.636696
+  type: 'test'
+  ...
+# Subtest: duplicate IDs, malformed and oversized frames are bounded
+ok 48 - duplicate IDs, malformed and oversized frames are bounded
+  ---
+  duration_ms: 17.875004
+  type: 'test'
+  ...
+# Subtest: hidden reasoning and unsupported tool payloads never reach a read client
+ok 49 - hidden reasoning and unsupported tool payloads never reach a read client
+  ---
+  duration_ms: 9.720698
+  type: 'test'
+  ...
+# Subtest: configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+ok 50 - configuration rejects public native endpoints, unsupported versions, and concurrent state owners
+  ---
+  duration_ms: 7.211323
+  type: 'test'
+  ...
+# Subtest: an incompatible native server cannot leak events before its version check
+ok 51 - an incompatible native server cannot leak events before its version check
+  ---
+  duration_ms: 7.143457
+  type: 'test'
+  ...
+# Subtest: SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+ok 52 - SIGKILL releases the OS lock while preserving replay rejection on automatic restart
+  ---
+  duration_ms: 88.744419
+  type: 'test'
+  ...
+# Subtest: native 0.165 CLI and capability client share one loaded thread without inference
+ok 53 - native 0.165 CLI and capability client share one loaded thread without inference # SKIP
+  ---
+  duration_ms: 0.117651
+  type: 'test'
+  ...
+1..53
+# tests 53
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 7116.355714
+✔ compiled delivery preserves source progression, native facts and collector signatures (1722.962713ms)
+ℹ TAP version 13
+# Subtest: collector defaults off without loading credentials or invoking a helper
+ok 1 - collector defaults off without loading credentials or invoking a helper
+  ---
+  duration_ms: 1.230105
+  type: 'test'
+  ...
+# Subtest: actual fixed Python helper fails closed without workspace agent authority
+ok 2 - actual fixed Python helper fails closed without workspace agent authority
+  ---
+  duration_ms: 83.519616
+  type: 'test'
+  ...
+# Subtest: a failed exited helper never signals its reaped numeric process group
+ok 3 - a failed exited helper never signals its reaped numeric process group
+  ---
+  duration_ms: 80.728819
+  type: 'test'
+  ...
+# Subtest: only a signed fixed-origin challenge can invoke the fixed helper and publish its snapshot
+ok 4 - only a signed fixed-origin challenge can invoke the fixed helper and publish its snapshot
+  ---
+  duration_ms: 38.123623
+  type: 'test'
+  ...
+# Subtest: caller producer/status/target/policy/URL injection is rejected before any request
+ok 5 - caller producer/status/target/policy/URL injection is rejected before any request
+  ---
+  duration_ms: 1.035858
+  type: 'test'
+  ...
+# Subtest: accepted output checks bind advanced source while the physical checkout remains at its base
+ok 6 - accepted output checks bind advanced source while the physical checkout remains at its base
+  ---
+  duration_ms: 10.934937
+  type: 'test'
+  ...
+# Subtest: source-aware collection requires a fixed callback and rejects malformed independent facts
+ok 7 - source-aware collection requires a fixed callback and rejects malformed independent facts
+  ---
+  duration_ms: 2.934591
+  type: 'test'
+  ...
+# Subtest: source change during collection or its acknowledgement retains the snapshot and rejects stale success
+ok 8 - source change during collection or its acknowledgement retains the snapshot and rejects stale success
+  ---
+  duration_ms: 21.699296
+  type: 'test'
+  ...
+# Subtest: a retained source snapshot cannot be relabeled or downgraded on retry
+ok 9 - a retained source snapshot cannot be relabeled or downgraded on retry
+  ---
+  duration_ms: 19.085508
+  type: 'test'
+  ...
+# Subtest: wrong source head/nonce/registration/expired challenge never invokes helper
+ok 10 - wrong source head/nonce/registration/expired challenge never invokes helper
+  ---
+  duration_ms: 6.473312
+  type: 'test'
+  ...
+# Subtest: lease source or native lifetime changes during collection prevent publication
+ok 11 - lease source or native lifetime changes during collection prevent publication
+  ---
+  duration_ms: 15.854813
+  type: 'test'
+  ...
+# Subtest: cross-origin redirect, excess response and excess snapshot are never signed onward
+ok 12 - cross-origin redirect, excess response and excess snapshot are never signed onward
+  ---
+  duration_ms: 11.451162
+  type: 'test'
+  ...
+# Subtest: stalled injected response and stalled cancellation cannot outlive the collector deadline
+ok 13 - stalled injected response and stalled cancellation cannot outlive the collector deadline
+  ---
+  duration_ms: 2.485736
+  type: 'test'
+  ...
+# Subtest: lost acknowledgement recovers exact snapshot bytes after restart and reauthorizes instead of returning a cache
+ok 14 - lost acknowledgement recovers exact snapshot bytes after restart and reauthorizes instead of returning a cache
+  ---
+  duration_ms: 10.550613
+  type: 'test'
+  ...
+# Subtest: journal tampering and another native lifetime cannot reuse a private request
+ok 15 - journal tampering and another native lifetime cannot reuse a private request
+  ---
+  duration_ms: 18.412391
+  type: 'test'
+  ...
+# Subtest: full retry journal retires only authenticated challenges beyond expiry grace
+ok 16 - full retry journal retires only authenticated challenges beyond expiry grace
+  ---
+  duration_ms: 142.658591
+  type: 'test'
+  ...
+# Subtest: full journal preserves unexpired and grace-period bytes, including lost acknowledgements
+ok 17 - full journal preserves unexpired and grace-period bytes, including lost acknowledgements
+  ---
+  duration_ms: 133.173554
+  type: 'test'
+  ...
+# Subtest: retirement retains every file when an expired candidate has an invalid MAC
+ok 18 - retirement retains every file when an expired candidate has an invalid MAC
+  ---
+  duration_ms: 133.190726
+  type: 'test'
+  ...
+# Subtest: legacy journal entries without a validated challenge receipt require inspection
+ok 19 - legacy journal entries without a validated challenge receipt require inspection
+  ---
+  duration_ms: 127.867634
+  type: 'test'
+  ...
+# Subtest: an unexpected FIFO is rejected without waiting for a writer or removing state
+ok 20 - an unexpected FIFO is rejected without waiting for a writer or removing state
+  ---
+  duration_ms: 48.149
+  type: 'test'
+  ...
+# Subtest: native delegation reducer matches exact parent/turn/call and never persists prompt text
+ok 21 - native delegation reducer matches exact parent/turn/call and never persists prompt text
+  ---
+  duration_ms: 1.281537
+  type: 'test'
+  ...
+# Subtest: default disabled, fixed configured HTTPS endpoint and exact registered native thread
+ok 22 - default disabled, fixed configured HTTPS endpoint and exact registered native thread
+  ---
+  duration_ms: 3.951377
+  type: 'test'
+  ...
+# Subtest: informational report uses the signed manager path without creating execution or evidence authority
+ok 23 - informational report uses the signed manager path without creating execution or evidence authority
+  ---
+  duration_ms: 17.056668
+  type: 'test'
+  ...
+# Subtest: signed native-call journal survives adapter restart and changed-body replay conflicts
+ok 24 - signed native-call journal survives adapter restart and changed-body replay conflicts
+  ---
+  duration_ms: 8.545454
+  type: 'test'
+  ...
+# Subtest: ambiguous response may replay only the same event; redirects and excessive response fail closed
+ok 25 - ambiguous response may replay only the same event; redirects and excessive response fail closed
+  ---
+  duration_ms: 5.696506
+  type: 'test'
+  ...
+# Subtest: protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor
+ok 26 - protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor
+  ---
+  duration_ms: 63.955108
+  type: 'test'
+  ...
+# Subtest: completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity
+ok 27 - completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity
+  ---
+  duration_ms: 57.616514
+  type: 'test'
+  ...
+# Subtest: unknown continuation outcome retains a durable hold
+ok 28 - unknown continuation outcome retains a durable hold
+  ---
+  duration_ms: 28.569739
+  type: 'test'
+  ...
+# Subtest: controller policy rejection is never an automatic completion retry
+ok 29 - controller policy rejection is never an automatic completion retry
+  ---
+  duration_ms: 45.141549
+  type: 'test'
+  ...
+# Subtest: concurrent different manager calls hold the root even if the first reservation response arrives late
+ok 30 - concurrent different manager calls hold the root even if the first reservation response arrives late
+  ---
+  duration_ms: 24.444195
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale expiry before requesting another native turn
+ok 31 - automatic continuation rejects stale expiry before requesting another native turn
+  ---
+  duration_ms: 31.640376
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale registration before requesting another native turn
+ok 32 - automatic continuation rejects stale registration before requesting another native turn
+  ---
+  duration_ms: 32.091134
+  type: 'test'
+  ...
+# Subtest: automatic continuation rejects stale context before requesting another native turn
+ok 33 - automatic continuation rejects stale context before requesting another native turn
+  ---
+  duration_ms: 33.166611
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across expiry is journaled as uncertain, never returned as authority
+ok 34 - a delayed positive claim ACK across expiry is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 18.308716
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across registration is journaled as uncertain, never returned as authority
+ok 35 - a delayed positive claim ACK across registration is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 15.059979
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across context is journaled as uncertain, never returned as authority
+ok 36 - a delayed positive claim ACK across context is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 19.176265
+  type: 'test'
+  ...
+# Subtest: a delayed positive claim ACK across lifetime is journaled as uncertain, never returned as authority
+ok 37 - a delayed positive claim ACK across lifetime is journaled as uncertain, never returned as authority
+  ---
+  duration_ms: 18.552276
+  type: 'test'
+  ...
+# Subtest: delayed positive report_step ACK after expiry stays historical and cannot schedule continuation
+ok 38 - delayed positive report_step ACK after expiry stays historical and cannot schedule continuation
+  ---
+  duration_ms: 31.801399
+  type: 'test'
+  ...
+# Subtest: delayed positive complete_step ACK after expiry stays historical and cannot schedule continuation
+ok 39 - delayed positive complete_step ACK after expiry stays historical and cannot schedule continuation
+  ---
+  duration_ms: 57.401559
+  type: 'test'
+  ...
+# Subtest: installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture
+ok 40 - installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture # SKIP
+  ---
+  duration_ms: 0.121456
+  type: 'test'
+  ...
+# Subtest: source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB
+ok 41 - source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB
+  ---
+  duration_ms: 139.918746
+  type: 'test'
+  ...
+# Subtest: unexpected post-publication root command holds before apply/continuation
+ok 42 - unexpected post-publication root command holds before apply/continuation
+  ---
+  duration_ms: 79.451833
+  type: 'test'
+  ...
+# Subtest: unexpected post-publication root spawn holds before apply/continuation
+ok 43 - unexpected post-publication root spawn holds before apply/continuation
+  ---
+  duration_ms: 81.239795
+  type: 'test'
+  ...
+# Subtest: failed source apply retains the original writer and prevents new root admission
+ok 44 - failed source apply retains the original writer and prevents new root admission
+  ---
+  duration_ms: 58.056027
+  type: 'test'
+  ...
+# Subtest: final source output applies at terminal without inventing another root turn
+ok 45 - final source output applies at terminal without inventing another root turn
+  ---
+  duration_ms: 64.931934
+  type: 'test'
+  ...
+# Subtest: novel child command after publication holds while original facts retain input source
+ok 46 - novel child command after publication holds while original facts retain input source
+  ---
+  duration_ms: 61.732184
+  type: 'test'
+  ...
+# Subtest: persisted source protocol cannot be silently downgraded and accepted output stays informational
+ok 47 - persisted source protocol cannot be silently downgraded and accepted output stays informational
+  ---
+  duration_ms: 58.706322
+  type: 'test'
+  ...
+# Subtest: a successful boolean from apply callback cannot replace verified local source agreement
+ok 48 - a successful boolean from apply callback cannot replace verified local source agreement
+  ---
+  duration_ms: 73.450835
+  type: 'test'
+  ...
+# Subtest: accepted output cannot be completed against old input source or model-provided source context
+ok 49 - accepted output cannot be completed against old input source or model-provided source context
+  ---
+  duration_ms: 44.61344
+  type: 'test'
+  ...
+# Subtest: stale source facts at terminal hold rather than invoke apply or root continuation
+ok 50 - stale source facts at terminal hold rather than invoke apply or root continuation
+  ---
+  duration_ms: 62.626833
+  type: 'test'
+  ...
+# Subtest: bounded supervisor-busy retry starts after source apply rather than consuming its budget
+ok 51 - bounded supervisor-busy retry starts after source apply rather than consuming its budget
+  ---
+  duration_ms: 95.561752
+  type: 'test'
+  ...
+# Subtest: source application snapshot rejects pre-terminal and substituted claim scope without authority
+ok 52 - source application snapshot rejects pre-terminal and substituted claim scope without authority
+  ---
+  duration_ms: 70.497321
+  type: 'test'
+  ...
+# Subtest: claim receipt then exact native child facts create bounded ordered digest-only observations
+ok 53 - claim receipt then exact native child facts create bounded ordered digest-only observations
+  ---
+  duration_ms: 53.071259
+  type: 'test'
+  ...
+# Subtest: private spool survives lost acknowledgement and restart; history hydration repeats no source identities
+ok 54 - private spool survives lost acknowledgement and restart; history hydration repeats no source identities
+  ---
+  duration_ms: 43.339538
+  type: 'test'
+  ...
+# Subtest: offline observations are retained and signed only after current registration returns
+ok 55 - offline observations are retained and signed only after current registration returns
+  ---
+  duration_ms: 38.667072
+  type: 'test'
+  ...
+# Subtest: another native lifetime never replays old writer facts or admits a new claim
+ok 56 - another native lifetime never replays old writer facts or admits a new claim
+  ---
+  duration_ms: 38.370322
+  type: 'test'
+  ...
+# Subtest: a spawn from another parent turn cannot inherit a reservation
+ok 57 - a spawn from another parent turn cannot inherit a reservation
+  ---
+  duration_ms: 9.004927
+  type: 'test'
+  ...
+# Subtest: same native item identity with changed exit/output becomes a controller conflict and keeps the writer held
+ok 58 - same native item identity with changed exit/output becomes a controller conflict and keeps the writer held
+  ---
+  duration_ms: 52.59494
+  type: 'test'
+  ...
+# Subtest: partial native history and missing previous claim state fail closed
+ok 59 - partial native history and missing previous claim state fail closed
+  ---
+  duration_ms: 34.208831
+  type: 'test'
+  ...
+# Subtest: signed journal tampering is rejected rather than silently resetting source state
+ok 60 - signed journal tampering is rejected rather than silently resetting source state
+  ---
+  duration_ms: 5.83388
+  type: 'test'
+  ...
+# Subtest: failed history lookup persists a reconciliation hold across restart
+ok 61 - failed history lookup persists a reconciliation hold across restart
+  ---
+  duration_ms: 24.142596
+  type: 'test'
+  ...
+# Subtest: protocol one preserves physical anchor and old attempt attribution across a monotonic logical cursor
+ok 62 - protocol one preserves physical anchor and old attempt attribution across a monotonic logical cursor
+  ---
+  duration_ms: 85.426462
+  type: 'test'
+  ...
+# Subtest: protocol one never promotes a spawn observed before its claim receipt
+ok 63 - protocol one never promotes a spawn observed before its claim receipt
+  ---
+  duration_ms: 27.52538
+  type: 'test'
+  ...
+# Subtest: a protocol-one historical claim replay remains held despite an exact pre-send journal
+ok 64 - a protocol-one historical claim replay remains held despite an exact pre-send journal
+  ---
+  duration_ms: 15.102829
+  type: 'test'
+  ...
+# Subtest: unknown fresh reservation authority shape holds: {"canRun":true}
+ok 65 - unknown fresh reservation authority shape holds: {"canRun":true}
+  ---
+  duration_ms: 14.564526
+  type: 'test'
+  ...
+# Subtest: unknown fresh reservation authority shape holds: {"needsRuntimeBinding":false}
+ok 66 - unknown fresh reservation authority shape holds: {"needsRuntimeBinding":false}
+  ---
+  duration_ms: 13.223567
+  type: 'test'
+  ...
+# Subtest: unknown fresh reservation authority shape holds: {}
+ok 67 - unknown fresh reservation authority shape holds: {}
+  ---
+  duration_ms: 12.165274
+  type: 'test'
+  ...
+# Subtest: unknown fresh reservation authority shape holds: {}
+ok 68 - unknown fresh reservation authority shape holds: {}
+  ---
+  duration_ms: 16.182326
+  type: 'test'
+  ...
+# Subtest: unknown fresh reservation authority shape holds: {"outcome":"succeeded"}
+ok 69 - unknown fresh reservation authority shape holds: {"outcome":"succeeded"}
+  ---
+  duration_ms: 12.357185
+  type: 'test'
+  ...
+# Subtest: typed command work before a protocol-one claim cannot escape raw-event admission checks
+ok 70 - typed command work before a protocol-one claim cannot escape raw-event admission checks
+  ---
+  duration_ms: 4.815787
+  type: 'test'
+  ...
+1..70
+# tests 70
+# suites 0
+# pass 69
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 1536.465811
+✔ compiled source application preserves input barriers and recovery (2195.642793ms)
+ℹ TAP version 13
+# Subtest: separate terminal capability rejects read scope and arbitrary RPC before launching a PTY
+ok 1 - separate terminal capability rejects read scope and arbitrary RPC before launching a PTY
+  ---
+  duration_ms: 41.235808
+  type: 'test'
+  ...
+# Subtest: same terminal renews in place; replay, changed binding and revoked lease close the client
+ok 2 - same terminal renews in place; replay, changed binding and revoked lease close the client
+  ---
+  duration_ms: 1014.618493
+  type: 'test'
+  ...
+# Subtest: expiry closes an otherwise idle terminal without renewal
+ok 3 - expiry closes an otherwise idle terminal without renewal
+  ---
+  duration_ms: 690.834253
+  type: 'test'
+  ...
+# Subtest: real stdlib PTY attaches existing tmux session and client disconnect preserves the session
+ok 4 - real stdlib PTY attaches existing tmux session and client disconnect preserves the session
+  ---
+  duration_ms: 52.546307
+  type: 'test'
+  ...
+# Subtest: project input closure waits for actual helper close and fences reconnects until trusted release
+ok 5 - project input closure waits for actual helper close and fences reconnects until trusted release
+  ---
+  duration_ms: 40.3862
+  type: 'test'
+  ...
+# Subtest: application remains disabled without installed independent authority callbacks
+ok 6 - application remains disabled without installed independent authority callbacks
+  ---
+  duration_ms: 1.194919
+  type: 'test'
+  ...
+# Subtest: external lifetime revocation rejects a late currentMetadata reply without releasing input
+ok 7 - external lifetime revocation rejects a late currentMetadata reply without releasing input
+  ---
+  duration_ms: 4.603134
+  type: 'test'
+  ...
+# Subtest: external lifetime revocation rejects a late applyReserve reply without releasing input
+ok 8 - external lifetime revocation rejects a late applyReserve reply without releasing input
+  ---
+  duration_ms: 2.493855
+  type: 'test'
+  ...
+# Subtest: external lifetime revocation rejects a late applyVerify reply without releasing input
+ok 9 - external lifetime revocation rejects a late applyVerify reply without releasing input
+  ---
+  duration_ms: 1.737351
+  type: 'test'
+  ...
+# Subtest: external lifetime revocation rejects a late applyCommit reply without releasing input
+ok 10 - external lifetime revocation rejects a late applyCommit reply without releasing input
+  ---
+  duration_ms: 4.009916
+  type: 'test'
+  ...
+# Subtest: accepted source is synchronized in both journals before commit; only fresh applied readback releases input
+ok 11 - accepted source is synchronized in both journals before commit; only fresh applied readback releases input
+  ---
+  duration_ms: 4.535341
+  type: 'test'
+  ...
+# Subtest: commit_lost_ack retains input and physical writer hold after metadata receipt
+ok 12 - commit_lost_ack retains input and physical writer hold after metadata receipt
+  ---
+  duration_ms: 1.789148
+  type: 'test'
+  ...
+# Subtest: verify_revoked retains input and physical writer hold after metadata receipt
+ok 13 - verify_revoked retains input and physical writer hold after metadata receipt
+  ---
+  duration_ms: 2.098819
+  type: 'test'
+  ...
+# Subtest: late_native_input retains input and physical writer hold after metadata receipt
+ok 14 - late_native_input retains input and physical writer hold after metadata receipt
+  ---
+  duration_ms: 2.006876
+  type: 'test'
+  ...
+# Subtest: wrong_source retains input and physical writer hold after metadata receipt
+ok 15 - wrong_source retains input and physical writer hold after metadata receipt
+  ---
+  duration_ms: 1.857179
+  type: 'test'
+  ...
+# Subtest: fixed apply worker rejects arbitrary paths before spawning
+ok 16 - fixed apply worker rejects arbitrary paths before spawning
+  ---
+  duration_ms: 0.231735
+  type: 'test'
+  ...
+# Subtest: worker deadline aborts stalled trusted callback and reaps exact child
+ok 17 - worker deadline aborts stalled trusted callback and reaps exact child
+  ---
+  duration_ms: 73.355461
+  type: 'test'
+  ...
+# Subtest: coordinator lifetime revocation aborts and reaps its actual private FD worker
+ok 18 - coordinator lifetime revocation aborts and reaps its actual private FD worker
+  ---
+  duration_ms: 25.473927
+  type: 'test'
+  ...
+# Subtest: EOF and nonmonotonic worker frames cannot be treated as success
+ok 19 - EOF and nonmonotonic worker frames cannot be treated as success
+  ---
+  duration_ms: 41.049146
+  type: 'test'
+  ...
+# Subtest: lost reserve ACK recovers after coordinator reconstruction without replacing immutable barrier or re-reserving
+ok 20 - lost reserve ACK recovers after coordinator reconstruction without replacing immutable barrier or re-reserving
+  ---
+  duration_ms: 6.626489
+  type: 'test'
+  ...
+# Subtest: ambiguous reserve then not_found never infers permission to reserve again
+ok 21 - ambiguous reserve then not_found never infers permission to reserve again
+  ---
+  duration_ms: 1.599016
+  type: 'test'
+  ...
+# Subtest: ambiguous reserve then revoked never infers permission to reserve again
+ok 22 - ambiguous reserve then revoked never infers permission to reserve again
+  ---
+  duration_ms: 1.943537
+  type: 'test'
+  ...
+# Subtest: ambiguous reserve then unknown_transport never infers permission to reserve again
+ok 23 - ambiguous reserve then unknown_transport never infers permission to reserve again
+  ---
+  duration_ms: 1.243887
+  type: 'test'
+  ...
+# Subtest: lost commit ACK reads original applied authority and skips a second commit after reconstruction
+ok 24 - lost commit ACK reads original applied authority and skips a second commit after reconstruction
+  ---
+  duration_ms: 6.753536
+  type: 'test'
+  ...
+# Subtest: changed observer journal after lost reserve ACK retains original barrier and refuses helper
+ok 25 - changed observer journal after lost reserve ACK retains original barrier and refuses helper
+  ---
+  duration_ms: 1.822074
+  type: 'test'
+  ...
+# Subtest: actual private FD3 coordinator retry restores historical expected source after lost commit ACK
+ok 26 - actual private FD3 coordinator retry restores historical expected source after lost commit ACK # SKIP
+  ---
+  duration_ms: 0.082098
+  type: 'test'
+  ...
+# Subtest: pending source application blocks inputs while exact root/cohort factual reads remain available
+ok 27 - pending source application blocks inputs while exact root/cohort factual reads remain available
+  ---
+  duration_ms: 3.381271
+  type: 'test'
+  ...
+# Subtest: read seam rejects execution methods, foreign threads, extra paths, stale generations and lost runtime
+ok 28 - read seam rejects execution methods, foreign threads, extra paths, stale generations and lost runtime
+  ---
+  duration_ms: 1.287414
+  type: 'test'
+  ...
+# Subtest: read result is discarded when application identity changes while awaiting the native response
+ok 29 - read result is discarded when application identity changes while awaiting the native response
+  ---
+  duration_ms: 0.368435
+  type: 'test'
+  ...
+# Subtest: metadata context changes alone do not reopen durable source inputs
+ok 30 - metadata context changes alone do not reopen durable source inputs
+  ---
+  duration_ms: 0.41034
+  type: 'test'
+  ...
+# Subtest: revocation-only seam interrupts exact mapped turns during source closure, replay never releases application
+ok 31 - revocation-only seam interrupts exact mapped turns during source closure, replay never releases application
+  ---
+  duration_ms: 2.817869
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 30
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 2004.564504
+✔ compiled guardian preserves signed application reads and private FD3 boundaries (11035.755618ms)
+ℹ TAP version 13
+# Subtest: fresh nonce identity and one-use issuer grant use real Ed25519 domains and no bearer
+ok 1 - fresh nonce identity and one-use issuer grant use real Ed25519 domains and no bearer
+  ---
+  duration_ms: 33.844496
+  type: 'test'
+  ...
+# Subtest: foreign scope, unknown claims, expiry and startup changes cannot bootstrap
+ok 2 - foreign scope, unknown claims, expiry and startup changes cannot bootstrap
+  ---
+  duration_ms: 14.617756
+  type: 'test'
+  ...
+# Subtest: preparation and exact checkout precede fixed one-use native launch, no prompt forwarded
+ok 3 - preparation and exact checkout precede fixed one-use native launch, no prompt forwarded
+  ---
+  duration_ms: 57.848875
+  type: 'test'
+  ...
+# Subtest: HMAC-tampered and closed preparation journals never authorize a helper
+ok 4 - HMAC-tampered and closed preparation journals never authorize a helper
+  ---
+  duration_ms: 32.469261
+  type: 'test'
+  ...
+# Subtest: unknown commit or redirect durably holds, including reopen; never retries the operation
+ok 5 - unknown commit or redirect durably holds, including reopen; never retries the operation
+  ---
+  duration_ms: 24.012507
+  type: 'test'
+  ...
+# Subtest: private signer permission changes and absent idle authority fail closed
+ok 6 - private signer permission changes and absent idle authority fail closed
+  ---
+  duration_ms: 2.642735
+  type: 'test'
+  ...
+# Subtest: registered native journal is freshly finalized and metadata revocation cannot use a cached receipt
+ok 7 - registered native journal is freshly finalized and metadata revocation cannot use a cached receipt
+  ---
+  duration_ms: 83.651725
+  type: 'test'
+  ...
+# Subtest: application reserve derives closed barrier and spool facts from both HMAC journals; verify needs no managed checkout lock
+ok 8 - application reserve derives closed barrier and spool facts from both HMAC journals; verify needs no managed checkout lock
+  ---
+  duration_ms: 136.667937
+  type: 'test'
+  ...
+# Subtest: unknown reservation ACK is retained and only exact same-application fresh readback can recover across reopen
+ok 9 - unknown reservation ACK is retained and only exact same-application fresh readback can recover across reopen
+  ---
+  duration_ms: 97.763577
+  type: 'test'
+  ...
+# Subtest: changed mirror, late signed spool fact, forged spool MAC and live input inventory never reach application authority
+ok 10 - changed mirror, late signed spool fact, forged spool MAC and live input inventory never reach application authority
+  ---
+  duration_ms: 294.249182
+  type: 'test'
+  ...
+# Subtest: outer verifies Python-canonical managed receipt and pinned HEAD/index before signing applied receipt
+ok 11 - outer verifies Python-canonical managed receipt and pinned HEAD/index before signing applied receipt
+  ---
+  duration_ms: 132.491397
+  type: 'test'
+  ...
+# Subtest: lost applied commit ACK recovers only through fresh applied verify without rewriting the receipt
+ok 12 - lost applied commit ACK recovers only through fresh applied verify without rewriting the receipt
+  ---
+  duration_ms: 169.076443
+  type: 'test'
+  ...
+# Subtest: forged managed receipt, replaced index inode or changed applied head cannot mint a commit
+ok 13 - forged managed receipt, replaced index inode or changed applied head cannot mint a commit
+  ---
+  duration_ms: 411.311131
+  type: 'test'
+  ...
+# Subtest: a successful reservation response cannot cross changed barrier, native lifetime or extended local lease
+ok 14 - a successful reservation response cannot cross changed barrier, native lifetime or extended local lease
+  ---
+  duration_ms: 250.650424
+  type: 'test'
+  ...
+# Subtest: known physical HEAD/index or valid signed-receipt drift across applied commit ACK retains hold
+ok 15 - known physical HEAD/index or valid signed-receipt drift across applied commit ACK retains hold
+  ---
+  duration_ms: 432.44408
+  type: 'test'
+  ...
+# Subtest: lost applied ACK readback cannot release input after HEAD/index or valid signed-receipt drift
+ok 16 - lost applied ACK readback cannot release input after HEAD/index or valid signed-receipt drift
+  ---
+  duration_ms: 616.761999
+  type: 'test'
+  ...
+# Subtest: outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt
+ok 17 - outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt
+  ---
+  duration_ms: 831.288119
+  type: 'test'
+  ...
+# Subtest: startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain
+ok 18 - startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain
+  ---
+  duration_ms: 1354.768095
+  type: 'test'
+  ...
+# Subtest: startup challenge mismatch cannot attest or leave a worker running
+ok 19 - startup challenge mismatch cannot attest or leave a worker running
+  ---
+  duration_ms: 5729.056678
+  type: 'test'
+  ...
+# Subtest: private installer startup framing rejects duplicates, extra keys, oversized input and timeout
+ok 20 - private installer startup framing rejects duplicates, extra keys, oversized input and timeout
+  ---
+  duration_ms: 32.598414
+  type: 'test'
+  ...
+# Subtest: uncertain old lifetime cannot be adopted or restarted from an empty new guardian
+ok 21 - uncertain old lifetime cannot be adopted or restarted from an empty new guardian
+  ---
+  duration_ms: 670.3532
+  type: 'test'
+  ...
+# Subtest: failed durable worker barrier cannot produce a planned drain receipt or permit restart
+ok 22 - failed durable worker barrier cannot produce a planned drain receipt or permit restart
+  ---
+  duration_ms: 679.312858
+  type: 'test'
+  ...
+# Subtest: worker import tampering is rejected before any guardian lifetime
+ok 23 - worker import tampering is rejected before any guardian lifetime
+  ---
+  duration_ms: 504.892828
+  type: 'test'
+  ...
+# Subtest: private worker channel rejects repeated request IDs and bounded oversized frames
+ok 24 - private worker channel rejects repeated request IDs and bounded oversized frames
+  ---
+  duration_ms: 20.23928
+  type: 'test'
+  ...
+# Subtest: three fixed application FD3 methods admit only the owned project and carry no worker-provided journal receipt
+ok 25 - three fixed application FD3 methods admit only the owned project and carry no worker-provided journal receipt
+  ---
+  duration_ms: 927.791339
+  type: 'test'
+  ...
+# Subtest: application private request schemas reject nonfixed actions, foreign fields and malformed contexts
+ok 26 - application private request schemas reject nonfixed actions, foreign fields and malformed contexts
+  ---
+  duration_ms: 0.560385
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10858.519252
+✔ compiled delivery factory preserves opt-in authority and revocation (394.198272ms)
+ℹ TAP version 13
+# Subtest: explicit delivery capability cannot be inferred from legacy manager-only config
+ok 1 - explicit delivery capability cannot be inferred from legacy manager-only config
+  ---
+  duration_ms: 1.173649
+  type: 'test'
+  ...
+# Subtest: factory fails before constructing effects without all installed prerequisites
+ok 2 - factory fails before constructing effects without all installed prerequisites
+  ---
+  duration_ms: 0.570678
+  type: 'test'
+  ...
+# Subtest: actual installed adapter exposes source protocol and signs immutable physical task context
+ok 3 - actual installed adapter exposes source protocol and signs immutable physical task context
+  ---
+  duration_ms: 29.8446
+  type: 'test'
+  ...
+# Subtest: foreign manager cannot select a checkout or mint a signed call
+ok 4 - foreign manager cannot select a checkout or mint a signed call
+  ---
+  duration_ms: 4.146276
+  type: 'test'
+  ...
+# Subtest: changed native lifetime stops signed effects and trusted status
+ok 5 - changed native lifetime stops signed effects and trusted status
+  ---
+  duration_ms: 3.435537
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves rejected_policy authority boundary
+ok 6 - recorded child completion preserves rejected_policy authority boundary
+  ---
+  duration_ms: 42.619053
+  type: 'test'
+  ...
+# Subtest: recorded child completion preserves revoked_metadata authority boundary
+ok 7 - recorded child completion preserves revoked_metadata authority boundary
+  ---
+  duration_ms: 41.42794
+  type: 'test'
+  ...
+# Subtest: in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+ok 8 - in-flight native revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 8.281478
+  type: 'test'
+  ...
+# Subtest: in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+ok 9 - in-flight registration revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 5.769433
+  type: 'test'
+  ...
+# Subtest: in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+ok 10 - in-flight close revocation aborts even an uncooperative transport and rejects late ACK
+  ---
+  duration_ms: 5.145019
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 250.796856
+﹣ compiled namespace preserves actual native WS, CLI, child and resume isolation (0.204594ms) # SKIP
+✔ explicit delivery capability cannot be inferred from legacy manager-only config (1.483271ms)
+✔ factory fails before constructing effects without all installed prerequisites (0.877543ms)
+✔ actual installed adapter exposes source protocol and signs immutable physical task context (74.380022ms)
+✔ foreign manager cannot select a checkout or mint a signed call (6.003461ms)
+✔ changed native lifetime stops signed effects and trusted status (15.191188ms)
+✔ recorded child completion preserves rejected_policy authority boundary (105.26556ms)
+✔ recorded child completion preserves revoked_metadata authority boundary (99.063873ms)
+✔ in-flight native revocation aborts even an uncooperative transport and rejects late ACK (12.34317ms)
+✔ in-flight registration revocation aborts even an uncooperative transport and rejects late ACK (14.000008ms)
+✔ in-flight close revocation aborts even an uncooperative transport and rejects late ACK (31.37095ms)
+✔ metadata mode requires exact first-native authority, policy and checkout identity (50.409885ms)
+✔ metadata pinning rejects symlink before launch (20.575061ms)
+✔ metadata pinning rejects metadata-symlink before launch (36.943741ms)
+✔ metadata pinning rejects gitfile before launch (18.767232ms)
+✔ metadata pinning rejects hardlink before launch (30.952329ms)
+✔ metadata pinning rejects alternates before launch (39.686701ms)
+✔ metadata pinning rejects commondir before launch (16.103768ms)
+✔ metadata pinning rejects worktrees before launch (13.438358ms)
+✔ metadata pinning rejects identity before launch (32.893622ms)
+✔ metadata pinning rejects oversize before launch (44.948912ms)
+✔ metadata pinning rejects entry-limit before launch (565.64052ms)
+﹣ pinned descriptor mount resists checkout path replacement and consumes inherited handles (0.167513ms) # SKIP
+﹣ actual native root, child, CLI and resumed thread retain read-only Git metadata with live host refs (0.082537ms) # SKIP
+﹣ actual guardian worker contains direct controller preparation, native, CLI and PTY until the durable full-set barrier (1.200024ms) # SKIP
+﹣ actual guardian worker contains isolated controller preparation, native, CLI and PTY until the durable full-set barrier (0.216958ms) # SKIP
+✔ installed guardian selection requires isolation and cannot silently use the legacy host entry (1.938925ms)
+✔ startup hash and parsed config come from the same private byte snapshot (140.338351ms)
+﹣ fixed Python installer and guarded outer attest exact worker readiness and refuse duplicate or unauthorized execution (0.78583ms) # SKIP
+✔ fresh nonce identity and one-use issuer grant use real Ed25519 domains and no bearer (55.264258ms)
+✔ foreign scope, unknown claims, expiry and startup changes cannot bootstrap (40.578301ms)
+✔ preparation and exact checkout precede fixed one-use native launch, no prompt forwarded (65.961309ms)
+✔ HMAC-tampered and closed preparation journals never authorize a helper (35.099099ms)
+✔ unknown commit or redirect durably holds, including reopen; never retries the operation (36.117674ms)
+✔ private signer permission changes and absent idle authority fail closed (2.832059ms)
+✔ registered native journal is freshly finalized and metadata revocation cannot use a cached receipt (161.436664ms)
+✔ application reserve derives closed barrier and spool facts from both HMAC journals; verify needs no managed checkout lock (233.011144ms)
+✔ unknown reservation ACK is retained and only exact same-application fresh readback can recover across reopen (239.283461ms)
+✔ changed mirror, late signed spool fact, forged spool MAC and live input inventory never reach application authority (432.201325ms)
+✔ outer verifies Python-canonical managed receipt and pinned HEAD/index before signing applied receipt (353.37127ms)
+✔ lost applied commit ACK recovers only through fresh applied verify without rewriting the receipt (268.724919ms)
+✔ forged managed receipt, replaced index inode or changed applied head cannot mint a commit (633.170763ms)
+✔ a successful reservation response cannot cross changed barrier, native lifetime or extended local lease (374.682633ms)
+✔ known physical HEAD/index or valid signed-receipt drift across applied commit ACK retains hold (566.512398ms)
+✔ lost applied ACK readback cannot release input after HEAD/index or valid signed-receipt drift (573.025412ms)
+✔ outer worker barrier refuses active project then drains actual tmux descendants and preserves a durable receipt (1315.758458ms)
+✔ startup attestation waits for worker readiness and pins nonce, config, package and exact kernel chain (1697.985191ms)
+✔ startup challenge mismatch cannot attest or leave a worker running (5968.001666ms)
+✔ private installer startup framing rejects duplicates, extra keys, oversized input and timeout (32.698821ms)
+✔ uncertain old lifetime cannot be adopted or restarted from an empty new guardian (859.295146ms)
+✔ failed durable worker barrier cannot produce a planned drain receipt or permit restart (774.858304ms)
+✔ worker import tampering is rejected before any guardian lifetime (533.124403ms)
+✔ private worker channel rejects repeated request IDs and bounded oversized frames (21.468134ms)
+✔ three fixed application FD3 methods admit only the owned project and carry no worker-provided journal receipt (1049.593496ms)
+✔ application private request schemas reject nonfixed actions, foreign fields and malformed contexts (0.642758ms)
+✔ optional guardian bundle copies the verified build artifact without compiling at install (782.275184ms)
+✔ bundles only locked ws locally and keeps modules inert on import (233.691817ms)
+✔ host config cannot request unreviewed startup fields or profiles (1.102127ms)
+✔ JS controller and installed Python authority agree on actual kernel process identity (61.296068ms)
+✔ pinned grant yields real host proof, uses fixed native thread, renews without new connection (30.498349ms)
+✔ replay and changed independent binding fail before network (3.103204ms)
+✔ ambiguous redemption burns generation durably; restart cannot replay it (2.026075ms)
+✔ heartbeat rejection and native revocation close read authority (1.747525ms)
+✔ rejects algorithm substitutions, expired grants, and unregistered project threads (1.496616ms)
+✔ lost heartbeat acknowledgement retries the identical signed request once and stays registered (3.005741ms)
+✔ heartbeat policy rejection never retries; repeated transport failure is bounded (2.771832ms)
+✔ an initially empty lifetime admits projects durably and never forgets earlier bindings (45.613468ms)
+✔ a pinned worker receives only its separate inherited channel and its descendants are drained (63.671938ms)
+✔ agent environment is restricted to the essential host role and never admits owner sessions (191.596639ms)
+✔ pinned roots drain only after complete project authorization, receipt persistence and ACK (40.538586ms)
+✔ adopts and drains detached writers without touching an outside sibling (138.707365ms)
+✔ adopts and drains nested writers without touching an outside sibling (154.381612ms)
+✔ adopts and drains clone_parent writers without touching an outside sibling (146.559445ms)
+✔ adopts and drains clone_signal writers without touching an outside sibling (200.061604ms)
+✔ root child inherits neither guardian control/descriptors nor ambient credential environment (100.714285ms)
+✔ changed pinned executable between bootstrap and launch revokes the lifetime (65.928889ms)
+✔ duplicate launch and incomplete stop authorization cannot create another root or certify a drain (60.983155ms)
+✔ receipt journal failure never becomes successful cleanup authority (25.772077ms)
+✔ controller channel loss drains descendants but produces no accepted receipt (156.09573ms)
+✔ guardian crash cannot be certified by a replacement empty lifetime (48.695629ms)
+✔ oversize and out-of-order private frames fail closed before any spawn (4.304589ms)
+✔ pin and environment errors are rejected before a lifetime is created (35.760193ms)
+✔ a leader's exit does not hide live writer threads (217.833725ms)
+✔ bounded concurrent forks remain owned while drain closes the tree (151.960137ms)
+✔ owned ptrace relationships do not turn a stopped child into an empty tree (152.909574ms)
+✔ an inherited unlinked writable FD stops changing only after the owned tree drains (126.118568ms)
+✔ an exact private-frame replay acknowledges the same PID without another fork (14.850265ms)
+✔ a completed terminal helper does not revoke another active root (143.696515ms)
+✔ isolated execution is an explicit configuration mode (1.697708ms)
+﹣ actual isolated native WS protects token and same-thread CLI/history with exact wrapper identity (0.292398ms) # SKIP
+﹣ actual wrapper, monitor and host crashes terminate pinned native and release inherited lock (0.120791ms) # SKIP
+✔ one authenticated listener may finish durable startup beyond the old four-second retry window (4574.890463ms)
+✔ absolute deadline stops the one child and closes pending handshake (153.858346ms)
+✔ revocation interrupts readiness before any native initialization (103.057382ms)
+✔ deadline bounds a stalled authority fence without accepting its late completion (101.797692ms)
+✔ authority is checked again after authenticated WebSocket open (7.167611ms)
+✔ cancellation and early child exit abort readiness without relaunch (67.398467ms)
+✔ wrong authentication is a terminal handshake rejection, not a retry (4.257788ms)
+✔ enrollment is durable without clone/native; queued start waits registration then submits actual prompt once (155.383944ms)
+✔ restart recovers exact durable intent and never repeats checkout preparation or first prompt (61.95534ms)
+✔ ambiguous first prompt blocks replay without another inference (47.100264ms)
+✔ owned interrupted checkout preparation reuses verified lease without cleaning dirty edits (35.190748ms)
+✔ private journal rejects competing writer, forgery, identity changes and unknown authority (18.660201ms)
+✔ request surface rejects paths, arbitrary fields, controls, and oversized UTF8 prompts (9.269697ms)
+✔ manager checkout context is derived from registered thread and verified lease, independent of delivery task IDs (70.3909ms)
+✔ safe lease renewal keeps immutable intent and failed renewal revokes only execution (124.728668ms)
+✔ revoked execution can re-register existing history after restart without new prompt or attach (58.997796ms)
+✔ lease expiry revokes awaitingRegistration native execution without renewing or discarding history (70.481568ms)
+✔ lease expiry revokes blocked native execution without renewing or discarding history (50.694763ms)
+✔ pre-execution retry is durable, concurrent-idempotent and preserves the original first prompt (63.707405ms)
+✔ retry receipt cannot automatically retry a second failure (64.076501ms)
+✔ ready live empty native thread retries registration failure without recreating checkout or thread (46.899976ms)
+✔ retry refuses interrupted checkout/native proof (33.288003ms)
+✔ retry refuses incarnation checkout/native proof (30.708736ms)
+✔ retry refuses expired checkout/native proof (28.803504ms)
+✔ retry refuses history checkout/native proof (51.396184ms)
+✔ retry cannot reopen uncertain first prompt or accept caller execution fields (78.741121ms)
+✔ retry rejects legacy durable intent authority (35.615999ms)
+✔ retry rejects creationAttempted durable intent authority (40.950194ms)
+✔ retry rejects promptAttempted durable intent authority (50.528413ms)
+✔ retry rejects revoked durable intent authority (40.942124ms)
+✔ unavailable empty native history returns the existing blocked status without scheduling (60.285069ms)
+✔ guardian admission is durable before preparation and final binding is a separate immutable record (67.934575ms)
+✔ closing while preparation is in flight retains uncertainty and cannot enroll or start native execution (34.388301ms)
+✔ lost guardian channel persists a closed admission fence and prevents helper dispatch (19.576547ms)
+✔ a new admitted project refreshes existing generation tokens before shared helper work (88.521738ms)
+✔ closure during repository resolution cannot dispatch checkout inspection or preparation (52.332105ms)
+✔ late lease renewal after the close barrier cannot rewrite the closed controller snapshot (61.211867ms)
+✔ source input closure persists accepted context and enforces lease expiry without racing metadata lock (100.489903ms)
+✔ pre-project discovery needs no native session and persists nonce replay rejection across restart (53.056133ms)
+✔ signed pagination, exact owner/build/app and scope cannot be substituted (5.531911ms)
+✔ installed helper content replacement is rejected and never executes (18.339857ms)
+✔ loopback HTTP route admits signed discovery and rejects forged app headers/arbitrary routes (60.741465ms)
+✔ signed project operations are exact-path scoped and accept bounded escaped first-task text (24.66659ms)
+✔ retry gateway requires separate exact scope and cannot carry replacement input (13.532646ms)
+✔ a pending catalog result after closure cannot return an accepted project operation (19.918062ms)
+✔ one gateway routes registered threads with isolated histories/events and private native auth (254.085087ms)
+✔ unknown threads and wrong owners are denied before native connect; execution remains forbidden (408.192654ms)
+✔ one durable creation intent, actual first input once, persisted same-thread attach (111.661271ms)
+✔ ambiguous create survives restart and never creates a second thread (48.282909ms)
+✔ one workspace lifetime authorizes only each independently registered project's exact thread (74.744528ms)
+✔ lease expiry denies execution while durable read binding remains available (44.431555ms)
+✔ checkout absence retains durable reads while input and attach stay denied (45.149051ms)
+✔ failed helper provenance cannot authorize execution even with an otherwise current lease (30.62371ms)
+✔ ambiguous first prompt is durable, replay cannot repeat inference (60.313221ms)
+✔ native lifetime loss revokes all bindings and restart requires explicit same-thread rejoin (60.627415ms)
+✔ OS lock rejects another supervisor and private registry forgery cannot reopen (26.646009ms)
+✔ unpersisted rejoin failure is explicit and never substitutes a new thread (49.827174ms)
+✔ unknown caller fields, project substitutions, lease changes and path escapes are denied (22.930225ms)
+✔ unsupported profile/version and mismatched native thread metadata fail closed (46.614722ms)
+✔ SIGKILL releases process lock but preserves uncertain creation intent (160.649179ms)
+﹣ installed native 0.165 rejects remote CLI attachment of an empty loaded thread (0.170465ms) # SKIP
+﹣ actual native first text persists through local mock provider then same-thread CLI attaches (0.123485ms) # SKIP
+﹣ SIGKILL supervisor terminates its actual native child and permits a fresh lifetime (0.061474ms) # SKIP
+✔ registered empty thread supports first-turn manager enrollment but no premature history attach (30.104615ms)
+✔ native tool router separates request IDs and never answers approvals or arbitrary tools (10.90482ms)
+✔ router drain tracks detached observers and excludes read responses from its notification fence (18.548355ms)
+✔ a claim handler can drain others without awaiting itself or excluding a foreign same-named call (15.048685ms)
+✔ protocol one journals one private continuation and revalidates the exact claim without opening CLI admission (101.328128ms)
+✔ an ambiguous continuation start stays journaled and never sends a second native start (58.895521ms)
+✔ parallel native input and work before claim receipt retain the continuation hold (72.139079ms)
+✔ protocol-one boundary refuses unknown inventory and inconsistent full-item history (44.51624ms)
+✔ router timeout keeps the actual handler tracked until its underlying work settles (1.71171ms)
+✔ continuation rechecks registration after awaited history and again after durable start intent (118.76721ms)
+✔ registration cannot adopt an empty thread after a failed new-lifetime rejoin (49.281336ms)
+✔ installed manager observer receives exact notification methods, never approval requests (0.329988ms)
+✔ renewal failure durably fences execution, interrupts exact turn and preserves reads and other project (137.782126ms)
+✔ uncertain turn interruption stays durably revoked for review (67.179233ms)
+✔ revocation retains review hold for unknown-active native inventory (59.05341ms)
+✔ revocation retains review hold for truncated native inventory (55.738323ms)
+✔ revocation retains review hold for missing-root native inventory (56.778553ms)
+✔ pre-execution proof requires exact creation intent, loaded empty history and no first prompt (35.707463ms)
+✔ pre-execution proof cannot reinterpret uncertain creation (22.399494ms)
+✔ installed child mapping gates notifications and history by exact parent/spawn/lifetime (32.398203ms)
+✔ late mapped child after revocation is interrupted and failures retain review hold (52.816258ms)
+✔ supervisor holds process lock and native lifetime until installed observer close drains (23.250925ms)
+✔ guardian closure while a native response is pending keeps the durable creation intent uncertain (23.031706ms)
+✔ guardian close barrier revokes input before awaiting fixed owned CLI cleanup (52.213039ms)
+✔ positive manager receipt arriving after guardian closure cannot be returned to the native model (31.808287ms)
+✔ durable source barrier uses exact native history after execution closes and retains read binding (70.573955ms)
+✔ separate terminal capability rejects read scope and arbitrary RPC before launching a PTY (42.663674ms)
+✔ same terminal renews in place; replay, changed binding and revoked lease close the client (1028.152182ms)
+✔ expiry closes an otherwise idle terminal without renewal (147.382838ms)
+✔ real stdlib PTY attaches existing tmux session and client disconnect preserves the session (95.102556ms)
+✔ project input closure waits for actual helper close and fences reconnects until trusted release (43.719932ms)
+✔ signed owner capability reads the exact existing native thread and streams allowed events (35.150996ms)
+✔ wrong owner, host bindings, scope, origin, expiry, and algorithms are rejected before native access (21.129479ms)
+✔ Origin, Host, URL query credentials, and forged Coder headers do not grant access (7.221331ms)
+✔ ticket replay remains rejected after a bridge restart (8.80666ms)
+✔ active sockets close at ticket expiry (1113.950223ms)
+✔ fresh renewal extends one socket and native connection, with replay rejected (2999.454341ms)
+✔ a changed-binding renewal cannot extend the old capability deadline (1998.379409ms)
+✔ execution, model overrides, arbitrary threads, and server request responses are rejected (29.993376ms)
+✔ an unloaded thread is not resumed and unsupported native versions fail closed (18.366176ms)
+✔ duplicate IDs, malformed and oversized frames are bounded (18.898218ms)
+✔ hidden reasoning and unsupported tool payloads never reach a read client (7.761527ms)
+✔ configuration rejects public native endpoints, unsupported versions, and concurrent state owners (8.359424ms)
+✔ an incompatible native server cannot leak events before its version check (5.925483ms)
+✔ SIGKILL releases the OS lock while preserving replay rejection on automatic restart (117.66318ms)
+﹣ native 0.165 CLI and capability client share one loaded thread without inference (0.121782ms) # SKIP
+✔ application remains disabled without installed independent authority callbacks (3.359926ms)
+✔ external lifetime revocation rejects a late currentMetadata reply without releasing input (7.098295ms)
+✔ external lifetime revocation rejects a late applyReserve reply without releasing input (4.306145ms)
+✔ external lifetime revocation rejects a late applyVerify reply without releasing input (2.910477ms)
+✔ external lifetime revocation rejects a late applyCommit reply without releasing input (5.793226ms)
+✔ accepted source is synchronized in both journals before commit; only fresh applied readback releases input (6.41059ms)
+✔ commit_lost_ack retains input and physical writer hold after metadata receipt (2.77847ms)
+✔ verify_revoked retains input and physical writer hold after metadata receipt (3.204153ms)
+✔ late_native_input retains input and physical writer hold after metadata receipt (2.614546ms)
+✔ wrong_source retains input and physical writer hold after metadata receipt (2.965335ms)
+✔ fixed apply worker rejects arbitrary paths before spawning (0.361655ms)
+✔ worker deadline aborts stalled trusted callback and reaps exact child (88.149546ms)
+✔ coordinator lifetime revocation aborts and reaps its actual private FD worker (25.674582ms)
+✔ EOF and nonmonotonic worker frames cannot be treated as success (81.735302ms)
+✔ lost reserve ACK recovers after coordinator reconstruction without replacing immutable barrier or re-reserving (7.322693ms)
+✔ ambiguous reserve then not_found never infers permission to reserve again (2.221698ms)
+✔ ambiguous reserve then revoked never infers permission to reserve again (1.489468ms)
+✔ ambiguous reserve then unknown_transport never infers permission to reserve again (2.244126ms)
+✔ lost commit ACK reads original applied authority and skips a second commit after reconstruction (7.739165ms)
+✔ changed observer journal after lost reserve ACK retains original barrier and refuses helper (1.831704ms)
+﹣ actual private FD3 coordinator retry restores historical expected source after lost commit ACK (0.05439ms) # SKIP
+✔ pending source application blocks inputs while exact root/cohort factual reads remain available (3.352681ms)
+✔ read seam rejects execution methods, foreign threads, extra paths, stale generations and lost runtime (1.358288ms)
+✔ read result is discarded when application identity changes while awaiting the native response (0.379604ms)
+✔ metadata context changes alone do not reopen durable source inputs (0.430275ms)
+✔ revocation-only seam interrupts exact mapped turns during source closure, replay never releases application (2.676937ms)
+✔ collector defaults off without loading credentials or invoking a helper (4.697737ms)
+✔ actual fixed Python helper fails closed without workspace agent authority (190.942791ms)
+✔ a failed exited helper never signals its reaped numeric process group (138.92184ms)
+✔ only a signed fixed-origin challenge can invoke the fixed helper and publish its snapshot (81.882457ms)
+✔ caller producer/status/target/policy/URL injection is rejected before any request (1.956455ms)
+✔ accepted output checks bind advanced source while the physical checkout remains at its base (16.00478ms)
+✔ source-aware collection requires a fixed callback and rejects malformed independent facts (3.974598ms)
+✔ source change during collection or its acknowledgement retains the snapshot and rejects stale success (24.38379ms)
+✔ a retained source snapshot cannot be relabeled or downgraded on retry (31.221947ms)
+✔ wrong source head/nonce/registration/expired challenge never invokes helper (9.624733ms)
+✔ lease source or native lifetime changes during collection prevent publication (23.516607ms)
+✔ cross-origin redirect, excess response and excess snapshot are never signed onward (13.460088ms)
+✔ stalled injected response and stalled cancellation cannot outlive the collector deadline (4.37161ms)
+✔ lost acknowledgement recovers exact snapshot bytes after restart and reauthorizes instead of returning a cache (31.50287ms)
+✔ journal tampering and another native lifetime cannot reuse a private request (33.841261ms)
+✔ full retry journal retires only authenticated challenges beyond expiry grace (192.038901ms)
+✔ full journal preserves unexpired and grace-period bytes, including lost acknowledgements (207.293218ms)
+✔ retirement retains every file when an expired candidate has an invalid MAC (156.241475ms)
+✔ legacy journal entries without a validated challenge receipt require inspection (151.028565ms)
+✔ an unexpected FIFO is rejected without waiting for a writer or removing state (49.423855ms)
+✔ native delegation reducer matches exact parent/turn/call and never persists prompt text (1.838023ms)
+✔ default disabled, fixed configured HTTPS endpoint and exact registered native thread (5.539788ms)
+✔ informational report uses the signed manager path without creating execution or evidence authority (35.721483ms)
+✔ signed native-call journal survives adapter restart and changed-body replay conflicts (23.248575ms)
+✔ ambiguous response may replay only the same event; redirects and excessive response fail closed (13.339289ms)
+✔ protocol one advances via signed host-only boundary without resetting its native sequence or physical anchor (101.375749ms)
+✔ completion drains child observations before HTTP and retries lost ACK with immutable call/event/content identity (61.252502ms)
+✔ unknown continuation outcome retains a durable hold (47.024886ms)
+✔ controller policy rejection is never an automatic completion retry (71.366961ms)
+✔ concurrent different manager calls hold the root even if the first reservation response arrives late (29.581106ms)
+✔ automatic continuation rejects stale expiry before requesting another native turn (43.447953ms)
+✔ automatic continuation rejects stale registration before requesting another native turn (50.892783ms)
+✔ automatic continuation rejects stale context before requesting another native turn (56.113721ms)
+✔ a delayed positive claim ACK across expiry is journaled as uncertain, never returned as authority (40.20979ms)
+✔ a delayed positive claim ACK across registration is journaled as uncertain, never returned as authority (21.380185ms)
+✔ a delayed positive claim ACK across context is journaled as uncertain, never returned as authority (31.484395ms)
+✔ a delayed positive claim ACK across lifetime is journaled as uncertain, never returned as authority (36.340873ms)
+✔ delayed positive report_step ACK after expiry stays historical and cannot schedule continuation (40.82203ms)
+✔ delayed positive complete_step ACK after expiry stays historical and cannot schedule continuation (78.40562ms)
+﹣ installed native 0.165 emits a real dynamic tool call and consumes its result using only a local Responses fixture (0.258269ms) # SKIP
+✔ source protocol completes acceptedB while localA then applies only at terminal before continuation and next inputB (167.26082ms)
+✔ unexpected post-publication root command holds before apply/continuation (89.722253ms)
+✔ unexpected post-publication root spawn holds before apply/continuation (98.168624ms)
+✔ failed source apply retains the original writer and prevents new root admission (97.54818ms)
+✔ final source output applies at terminal without inventing another root turn (91.517242ms)
+✔ novel child command after publication holds while original facts retain input source (72.972658ms)
+✔ persisted source protocol cannot be silently downgraded and accepted output stays informational (63.778252ms)
+✔ a successful boolean from apply callback cannot replace verified local source agreement (87.417036ms)
+✔ accepted output cannot be completed against old input source or model-provided source context (70.571004ms)
+✔ stale source facts at terminal hold rather than invoke apply or root continuation (80.837634ms)
+✔ bounded supervisor-busy retry starts after source apply rather than consuming its budget (114.603378ms)
+✔ source application snapshot rejects pre-terminal and substituted claim scope without authority (87.314934ms)
+✔ claim receipt then exact native child facts create bounded ordered digest-only observations (87.419838ms)
+✔ private spool survives lost acknowledgement and restart; history hydration repeats no source identities (67.281053ms)
+✔ offline observations are retained and signed only after current registration returns (45.372156ms)
+✔ another native lifetime never replays old writer facts or admits a new claim (44.342029ms)
+✔ a spawn from another parent turn cannot inherit a reservation (11.139654ms)
+✔ same native item identity with changed exit/output becomes a controller conflict and keeps the writer held (57.491683ms)
+✔ partial native history and missing previous claim state fail closed (33.70916ms)
+✔ signed journal tampering is rejected rather than silently resetting source state (7.16202ms)
+✔ failed history lookup persists a reconciliation hold across restart (31.186086ms)
+✔ protocol one preserves physical anchor and old attempt attribution across a monotonic logical cursor (95.640896ms)
+✔ protocol one never promotes a spawn observed before its claim receipt (29.44112ms)
+✔ a protocol-one historical claim replay remains held despite an exact pre-send journal (16.529077ms)
+✔ unknown fresh reservation authority shape holds: {"canRun":true} (14.141908ms)
+✔ unknown fresh reservation authority shape holds: {"needsRuntimeBinding":false} (15.112163ms)
+✔ unknown fresh reservation authority shape holds: {} (19.956771ms)
+✔ unknown fresh reservation authority shape holds: {} (14.533473ms)
+✔ unknown fresh reservation authority shape holds: {"outcome":"succeeded"} (14.974129ms)
+✔ typed command work before a protocol-one claim cannot escape raw-event admission checks (7.621751ms)
+✔ default disabled creates no state or authority callbacks (3.058401ms)
+✔ seals scope and exact challenge/grant/final bytes before effects and accepts only server receipt (91.783129ms)
+✔ lost final ACK restarts from exact wire despite source/task/attempt advancement, without worker or cached success (57.555396ms)
+✔ changed operation replay or stable writer identity never reuses old authority (38.06602ms)
+✔ fresh effects reject changed admission tuple and unverified metadata (20.457524ms)
+✔ model cannot override authority or propose protected paths (4.840282ms)
+✔ server policy scope mismatch fails before private worker (13.337095ms)
+✔ journal serializes publishers and rejects hardlinked recovery files (9.724382ms)
+✔ fixed FD3 worker uses real Git preparation, then server denial kills/reaps without provider credential access (170.899703ms)
+✔ actual worker deadline cancels hung parent metadata exchange and reaps before close (319.396658ms)
+✔ journal MAC/unknown file/capacity failures retain original unresolved bytes (148.501097ms)
+✔ untrusted HTTP redirect/large/empty-chunk responses fail closed with bounded sanitized errors (46.177393ms)
+✔ a second active call cannot bypass serialized effect callbacks (3.192965ms)
+✔ post-close unknown process group is never signaled after leader reap (1036.762677ms)
+✔ unresolved helper group keeps publisher flock for outer guardian recovery (24.653915ms)
+✔ disabled client touches no credentials, filesystem, callbacks or network (2.012976ms)
+✔ fixed signed read validates current accepted facts and returns no new permissions (50.344609ms)
+✔ historical reader stays distinct; historical output cannot be used for apply (5.561685ms)
+✔ model cannot override current task, site, policy or producer in apply query (2.670895ms)
+✔ changed owner/physical binding/revision and fabricated permission bits are rejected (7.103613ms)
+✔ missing or changed current source cannot masquerade as applicable accepted output (3.935433ms)
+✔ metadata/admission drift while HTTP is outstanding invalidates response (2.018631ms)
+✔ stale or overlong fact freshness is rejected (6.615719ms)
+✔ server errors and injected credential text are sanitized (1.914926ms)
+✔ stalled response and stalled cancellation finish within bounded deadline (151.784804ms)
+✔ close aborts pending authority reads and future calls (1.19444ms)
+✔ workspace builds never execute the mutable Claude installer or resolve a release channel (1.129208ms)
+✔ notesmd-cli pin matches the independently verified vendor artifact (1.070629ms)
+✔ notesmd-cli verified download installs successfully and removes the download (22.185768ms)
+✔ notesmd-cli corrupt download fails before extraction or artifact installation (13.897826ms)
+✔ notesmd-cli failed download fails before extraction or artifact installation (9.330793ms)
+✔ act pin matches the independently verified vendor artifact (0.171889ms)
+✔ act verified download installs successfully and removes the download (20.898768ms)
+✔ act corrupt download fails before extraction or artifact installation (12.749023ms)
+✔ act failed download fails before extraction or artifact installation (11.49819ms)
+✔ kasmvnc pin matches the independently verified vendor artifact (0.176817ms)
+✔ kasmvnc verified download installs successfully and removes the download (13.595129ms)
+✔ kasmvnc corrupt download fails before extraction or artifact installation (16.210951ms)
+✔ kasmvnc failed download fails before extraction or artifact installation (10.017997ms)
+✔ claude pin matches the independently verified vendor artifact (0.236709ms)
+✔ claude verified download installs successfully and removes the download (15.243827ms)
+✔ claude corrupt download fails before extraction or artifact installation (9.909216ms)
+✔ claude failed download fails before extraction or artifact installation (6.629301ms)
+✔ cli never downloads or installs KasmVNC (6.31227ms)
+✔ infrastructure never downloads or installs KasmVNC (4.510461ms)
+✔ game rejects a tampered KasmVNC package before apt installs it (12.578913ms)
+✔ electronics rejects a tampered KasmVNC package before apt installs it (12.444251ms)
+✔ defaults to public and honors a custom schema (1.712039ms)
+✔ rejects malformed database configuration (null) (3.678096ms)
+✔ rejects malformed database configuration (invalid) (0.773093ms)
+✔ rejects malformed database configuration (file:///db) (0.610454ms)
+✔ rejects malformed database configuration (hive?schema=) (0.630196ms)
+✔ rejects malformed database configuration (a=a&schema=b) (0.630443ms)
+✔ rejects malformed database configuration (e?schema=%00) (0.531438ms)
+✔ rejects malformed database configuration (enant%22blue) (1.755694ms)
+✔ rejects malformed database configuration (0public%3B--) (0.635823ms)
+✔ rejects malformed database configuration (xxxxxxxxxxxx) (0.64732ms)
+✔ keeps untrusted schema characters outside SQL syntax (0.384384ms)
+✔ a passing preflight runs deploy afterward without putting credentials in arguments (1.485831ms)
+✔ check-only never deploys (0.601101ms)
+✔ preflight failure stops deployment and redacts child output (HIVE_MIGRATION_BASELINE_REQUIRED) (0.801694ms)
+✔ preflight failure stops deployment and redacts child output (HIVE_MIGRATION_FAILED_HISTORY) (0.450794ms)
+✔ preflight failure stops deployment and redacts child output (connection refused) (0.445594ms)
+✔ a preflight subprocess failure cannot proceed to deployment (0.566825ms)
+✔ deployment failures report only a Prisma error code (0.608189ms)
+✔ subprocess output retention is bounded (44.647717ms)
+ℹ tests 403
+ℹ suites 0
+ℹ pass 389
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 14
+ℹ todo 0
+ℹ duration_ms 22857.314522

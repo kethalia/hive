@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getRequestSession: vi.fn(),
@@ -12,12 +12,16 @@ import { LoginForm } from "@/app/login/login-form";
 import LoginPage from "@/app/login/page";
 
 describe("LoginPage session routing", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("redirects authenticated visitors to the workspace home", async () => {
     mocks.getRequestSession.mockResolvedValue({ user: { id: "user-1" } });
 
-    await LoginPage();
+    await LoginPage({});
 
     expect(mocks.redirect).toHaveBeenCalledWith("/workspaces");
   });
@@ -25,7 +29,7 @@ describe("LoginPage session routing", () => {
   it("renders the login form when no session exists", async () => {
     mocks.getRequestSession.mockResolvedValue(null);
 
-    const page = await LoginPage();
+    const page = await LoginPage({});
 
     expect(page.type).toBe(LoginForm);
     expect(mocks.redirect).not.toHaveBeenCalled();

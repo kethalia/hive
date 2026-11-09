@@ -1,0 +1,19 @@
+{"passed":false,"checks":{"authBeforeClaim":true,"oneIntentPerWake":true,"secondWakeSeparateIntent":true,"cancelledHostRetainsClaim":true,"callerAbortDidNotRevokeAcceptedWake":true,"lateEffectDurablyReconciled":true,"explicitAppDeadlineCancelledCoder":true,"changedOwnerStopsHost":true,"jobsHadNoDatabaseOrEncryptionIssuerKeys":true},"scratch":"/tmp/hive-project-reconcile-workerd-Bgmnr5"}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1 !== 0
+
+    at <anonymous> (/home/coder/projects/kethalia/hive/deploy/cloudflare/jobs/run-local-project-tasks.mjs:345:10) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

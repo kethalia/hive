@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-11-08T20:56:53.084034+00:00",
+  "scope": "read-only workspace-read rollout preparation; no app requests, template/workspace writes, installs or restarts",
+  "sourceRevision": "ef1c623cedb1f59b130833c771411f9df44eb4e1",
+  "historicalFailure": {
+    "evidence": "docs/checks/autonomous-delivery/workspace-read-live-identity-mismatch.json",
+    "observedAt": "2026-10-30T04:47:42.010723+00:00",
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "buildId": "52e45775-5965-447e-9313-3c937a9f89d8",
+    "failure": "Terraform provisional agent UUID differed from Coder persisted runtime agent UUID; signed fresh loopback request rejected403 despite valid signature/time/static identities. Agent token could not read owner workspace REST (401).",
+    "currentBlocker": false
+  },
+  "historicalAcceptance": {
+    "evidence": "docs/checks/autonomous-delivery/workspace-runtime-identity-live-e923.json",
+    "observedAt": "2026-10-30T06:36:23.943Z",
+    "workspaceId": "22c4f094-46f0-4a76-86ca-37ad74254872",
+    "buildId": "e8086875-3cf6-43ee-868e-57be6d5dfd56",
+    "templateVersionId": "f77f7373-8083-444d-8f48-c05e9a29bc20",
+    "sourceRevision": "e9230f136939e0749e0c77f85d62d91b53adae67",
+    "imageDigest": "sha256:eab0d69ad7e50a53b3f6f48f1a5d8915e91c70acd0f616f48d48126408e51962",
+    "signedIdentitySessionsCwdPaths": true,
+    "normalizedRuntimeAgentVerified": true,
+    "packageProcessAndReceiptVerified": true,
+    "readProcessNoAgentOrOwnerCredential": true,
+    "directRequests": 55,
+    "inspectionSsh": 1,
+    "currentNormalUserRolloutAcceptance": false
+  },
+  "currentRolloutGap": {
+    "canonicalReadEnabled": false,
+    "canonicalFlagSource": "Primary coordinator current deployment observation; no new deployment read in this preparation.",
+    "privateBrowserRuntimeEvidence": "/home/coder/projects/kethalia/.private-hive-generic-terminal-pilot-20261108/runtime-config-actual.json",
+    "observedRuntimeGenericTerminalEnabled": true,
+    "observedRuntimeReadTemplateCount": 0,
+    "effect": "Terminal PTY connectivity can work while the Terminal menu cannot enumerate existing sessions: portable session queries require an admitted template ID and enabled signed workspace-read service.",
+    "normalPrimaryReadConfigPresent": false,
+    "normalPrimaryConfigSource": "Primary coordinator observation; no installation or config modification performed.",
+    "normalPrimaryOrHeldNativeWorkspaceUsed": false
+  },
+  "browserReuseAssessment": {
+    "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "workspaceName": "daniel/hive-project-preview",
+    "provenance": "reused persistent; retain; browser probe remains active",
+    "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+    "createdAt": "2026-10-30T06:22:11.688933Z",
+    "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+    "templateVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d",
+    "activeVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d",
+    "versionName": "dark_patel50",
+    "buildId": "65b410c2-1894-47ce-a54d-10c46a129efe",
+    "running": true,
+    "healthy": true,
+    "connectedAgentId": "512d943b-320f-44c7-aaea-f948415b2411",
+    "hiveReadAppPresent": false,
+    "sourceProfile": "browser",
+    "sourceImage": "ghcr.io/kethalia/hive-base@sha256:988a931572cdae45f034da46094d15a3a4313c0a7cf67537ede8b1d8cbd35a52",
+    "availableParameterSchemaNames": ["enable_opencode", "username"],
+    "parameterSchemaNote": "Provider version schema only; no actual workspace parameter values were requested. No workspace-read parameter exists.",
+    "readFilesMissing": [
+      "hive-read.tf",
+      "scripts/install-workspace-read.py",
+      "scripts/install-workspace-read.sh.tftpl",
+      "scripts/hive-workspace-read.mjs",
+      "scripts/hive-workspace-read.py",
+      "assets/workspace-read.manifest.sha256",
+      "assets/workspace-read.tar.sha256",
+      "assets/workspace-read.tar.gz"
+    ],
+    "activeMainTfSha256": "93e58617d1286026d1ec92833a597674342ea34b8594dcdf1459bf41b9828cbe",
+    "repoMainTfSha256": "ce388cff703a9ef5104b292e2e65f2c8f4992abc5a1a8bc1b16840cba7e9a641",
+    "profileJsonUnchangedFromRepo": true,
+    "initScriptUnchangedFromRepo": true,
+    "otherObservedDifferences": [
+      "Current repository main.tf adds authenticated build identity and conditional bootstrap annotation/volume plumbing; active Browser lacks hive-host.tf, hive-agent.tf and hive-voice.tf too.",
+      "The active provider lockfile differs; the current repository is not a proved drop-in upgrade for this Browser workspace."
+    ],
+    "singleExistingParameterOptInPossible": false,
+    "activeVersionUpgradeWouldHelp": false,
+    "decision": "Do not build/import/upgrade Browser for this gate. Retain its live probe and current build."
+  },
+  "requiredServerSettings": {
+    "HIVE_WORKSPACE_READ_ENABLED": "true after exact test workspace is ready",
+    "HIVE_WORKSPACE_READ_PROFILES_JSON": [
+      {
+        "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+        "profile": "software",
+        "manifestSha256": "d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48"
+      }
+    ],
+    "profileScope": "Smallest software-canary mapping; add other normal-user template UUIDs only after their exact installation is accepted. Browser would require its own templateId/profile browser entry; no file-path reads for browser.",
+    "HIVE_WORKSPACE_READ_HIVE_ORIGIN": "Exact existing deployment-approved issuer origin; must equal installed hiveOrigin. Do not reuse a historical preview origin blindly.",
+    "HIVE_WORKSPACE_READ_ISSUER_KEY_ID": "Existing approved issuer key ID, identical to template hive_issuer_key_id.",
+    "HIVE_WORKSPACE_READ_ISSUER_PRIVATE_KEY": "Existing matching Ed25519 issuer secret binding; never print/export in evidence or install on host.",
+    "publicIssuer": "Corresponding public key only in template hive_issuer_public_key_pem.",
+    "rootAndHome": "/home/coder; projects root must match server configured root and installed config.",
+    "otherControls": "Retain existing owner authentication/app-cookie isolation and HIVE_GENERIC_TERMINAL_ENABLED independently; no project/native enrollment is required for independent reads."
+  },
+  "requiredTemplateAndPackage": {
+    "parameter": "enable_hive_workspace_read=true at a normal new build of a reviewed version that already contains hive-read.tf and matching bootstrap/image assets.",
+    "publicVariables": [
+      "hive_control_origin",
+      "hive_issuer_public_key_pem",
+      "hive_issuer_key_id",
+      "hive_coder_app_domain"
+    ],
+    "app": {
+      "slug": "hive-read",
+      "subdomain": true,
+      "share": "owner",
+      "url": "http://127.0.0.1:13342",
+      "agent": "exact current connected runtime agent after authenticated normalization"
+    },
+    "appAlias": "https://hive-read--main--<workspace-name>--<owner-name>.<configured-app-domain>; canonical named-app label separately verified by the identity helper.",
+    "hiveRuntimeBuildId": "Must be present in authenticated Agent RPC manifest and equal current build.",
+    "archiveSha256": "ca8dcb98e3df48d41652fd30c8be2d719123ca8294ba0a327eac4b5f83fcb94b",
+    "manifestSha256": "d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48",
+    "imageArchiveSha256": "9f6b5a19dc589754c5cc430dfe1eb38b1ba79f1e417d92749fb2de412ad4fd7e",
+    "currentInstallerSha256": "2614a265319f22280d41132db3f4e3d402e1ba8a143a82da86624d42b8d4aced",
+    "imageMatching": "Template imageInstallerSha256 and imageArchiveSha256 must equal root-owned image assets exactly; do not pair current installer source with an older image blindly.",
+    "node": "Root-owned nonwritable /usr/bin/node major24, pinned real executable/hash/device/inode.",
+    "identityHelper": "Root-owned pinned hive-workspace-identity helper; official Coder SDK v2.38.4 / Go1.26.10; exact helper bytes from approved immutable image proof.",
+    "lifecycle": "Installer records effective/bootstrap identity and exact owned PID/listener/HMAC receipt. Different live request or same-build identity change holds; no process adoption/kill or manual config rebinding.",
+    "serviceOnlyInstallWhenReadFalse": "Not sufficient: the provider app, bootstrap annotation and startup script are absent when parameter is false."
+  },
+  "laterPrimaryGoPlan": [
+    "Finish current native canary and Browser probe unchanged. Do not use native49df/868d or the primary for read installation.",
+    "Primary chooses an already reviewed software read-capable version for a later coordinated canary build or separate bounded workspace; reuse where task ownership/history permits. Preserve existing state and exact identity evidence first.",
+    "Use a normal build with read=true and exact existing public issuer variables and image/package pins. No active-template update, new token or new publisher.",
+    "Before server enablement, freshly verify current owner/build/template/unique connected agent and exact owner-only hive-read app, installed package/config/process/receipt and absence of credentials in read process.",
+    "Use existing signed WorkspaceReadClient/WorkspaceReadService for identity then sessions; an existing generic web-socket session must be present. Exercise CWD and software file/path results separately. Retain explicit missing/outside-root outcomes and owner/build recheck.",
+    "In a task-scoped existing preview/deployment configuration, enable only its approved profile mapping and retained issuer binding; verify browser runtime readTemplateIds and actual authenticated sessions discovery response. Do not widen canonical normal-user rollout before acceptance.",
+    "Browser Testing validates Terminal menu enumerates and reopens the existing named generic session on mobile and desktop. Generic PTY attachment alone does not close this gate.",
+    "Only after test acceptance, enroll normal-user template builds with the same normal supported opt-in and matching canonical profile pins; primary stays read-only until a separately coordinated build is authorized."
+  ],
+  "limitations": [
+    "No actual parameter values, owner/agent credentials, raw manifests or raw provider resource/agent metadata were printed.",
+    "No new live service acceptance is claimed. Current Browser source is incapable of the existing opt-in; no Browser upgrade was designed.",
+    "No source edits or commits; this is an untracked preparation receipt for coordinator review."
+  ]
+}

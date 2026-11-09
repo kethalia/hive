@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:57:11.558349+00:00",
+  "status": "prepared_only_no_live_preview_requests",
+  "sourceStable": true,
+  "sourceHashes": {
+    "scripts/checks/project-preview/README.md": "89d85f1db0b9ae036aaf59410bc787efcbdac5eda970ac0104fe8f12a363cea6",
+    "scripts/checks/project-preview/asset-query.json": "bfb64f96fc269eabf7b94a9fdba541d593c892179a366e568b7ac48cbbd50a08",
+    "scripts/checks/project-preview/browser.mjs": "b8edcac28bbbfccb4019204ba18dca7e55f9ae10b3dcbca95adf1527ace18533",
+    "scripts/checks/project-preview/history/fixed-budget-preparation.json": "501191f576e4026db7f4e20d6afe6f9df1d1906959f7784c5751a9a37733687f",
+    "scripts/checks/project-preview/history/fixed-budget-validation.json": "a2c80db57ef3e4372247d989166b2e01b99fe38a033d6e6f99b1e6bb619ebd35",
+    "scripts/checks/project-preview/package-lock.json": "c1caa1cd406578366b15a2ac542e4a918f155f514b15485d80b36c5832bf753b",
+    "scripts/checks/project-preview/package.json": "f9351f2c635d5f9255aa4dedbc3ec0ddb9886e27c321d98c486e052f956ca91d",
+    "scripts/checks/project-preview/policy.mjs": "50b9a10fc54a6a5a51b7aab184c5cbcbdb2b9c54413c824b2cbcd78e8a8f8c5d",
+    "scripts/checks/project-preview/policy.test.mjs": "ed4360c96afc2f6940898241c8b87411e306f21d7aa45a99e44f7cf3fe0d134c",
+    "scripts/checks/project-preview/preparation.json": "8533dfdae9a8597872ffbb8245e1603b9de09285ed7aedbe77a8357da1fd88cb",
+    "scripts/checks/project-preview/remote.py": "c289c4df0aca6af746dc3923edf2e0319a770d1b2bd979a7fc1b02cef7dd50c4",
+    "scripts/checks/project-preview/test_remote.py": "8fea7c860f6d03029d66df7aec7b3be1ba6e8d848023c16c891319a027e01644"
+  },
+  "checks": {
+    "networkPolicy": {
+      "passed": 7,
+      "command": "node --test scripts/checks/project-preview/policy.test.mjs"
+    },
+    "privateInput": {
+      "passed": 4,
+      "command": "python3 -m unittest discover -s scripts/checks/project-preview -p test_remote.py"
+    },
+    "browserPreparation": {
+      "passed": true,
+      "command": "python3 scripts/checks/project-preview/remote.py prepare",
+      "profile": "browser",
+      "chrome": "155.0.8059.79",
+      "playwright": "1.61.1",
+      "syntheticOnly": true,
+      "previewRequests": 0
+    }
+  },
+  "liveAuthorization": false,
+  "livePhaseAPassed": false,
+  "phaseBPending": true,
+  "budget": {
+    "outerHttpTotal": 200,
+    "priorForwardedSource": "required scope.priorForwarded integer0..198",
+    "confirmedPriorRootRequests": 13,
+    "remainingIncludingCleanup": 187,
+    "backendFanoutMeasured": false
+  },
+  "primaryOwnsWorkspaceCleanup": true,
+  "history": "history/fixed-budget-* preserves original frozen preparation/validation",
+  "parentFinalPolicyTestsPassed": true,
+  "finalBrowserEvidence": "docs/checks/autonomous-delivery/project-preview-browser/browser-a92-final.json",
+  "finalBrowserPhaseAPassed": true,
+  "phaseBPassed": false
+}

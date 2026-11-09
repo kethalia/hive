@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-30T06:34:09.105Z",
+  "sourceRevision": "e9230f136939e0749e0c77f85d62d91b53adae67",
+  "passed": false,
+  "stage": "projects_session_gate",
+  "outerRequests": 5,
+  "maximumOuterRequests": 8,
+  "maximumWallMilliseconds": 25000,
+  "statuses": {
+    "private_gate": 401,
+    "login_page": 200,
+    "private_asset": 401,
+    "authorized_asset": 200,
+    "projects_session_gate": 307
+  },
+  "checks": {
+    "privateGate": true,
+    "actualNextLogin": true,
+    "privateAssetGate": true,
+    "actualAsset": true
+  },
+  "realLogin": false,
+  "projectEnrollment": false,
+  "workspaceMutation": false,
+  "browserAcceptance": false,
+  "scope": "Deployment/private-gate smoke only; project/session/browser acceptance remains pending."
+}

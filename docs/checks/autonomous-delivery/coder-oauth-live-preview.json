@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-06T01:57:20.966303+00:00",
+  "applicationRevision": "bfd4d88fc7f11712062fa5707fd9010d5020cd3e",
+  "previewOrigin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+  "checks": {
+    "realCoderConsentAndCodeExchange": true,
+    "existingHiveIdentityPreserved": true,
+    "expiredAccessConcurrentRefreshSingleVersionAdvance": true,
+    "consumedCallbackReplayRejected": true,
+    "browserNativeLinkReachesCoderUnderExistingCSP": true,
+    "browserAuthenticatedWorkspaceAndReload": true,
+    "previewAccessKeyNotRequired": true,
+    "noCoderManagementCredentialTransferredToBrowser": true
+  },
+  "httpFlow": {
+    "schemaVersion": 1,
+    "sourceRevision": "70839d3272db758a2674182330038056767cac96",
+    "origin": "https://codex-delivery-system-design-hive.b00ste.workers.dev",
+    "productionChanged": false,
+    "ownerCredentialTransferred": false,
+    "checks": {
+      "oauthLoginWithoutPassword": true,
+      "fixedCoderRedirectAndBrowserCookie": true,
+      "realCoderConsentPage": true,
+      "realAuthorizationCodeExchangeAndSession": true,
+      "authenticatedWorkspacePage": true,
+      "consumedCallbackReplayRejected": true,
+      "replayPreservesExistingSession": true
+    },
+    "callbackStatus": 303,
+    "callbackReturnedToWorkspaces": true,
+    "ok": true,
+    "observedAt": "2026-11-06T01:22:05.768296+00:00",
+    "outerBudget": {
+      "used": 78,
+      "maximum": 200,
+      "remaining": 122
+    }
+  },
+  "refresh": {
+    "schemaVersion": 1,
+    "sourceRevision": "70839d3272db758a2674182330038056767cac96",
+    "productionChanged": false,
+    "expiryStimulatedOnlyInIsolatedPreview": true,
+    "ok": true,
+    "bothConcurrentRequestsAuthenticated": true,
+    "singleCredentialVersionAdvance": true,
+    "freshAccessStored": true,
+    "refreshGrantReturnedToIdle": true,
+    "sameHiveUserAndSessionCount": true,
+    "noManagedKeyFallback": true,
+    "observedAt": "2026-11-06T01:26:20.297347+00:00",
+    "outerBudget": {
+      "used": 80,
+      "maximum": 200,
+      "remaining": 120
+    }
+  },
+  "browser": {
+    "schemaVersion": 1,
+    "passed": true,
+    "checks": {
+      "oauthLinkWithoutCredentialInputs": true,
+      "continueNavigatesToFixedCoderHost": true,
+      "authenticatedWorkspaceAndReload": true,
+      "noCoderCredentialTransferred": true,
+      "readOnlyNetworkBoundary": true
+    },
+    "hiveRequests": 53,
+    "coderRequests": 0,
+    "observedAt": "2026-11-06T01:54:48.141615+00:00",
+    "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "buildId": "52d2a37b-195d-4dd0-ac82-8e91b9fac234",
+    "driverSHA256": "b5c99e7f97a027a6aa28b6901e49f96564d5422e61d5385b15243937d9df780f",
+    "sourceRevision": "bfd4d88fc7f11712062fa5707fd9010d5020cd3e",
+    "preflightBudgetPreserved": {
+      "used": 188,
+      "maximum": 200,
+      "remaining": 12
+    },
+    "acceptanceBudget": {
+      "maximumHiveRequests": 100,
+      "maximumCoderRequests": 40
+    }
+  },
+  "browserNetworkCounterScope": "Route-handler counters exclude automatic redirect-chain requests; final top-level Coder destination is independently observed. These are not global egress counters.",
+  "browserAuthenticationScope": "Browser validates anonymous Coder navigation, then injects only the Hive test-account app session from the real HTTP OAuth exchange for workspace reload. Provider consent/code exchange ran on primary; no Coder credential entered Browser Testing.",
+  "syntheticCSPRegression": {
+    "schemaVersion": 1,
+    "allRequestsIntercepted": true,
+    "realUpstreamRequests": 0,
+    "chrome": "155.0.8059.79",
+    "results": [
+      {
+        "mode": "form",
+        "blocked": true,
+        "coderRequests": 0,
+        "reachedCoder": false
+      },
+      {
+        "mode": "anchor",
+        "blocked": false,
+        "coderRequests": 1,
+        "reachedCoder": true
+      }
+    ]
+  },
+  "productionActivated": false,
+  "productionOAuthEnrollmentOnly": "Separate client registered; provider login and route activation remain cutover gates.",
+  "fullManagerChildClosureValidated": false
+}

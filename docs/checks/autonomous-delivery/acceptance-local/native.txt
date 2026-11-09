@@ -1,0 +1,16 @@
+✔ controller creates a separate configured evaluator and archives exact terminal thread (2.325011ms)
+✔ native configuration drift or unexpected tool output cannot become acceptance (0.720361ms)
+✔ cancellation retains a held exact turn and never retries inference (0.431906ms)
+✔ unknown producer/config fields cannot enable evaluation (0.675096ms)
+✔ pinned legacy null-phase final message still requires exact terminal turn (1.281351ms)
+✔ actual pinned native evaluator uses readonly permissions and no shell/collaboration tools (1977.935106ms)
+✔ actual manager cannot contaminate an evaluator result through incoming send_message (2302.599316ms)
+✔ unexpected observed or persisted input never yields an acceptance receipt (1.884773ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4383.579512

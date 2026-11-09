@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "58aa07af-3717-455e-927f-a0e839374b33",
+  "task": "hive-epic-template-validation",
+  "method": "installed signed hive-workspace complete/cleanup",
+  "result": "deleted; absent from fresh owner workspace list",
+  "persistentTestWorkspaceRetained": true
+}

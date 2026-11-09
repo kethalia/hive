@@ -1,0 +1,17 @@
+
+ RUN  v3.2.4 /home/coder/projects/kethalia/hive
+
+ ✓ src/__tests__/lib/delivery/acceptance-review.integration.test.ts (3 tests) 1565ms
+   ✓ independent acceptance candidate review > binds exact accepted blob bytes and records only independent review evidence  721ms
+   ✓ independent acceptance candidate review > prepares a real accepted zero-byte blob without inventing source content  400ms
+   ✓ independent acceptance candidate review > rejects modified content, omitted files and host-selected replacement manifest  443ms
+ ✓ src/__tests__/lib/delivery/acceptance-service.integration.test.ts (4 tests) 655ms
+ ✓ src/__tests__/lib/delivery/acceptance-store.integration.test.ts (4 tests) 211ms
+ ✓ src/__tests__/lib/delivery/acceptance-contracts.test.ts (5 tests) 12ms
+ ✓ src/__tests__/lib/delivery/acceptance-config.test.ts (2 tests) 6ms
+
+ Test Files  5 passed (5)
+      Tests  18 passed (18)
+   Start at  07:05:15
+   Duration  3.76s (transform 375ms, setup 0ms, collect 730ms, tests 2.45s, environment 1ms, prepare 185ms)
+

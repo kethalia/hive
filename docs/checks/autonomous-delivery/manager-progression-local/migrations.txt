@@ -1,0 +1,22 @@
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_delivery_test", schema "public" at "127.0.0.1:43811"
+
+22 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": PostgreSQL database "hive_progression_upgrade_final", schema "public" at "127.0.0.1:43811"
+
+22 migrations found in prisma/migrations
+
+Applying migration `20261029110000_delivery_manager_progression`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20261029110000_delivery_manager_progression/
+    └─ migration.sql
+
+All migrations have been successfully applied.
