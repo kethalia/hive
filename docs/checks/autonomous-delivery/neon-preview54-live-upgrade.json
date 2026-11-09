@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "dafc88145a1278047f50ec3c263102bd167c7816",
+  "reviewedHead": "a8bbbde78c92ee08a5eb6f72e1c708bc4b83f53a",
+  "ciRun": 42536241666,
+  "ciChecksPassed": 13,
+  "completedAt": "2026-11-09T00:08:33.166834+00:00",
+  "scope": "existing two Preview databases only; no production change",
+  "migrationName": "20261108060000_unused_bootstrap_predecessor",
+  "migrationSha256": "9f504bc816e91f8352c6607f7c393ac33228ab1091b4b294a37c454103251113",
+  "preparedManifestSha256": "a8ed0e32d7473a9a973977a35a419683499c20f2b5e13259c5b289e398f7931d",
+  "databases": {
+    "hive_app_preview": {
+      "migrations": 54,
+      "tables": 72,
+      "applicationRows": 7,
+      "prior53FullHistoryPreserved": true,
+      "allOriginalColumnsAndRowsPreserved": true,
+      "runtimeGrantsAndRoleSchemaAttributesPreserved": true,
+      "nativeIsolationPreserved": true,
+      "runtimeIntegrityFunctionUnchanged": true,
+      "existingPredecessorValuesAllNull": true,
+      "backupBytes": 457150,
+      "backupSha256": "9bd14c3403c925db570de148e6402ccdcf383bb3f573ca3f11ee95e941ebe747",
+      "freshBackupFullyDecoded": true
+    },
+    "hive_native_preview": {
+      "migrations": 54,
+      "tables": 72,
+      "applicationRows": 85,
+      "prior53FullHistoryPreserved": true,
+      "allOriginalColumnsAndRowsPreserved": true,
+      "runtimeGrantsAndRoleSchemaAttributesPreserved": true,
+      "nativeIsolationPreserved": true,
+      "runtimeIntegrityFunctionUnchanged": true,
+      "existingPredecessorValuesAllNull": true,
+      "backupBytes": 516815,
+      "backupSha256": "67489c44e46ebc58f30758129a59b64b161e7a43de91f83e55e411e348afea02",
+      "freshBackupFullyDecoded": true
+    }
+  },
+  "preflightCorrections": {
+    "initialNeonApiIdsMistakenForPostgresOids": true,
+    "postgresOidJsonExplicitlyCastToBigint": true,
+    "neonProjectBranchEndpointAndApiDatabaseIdsIndependentlyVerified": true,
+    "priorFailedPreparationsPreserved": true,
+    "failedPreflightsMadeBackupOrSchemaChanges": false
+  },
+  "nativeTaskRetryOrAuthorityIssued": false,
+  "productionAccepted": false
+}

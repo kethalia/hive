@@ -294,18 +294,25 @@ See the [reference audit](checks/autonomous-delivery/account-connections-roadmap
 
 ## Immediate next task
 
-Current frontier (November8): PR429–PR434 are integrated into the epic. Combined F05
-empty-root revalidation and F06 production-evidence-bound cleanup pass independent local
-cleanup→retained history→remount→next-task checks and full CI/current-head review.
-The reviewed immutable image is installed on the retained original20Gi pilot volume;
-its current build is connected and ready. Canonical owner retry progressed through
-predecessor retirement and new-runtime enrollment, then held before native execution.
-The enrolled runtime's authority has expired; a narrowly scoped, auditable continuation
-of that same unused recovery passed CI and review. Both Preview databases are upgraded
-through migration53, preserving all7/72 rows and original history/grants. Mobile menu
-routing and scoped GitHub discovery pass actual browser checks. Live ordinary terminal
-attachment, same-task recovery, shared-thread acceptance and account maintenance
-remain gates. The historical checkpoints below are not current installed acceptance.
+Current frontier (November9): PR441–PR443 are integrated into the epic after full
+CI and current-head review. Strictly unused OPEN projects survive a build change
+through signed root enrollment; exact token replay, lost committed ACK/readback,
+generation2 and used-history rejection pass independent real C-host/PostgreSQL
+composition. Provider/device/path observations in that local proof are simulated.
+A durable predecessor-build fence blocks delayed authority writers. Both Preview
+databases are on migration54 with rows, prior history, grants and isolation preserved.
+Fresh production capture restores and upgrades through54 locally; original encryption
+key validation and synthetic current-cookie checks pass. Historical session continuity
+and final cutover remain unproven.
+
+Mobile project discovery and actual ordinary terminal transport/normal exit are accepted.
+Codex in-app device sign-in is accepted on the dedicated4Gi runtime; PR443 adds the
+Accounts window, whose deployed desktop/mobile check remains. The same software
+workspace is stopped with its home/auth/history retained. Reviewed CLI image publication,
+inactive template installation, preserved-task retry and the real manager/child/evaluator
+flow are next. Shared-thread views, safe completed-task cleanup, Claude/maintenance,
+durable background service parity and production release acceptance remain gates.
+See the [execution ledger](checks/autonomous-delivery/progress.md) for exact evidence.
 
 The unnecessary custom publisher and setup-token requests have been removed. The existing
 Cloudflare Workers Builds integration remains the single deployment path for the epic branch.

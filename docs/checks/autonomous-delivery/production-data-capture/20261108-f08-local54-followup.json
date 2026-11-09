@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "status": "local_f08_migration54_followup_passed",
+  "date": "2026-11-08",
+  "scope": "Only reviewed additive migration54 applied to the existing newly-owned F08 local fixture on127.0.0.1:55439; no network/provider/Neon/production/public-app/browser requests.",
+  "sourceCommit": "dafc88145a1278047f50ec3c263102bd167c7816",
+  "runtimeHeadVerifiedDescendant": "a8bbbde78c92ee08a5eb6f72e1c708bc4b83f53a",
+  "preparedSourceManifestSha256": "a234ac1de25c26a61d297e38b561ce9d613fa66676938695cee4e2fe5c7859af",
+  "migration": {
+    "name": "20261108060000_unused_bootstrap_predecessor",
+    "sha256": "9f504bc816e91f8352c6607f7c393ac33228ab1091b4b294a37c454103251113",
+    "finishedMigrations": 54,
+    "allChecksumsMatchPreparedSource": true,
+    "old53FullMigrationRecordsUnchanged": true
+  },
+  "originalData": {
+    "applicationRowsUnchanged": 81,
+    "originalTablesAndColumnFingerprintsMatched": 8,
+    "originalSevenMigrationRecordsIncluded": true,
+    "publicTables": 73,
+    "totalRows": 135
+  },
+  "newSchema": {
+    "column": {
+      "type": "uuid",
+      "nullable": true,
+      "hasDefault": false
+    },
+    "constraint": {
+      "definition": "CHECK (((unused_bootstrap_predecessor_build_id IS NULL) OR (unused_bootstrap_predecessor_build_id <> build_id)))",
+      "validated": true
+    },
+    "index": {
+      "definition": "CREATE INDEX guardian_unused_bootstrap_predecessor ON public.codex_guardian_runtimes USING btree (owner_id, workspace_id, unused_bootstrap_predecessor_build_id) WHERE (unused_bootstrap_predecessor_build_id IS NOT NULL)",
+      "valid": true,
+      "ready": true
+    },
+    "existingRuntimeRows": 0,
+    "existingNonNullPredecessors": 0
+  },
+  "localIdentity": {
+    "ownedPriorFixtureManifestVerified": true,
+    "fixtureDatabaseOwner": "coder",
+    "serverVersion": "17.11",
+    "host": "127.0.0.1",
+    "port": 55439,
+    "exactPostmasterSystemIdAndFixtureOidOwnerUnchanged": true,
+    "sharedServerNotStoppedOrReinitialized": true,
+    "globalRoleAttributesAndProtectedOtherDatabaseMetadataUnchanged": true
+  },
+  "preservation": {
+    "original53ReceiptSha256": "fead33509d70d21fdea521a7b55ae18fe729481589a2b322e46197e1ec538856",
+    "original53ArchiveSha256": "61bcfff4061f9fa5114ec67cde8f3360f81445dec986cb801b57fcb5304b70cd",
+    "bothUnchanged": true,
+    "originalPrivateKeysAndPartialCapturesRetained": true,
+    "cryptoOrCookieTestsRepeated": false
+  },
+  "upgraded54Archive": {
+    "bytes": 903356,
+    "sha256": "a57a25c773ca914ac860f88e77d7e06155ecf64cef7b35dc75c68af72bd4f339",
+    "fullyDecodedOffline": true,
+    "tableDefinitions": 73,
+    "tableDataSections": 73,
+    "entries": 637,
+    "secondRestorePerformed": false
+  },
+  "privateEvidence": {
+    "directory": "/home/coder/projects/kethalia/.private-hive-f08-refresh-capture-20261108/local54",
+    "directoryMode": "0700",
+    "fileModes": "0600",
+    "artifactManifestSha256": "f13b05165dd371e6f6ea9ef8496b15c3f121f7f581deb778b4b7b12a260a4d98",
+    "rowsUrisCredentialValuesOrKeyFingerprintsPublished": false
+  },
+  "limits": [
+    "Additive schema/data-preservation follow-up only; previous53 restore/crypto/cookie proof remains separate and unchanged.",
+    "The captured source contains zero managed runtime rows, so predecessor population/runtime lifecycle behavior is not demonstrated by this data fixture. Reviewed separate migration54 composition supplies its own evidence.",
+    "Upgraded54 archive fully decoded offline; no second restore, global-role/owner/ACL/CONNECT/PITR proof, final maintenance-boundary capture, or cutover claimed."
+  ],
+  "commitOrPush": false
+}
