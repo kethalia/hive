@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { PrismaClient } from "@hive/db";
+import { type Prisma, PrismaClient } from "@hive/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { acceptAgentEvent, dispatchAgentEvents } from "@/lib/push/agent-events";
 import { agentEventsRoute } from "@/lib/push/agent-events-route";
@@ -240,15 +240,19 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
     let settled = false;
     let lateQueryCompleted = false;
     let transactionCount = 0;
-    const transaction = db.$transaction.bind(db);
-    const observedTransactions = vi
-      .spyOn(db, "$transaction")
-      .mockImplementation(async (operation, options) => {
+    const observedDb = {
+      $queryRaw: db.$queryRaw.bind(db),
+      $executeRaw: db.$executeRaw.bind(db),
+      $transaction: async (
+        operation: (tx: Prisma.TransactionClient) => Promise<unknown>,
+        options?: { timeout?: number; maxWait?: number },
+      ) => {
         if (++transactionCount === 2) expect(lateQueryCompleted).toBe(true);
-        return transaction(operation, options);
-      });
+        return db.$transaction(operation, options);
+      },
+    } as unknown as PrismaClient;
     const dispatch = dispatchAgentEvents(
-      db,
+      observedDb,
       async (_ownerId, _payload, signal) => {
         entered();
         if (signal.aborted) aborted();
@@ -264,19 +268,15 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
       return result;
     });
     try {
-      try {
-        await sendEntered;
-        await abortObserved;
-        expect(settled).toBe(false);
-      } finally {
-        finish();
-      }
-      expect((await dispatch).retry).toBe(1);
-      expect(transactionCount).toBe(2);
-      expect((await rows())[0].status).toBe("pending");
+      await sendEntered;
+      await abortObserved;
+      expect(settled).toBe(false);
     } finally {
-      observedTransactions.mockRestore();
+      finish();
     }
+    expect((await dispatch).retry).toBe(1);
+    expect(transactionCount).toBe(2);
+    expect((await rows())[0].status).toBe("pending");
   });
   it("keeps the source backlog bounded while existing identical callbacks remain replayable", async () => {
     await fixture();

@@ -101,7 +101,7 @@
       "passed": 1,
       "failed": 0,
       "includedInExistingPostgresqlCallbackOutbox": true,
-      "testOnlyCorrection": "Wait for actual sender entry and the real 5ms abort signal before releasing gated late database work. Observe the second real transaction and require the late SELECT to complete before settlement. No fixed pre-admission sleep.",
+      "testOnlyCorrection": "Wait for actual sender entry and the real 5ms abort signal before releasing gated late database work. An isolated observer facade delegates real queries/transactions and requires the late SELECT to complete before settlement. It never replaces Prisma client methods. No fixed pre-admission sleep.",
       "localFixtureAdaptation": "Temporary copy changed only database-name guard and unused fallback to the newly owned F07 fixture. Production source and test assertions unchanged. Temporary copy removed after validation.",
       "independentDrainRemovalMutationRejected": true
     }
@@ -149,6 +149,6 @@
     "package.json": "8faf97fe00ed54ecaa13c073d398e20e4611e6c8a5b3cdaea55c613f3a126500",
     "src/lib/push/bounded-send.ts": "9cb948033d6aafb3f419f20ac77aeec608cdc061ccf47691df7c40bcc51d4b85",
     "src/__tests__/push/bounded-send.test.ts": "ef18778907bb29cb307027ab45f0f2634b7ff83228928d7c1a4189361fdcbada",
-    "src/__tests__/push/agent-events.integration.test.ts": "19e51129cebdfd8a1e3abc9bd9f622aace9bf9fb639ad9e62ec06f93dc77a474"
+    "src/__tests__/push/agent-events.integration.test.ts": "873f6b14f99453163fd5b3f134efde4feb627d51ab2b849ce252cd0f3f064783"
   }
 }
