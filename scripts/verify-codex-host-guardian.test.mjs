@@ -83,6 +83,7 @@ function fixture(
     applications = false,
     installerConfig = null,
     idle = false,
+    admitFirstOnly = false,
     authorityRegression = false,
   } = {},
 ) {
@@ -120,7 +121,13 @@ import {spawn,execFileSync} from 'node:child_process';
 import {writeFileSync,existsSync} from 'node:fs';
 ${installerConfig ? `import {createServer} from 'node:http'; const server=createServer((req,res)=>{res.writeHead(200);res.end('ok')});await new Promise(r=>server.listen(${listenPort},'127.0.0.1',r));` : ""}
 const guard=await connectGuardianWorker({${startup ? `startup:{configSha256:'${mismatch ? "d".repeat(64) : configSha}',port:${listenPort}},` : ""}onLost:()=>{},onFinishClose:async()=>{},onCloseAdmission:async value=>{let rejected=false;try{guard.assertAdmission(token)}catch{rejected=true};writeFileSync(${JSON.stringify(barrier)},JSON.stringify({...value,executionRejected:rejected}));${rejectBarrier ? "throw new Error('fixture_barrier_failure');" : ""}return {closed:true,barrierId:value.barrierId,snapshots:value.projects.map(p=>({projectId:p.projectId}))}}});
-${idle ? "let token=null;" : `let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);`}
+${
+  idle
+    ? "let token=null;"
+    : admitFirstOnly
+      ? `let token=null;if(!existsSync(${JSON.stringify(marker)})){token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);}`
+      : `let token=await guard.admit(${JSON.stringify(project)});token=await guard.executionFence(token);guard.assertAdmission(token);`
+}
 ${
   authorityRegression
     ? `
@@ -326,6 +333,49 @@ test("closed empty startup retains raw outer history through interrupted factual
   assert.deepEqual(readFileSync(join(f.options.stateDirectory, archive)), before);
   await next.idleShutdown();
 });
+test("closed empty startup preserves a completed admitted predecessor and uses only the latest actual C lifetime", async (t) => {
+  const f = fixture(t, { startup: true, admitFirstOnly: true });
+  f.allow();
+  const first = await f.open(),
+    path = join(f.options.stateDirectory, "lifetime.json");
+  await until(() => first.state.guardian.projects.length === 1);
+  const priorReceipt = await first.drain(),
+    prior = JSON.parse(readFileSync(path));
+  assert.equal(priorReceipt.projects.length, 1);
+  assert.ok(prior.state.events.some((event) => event.name === "admissionAccepted"));
+  let second, third;
+  try {
+    second = await openGuardedHost(f.options);
+    const receipt = await second.drain(),
+      before = readFileSync(path),
+      saved = JSON.parse(before);
+    assert.deepEqual(receipt.projects, []);
+    assert.notEqual(receipt.lifetimeId, priorReceipt.lifetimeId);
+    assert.equal(saved.state.receipts.length, 2);
+    assert.deepEqual(saved.state.events.slice(0, prior.state.events.length), prior.state.events);
+    let calls = 0;
+    third = await openGuardedHost({
+      ...f.options,
+      bindingDigest: "d".repeat(64),
+      canIdleShutdown: async () => true,
+      prepareClosedEmptyLifetime: async (facts) => {
+        calls++;
+        assert.deepEqual(facts.receipt, receipt);
+        return { archived: true };
+      },
+    });
+    assert.equal(calls, 1);
+    const archive = readdirSync(f.options.stateDirectory).find((name) =>
+      /^lifetime-empty-[a-f0-9]{64}\.json$/.test(name),
+    );
+    assert.deepEqual(readFileSync(join(f.options.stateDirectory, archive)), before);
+    await third.idleShutdown();
+  } finally {
+    for (const current of [second, third])
+      if (current && current.state.phase !== "closed") await current.abort();
+  }
+});
+
 for (const mutation of [
   "receiptBinding",
   "startupLifetime",
@@ -333,6 +383,8 @@ for (const mutation of [
   "indeterminate",
   "missingClosed",
   "unknown",
+  "foreignCurrentReceipt",
+  "lateBegin",
 ]) {
   test(`closed empty startup rejects ${mutation} before invoking factual archival`, async (t) => {
     const f = fixture(t, { idle: true, startup: true });
@@ -346,12 +398,20 @@ for (const mutation of [
     if (mutation === "receiptBinding") exited.value.bindingDigest = "f".repeat(64);
     if (mutation === "startupLifetime") startup.value.lifetimeId = randomUUID();
     if (mutation === "unknown")
-      saved.state.events.unshift({ name: "unknown", value: {}, at: Date.now() });
+      saved.state.events.splice(1, 0, { name: "unknown", value: {}, at: Date.now() });
     if (mutation === "used")
-      saved.state.events.unshift({ name: "admissionIntent", value: {}, at: Date.now() });
+      saved.state.events.splice(1, 0, { name: "admissionIntent", value: {}, at: Date.now() });
     if (mutation === "indeterminate")
-      saved.state.events.unshift({ name: "indeterminate", value: {}, at: Date.now() });
+      saved.state.events.splice(1, 0, { name: "indeterminate", value: {}, at: Date.now() });
     if (mutation === "missingClosed") saved.state.events.at(-1).name = "unknown";
+    if (mutation === "foreignCurrentReceipt")
+      saved.state.receipts.push({ ...saved.state.receipts[0], lifetimeId: randomUUID() });
+    if (mutation === "lateBegin")
+      saved.state.events.splice(saved.state.events.length - 2, 0, {
+        name: "begin",
+        value: {},
+        at: Date.now(),
+      });
     saved.signature = createHmac("sha256", readFileSync(join(f.options.stateDirectory, "key")))
       .update(JSON.stringify(saved.state))
       .digest("hex");

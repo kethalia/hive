@@ -7,22 +7,22 @@
     "12157f4996c7ce11f806e84e07a3d41dab89ddec"
   ],
   "package": {
-    "manifestSha256": "7c3029e30d6332f9e21b1c1a989c3f422d0cbe2b2439c432bae0c6b2e7b9bc9d",
-    "rawArchiveSha256": "c2c059ffe23bca2252622deaeeaccbb2bc8248a8ca159b2c21219f4134d1d2ba",
+    "manifestSha256": "8f2ab255804a1ab03861f34d4e1681c9764330e147c12f4026703d9f007bac2e",
+    "rawArchiveSha256": "a23b876f329db6430266f610217a58093135e31ed5c422a202c36368dfac8da8",
     "sourceFiles": {
-      "codex-guardian-controller.mjs": "9df331f91d1e774c239c6965e049e0318d504b23d11a0c0c471f674de90993cc",
+      "codex-guardian-controller.mjs": "cb15f117ff010eb9de217fcb2f7f2e758bcd8c9aa29275384e3d0726fab82355",
       "codex-project-controller.mjs": "43c8477a4e27c7e9ebed65f63a895b7cd69fb53033a4b54826afd8057e7367b7",
-      "codex-host-guardian.mjs": "7d22b480fd2c7aae3fd6768781e5cce71ba4e2aec9e649a1e80b97b3b66e9631",
+      "codex-host-guardian.mjs": "256519ed33bce47ce2f05757828033c07788d52ca35b6c9bc1a9a583b5c11a47",
       "codex-workspace-host-outer.mjs": "dc31193170a26c66efaee2ac2e0e1fc8035cc08c02cfbccb4d92b241aa36a035",
-      "codex-empty-root.mjs": "8aa35dc9955c6b42c00f3814de5e51b6c3818d9feabc0d7383d9d220b41a8413"
+      "codex-empty-root.mjs": "0c9fa5da197a536ec4298955efa8d3d5ed5dc5d9f90043260d8c1759e6c484e5"
     }
   },
-  "compressedArchiveBytes": 223032,
+  "compressedArchiveBytes": 223820,
   "implementation": {
     "normalEnrollmentAck": "Atomically retain exact original signed enrollment frame and committed original180second epoch before clearing pending.",
     "ownerClose": "Require original valid issuer owner-empty-close grant, recorded acceptance within its original deadline, gen1 unused enrollment facts and existing no-native checks.",
-    "closedHistory": "Persist exact zero-admission ECHILD receipt and existing database tree_closed ACK. Archive original raw outer, controller, project envelope and managed-root facts.",
-    "manualRebuild": "Under existing outer flock validate exact closed event sequence and old/new config issuer/workspace continuity. Reset only prior project barrier/lifetime/process fields and preserve every ordinary OPEN. Use existing previousEnrollment remount and fresh enrollment.",
+    "closedHistory": "Persist the existing database tree_closed ACK and exact zero-admission ECHILD receipt. Capture a current mapping or independently authenticated retained same-device mapping. Rootless plain enrollment preserves factual closure without creating archive eligibility.",
+    "manualRebuild": "Under the existing outer flock validate the latest exact closed lifetime segment and current receipt while retaining every authenticated predecessor. Validate old/new config issuer/workspace continuity, archive raw history and reset only prior project barrier/lifetime/process fields. Existing previousEnrollment remount authority is unchanged.",
     "automaticRollover": false,
     "newWireAction": false,
     "newEndpoint": false,
@@ -32,7 +32,7 @@
   },
   "checks": {
     "hostControllerProjectRetirementRecoveryTransferDiscovery": {
-      "passed": 264,
+      "passed": 280,
       "failed": 0,
       "skipped": 0
     },
@@ -50,13 +50,20 @@
       "failed": 0
     },
     "outerClosedEmptyStartup": {
-      "passed": 7,
-      "failed": 0
+      "passed": 10,
+      "failed": 0,
+      "includes": "Actual admitted predecessor then actual unused current lifetime, exact full raw journal retention, current-segment unknown/used/indeterminate and foreign-receipt/late-begin denial."
     },
     "generatedMirrorsAndPolicy": {
       "identicalProfiles": 5,
       "publishedPredecessorTuplesUnchanged": 9,
       "finalNewTuples": 1
+    },
+    "installedRecoveryOwnedPostgres": {
+      "passed": 8,
+      "failed": 0,
+      "scenario": "All eight existing installed recovery scenarios with actual C/FD3/controller/service/PostgreSQL. Canonical no-root expired_empty case preserves factual closure and rejects archive eligibility.",
+      "localIsolation": "Only the copied test database-name guard/fallback and subprocess filename target the previously owned D12 fixture on existing17.11server127.0.0.1:55439. Production guards and original test cases remain unchanged. Other databases and global roles were untouched."
     }
   },
   "actualLocalProof": {
@@ -113,7 +120,8 @@
     "run.ts": "f4df131f8036cf27ae53426d1d48396034f2c4c1d23ae27e675cd570584d3418",
     "result.json": "7b639ec289c9695b6c298c40c88ebd9733988838bcdf3c46ce870381680ccda2",
     "fresh-startup-checkpoint.json": "52f77f22504ae1d9b22b5965624298d87877edc238684e2809bb79e2bae03c09",
-    "cleanup-proof.json": "82f14654eb8611e9369167101c2c2e6e1ed08403a887d102f89ccbe2a0d69e64"
+    "cleanup-proof.json": "82f14654eb8611e9369167101c2c2e6e1ed08403a887d102f89ccbe2a0d69e64",
+    "installed-suite-combined-private.log": "ac2a2d9a75537cebcd2a20aaebb392463626e28c68d75347e2c29fcad99d9091"
   },
   "fixtureLimits": [
     "Synthetic Coder/provider and owner identities",
@@ -147,7 +155,7 @@
       "codex-empty-root.mjs": "8aa35dc9955c6b42c00f3814de5e51b6c3818d9feabc0d7383d9d220b41a8413"
     }
   },
-  "finalDeltaQualification": "The real180second actual C/PostgreSQL full-chain proof used unchanged265bd173/bd6f52f1. Final package differs only by recognized lost-ACK diagnostic validation/preservation, opened-archive-only16MiB read cap with exact preflight, and generated assets/policy. Focused and full regressions validate those corrections. The real-time cycle was not repeated for these validators.",
+  "finalDeltaQualification": "The real180second actual C/PostgreSQL full-chain proof used265bd173/bd6f52f1 and remains historical source evidence. Final source additionally includes optional-root factual-close compatibility, cryptographically verified retained same-device mapping with post-ACK physical revalidation, latest-lifetime journal scoping, and the diagnostic/archive-bound corrections. Separate final actual C multi-lifetime tests, eight installed recovery cases, and actual Python HMAC/history/identity regressions validate these changes. The complete real-time cycle was not repeated on this final package.",
   "archiveBounds": {
     "originalProjectFileMiB": 4,
     "idleArchiveMiB": 4,
@@ -159,5 +167,29 @@
     "Recognized lost-ACK enrollmentFailure diagnostic retained unchanged only on factual recovery path. Unknown fields/categories or invalid elapsed bounds remain rejected.",
     "Opened raw archive expansion is bounded and preflighted before resetting. Valid signed padded input replays, original and idle input bounds are unchanged."
   ],
-  "independentReview": "Corrected canonical source and both unchanged independent reproductions passed. Final generated mirrors/package consistency independently reviewed."
+  "independentReview": "Root and NativeRetry source reviews are clear for optional-root compatibility, retained-mapping proof and post-ACK identity guards, and current-lifetime journal scoping. Final generated consistency is checked before publication.",
+  "priorReviewedPackage": {
+    "manifestSha256": "7c3029e30d6332f9e21b1c1a989c3f422d0cbe2b2439c432bae0c6b2e7b9bc9d",
+    "rawArchiveSha256": "c2c059ffe23bca2252622deaeeaccbb2bc8248a8ca159b2c21219f4134d1d2ba",
+    "sourceFiles": {
+      "codex-guardian-controller.mjs": "9df331f91d1e774c239c6965e049e0318d504b23d11a0c0c471f674de90993cc",
+      "codex-project-controller.mjs": "43c8477a4e27c7e9ebed65f63a895b7cd69fb53033a4b54826afd8057e7367b7",
+      "codex-host-guardian.mjs": "7d22b480fd2c7aae3fd6768781e5cce71ba4e2aec9e649a1e80b97b3b66e9631",
+      "codex-workspace-host-outer.mjs": "dc31193170a26c66efaee2ac2e0e1fc8035cc08c02cfbccb4d92b241aa36a035",
+      "codex-empty-root.mjs": "8aa35dc9955c6b42c00f3814de5e51b6c3818d9feabc0d7383d9d220b41a8413"
+    }
+  },
+  "historicalMappingLimit": "A mapping token retained from an earlier lifetime requires matching current physical root identity at closure, archive and replay. Device change holds this historical-mapping branch. The current-enrollment mapping branch retains its existing behavior.",
+  "unitFixtureIsolation": "Controller-unit mapping state uses a fully signed private physical-root/HMAC fixture and matching issuer-signed enrollment frame. Actual Python history and identity checks execute without initial global process inventory. A separate initial Python-root positive passed alone, then unrelated nondumpable fixture actors exposed shared-primary inventory limits during parallel execution. Production inspection guards remain unchanged.",
+  "ciAndReviewCorrections": {
+    "failedHead": "a30ec4c671837e83f0b7f5d5b677c6d2eaaa380c",
+    "failedCheck": "Migration preflight / PostgreSQL",
+    "failedRunUrl": "https://github.com/kethalia/hive/actions/runs/42564671762/job/128988483072",
+    "cause": "Supported enrollment omitted optional emptyRoot; unconditional new root-history capture broke its existing factual tree closure.",
+    "automatedReview": [
+      "Retained prior mapping may outlive a plain current enrollment on unchanged physical volume. Verify its issuer/scope/owner/workspace/root anchor and bounded authenticated startup/config template proof independently of the current grant.",
+      "Completed authenticated predecessors remain raw history. Scope zero-admission closure checks to the latest begin and its exact current receipt."
+    ],
+    "postAckRecheck": "Historical mapping is physically revalidated at ACK, archive and replay. Same-device requirement is explicit."
+  }
 }

@@ -420,30 +420,32 @@ async function openJournal(
           saved.state.receipts.at(-1)?.projects?.length === 0 &&
           typeof prepareClosedEmptyLifetime === "function"
         ) {
-          const exited = saved.state.events.at(-2),
-            closed = saved.state.events.at(-1),
+          // Completed predecessors remain authenticated history. Only the
+          // latest lifetime segment can authorize this empty closure.
+          const events = saved.state.events.slice(
+              saved.state.events.findLastIndex((event) => event.name === "begin"),
+            ),
+            exited = events.at(-2),
+            closed = events.at(-1),
             receipt = exited?.value,
             prior = saved.state.receipts.at(-1),
-            startup = [...saved.state.events]
-              .reverse()
-              .find((event) => event.name === "startupReady")?.value;
+            startup = events.find((event) => event.name === "startupReady")?.value;
           check(exited?.name === "treeExited" && closed?.name === "closed" && receipt && startup);
           const { guardianExited: _ignored, ...preExit } = receipt;
           check(
-            saved.state.receipts.length === 1 &&
-              JSON.stringify(saved.state.events.map((event) => event.name)) ===
-                JSON.stringify([
-                  "begin",
-                  "ready",
-                  "launchIntent",
-                  "open",
-                  "startupReady",
-                  "closing",
-                  "workerClosed",
-                  "receipt",
-                  "treeExited",
-                  "closed",
-                ]) &&
+            JSON.stringify(events.map((event) => event.name)) ===
+              JSON.stringify([
+                "begin",
+                "ready",
+                "launchIntent",
+                "open",
+                "startupReady",
+                "closing",
+                "workerClosed",
+                "receipt",
+                "treeExited",
+                "closed",
+              ]) &&
               receipt.guardianExited === true &&
               receipt.finalWaitResult === "ECHILD" &&
               receipt.scope === "managed_native_tree_only" &&
@@ -452,6 +454,8 @@ async function openJournal(
               receipt.projects.length === 0 &&
               receipt.decisions.length === 0 &&
               receipt.bindingDigest === saved.state.bindingDigest &&
+              events[0].value.lifetimeId === receipt.lifetimeId &&
+              events[0].value.bindingDigest === receipt.bindingDigest &&
               receipt.lifetimeId === startup.lifetimeId &&
               startup.phase === "open" &&
               startup.generation === 1 &&
@@ -461,7 +465,7 @@ async function openJournal(
               closed.value.receiptId === receipt.receiptId &&
               closed.value.lifetimeId === receipt.lifetimeId &&
               JSON.stringify(preExit) === JSON.stringify(prior) &&
-              !saved.state.events.some((event) =>
+              !events.some((event) =>
                 ["admissionIntent", "admissionAccepted", "indeterminate"].includes(event.name),
               ),
           );

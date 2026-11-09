@@ -1725,6 +1725,132 @@ export function openGuardianController({
     );
     return claims;
   }
+  // Historical mapping is evidence, never a new enrollment or deadline. Its
+  // private startup/config history supplies the template absent from the JWT.
+  function retainedMappingConfig(claims) {
+    const names = readdirSync(stateDirectory).filter(
+      (name) =>
+        name === "lifetime.json" ||
+        /^lifetime-(?:empty|idle|bootstrap)-[a-f0-9]{64}\.json$/.test(name) ||
+        /^lifetime-(?:unused|unstarted)-[a-f0-9-]{36}\.json$/.test(name),
+    );
+    check(names.length > 0 && names.length <= 256);
+    const journalKey = privateRead(join(stateDirectory, "key"), 32);
+    check(journalKey.length === 32);
+    const matches = [];
+    for (const name of names) {
+      const raw = privateRead(join(stateDirectory, name)),
+        saved = JSON.parse(raw),
+        mac = createHmac("sha256", journalKey).update(JSON.stringify(saved.state)).digest("hex");
+      check(
+        hex(saved.signature) && timingSafeEqual(Buffer.from(saved.signature), Buffer.from(mac)),
+      );
+      if (/^lifetime-(?:empty|idle|bootstrap)-/.test(name))
+        check(name.endsWith(`${sha(raw)}.json`));
+      check(Array.isArray(saved.state.events) && saved.state.events.length <= 1024);
+      for (const event of saved.state.events)
+        if (event.name === "startupReady" && event.value?.lifetimeId === claims.lifetimeId)
+          matches.push(event.value);
+    }
+    check(matches.length > 0 && matches.every((v) => same(v, matches[0])));
+    const startup = matches[0];
+    check(
+      startup.phase === "open" &&
+        startup.generation === 1 &&
+        startup.projects?.length === 0 &&
+        startup.bindingDigest === claims.bindingDigest &&
+        hex(startup.configSha256) &&
+        hex(startup.packageManifestSha256),
+    );
+    const raw = privateRead(
+        join(
+          home,
+          ".local/state/hive/codex-host-install/config-history",
+          `${startup.configSha256}.json`,
+        ),
+        16384,
+      ),
+      old = JSON.parse(raw);
+    check(
+      sha(raw) === startup.configSha256 &&
+        sha(
+          JSON.stringify({
+            schemaVersion: 1,
+            configSha256: startup.configSha256,
+            packageManifestSha256: startup.packageManifestSha256,
+          }),
+        ) === claims.bindingDigest &&
+        ["ownerId", "workspaceId", "templateId", "hiveUserId", "coderOrigin"].every(
+          (k) => old.binding?.[k] === config.binding[k],
+        ) &&
+        ["hiveOrigin", "issuerKeyId", "issuerPublicKeyPem"].every((k) => old[k] === config[k]) &&
+        old.binding.buildId === claims.buildId &&
+        old.binding.agentId === claims.agentId &&
+        old.binding.appId === claims.appId &&
+        old.guardianEnabled === true &&
+        old.nativeIsolationEnabled === true,
+    );
+  }
+  function validateClosureRoot(root, history, lifetimeId) {
+    check(root?.complete);
+    const original = JSON.parse(
+      Buffer.from(history.originalEnrollment.grant.split(".")[1], "base64url"),
+    );
+    if (Object.hasOwn(original, "emptyRoot")) {
+      check(
+        root.enrollmentToken === history.originalEnrollment.grant && root.lifetimeId === lifetimeId,
+      );
+      return;
+    }
+    const token = root.enrollmentToken;
+    check(typeof token === "string" && token.length <= 16384);
+    const parts = token.split(".");
+    check(parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)));
+    const header = JSON.parse(Buffer.from(parts[0], "base64url")),
+      claims = JSON.parse(Buffer.from(parts[1], "base64url"));
+    check(
+      exact(header, ["alg", "typ", "kid"]) &&
+        header.alg === "EdDSA" &&
+        header.typ === "JWT" &&
+        header.kid === config.issuerKeyId &&
+        verify(
+          null,
+          Buffer.from(`${parts[0]}.${parts[1]}`),
+          issuer,
+          Buffer.from(parts[2], "base64url"),
+        ) &&
+        claims.iss === config.hiveOrigin &&
+        claims.aud === "hive:workspace-guardian" &&
+        claims.scope === "workspace:guardian:enroll" &&
+        claims.hiveUserId === config.binding.hiveUserId &&
+        claims.coderOwnerId === config.binding.ownerId &&
+        claims.workspaceId === config.binding.workspaceId &&
+        [claims.jti, claims.runtimeId, claims.buildId, claims.lifetimeId].every(uuid) &&
+        Number.isSafeInteger(claims.iat) &&
+        Number.isSafeInteger(claims.exp) &&
+        claims.exp > claims.iat &&
+        claims.exp - claims.iat <= 60 &&
+        claims.iat * 1000 <= history.receipt.enrolledAt &&
+        claims.lifetimeId === root.lifetimeId &&
+        claims.lifetimeId !== lifetimeId,
+    );
+    const anchor = claims.emptyRoot,
+      marker = JSON.parse(root.markerRaw).record,
+      record = JSON.parse(root.rootRaw).record;
+    check(
+      anchor?.schemaVersion === 1 &&
+        anchor.purpose === "empty-managed-root" &&
+        same(marker.receipt.anchor, anchor) &&
+        marker.receipt.enrollmentToken === token &&
+        anchor.currentVolume?.lifetimeId === claims.lifetimeId &&
+        anchor.currentVolume.buildId === claims.buildId &&
+        anchor.currentVolume.volumeDigest === digest(anchor.currentVolume.volume) &&
+        anchor.records?.root === sha(root.rootRaw) &&
+        same(anchor.identities?.root, root.identity) &&
+        record.path === join(home, "projects/.hive-managed"),
+    );
+    retainedMappingConfig(claims);
+  }
   function archiveController(receipt, empty) {
     check(
       receipt?.guardianExited === true &&
@@ -1798,12 +1924,16 @@ export function openGuardianController({
             closed.acknowledgement.cleanupAuthorized === false &&
             closed.acknowledgement.barrierId === receipt.workerBarrier.barrierId &&
             closed.root.complete &&
-            same(closed.root, readEmptyRootHistory(home)) &&
-            closed.root.enrollmentToken === history.originalEnrollment.grant &&
-            closed.root.lifetimeId === current.lifetimeId &&
+            same(
+              closed.root,
+              readEmptyRootHistory(home, {
+                current: closed.root.enrollmentToken !== history.originalEnrollment.grant,
+              }),
+            ) &&
             receipt.projects.length === 0 &&
             receipt.decisions.length === 0,
         );
+        validateClosureRoot(closed.root, history, current.lifetimeId);
         const close = emptyCloseClaims(
           current.expiredEmptyDrain.grant,
           current,
@@ -1932,11 +2062,14 @@ export function openGuardianController({
         receipt.lifetimeId === state.lifetimeId &&
         receipt.generation === state.generation,
     );
-    const root = readEmptyRootHistory(home);
-    check(
-      root.enrollmentToken === history.originalEnrollment.grant &&
-        root.lifetimeId === state.lifetimeId,
+    const enrollmentClaims = JSON.parse(
+      Buffer.from(history.originalEnrollment.grant.split(".")[1], "base64url"),
     );
+    const mapped = Object.hasOwn(enrollmentClaims, "emptyRoot"),
+      root = readEmptyRootHistory(home, { current: !mapped, optional: !mapped });
+    // No root history still permits factual closure, never archive eligibility.
+    if (!root) return;
+    validateClosureRoot(root, history, state.lifetimeId);
     const closure = {
       receipt: structuredClone(receipt),
       acknowledgement: structuredClone(response),
