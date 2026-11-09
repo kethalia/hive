@@ -19,15 +19,24 @@
     "cpu_ms": 100
   },
   "durable_objects": {
-    "bindings": [{ "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" }]
+    "bindings": [
+      { "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" },
+      { "name": "HIVE_AGENT_NOTIFICATION_WAKE", "class_name": "AgentNotificationWake" }
+    ]
   },
-  "migrations": [{ "tag": "project-task-wake-v1", "new_sqlite_classes": ["ProjectTaskWake"] }],
+  "migrations": [
+    { "tag": "project-task-wake-v1", "new_sqlite_classes": ["ProjectTaskWake"] },
+    { "tag": "agent-notification-wake-v1", "new_sqlite_classes": ["AgentNotificationWake"] }
+  ],
   "vars": {
     "HIVE_NATIVE_MODE": "bootstrap"
   },
   "previews": {
     "durable_objects": {
-      "bindings": [{ "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" }]
+      "bindings": [
+        { "name": "HIVE_PROJECT_TASK_WAKE", "class_name": "ProjectTaskWake" },
+        { "name": "HIVE_AGENT_NOTIFICATION_WAKE", "class_name": "AgentNotificationWake" }
+      ]
     },
     "placement": {
       "region": "aws:us-east-1"
@@ -41,6 +50,7 @@
       "HIVE_PROJECT_DISCOVERY_ENABLED": "true",
       "HIVE_PROJECT_TASKS_ENABLED": "true",
       "HIVE_PROJECT_TASK_WAKE_ENABLED": "false",
+      "HIVE_AGENT_NOTIFICATION_WAKE_ENABLED": "false",
       "HIVE_DELIVERY_ENABLED": "true",
       "HIVE_CODEX_GATEWAY_ENABLED": "true",
       "HIVE_DELIVERY_DISPATCH_ENABLED": "false",

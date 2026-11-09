@@ -21,33 +21,37 @@ export async function claimDurablePush(
   ownerId: string,
   limit = 1,
   leaseMs = 120000,
+  exactId: string | null = null,
 ): Promise<DurablePushClaim[]> {
   tables.parse(table);
   z.string().uuid().parse(ownerId);
+  z.string().uuid().nullable().parse(exactId);
   z.number().int().min(1).max(20).parse(limit);
   z.number().int().min(30000).max(300000).parse(leaseMs);
   return db.$transaction(
     async (tx) => {
       await tx.$executeRawUnsafe(
         `WITH exhausted AS (
-      SELECT id FROM ${table} WHERE owner_id=$1::uuid AND channel='push'
+      SELECT id FROM ${table} WHERE owner_id=$1::uuid AND channel='push' AND ($3::uuid IS NULL OR id=$3::uuid)
         AND status IN ('pending','processing') AND attempts>=5 AND next_attempt_at<=clock_timestamp()
       ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT $2
     ) UPDATE ${table} item SET status='failed' FROM exhausted WHERE item.id=exhausted.id`,
         ownerId,
         limit,
+        exactId,
       );
       return tx.$queryRawUnsafe<DurablePushClaim[]>(
         `WITH candidates AS (
-      SELECT id FROM ${table} WHERE owner_id=$1::uuid AND channel='push'
+      SELECT id FROM ${table} WHERE owner_id=$1::uuid AND channel='push' AND ($3::uuid IS NULL OR id=$3::uuid)
         AND status IN ('pending','processing') AND attempts<5 AND next_attempt_at<=clock_timestamp()
       ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT $2
     ) UPDATE ${table} item SET status='processing',attempts=item.attempts+1,
-      next_attempt_at=clock_timestamp()+$3*interval '1 millisecond'
+      next_attempt_at=clock_timestamp()+$4*interval '1 millisecond'
       FROM candidates WHERE item.id=candidates.id
       RETURNING item.id,item.owner_id AS "ownerId",item.event_id AS "eventId",item.attempts AS attempt`,
         ownerId,
         limit,
+        exactId,
         leaseMs,
       );
     },

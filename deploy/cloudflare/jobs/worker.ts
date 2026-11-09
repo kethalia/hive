@@ -2,6 +2,8 @@ import { getDb } from "@hive/db";
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { dispatchTokenWarnings, sendTokenWarning } from "../../../src/lib/auth/rotation-notices";
 import { dispatchNotificationBatch, sendDeliveryPush } from "../../../src/lib/delivery/dispatch";
+import { withAgentWakeEnvironment } from "../../../src/lib/push/agent-event-wake.server";
+import type { AgentWakeEnvironment } from "../../../src/lib/push/agent-event-wake-contracts";
 import { dispatchAgentEvents } from "../../../src/lib/push/agent-events";
 import { sendBoundedPush } from "../../../src/lib/push/bounded-send";
 import {
@@ -15,7 +17,8 @@ import {
   type TemplatePublicationEnvironment,
 } from "./template-publications";
 
-type Environment = TemplatePublicationEnvironment &
+type Environment = AgentWakeEnvironment &
+  TemplatePublicationEnvironment &
   ProjectTaskEnvironment & {
     DATABASE_URL?: string;
     HIVE_DELIVERY_DISPATCH_ENABLED?: string;
@@ -103,17 +106,20 @@ export async function dispatchScheduled(env: Environment) {
             )
           : Promise.resolve(undefined),
         env.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED === "true"
-          ? dispatchAgentEvents(
-              db,
-              (ownerId, payload, signal) =>
-                sendBoundedPush(
-                  db,
-                  ownerId,
-                  payload,
-                  env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
-                  signal,
-                ),
-              { enabled: true },
+          ? withAgentWakeEnvironment(env, () =>
+              dispatchAgentEvents(
+                db,
+                (ownerId, payload, signal, deadline) =>
+                  sendBoundedPush(
+                    db,
+                    ownerId,
+                    payload,
+                    env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+                    signal,
+                    deadline,
+                  ),
+                { enabled: true },
+              ),
             )
           : Promise.resolve(undefined),
       ]);

@@ -418,3 +418,42 @@ test("durable task wake is default-off and accepts only its exact same-Worker SQ
     assert.throws(() => validateConfig(value));
   }
 });
+
+test("agent notification wake is default-off with exact metadata-only same-Worker enrollment and retained disablement", () => {
+  assert.equal(config.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_ENABLED, "false");
+  assert.equal(config.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON, undefined);
+  const enabled = clone();
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_ENABLED = "true";
+  assert.throws(() => validateConfig(enabled));
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_EVENTS_ENABLED = "true";
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED = "true";
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON = JSON.stringify({
+    ownerId: "11111111-1111-4111-8111-111111111111",
+    sourceId: "22222222-2222-4222-8222-222222222222",
+    eventKey: "exact-event_1",
+  });
+  assert.doesNotThrow(() => validateConfig(enabled));
+  for (const mutation of [
+    (c) => {
+      c.previews.durable_objects.bindings[1].script_name = "foreign";
+    },
+    (c) => {
+      c.migrations[1].new_classes = ["AgentNotificationWake"];
+    },
+    (c) => {
+      const scope = JSON.parse(c.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON);
+      scope.payload = "private";
+      c.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_EVENT_JSON = JSON.stringify(scope);
+    },
+    (c) => {
+      c.previews.vars.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED = "false";
+    },
+  ]) {
+    const invalid = structuredClone(enabled);
+    mutation(invalid);
+    assert.throws(() => validateConfig(invalid));
+  }
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_WAKE_ENABLED = "false";
+  enabled.previews.vars.HIVE_AGENT_NOTIFICATION_DISPATCH_ENABLED = "false";
+  assert.doesNotThrow(() => validateConfig(enabled));
+});

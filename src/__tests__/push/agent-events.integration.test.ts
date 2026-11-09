@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { PrismaClient } from "@hive/db";
+import { type Prisma, PrismaClient } from "@hive/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { acceptAgentEvent, dispatchAgentEvents } from "@/lib/push/agent-events";
 import { agentEventsRoute } from "@/lib/push/agent-events-route";
@@ -229,12 +229,37 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
     const pending = new Promise<void>((resolve) => {
       finish = resolve;
     });
+    let entered!: () => void;
+    const sendEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let aborted!: () => void;
+    const abortObserved = new Promise<void>((resolve) => {
+      aborted = resolve;
+    });
     let settled = false;
+    let lateQueryCompleted = false;
+    let transactionCount = 0;
+    const observedDb = {
+      $queryRaw: db.$queryRaw.bind(db),
+      $executeRaw: db.$executeRaw.bind(db),
+      $transaction: async (
+        operation: (tx: Prisma.TransactionClient) => Promise<unknown>,
+        options?: { timeout?: number; maxWait?: number },
+      ) => {
+        if (++transactionCount === 2) expect(lateQueryCompleted).toBe(true);
+        return db.$transaction(operation, options);
+      },
+    } as unknown as PrismaClient;
     const dispatch = dispatchAgentEvents(
-      db,
-      async () => {
+      observedDb,
+      async (_ownerId, _payload, signal) => {
+        entered();
+        if (signal.aborted) aborted();
+        else signal.addEventListener("abort", aborted, { once: true });
         await pending;
         await db.$queryRaw`SELECT 1`;
+        lateQueryCompleted = true;
         return "delivered";
       },
       { enabled: true, sendMs: 5 },
@@ -242,10 +267,15 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
       settled = true;
       return result;
     });
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(settled).toBe(false);
-    finish();
+    try {
+      await sendEntered;
+      await abortObserved;
+      expect(settled).toBe(false);
+    } finally {
+      finish();
+    }
     expect((await dispatch).retry).toBe(1);
+    expect(transactionCount).toBe(2);
     expect((await rows())[0].status).toBe("pending");
   });
   it("keeps the source backlog bounded while existing identical callbacks remain replayable", async () => {

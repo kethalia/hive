@@ -8,6 +8,8 @@ import {
 } from "../../../src/lib/projects/reconcile-transport";
 import { withTaskWakeEnvironment } from "../../../src/lib/projects/task-wake.server";
 import type { TaskWakeEnvironment } from "../../../src/lib/projects/task-wake-contracts";
+import { withAgentWakeEnvironment } from "../../../src/lib/push/agent-event-wake.server";
+import type { AgentWakeEnvironment } from "../../../src/lib/push/agent-event-wake-contracts";
 import { isAgentNotificationCallback } from "./agent-notifications";
 import { type AutomaticHealthEnvironment, automaticWorkerHealth } from "./automatic-health";
 import { genericTerminalPath } from "./generic-terminal-relay";
@@ -44,7 +46,8 @@ import { isPortableTemplatePublication } from "./template-publications";
 import { type TerminalPasteEnvironment, terminalPastePath } from "./terminal-paste-runtime";
 import { type VoiceEnvironment, voicePath, voiceRuntime } from "./voice-runtime";
 
-type Environment = TaskWakeEnvironment &
+type Environment = AgentWakeEnvironment &
+  TaskWakeEnvironment &
   AutomaticHealthEnvironment &
   ProjectRelayEnvironment &
   GenericTerminalEnvironment &
@@ -116,8 +119,10 @@ export function createAppWorker(
       if (projectReconcilePath(request)) {
         return runProjectTaskReconciliation(request, env, context, (tracked) =>
           env.HIVE_PROJECT_TASK_WAKE_ENABLED === "true"
-            ? withTaskWakeEnvironment(env, () => framework.fetch(request, env, tracked))
-            : framework.fetch(request, env, tracked),
+            ? withTaskWakeEnvironment(env, () =>
+                withAgentWakeEnvironment(env, () => framework.fetch(request, env, tracked)),
+              )
+            : withAgentWakeEnvironment(env, () => framework.fetch(request, env, tracked)),
         );
       }
       const privateAccess = requiresPreviewAccess(env);
@@ -265,8 +270,10 @@ export function createAppWorker(
       return privatePreviewResponse(
         await runRequestLifetime(database, context, (tracked) =>
           env.HIVE_PROJECT_TASK_WAKE_ENABLED === "true"
-            ? withTaskWakeEnvironment(env, () => framework.fetch(request, env, tracked))
-            : framework.fetch(request, env, tracked),
+            ? withTaskWakeEnvironment(env, () =>
+                withAgentWakeEnvironment(env, () => framework.fetch(request, env, tracked)),
+              )
+            : withAgentWakeEnvironment(env, () => framework.fetch(request, env, tracked)),
         ),
       );
     },
