@@ -54,19 +54,33 @@
     ],
     "rawHistoryRootAndSyntheticAuthBytesUnchanged": true,
     "allFixtureChildrenReaped": true,
-    "recordedProcessesGone": true
+    "recordedProcessesGone": true,
+    "trackedUnusedOpenChain": {
+      "testName": "two unused OPEN retirements preserve both raw histories and the third-build proposal",
+      "builds": 3,
+      "unusedRetirements": 2,
+      "retainedOpenProjects": 1,
+      "rawOuterArchivesRetained": 2,
+      "rawProjectArchivesRetained": 2,
+      "thirdBuildProposalValid": true,
+      "historyDigestAdvances": true,
+      "originalRootAndSyntheticAuthBytesUnchanged": true,
+      "realCompiledGuardianAndWorker": true,
+      "parentChangeProjected": true
+    }
   },
   "limits": {
     "fixtureProcessInventory": "Test-only descendant projection includes dedicated subreaper, outer, C guardian, worker and transient helpers. Unrelated primary process universe excluded. Every selected actor uses canonical kernel inspection.",
     "fixturePackageMetadataSynthetic": true,
     "fixtureOpenMetadataSynthetic": true,
     "fixtureAuthSentinelSynthetic": true,
-    "previousCoverageGap": "Prior composition used retained startup or kept its parent alive and missed detached parent exit. Existing multi-restart test does not cover OPEN unused-bootstrap chains.",
+    "previousCoverageGap": "Prior composition used retained startup or kept its parent alive and missed detached parent exit. The tracked installer-exit regression and separate three-build OPEN chain now cover these local scenarios.",
     "fullInventorySetupFailuresPreserved": [
       "Unrelated primary process inspection unavailable in bound primary proc universe",
       "Unprivileged private proc mount unsupported"
     ],
-    "installedFullRuntimeAcceptance": "Pending image rollout and independent live discovery verification"
+    "installedFullRuntimeAcceptance": "Pending image rollout and independent live discovery verification",
+    "chainFixture": "The three-build OPEN chain uses the existing fixture-only root-capture process projection and projects only the current outer parent change. Actual Python installer detach/exit and loopback discovery are exercised by the separate installed fixture."
   },
   "checks": {
     "hostSuitesPassed": 173,
@@ -77,7 +91,8 @@
     "fixturePythonAst": true,
     "gitDiffCheck": true,
     "typecheck": true,
-    "localClientRegeneratedFromPinnedSchemaBeforeTypecheck": true
+    "localClientRegeneratedFromPinnedSchemaBeforeTypecheck": true,
+    "additionalTrackedUnusedOpenChainPassed": 1
   },
   "artifacts": {
     "packageManifestSha256": "fe3c0b3dff83cbb37bfbce49cfa73f2ac8e753c9c9b1ef6986b4f03b848b6fe0",
@@ -94,6 +109,7 @@
   "privateEvidence": {
     "evidence.json": "020ff30b73e589123051fe75a850ac19e3019be2ce4557a42faab447cd81c7fe",
     "evidence.json.idle.json": "d49b83633798ea676464b09773ec2f66b914a5f37b848ba8ba9ad6fa7ac1d603",
-    "evidence.json.unused-bootstrap.json": "b3619ff82174c7e9e747a077d1b4f4ffb1ed3c4b405c24827f34704651fdeecd"
+    "evidence.json.unused-bootstrap.json": "b3619ff82174c7e9e747a077d1b4f4ffb1ed3c4b405c24827f34704651fdeecd",
+    "openChainTestOutputSha256": "0553644d3272304416eb1a85334183044795b2e6322f64b94de814643f8578f4"
   }
 }
