@@ -238,6 +238,15 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
       aborted = resolve;
     });
     let settled = false;
+    let lateQueryCompleted = false;
+    let transactionCount = 0;
+    const transaction = db.$transaction.bind(db);
+    const observedTransactions = vi
+      .spyOn(db, "$transaction")
+      .mockImplementation(async (operation, options) => {
+        if (++transactionCount === 2) expect(lateQueryCompleted).toBe(true);
+        return transaction(operation, options);
+      });
     const dispatch = dispatchAgentEvents(
       db,
       async (_ownerId, _payload, signal) => {
@@ -246,6 +255,7 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
         else signal.addEventListener("abort", aborted, { once: true });
         await pending;
         await db.$queryRaw`SELECT 1`;
+        lateQueryCompleted = true;
         return "delivered";
       },
       { enabled: true, sendMs: 5 },
@@ -254,14 +264,19 @@ describe.skipIf(!url)("portable agent callbacks / actual PostgreSQL", () => {
       return result;
     });
     try {
-      await sendEntered;
-      await abortObserved;
-      expect(settled).toBe(false);
+      try {
+        await sendEntered;
+        await abortObserved;
+        expect(settled).toBe(false);
+      } finally {
+        finish();
+      }
+      expect((await dispatch).retry).toBe(1);
+      expect(transactionCount).toBe(2);
+      expect((await rows())[0].status).toBe("pending");
     } finally {
-      finish();
+      observedTransactions.mockRestore();
     }
-    expect((await dispatch).retry).toBe(1);
-    expect((await rows())[0].status).toBe("pending");
   });
   it("keeps the source backlog bounded while existing identical callbacks remain replayable", async () => {
     await fixture();
