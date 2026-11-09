@@ -11,6 +11,7 @@ import {
 } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -24,6 +25,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
+import {
+  initializeEmptyRoot,
+  inspectEmptyRoot,
+  readEmptyRootHistory,
+} from "../templates/ai-dev-k8s/scripts/codex-empty-root.mjs";
 import {
   guardianCanonical as canonical,
   GUARDIAN_CONTROLLER_POLICY_DIGEST,
@@ -99,6 +105,7 @@ function fixture({
     applicationRequest,
     applicationPhase = "pending",
     closeReply,
+    enrollmentReceipt,
     transportHook,
     closureTransport;
   const reply = async (body, result) => {
@@ -131,6 +138,24 @@ function fixture({
         ),
       );
       calls.push(body);
+      if (body.action === "enroll") {
+        const claims = JSON.parse(Buffer.from(body.grant.split(".")[1], "base64url")),
+          enrolledAt = Date.now();
+        enrollmentReceipt ??= {
+          accepted: true,
+          runtimeId,
+          runtimeGeneration: 1,
+          grantId: claims.jti,
+          tokenDigest: sha(body.grant),
+          consumptionDigest: digest({ ...body, proof }),
+          identityDigest: claims.identityDigest,
+          lifetimeId: startup.lifetimeId,
+          configSha256: startup.configSha256,
+          startupDigest: claims.startupDigest,
+          enrolledAt,
+          authorityUntil: enrolledAt + 180000,
+        };
+      }
       if (
         closureTransport &&
         (body.action.startsWith("epic_") || body.action.startsWith("cleanup_"))
@@ -168,7 +193,7 @@ function fixture({
         const original = body.originalEnrollment;
         assert.equal(body.consumptionDigest, digest(original));
         assert.equal(body.tokenDigest, sha(original.grant));
-        const enrolledAt = Date.now() - 60000;
+        const enrolledAt = mode === "expired" ? Date.now() - 180001 : enrollmentReceipt.enrolledAt;
         return Response.json({
           accepted: true,
           empty: true,
@@ -183,11 +208,10 @@ function fixture({
           configSha256: body.configSha256,
           startupDigest: body.startupDigest,
           enrolledAt,
-          authorityUntil: mode === "expired" ? Date.now() - 1 : Date.now() + 60000,
+          authorityUntil: enrolledAt + 180000,
         });
       }
-      if (body.action === "enroll")
-        return Response.json({ accepted: true, runtimeId, runtimeGeneration: 1 });
+      if (body.action === "enroll") return reply(body, structuredClone(enrollmentReceipt));
       if (body.action === "drain_ready")
         return Response.json({ ready: false, runtimeId, runtimeGeneration: generation });
       if (body.action === "close") {
@@ -398,6 +422,15 @@ function fixture({
         bindingDigest: startup.bindingDigest,
         identityDigest: digest({ identity: p.identity, binding: { ...binding, projects: [] } }),
         startupDigest: digest(p.startup),
+        ...(p.emptyRoot
+          ? {
+              emptyRoot: {
+                proposalDigest: digest(p.emptyRoot),
+                currentVolume: { lifetimeId: startup.lifetimeId },
+                records: { root: p.emptyRoot.root.newRecordSha256, projects: {} },
+              },
+            }
+          : {}),
         ...patch,
       },
       body = Buffer.from(JSON.stringify(claims)).toString("base64url");
@@ -609,6 +642,112 @@ test("fresh nonce identity and one-use issuer grant use real Ed25519 domains and
     f.close();
   }
 });
+test("normal enrollment ACK atomically retains its exact signed request and original epoch", async (t) => {
+  const f = fixture();
+  try {
+    f.identity();
+    const path = join(f.options.stateDirectory, "controller.json");
+    let original, response;
+    f.onTransport((request, reply) => {
+      if (request.action !== "enroll") return;
+      const pending = JSON.parse(readFileSync(path)).state;
+      assert.equal(pending.enrollmentReceipt, undefined);
+      assert.equal(pending.pending.action, "enroll");
+      original = structuredClone(pending.pending);
+      response = structuredClone(reply);
+    });
+    await f.client.bootstrap(f.grant());
+    const state = JSON.parse(readFileSync(path)).state,
+      history = state.enrollmentReceipt;
+    assert.deepEqual(history.originalEnrollment, original);
+    assert.equal(state.pending, null);
+    assert.equal(state.hold, false);
+    for (const [field, value] of Object.entries(history.receipt))
+      assert.equal(value, response[field], field);
+    assert.equal(history.receipt.consumptionDigest, digest(original));
+    assert.equal(history.receipt.tokenDigest, sha(original.grant));
+    assert.equal(history.receipt.authorityUntil, history.receipt.enrolledAt + 180000);
+    await assert.rejects(f.client.requestExpiredEmptyDrain(f.closeGrant()));
+    t.mock.method(Date, "now", () => history.receipt.authorityUntil + 1);
+    await assert.rejects(
+      f.client.requestExpiredEmptyDrain(f.closeGrant({ workspaceId: randomUUID() })),
+    );
+    assert.equal(await f.client.requestExpiredEmptyDrain(f.closeGrant()), true);
+    assert.deepEqual(JSON.parse(readFileSync(path)).state.enrollmentReceipt, history);
+    assert.deepEqual(
+      f.calls.map((call) => call.action),
+      ["enroll"],
+    );
+  } finally {
+    f.close();
+  }
+});
+test("a legacy short ACK retains pending enrollment until factual readback supplies epoch facts", async () => {
+  const f = fixture();
+  try {
+    f.identity();
+    f.onTransport((request, response) => {
+      if (request.action !== "enroll") return;
+      for (const field of Object.keys(response))
+        if (!["accepted", "runtimeId", "runtimeGeneration"].includes(field)) delete response[field];
+    });
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    const path = join(f.options.stateDirectory, "controller.json"),
+      held = JSON.parse(readFileSync(path)).state;
+    assert.equal(held.runtimeId, null);
+    assert.equal(held.hold, true);
+    assert.equal(held.enrollmentRecovery, undefined);
+    await f.client.identity("b".repeat(64));
+    const recovered = JSON.parse(readFileSync(path)).state;
+    assert.deepEqual(recovered.enrollmentRecovery.originalEnrollment, held.pending);
+    assert.equal(recovered.pending, null);
+    assert.equal(recovered.enrollmentRecovery.receipt.consumptionDigest, digest(held.pending));
+    assert.equal(
+      recovered.enrollmentRecovery.receipt.authorityUntil,
+      recovered.enrollmentRecovery.receipt.enrolledAt + 180000,
+    );
+    assert.deepEqual(
+      f.calls.map((call) => call.action),
+      ["enroll", "enrollment_readback"],
+    );
+  } finally {
+    f.close();
+  }
+});
+for (const field of [
+  "runtimeId",
+  "runtimeGeneration",
+  "grantId",
+  "tokenDigest",
+  "consumptionDigest",
+  "identityDigest",
+  "lifetimeId",
+  "configSha256",
+  "startupDigest",
+  "enrolledAt",
+  "authorityUntil",
+])
+  test(`normal enrollment refuses changed ${field} before clearing its signed pending request`, async () => {
+    const f = fixture();
+    try {
+      f.identity();
+      f.onTransport((request, response) => {
+        if (request.action === "enroll")
+          response[field] = typeof response[field] === "number" ? response[field] + 1 : "changed";
+      });
+      await assert.rejects(f.client.bootstrap(f.grant()));
+      const state = JSON.parse(
+        readFileSync(join(f.options.stateDirectory, "controller.json")),
+      ).state;
+      assert.equal(state.hold, true);
+      assert.equal(state.runtimeId, null);
+      assert.equal(state.pending.action, "enroll");
+      assert.equal(state.enrollmentRecovery, undefined);
+      assert.equal(state.enrollmentReceipt, undefined);
+    } finally {
+      f.close();
+    }
+  });
 test("enrolled runtime identities omit empty-root proposals before first task and after generation advances", async () => {
   const f = fixture();
   try {
@@ -1149,7 +1288,7 @@ test("installed normally enrolled guardian can sign owner inspection after serve
     const before = readFileSync(join(f.options.stateDirectory, "controller.json")),
       now = Date.now() + 240000;
     t.mock.method(Date, "now", () => now);
-    assert.equal(JSON.parse(before).state.enrollmentRecovery, undefined);
+    assert.equal(JSON.parse(before).state.enrollmentReceipt.originalEnrollment.action, "enroll");
     const binding = f.options.config.binding,
       projectId = randomUUID(),
       taskId = randomUUID(),
@@ -1330,6 +1469,514 @@ test("expired recovered enrollment blocks normal work and requires scoped owner 
     f.close();
   }
 });
+async function emptyClosureFixture(t, { lostAck = false, withRoot = true } = {}) {
+  let f = fixture();
+  t.after(() => f.close());
+  f.identity();
+  if (lostAck) {
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("normal");
+    await f.client.identity("b".repeat(64));
+  } else await f.client.bootstrap(f.grant());
+  const path = join(f.options.stateDirectory, "controller.json"),
+    journal = JSON.parse(readFileSync(path)),
+    history = journal.state.enrollmentReceipt ?? journal.state.enrollmentRecovery;
+  if (withRoot) {
+    // Seed a trusted committed mapping in this unit fixture. Physical inventory
+    // and enrollment are covered by the separate installed/composed proofs.
+    // Python still creates and verifies the actual private root/HMAC history.
+    initializeEmptyRoot(f.home);
+    const managed = join(f.home, ".local/state/hive/managed-projects"),
+      rootRaw = readFileSync(join(managed, "root.json")),
+      anchor = {
+        proposalDigest: "a".repeat(64),
+        currentVolume: { lifetimeId: f.startup.lifetimeId },
+        records: { root: sha(rootRaw), projects: {} },
+      },
+      grant = f.grant({ emptyRoot: anchor }),
+      key = readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      { proof: _proof, ...body } = history.originalEnrollment;
+    body.grant = grant;
+    history.originalEnrollment = {
+      ...body,
+      proof: sign(
+        null,
+        Buffer.from(
+          `hive-guardian-controller-v1\nPOST\n/api/codex-host/guardians\n${canonical(body)}`,
+        ),
+        key,
+      ).toString("base64url"),
+    };
+    history.receipt.grantId = JSON.parse(Buffer.from(grant.split(".")[1], "base64url")).jti;
+    history.receipt.tokenDigest = sha(grant);
+    history.receipt.consumptionDigest = digest(history.originalEnrollment);
+    journal.signature = sign(null, Buffer.from(canonical(journal.state)), key).toString(
+      "base64url",
+    );
+    writeFileSync(path, JSON.stringify(journal));
+    const record = {
+        schemaVersion: 1,
+        phase: "complete",
+        receipt: { enrollmentToken: grant, anchor },
+      },
+      managedKey = readFileSync(join(managed, "key"));
+    writeFileSync(
+      join(managed, "empty-root.json"),
+      JSON.stringify({
+        record,
+        signature: createHmac("sha256", managedKey).update(canonical(record)).digest("hex"),
+      }),
+      { mode: 0o600 },
+    );
+    f = { ...f, client: openGuardianController(f.options) };
+  }
+  t.mock.method(Date, "now", () => history.receipt.authorityUntil + 1);
+  await f.client.requestExpiredEmptyDrain(f.closeGrant());
+  await f.client.beginDrain();
+  const barrierId = randomUUID(),
+    barrier = {
+      closed: true,
+      lifetimeId: f.startup.lifetimeId,
+      bindingDigest: f.startup.bindingDigest,
+      ownershipDigest: f.startup.ownershipDigest,
+      generation: 1,
+      barrierId,
+      snapshots: [],
+      projects: [],
+    };
+  await f.client.authorizeDrain(
+    { ownershipDigest: barrier.ownershipDigest, projects: [] },
+    barrier,
+  );
+  const receipt = {
+    guardianExited: true,
+    finalWaitResult: "ECHILD",
+    waitFlags: "__WALL",
+    scope: "managed_native_tree_only",
+    cleanupAuthorized: false,
+    receiptId: randomUUID(),
+    lifetimeId: f.startup.lifetimeId,
+    bindingDigest: f.startup.bindingDigest,
+    ownershipDigest: f.startup.ownershipDigest,
+    generation: 2,
+    workerPid: process.pid,
+    projects: [],
+    decisions: [],
+    workerBarrier: {
+      closed: true,
+      barrierId,
+      lifetimeId: f.startup.lifetimeId,
+      generation: 1,
+      ownershipDigest: f.startup.ownershipDigest,
+    },
+  };
+  const managed = join(f.home, ".local/state/hive/managed-projects");
+  const directory = join(f.home, ".local/state/hive/codex-project-controller"),
+    projectId = randomUUID(),
+    projectKey = Buffer.alloc(32, 31),
+    projectState = {
+      schemaVersion: 1,
+      ownerId: f.options.config.binding.ownerId,
+      workspaceId: f.options.config.binding.workspaceId,
+      guardianLifetimeId: f.startup.lifetimeId,
+      hostProcess: { pid: process.pid },
+      guardianBarrier: barrier,
+      projects: {
+        [projectId]: {
+          projectId,
+          repositoryId: "123",
+          expectedAccountId: "456",
+          createdAt: 1,
+          task: null,
+        },
+      },
+    };
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, "projects.key"), projectKey, { mode: 0o600 });
+  const saveProject = () =>
+    writeFileSync(
+      join(directory, "projects.json"),
+      JSON.stringify({
+        state: projectState,
+        signature: createHmac("sha256", projectKey)
+          .update(JSON.stringify(projectState))
+          .digest("hex"),
+      }),
+      { mode: 0o600 },
+    );
+  saveProject();
+  return {
+    ...f,
+    path,
+    receipt,
+    managed,
+    directory,
+    projectState,
+    projectId,
+    saveProject,
+    mutateController(mutate) {
+      const saved = JSON.parse(readFileSync(path));
+      mutate(saved.state);
+      saved.signature = sign(
+        null,
+        Buffer.from(canonical(saved.state)),
+        readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      ).toString("base64url");
+      writeFileSync(path, JSON.stringify(saved));
+    },
+    reopen() {
+      return openGuardianController(f.options);
+    },
+  };
+}
+test("plain enrollment closes factually without creating empty-root archive eligibility", async (t) => {
+  const f = await emptyClosureFixture(t, { lostAck: true, withRoot: false });
+  await f.client.acceptTreeReceipt(f.receipt);
+  const state = JSON.parse(readFileSync(f.path)).state;
+  assert.equal(state.pending, null);
+  assert.equal(state.hold, false);
+  assert.equal(state.emptyClosure, undefined);
+  assert.equal(existsSync(join(f.managed, "root.json")), false);
+  assert.deepEqual(await f.client.postTreeClosed(f.receipt), { eligible: false });
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  await assert.rejects(f.client.archiveClosedController(f.receipt));
+});
+function seedRetainedMapping(f, mutation) {
+  // Trusted unit history, using real Python root creation/read/physical checks.
+  // No global process inventory or remapping is needed on the unchanged volume.
+  initializeEmptyRoot(f.home);
+  const rootPath = join(f.managed, "root.json"),
+    rootRaw = readFileSync(rootPath),
+    root = JSON.parse(rootRaw).record,
+    oldConfig = structuredClone(f.options.config),
+    oldLifetime = randomUUID(),
+    history = JSON.parse(readFileSync(f.path)).state.enrollmentReceipt;
+  oldConfig.binding.buildId = randomUUID();
+  if (mutation === "template") oldConfig.binding.templateId = randomUUID();
+  const configRaw = JSON.stringify(oldConfig),
+    configHash = sha(configRaw),
+    bindingDigest = sha(
+      JSON.stringify({
+        schemaVersion: 1,
+        configSha256: configHash,
+        packageManifestSha256: f.options.packageManifestSha256,
+      }),
+    ),
+    oldStartup = {
+      ...f.startup,
+      generation: 1,
+      projects: [],
+      lifetimeId: oldLifetime,
+      configSha256: configHash,
+      bindingDigest,
+    },
+    volume = { fixture: "retained public volume" },
+    anchor = {
+      schemaVersion: 1,
+      purpose: "empty-managed-root",
+      proposalDigest: "a".repeat(64),
+      currentVolume: {
+        lifetimeId: oldLifetime,
+        buildId: oldConfig.binding.buildId,
+        volume,
+        volumeDigest: digest(volume),
+      },
+      records: { root: sha(rootRaw), projects: {} },
+      identities: {
+        root: Object.fromEntries(Object.entries(root.identity).map(([k, v]) => [k, String(v)])),
+        projects: {},
+      },
+    },
+    issued = Math.floor(history.receipt.enrolledAt / 1000) - 120,
+    grant = f.grant({
+      buildId: oldConfig.binding.buildId,
+      lifetimeId: oldLifetime,
+      bindingDigest,
+      iat: issued,
+      exp: issued + 60,
+      emptyRoot: anchor,
+      ...(mutation === "owner" ? { coderOwnerId: randomUUID() } : {}),
+      ...(mutation === "workspace" ? { workspaceId: randomUUID() } : {}),
+      ...(mutation === "issuer" ? { iss: "https://foreign.invalid" } : {}),
+    }),
+    record = {
+      schemaVersion: 1,
+      phase: "complete",
+      receipt: { enrollmentToken: mutation === "signature" ? `${grant}x` : grant, anchor },
+    },
+    managedKey = readFileSync(join(f.managed, "key")),
+    markerPath = join(f.managed, "empty-root.json");
+  writeFileSync(
+    markerPath,
+    JSON.stringify({
+      record,
+      signature: createHmac("sha256", managedKey).update(canonical(record)).digest("hex"),
+    }),
+    { mode: 0o600 },
+  );
+  const configDirectory = join(f.home, ".local/state/hive/codex-host-install/config-history");
+  mkdirSync(configDirectory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(configDirectory, `${configHash}.json`), configRaw, { mode: 0o600 });
+  const outerKey = Buffer.alloc(32, 37),
+    state = {
+      schemaVersion: 1,
+      bindingDigest: f.startup.bindingDigest,
+      phase: "closed",
+      receipts: [],
+      // The mapping lifetime is deliberately not the latest journal segment.
+      events: [
+        { name: "begin", value: { lifetimeId: oldLifetime } },
+        { name: "startupReady", value: oldStartup },
+        { name: "begin", value: { lifetimeId: f.startup.lifetimeId } },
+        { name: "startupReady", value: f.startup },
+      ],
+    },
+    encoded = JSON.stringify({
+      state,
+      signature: createHmac("sha256", outerKey).update(JSON.stringify(state)).digest("hex"),
+    });
+  writeFileSync(join(f.options.stateDirectory, "key"), outerKey, { mode: 0o600 });
+  const outerPath = join(f.options.stateDirectory, `lifetime-empty-${sha(encoded)}.json`);
+  writeFileSync(outerPath, encoded, { mode: 0o600 });
+  if (mutation === "outer") writeFileSync(outerPath, `${encoded} `);
+  if (mutation === "marker") writeFileSync(markerPath, "{}");
+  if (mutation === "root") rmSync(rootPath);
+  if (mutation === "physical") {
+    renameSync(join(f.home, "projects/.hive-managed"), join(f.home, "projects/old-root"));
+    mkdirSync(join(f.home, "projects/.hive-managed"), { mode: 0o700 });
+  }
+  return { grant, rootRaw, markerRaw: readFileSync(markerPath), oldLifetime };
+}
+test("unchanged root mapping survives a separate plain enrollment and owner-closed archive", async (t) => {
+  const f = await emptyClosureFixture(t, { withRoot: false }),
+    old = seedRetainedMapping(f),
+    before = JSON.parse(readFileSync(f.path)).state.enrollmentReceipt;
+  assert.equal(
+    Object.hasOwn(
+      JSON.parse(Buffer.from(before.originalEnrollment.grant.split(".")[1], "base64url")),
+      "emptyRoot",
+    ),
+    false,
+  );
+  assert.equal(inspectEmptyRoot(f.home, f.startup.lifetimeId), null);
+  assert.equal(readEmptyRootHistory(f.home).enrollmentToken, old.grant);
+  await f.client.acceptTreeReceipt(f.receipt);
+  const state = JSON.parse(readFileSync(f.path)).state;
+  assert.deepEqual(state.enrollmentReceipt, before);
+  assert.equal(state.emptyClosure.root.enrollmentToken, old.grant);
+  assert.equal(state.emptyClosure.root.lifetimeId, old.oldLifetime);
+  assert.notEqual(state.emptyClosure.root.enrollmentToken, before.originalEnrollment.grant);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).archived, true);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+  assert.deepEqual(readFileSync(join(f.managed, "root.json")), old.rootRaw);
+  assert.deepEqual(readFileSync(join(f.managed, "empty-root.json")), old.markerRaw);
+});
+test("retained root mapping refuses physical replacement after tree-closed ACK on archive and replay", async (t) => {
+  const f = await emptyClosureFixture(t, { withRoot: false });
+  seedRetainedMapping(f);
+  await f.client.acceptTreeReceipt(f.receipt);
+  const root = join(f.home, "projects/.hive-managed"),
+    original = join(f.home, "projects/original-root"),
+    controller = readFileSync(f.path),
+    projects = readFileSync(join(f.directory, "projects.json"));
+  renameSync(root, original);
+  mkdirSync(root, { mode: 0o700 });
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  assert.deepEqual(readFileSync(f.path), controller);
+  assert.deepEqual(readFileSync(join(f.directory, "projects.json")), projects);
+  rmSync(root, { recursive: true });
+  renameSync(original, root);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).archived, true);
+  renameSync(root, original);
+  mkdirSync(root, { mode: 0o700 });
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+});
+for (const mutation of [
+  "owner",
+  "workspace",
+  "issuer",
+  "template",
+  "signature",
+  "outer",
+  "marker",
+  "root",
+  "physical",
+])
+  test(`retained root mapping rejects ${mutation} before archive eligibility`, async (t) => {
+    const f = await emptyClosureFixture(t, { withRoot: false });
+    seedRetainedMapping(f, mutation);
+    const projectRaw = readFileSync(join(f.directory, "projects.json"));
+    await assert.rejects(f.client.acceptTreeReceipt(f.receipt));
+    assert.equal(JSON.parse(readFileSync(f.path)).state.emptyClosure, undefined);
+    await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+    assert.deepEqual(readFileSync(join(f.directory, "projects.json")), projectRaw);
+  });
+test("signed empty-root enrollment requires original root history even after a factual tree-closed ACK", async (t) => {
+  const f = await emptyClosureFixture(t);
+  rmSync(join(f.managed, "root.json"));
+  await assert.rejects(f.client.acceptTreeReceipt(f.receipt));
+  const state = JSON.parse(readFileSync(f.path)).state;
+  assert.equal(state.hold, true);
+  assert.equal(state.pending.action, "tree_closed");
+  assert.equal(state.emptyClosure, undefined);
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+});
+test("expired empty closure archives exact factual ACK and preserves ordinary OPEN and root history on replay", async (t) => {
+  const f = await emptyClosureFixture(t),
+    projects = structuredClone(f.projectState.projects),
+    root = readFileSync(join(f.managed, "root.json")),
+    marker = readFileSync(join(f.managed, "empty-root.json"));
+  const projectRaw = readFileSync(join(f.directory, "projects.json"), "utf8");
+  await f.client.acceptTreeReceipt(f.receipt);
+  const acknowledged = JSON.parse(readFileSync(f.path)).state;
+  assert.deepEqual(acknowledged.emptyClosure.receipt, f.receipt);
+  assert.equal(acknowledged.pending, null);
+  assert.equal(acknowledged.emptyClosure.acknowledgement.treeExited, true);
+  assert.deepEqual(await f.client.postTreeClosed(f.receipt), { eligible: false });
+  await assert.rejects(f.client.archiveClosedController(f.receipt));
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).archived, true);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+  const reset = JSON.parse(readFileSync(join(f.directory, "projects.json"))).state;
+  assert.deepEqual(reset.projects, projects);
+  assert.equal(reset.guardianBarrier, undefined);
+  assert.equal(reset.guardianLifetimeId, undefined);
+  const projectArchivePath = join(
+      f.directory,
+      `projects-empty-${sha(JSON.stringify(f.receipt))}.json`,
+    ),
+    archive = JSON.parse(readFileSync(projectArchivePath));
+  assert.equal(archive.state.projectRaw, projectRaw);
+  assert.equal(acknowledged.emptyClosure.root.rootRaw, root.toString());
+  assert.equal(acknowledged.emptyClosure.root.markerRaw, marker.toString());
+  assert.deepEqual(readFileSync(join(f.managed, "root.json")), root);
+  assert.deepEqual(readFileSync(join(f.managed, "empty-root.json")), marker);
+  await assert.rejects(
+    f.client.archiveClosedEmptyController({ ...f.receipt, bindingDigest: "f".repeat(64) }),
+  );
+  archive.state.projectRaw = "{}";
+  archive.signature = createHmac("sha256", readFileSync(join(f.directory, "projects.key")))
+    .update(JSON.stringify(archive.state))
+    .digest("hex");
+  writeFileSync(projectArchivePath, JSON.stringify(archive));
+  const beforeReplay = readFileSync(join(f.directory, "projects.json"));
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  assert.deepEqual(readFileSync(join(f.directory, "projects.json")), beforeReplay);
+});
+test("lost enrollment ACK preserves its recognized diagnostic and exact raw controller on empty archive", async (t) => {
+  const f = await emptyClosureFixture(t, { lostAck: true });
+  await f.client.acceptTreeReceipt(f.receipt);
+  const raw = readFileSync(f.path),
+    saved = JSON.parse(raw).state;
+  assert.equal(saved.enrollmentReceipt, undefined);
+  assert.equal(saved.enrollmentFailure.category, "transport");
+  assert.ok(saved.enrollmentRecovery);
+  const archived = await f.client.archiveClosedEmptyController(f.receipt);
+  assert.deepEqual(
+    readFileSync(join(f.options.stateDirectory, `controller-archive-${archived.digest}.json`)),
+    raw,
+  );
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+});
+for (const mutation of [
+  "unknownField",
+  "unknownCategory",
+  "negativeElapsed",
+  "longElapsed",
+  "fractionalElapsed",
+]) {
+  test(`lost enrollment ACK refuses ${mutation} diagnostic on empty archive`, async (t) => {
+    const f = await emptyClosureFixture(t, { lostAck: true });
+    await f.client.acceptTreeReceipt(f.receipt);
+    f.mutateController((state) => {
+      if (mutation === "unknownField") state.enrollmentFailure.unknown = true;
+      if (mutation === "unknownCategory") state.enrollmentFailure.category = "unknown";
+      if (mutation === "negativeElapsed") state.enrollmentFailure.elapsedMs = -1;
+      if (mutation === "longElapsed") state.enrollmentFailure.elapsedMs = 15001;
+      if (mutation === "fractionalElapsed") state.enrollmentFailure.elapsedMs = 0.5;
+    });
+    const raw = readFileSync(f.path),
+      project = readFileSync(join(f.directory, "projects.json"));
+    await assert.rejects(f.reopen().archiveClosedEmptyController(f.receipt));
+    assert.deepEqual(readFileSync(f.path), raw);
+    assert.deepEqual(readFileSync(join(f.directory, "projects.json")), project);
+  });
+}
+test("opened empty archive preflights and replays escaped raw envelopes above the original file cap", async (t) => {
+  const f = await emptyClosureFixture(t),
+    path = join(f.directory, "projects.json"),
+    original = "\n".repeat(3 * 1024 * 1024) + readFileSync(path, "utf8");
+  assert.ok(Buffer.byteLength(original) < 4 * 1024 * 1024);
+  writeFileSync(path, original);
+  await f.client.acceptTreeReceipt(f.receipt);
+  await f.client.archiveClosedEmptyController(f.receipt);
+  const archive = join(f.directory, `projects-empty-${sha(JSON.stringify(f.receipt))}.json`);
+  assert.ok(statSync(archive).size > 4 * 1024 * 1024);
+  assert.ok(statSync(archive).size <= 16 * 1024 * 1024);
+  assert.equal(JSON.parse(readFileSync(archive)).state.projectRaw, original);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+});
+test("opened empty archive retains the original project file 4 MiB input cap before resetting", async (t) => {
+  const f = await emptyClosureFixture(t),
+    path = join(f.directory, "projects.json"),
+    original = "\n".repeat(4 * 1024 * 1024) + readFileSync(path, "utf8");
+  writeFileSync(path, original);
+  await f.client.acceptTreeReceipt(f.receipt);
+  const controller = readFileSync(f.path);
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  assert.deepEqual(readFileSync(f.path), controller);
+  assert.equal(readFileSync(path, "utf8"), original);
+});
+for (const mutation of [
+  "receiptBinding",
+  "generation",
+  "ownerSignature",
+  "acceptedAfterExpiry",
+  "consumption",
+  "missingAck",
+  "root",
+  "projectRecovery",
+  "unknownProject",
+  "nativeLaunch",
+  "enrollmentGeneration",
+  "unknownState",
+  "unexpectedDiagnostic",
+]) {
+  test(`expired empty closure refuses ${mutation} before resetting any history`, async (t) => {
+    const f = await emptyClosureFixture(t);
+    await f.client.acceptTreeReceipt(f.receipt);
+    const receipt = structuredClone(f.receipt);
+    if (mutation === "receiptBinding") receipt.bindingDigest = "f".repeat(64);
+    else if (mutation === "root")
+      writeFileSync(join(f.managed, "root.json"), "{}", { mode: 0o600 });
+    else if (mutation === "projectRecovery" || mutation === "unknownProject") {
+      f.projectState.projects[f.projectId][
+        mutation === "projectRecovery" ? "recovery" : "unknown"
+      ] = true;
+      f.saveProject();
+    } else
+      f.mutateController((state) => {
+        if (mutation === "generation") state.generation = 3;
+        if (mutation === "nativeLaunch") state.launch = { phase: "attempted" };
+        if (mutation === "enrollmentGeneration")
+          state.enrollmentReceipt.receipt.runtimeGeneration = 2;
+        if (mutation === "unknownState") state.unknown = true;
+        if (mutation === "unexpectedDiagnostic")
+          state.enrollmentFailure = { category: "transport", elapsedMs: 1 };
+        if (mutation === "ownerSignature") state.expiredEmptyDrain.grant += "x";
+        if (mutation === "acceptedAfterExpiry")
+          state.expiredEmptyDrain.acceptedAt = state.expiredEmptyDrain.expiresAt;
+        if (mutation === "consumption")
+          state.enrollmentReceipt.receipt.consumptionDigest = "f".repeat(64);
+        if (mutation === "missingAck") delete state.emptyClosure;
+      });
+    const controllerBefore = readFileSync(f.path),
+      projectBefore = readFileSync(join(f.directory, "projects.json"));
+    await assert.rejects(f.reopen().archiveClosedEmptyController(receipt));
+    assert.deepEqual(readFileSync(f.path), controllerBefore);
+    assert.deepEqual(readFileSync(join(f.directory, "projects.json")), projectBefore);
+  });
+}
 test("private signer permission changes and absent idle authority fail closed", async () => {
   const f = fixture();
   try {

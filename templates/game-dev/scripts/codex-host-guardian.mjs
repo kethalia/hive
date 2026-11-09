@@ -205,6 +205,7 @@ async function openJournal(
   prepareBootstrapRetirement,
   prepareUnstartedRetirement,
   prepareUnusedEpochRetirement,
+  prepareClosedEmptyLifetime,
 ) {
   check(resolve(directory) === directory && /^[a-f0-9]{64}$/.test(bindingDigest));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -414,6 +415,77 @@ async function openJournal(
           } finally {
             closeSync(dir);
           }
+        } else if (
+          saved.state.phase === "closed" &&
+          saved.state.receipts.at(-1)?.projects?.length === 0 &&
+          typeof prepareClosedEmptyLifetime === "function"
+        ) {
+          // Completed predecessors remain authenticated history. Only the
+          // latest lifetime segment can authorize this empty closure.
+          const events = saved.state.events.slice(
+              saved.state.events.findLastIndex((event) => event.name === "begin"),
+            ),
+            exited = events.at(-2),
+            closed = events.at(-1),
+            receipt = exited?.value,
+            prior = saved.state.receipts.at(-1),
+            startup = events.find((event) => event.name === "startupReady")?.value;
+          check(exited?.name === "treeExited" && closed?.name === "closed" && receipt && startup);
+          const { guardianExited: _ignored, ...preExit } = receipt;
+          check(
+            JSON.stringify(events.map((event) => event.name)) ===
+              JSON.stringify([
+                "begin",
+                "ready",
+                "launchIntent",
+                "open",
+                "startupReady",
+                "closing",
+                "workerClosed",
+                "receipt",
+                "treeExited",
+                "closed",
+              ]) &&
+              receipt.guardianExited === true &&
+              receipt.finalWaitResult === "ECHILD" &&
+              receipt.scope === "managed_native_tree_only" &&
+              receipt.waitFlags === "__WALL" &&
+              receipt.cleanupAuthorized === false &&
+              receipt.projects.length === 0 &&
+              receipt.decisions.length === 0 &&
+              receipt.bindingDigest === saved.state.bindingDigest &&
+              events[0].value.lifetimeId === receipt.lifetimeId &&
+              events[0].value.bindingDigest === receipt.bindingDigest &&
+              receipt.lifetimeId === startup.lifetimeId &&
+              startup.phase === "open" &&
+              startup.generation === 1 &&
+              startup.projects?.length === 0 &&
+              startup.bindingDigest === receipt.bindingDigest &&
+              startup.workerIdentity?.pid === receipt.workerPid &&
+              closed.value.receiptId === receipt.receiptId &&
+              closed.value.lifetimeId === receipt.lifetimeId &&
+              JSON.stringify(preExit) === JSON.stringify(prior) &&
+              !events.some((event) =>
+                ["admissionIntent", "admissionAccepted", "indeterminate"].includes(event.name),
+              ),
+          );
+          check(
+            (
+              await prepareClosedEmptyLifetime({
+                receipt: structuredClone(receipt),
+                startup: structuredClone(startup),
+              })
+            )?.archived === true,
+          );
+          const archive = join(directory, `lifetime-empty-${sha(encoded)}.json`);
+          check(!existsSync(archive));
+          renameSync(path, archive);
+          const fd = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+          try {
+            fsyncSync(fd);
+          } finally {
+            closeSync(fd);
+          }
         } else {
           check(
             saved.state.bindingDigest === bindingDigest &&
@@ -505,6 +577,7 @@ export async function openGuardedHost(options) {
     options.prepareBootstrapRetirement,
     options.prepareUnstartedRetirement,
     options.prepareUnusedEpochRetirement,
+    options.prepareClosedEmptyLifetime,
   );
   const recovered = journal.snapshot();
   if (recovered.phase === "treeExited") {

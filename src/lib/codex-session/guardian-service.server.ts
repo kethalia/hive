@@ -1390,7 +1390,21 @@ export class GuardianService {
         bindingDigest: guardianDigest(claims),
         consumptionDigest: guardianDigest(input),
       });
-      return { accepted: true, runtimeId: runtime.id, runtimeGeneration: enrolled.generation };
+      requireGuardian(enrolled.enrolledAt);
+      return {
+        accepted: true,
+        runtimeId: runtime.id,
+        runtimeGeneration: enrolled.generation,
+        grantId: claims.jti,
+        tokenDigest: sha(input.grant),
+        consumptionDigest: guardianDigest(input),
+        identityDigest: claims.identityDigest,
+        lifetimeId: runtime.lifetimeId,
+        configSha256: runtime.configSha256,
+        startupDigest: claims.startupDigest,
+        enrolledAt: enrolled.enrolledAt.getTime(),
+        authorityUntil: enrolled.authorityUntil.getTime(),
+      };
     }
     if (
       input.action === "apply_reserve" ||

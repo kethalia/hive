@@ -174,6 +174,7 @@ async function fixture(
   let service: GuardianService,
     grant = "",
     enrollment: unknown,
+    enrollmentAck: unknown,
     runtimeId = "",
     resolutions = 0;
   const principal = { hiveUserId: user.id, coderUserId: user.coderUserId };
@@ -278,7 +279,8 @@ async function fixture(
           expiresAt: Date.now() + 30000,
           grant: value,
         });
-        return service.execute(enrollment);
+        enrollmentAck = await service.execute(enrollment);
+        return enrollmentAck;
       },
     },
   });
@@ -298,6 +300,9 @@ async function fixture(
     },
     get enrollment() {
       return enrollment;
+    },
+    get enrollmentAck() {
+      return enrollmentAck;
     },
     get runtimeId() {
       return runtimeId;
@@ -339,6 +344,25 @@ describe.skipIf(!url)("unused bootstrap, owned PostgreSQL fixture", () => {
     expect((await rows(f))[0].unusedBootstrapPredecessorBuildId).toBe(
       f.proposal.unusedBootstrap!.oldBuildId,
     );
+    const runtime = (await rows(f))[0],
+      grant = await db.codexGuardianEnrollmentGrant.findFirstOrThrow({
+        where: { runtimeId: runtime.id },
+      });
+    expect(f.enrollmentAck).toMatchObject({
+      accepted: true,
+      runtimeId: runtime.id,
+      runtimeGeneration: 1,
+      grantId: grant.id,
+      tokenDigest: grant.tokenDigest,
+      consumptionDigest: guardianDigest(f.enrollment),
+      identityDigest: claims.identityDigest,
+      lifetimeId: runtime.lifetimeId,
+      configSha256: runtime.configSha256,
+      startupDigest: claims.startupDigest,
+      enrolledAt: runtime.enrolledAt!.getTime(),
+      authorityUntil: runtime.enrolledAt!.getTime() + 180000,
+    });
+    expect(grant.consumedAt).toEqual(runtime.enrolledAt);
     // Exercise the installed host's actual predicate used by
     // resumeAccountMaintenance(ownerIntentRuntimeId), not a copied regex.
     const source = readFileSync(

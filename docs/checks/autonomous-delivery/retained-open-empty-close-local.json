@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "slice": "retained ordinary OPEN zero-admission closure",
+  "priorCommit": "d1aab95a0911303a60480af4c6690495325ce8ef",
+  "change": "Reuse the existing strict unusedBootstrapProjects allowlist for the zero-admission close barrier. Every retained project must have exactly ordinary OPEN fields and task null.",
+  "unchangedGuards": [
+    "current guardian closed phase",
+    "lifetime and binding equality",
+    "safe generation and ownership digest",
+    "unique exact admitted-project association",
+    "prepared/admitted task relationships",
+    "all worker and native close receipt checks"
+  ],
+  "checks": {
+    "projectControllerPassed": 43,
+    "relatedRecoveryGuardedPassed": 7,
+    "relatedExistingOptInSkipped": 2,
+    "templatesCheck": "pass",
+    "affectedBiome": "pass",
+    "diffCheck": "pass"
+  },
+  "package": {
+    "baseCommit": "d1aab95a0911303a60480af4c6690495325ce8ef",
+    "manifestSha256": "b60b03d10b48937084cbdd40fd1c5922a3bfdcfe44d4919ca8192762a21e9d28",
+    "rawArchiveSha256": "c6c76d3d2091acf58852483239725284f3f61d154ec86a6f0c9a4c0bfa7b044d",
+    "projectControllerSourceSha256": "1aa9292ab0bc723ea476736f3c10ea1b6191461c14600da744134a3643469d62",
+    "driverSha256": "775fc6652a651c138e975700b410b626ffb20f677ec923bd55b781f22af3974b",
+    "fixtureWorkerCloseAdapter": "controller closeAdmission plus snapshots empty for zero admitted projects, matching existing production host wrapper"
+  },
+  "actualLocalProof": {
+    "schemaVersion": 1,
+    "scope": "local-only expired initial-unused enrollment with retained OPEN",
+    "actualCGuardian": true,
+    "actualPostgres": true,
+    "elapsedExpiry": true,
+    "backdated": false,
+    "renewed": false,
+    "resetAuthority": false,
+    "ownerEmptyCloseAccepted": true,
+    "treeClosed": true,
+    "realECHILD": true,
+    "receiptProjectsEmpty": true,
+    "retainedOpenCount": 1,
+    "rolloverEligible": false,
+    "archiveClosedControllerRejected": true,
+    "changedBuildRestartHeld": true,
+    "rawClosedJournalRootProjectAuthPreserved": true,
+    "originalIntentQueued": true,
+    "runtimes": 1,
+    "grants": 1,
+    "admissions": 0,
+    "nativeLaunches": 0,
+    "modelCalls": 0,
+    "firstFailedNormalContinuation": "postTreeClosed returns eligible:false for empty admitted-project set; archiveClosedController rejects; changed-build outer journal refuses closed previous binding"
+  },
+  "knownFixtureActorsGone": true,
+  "privateResultSha256": "585cc10228651e3ffdcf782ccd7fce8c26fcb2317d1864d4e9a457e83fdd6bf9",
+  "fixtureLimits": [
+    "Synthetic owner, Coder and provider observations.",
+    "Test-only known-descendant inventory projection excludes unrelated primary process universe.",
+    "Test-only managed-root path and device projection.",
+    "Custom worker uses actual project controller, zero-project snapshots adapter matching the production wrapper, and actual FD3 worker protocol.",
+    "Actual C constructor exercised. Python installer was not invoked.",
+    "Fixture-specific root-owned official Node and package policy."
+  ],
+  "nextGate": "Empty admitted-project postTreeClosed returns eligible false. The existing controller archive rejects its empty receipt and a changed build cannot reopen the closed old binding.",
+  "furtherSourceEditsAuthorized": false,
+  "liveCalls": 0,
+  "imagePublished": false
+}

@@ -803,14 +803,69 @@ test("idle recovery rejects mismatched receipts, nonempty state and altered sign
   assert.deepEqual(readFileSync(path), reset);
 });
 
-test("idle barrier refuses even a project that has never acquired a task", async (t) => {
+test("zero-admission barrier preserves an ordinary retained OPEN without acquiring execution", async (t) => {
   const f = guardianFixture(t);
   await f.controller.handle("/projects/open", f.open);
-  assert.throws(
-    () => f.controller.closeAdmission(f.barrier()),
-    /guardian_barrier_preparation_uncertain/,
+  const projects = structuredClone(f.saved().projects);
+  assert.deepEqual(Object.keys(projects[f.open.projectId]).sort(), [
+    "createdAt",
+    "expectedAccountId",
+    "projectId",
+    "repositoryId",
+    "task",
+  ]);
+  assert.equal(projects[f.open.projectId].task, null);
+  const barrier = f.barrier();
+  assert.deepEqual(barrier.projects, []);
+  assert.equal(f.controller.closeAdmission(barrier).closed, true);
+  assert.deepEqual(f.saved().projects, projects);
+  assert.deepEqual(f.saved().guardianBarrier, barrier);
+  assert.deepEqual(f.calls, []);
+  await assert.rejects(
+    f.controller.handle("/projects/open", f.open),
+    /controller_admission_closed/,
   );
 });
+
+for (const mutation of [
+  "unknown",
+  "missingTask",
+  "unpreparedTask",
+  "recovery",
+  "guardianPreparation",
+  "nativeThreadId",
+  "nativeCreationAttempted",
+]) {
+  test(`zero-admission barrier rejects retained OPEN with ${mutation} evidence`, async (t) => {
+    const f = guardianFixture(t);
+    await f.controller.handle("/projects/open", f.open);
+    await f.controller.close();
+    const path = join(f.config.stateDirectory, "projects.json"),
+      saved = JSON.parse(readFileSync(path)),
+      project = saved.state.projects[f.open.projectId];
+    if (mutation === "missingTask") delete project.task;
+    else if (mutation === "unpreparedTask") project.task = {};
+    else project[mutation] = mutation === "recovery" ? { phase: "inspecting" } : true;
+    // Trusted fixture mutation preserves a valid HMAC while testing semantic denial.
+    saved.signature = createHmac(
+      "sha256",
+      readFileSync(join(f.config.stateDirectory, "projects.key")),
+    )
+      .update(JSON.stringify(saved.state))
+      .digest("hex");
+    writeFileSync(path, JSON.stringify(saved));
+    await f.restart();
+    const projects = structuredClone(f.saved().projects),
+      barrier = f.barrier();
+    assert.throws(
+      () => f.controller.closeAdmission(barrier),
+      /guardian_barrier_preparation_uncertain/,
+    );
+    assert.deepEqual(f.saved().projects, projects);
+    assert.deepEqual(f.saved().guardianBarrier, barrier);
+    assert.deepEqual(f.calls, []);
+  });
+}
 
 test("guardian admission is durable before preparation and final binding is a separate immutable record", async (t) => {
   const f = guardianFixture(t);

@@ -438,6 +438,14 @@ await new Promise(r=>server.listen(${port},'127.0.0.1',r));await guard.ready(${J
           expect(owner).toEqual({ accepted: true, treeExited: false, cleanupAuthorized: false });
           const receipt = await host.drain();
           expect(receipt).toMatchObject({ guardianExited: true });
+          // This supported enrollment intentionally has no optional empty-root
+          // mapping. Factual closure must not manufacture remount eligibility.
+          const closedJournal = JSON.parse(
+            readFileSync(join(directory, "outer/controller.json"), "utf8"),
+          ).state;
+          expect(closedJournal.emptyClosure).toBeUndefined();
+          await expect(authority.postTreeClosed(receipt)).resolves.toEqual({ eligible: false });
+          await expect(authority.archiveClosedEmptyController(receipt)).rejects.toThrow();
           expect(
             (await db.codexGuardianRuntime.findUniqueOrThrow({ where: { id: afterLostAck.id } }))
               .phase,
