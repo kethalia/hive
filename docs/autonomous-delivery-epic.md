@@ -19,53 +19,40 @@ alone. Preserve pilot evidence in docs/checks/autonomous-delivery/ when real che
 ## Work queue
 
 Capability audits and foundation implementation are underway; remaining tasks are pending.
-Current implementation checkpoint (2026-11-08): the epic preserves released main
-`1ace8774118b99b28856347edd51410c4f0a0774` and is integrated through `e63e8ae3`.
-The existing single Worker automatically deploys the branch Preview. Database job and
-account-maintenance implementation, scoped account cards and request-bound Cloudflare
-callback execution passed CI/review; both Preview databases have 53 migrations with
-original rows, history and grants preserved. The reviewed test-host image starts normally,
-and actual dedicated Codex account status passes through Hive. The current managed pilot
-is blocked before model execution. The metadata timeout and exact-task retirement/recovery
-fixes passed CI/review and are deployed. The combined cleanup/remount image is installed
-on the original persistent volume. Owner recovery retired the predecessor and enrolled
-the new runtime. One explicitly enrolled unused-recovery continuation completed the exact
-remount mapping and lease renewal, but lost its response before database acknowledgement.
-One subsequent factual replay reconciled the immutable consumed receipt without renewing
-authority. The original admitted runtime now remains held with an unresolved pending fence;
-no model or first prompt ran. Its signed history and checkout are retained. The reviewed
-two-path recovery transport correction is deployed; it does not revive expired authority.
-Mobile Projects/Terminal menu routing and scoped GitHub
-discovery pass Browser Testing. The first ordinary-terminal ticket exposed missing
-same-Worker URL enrollment; its reviewed correction is integrated. Actual Coder resources
-then exposed a strict parser rejecting omitted agent arrays; PR438 corrects that shape and
-passes focused, local Workerd and full CI checks. Existing Builds deployed the correction;
-real Chrome acceptance now passes ready/output, 100×35 resize, reconnect to the same
-shell PID and exit. All test processes exited and held native journals are unchanged.
-PR439 preserves normal upstream closure instead of incorrectly making exit retryable;
-its72 focused tests, typecheck, full CI and current-head review pass. Existing Builds
-deployed it, and a separate Chrome check confirms actual close1000/wasClean=true,
-followed by exact session/process absence and unchanged held journals. The React hook
-was not mounted in that transport check; its classifier is covered by the integration tests.
-Public workspace actions also now project explicit browser fields rather than returning
-provider-only agent metadata. Shared Conversation/Terminal browser
-acceptance, live multi-task coordination, background wake approval and final cutover remain open.
+Current implementation checkpoint (2026-11-09): released main remains
+`1ace8774118b99b28856347edd51410c4f0a0774`. PR447's recovery corrections are
+integrated at `9ccc7a6f` after current-head CI and Codex review. The single `hive`
+Worker uses existing connected Workers Builds for automatic branch Previews. Both
+Preview databases have 54 migrations with prior rows, history and grants preserved.
+Production activation remains off.
 
-The November 5 production capture has been restored and upgraded locally through all 50
-migrations, with a further upgrade rehearsal through52. Its 81 original application rows and original migration history match; a decoded
-upgraded backup is retained privately. Earlier bounded Worker/session and backup-recovery
-proofs remain scoped evidence. Fresh production capture, original encryption/cookie key
-continuity, streaming and final cutover checks remain open. The reused Infrastructure
-workspace and fresh isolated native canary cannot attach their home volumes: exact
-read-only workspace-volume observations report insufficient storage for Longhorn replica
-scheduling. A certificate-verified internal route restored the authorized Rancher reads;
-the ordinary hostname route still fails TLS. The HOME inventory contains15 current
-workspace PVCs, 1020Gi logical capacity including645Gi belonging to stopped workspaces;
-these are not physical usage figures. No orphan or automatically deletable completed
-workspace was established. No storage deletion, replica change or paid capacity was
-authorized or performed. The production capture has not been refreshed. The real browser checkpoint
-covers OAuth login, repository search/enrollment, layout and logout; current-build shared
-sessions and full baseline acceptance remain pending. No production cutover has occurred.
+Real-browser checkpoints cover project discovery/enrollment, Coder OAuth,
+the native Accounts window and ordinary terminal transport. Shared manager
+Conversation/Terminal acceptance, end-to-end completion/checkout cleanup and live
+multi-task coordination remain open. F07's same-Worker preparation alarm is
+implemented, reviewed and integrated, default off. PR448's agent callback wake is integrated at `25f34003` after all 13 reported
+checks and current-head independent/Codex reviews pass. Live
+wake acceptance, delivery-step notices and other background producers remain gates.
+
+The original 4Gi pilot is parked after preparation timeout before any model ran;
+its HOME, authentication and signed history are retained. Source now preserves
+original enrollment receipts and supports explicit expired-unused closure followed
+by normal rebuild. It does not reconstruct missing old evidence. Reusing the 100Gi
+test workspace correctly held on incompatible historical Hive/issuer scope; it is
+stopped with its history intact. A reviewed exact-source CLI image is published
+and registry-verified. A clean 4Gi workspace `codex/hive-epic-1109` is created with that
+image, but neither container starts: Longhorn lacks replica scheduling reservation
+despite free physical space. A completed Infrastructure test workspace could free
+two 4Gi reservations; its capture is preserved, and exact deletion approval is
+pending. See the [storage release plan](checks/autonomous-delivery/test-storage-release-plan.md).
+No storage deletion, global policy change or paid capacity has occurred.
+
+The refreshed read-only production capture has 81 application and 7 migration rows.
+A local 53 restore and additive 54 upgrade preserve original fields/history. All 7
+ciphertexts authenticate with the original key; a synthetic current-cookie round
+trip passes. Historical cookies, target runtime privileges, streaming, final write
+boundary and recovery/cutover remain unproven. Raw data stays private. No production
+cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,

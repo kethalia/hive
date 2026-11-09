@@ -19,18 +19,18 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases are upgraded through migration54 with prior rows/history and runtime privileges unchanged. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
 | F03 project discovery | Real preview discovery/search/enrollment passed | Browser Phase A verifies the connected GitHub account, exact repository, search and stable task-null project enrollment. Opening a project creates no clone or native task. First-task execution remains a separate pilot. |
 | F04 same native session | Real-account delegation passed; deployed browser acceptance pending | d10cc02 preserves the actual Sol/low manager and child pilot. Native WS/CLI/history proofs and mounted views pass their bounded tests. Deployed browser attachment and authenticated conversation interaction remain. |
-| F05/F06 checkout lifecycle | Restart source integrated; prospective unused-runtime recovery under CI/review | PR429/431 and PR441/442 supply remount/observer installation, unused OPEN preservation and predecessor fencing. Installed parent-exit and historical-resource fixes are accepted. PR447 at `05f3cc87` adds original enrollment receipts, owner empty-close and history-preserving manual rebuild; 280 host cases, eight installed recovery scenarios and fourteen deployment cases pass locally. Current-head CI/review, corrected-image acceptance, native completion and checkout cleanup remain. |
+| F05/F06 checkout lifecycle | Recovery source reviewed and integrated; installed acceptance pending | PR429/431 and PR441/442 supply remount/observer installation, unused OPEN preservation and predecessor fencing. Installed parent-exit and historical-resource fixes are accepted. PR447 at `05f3cc87` adds original enrollment receipts, owner empty-close and history-preserving manual rebuild; 280 host cases, eight installed recovery scenarios and fourteen deployment cases pass locally. All13 current-head CI checks and Codex review pass before integration at `9ccc7a6f`. Exact-source CLI image publication/registry verification passes; installed corrected-image acceptance, native completion and checkout cleanup remain. |
 | D02/D03 persistence | Foundation, recovery and informational reports validated locally | 7a0b3da adds failed/expired attempts, source revision invalidation and reconciliation. b0e278c serializes manager mutations with registration replacement/revocation. 2e3c10e adds informational reported outcomes separate from verified acceptance, with two additive local migrations and PostgreSQL CI coverage. |
 | D04 manager progression | Bounded native/PostgreSQL composition reviewed; installed acceptance pending | 69a868b advances three manager turns and two delegated steps with one held physical writer. All 76 focused native checks pass; expired registration and delayed-response review findings are fixed. Source advancement, runnable recovery, larger epics and interactive CLI coexistence remain gates. |
 | D05 Delivery window | Reports, scheduling controls and manager navigation validated locally; deployed acceptance pending | 5f7d3a5: owner-scoped task reads, latest and exact historic report links, native window reuse. 77 focused checks and synthetic desktop/mobile Chrome tests pass. Owner pause/resume and exact manager Conversation/Terminal navigation now pass local checks; integrated deployed acceptance remains. |
 | D07/D08 eligibility | Independent semantic acceptance and repair/completion reviewed locally | 9db3f5f includes the repaired current-source SQL fence, bounded same-step repair and controller-derived completion. Parent PostgreSQL/native checks pass; isolated Neon migration preserves all prior rows. Installed real-account completion remains pending. |
-| Test workspace | Original pilot parked; existing test-workspace reuse prepared | The 4Gi workspace `5172dea9` is normally stopped after intent `72b48cc5` reaches `blocked/preparation_timeout`. Its expired runtime, HOME, auth and history are retained; no model ran for that pilot. Existing persistent `23023679` is a stopped reuse candidate with seventeen authority/WIP counts zero across owners and its existing 100Gi PVC retained. Only its Hive test identity and required signed account service are proposed parameter changes. Image/import/start, private HOME validation and actual account status remain pending. No new storage has been allocated. |
+| Test workspace | Clean4Gi workspace created; storage attachment blocked | Original `5172dea9` remains parked with HOME/history/auth retained. Reuse of persistent `23023679` correctly holds on old Hive/issuer scope and is stopped. Clean `632d3c35` is created from the reviewed image with empty repository seed; neither container starts because Longhorn cannot schedule two4Gi replicas. Completed Infrastructure `76a2812a` is a proposed capacity release, pending exact owner deletion approval. No guards, global storage policy or paid capacity changed. |
 | D11 epic coordination | Implementation/composed validation passed; live epic pending | Distinct enrolled domains, real-merge corroboration through connected GitHub, immutable source lineage and slow preparation pass actual PostgreSQL composition. Production/archive/writer release remain held. [Local receipt](epic-preview-integration-local.json). |
 | D09 controlled delivery | Production-flow and deployment-gate source integrated; live acceptance pending | PR415 passed full CI/current Codex review and merged at `078e8b67`; seventeen composed PostgreSQL cases passed. PR417 passed CI/review and merged at `50d38bed`; 44 combined deployment checks pass. First-cutover and ongoing approvals remain absent/off. Migration48 is verified on both Preview databases with prior rows/history preserved. Effective GitHub ruleset compatibility and required target protection remain gates; no provider rules were changed. |
 | D10 migrations/backfills | Combined source merged into epic; live installed/production acceptance remain | PR423 merged into the epic at `f05af0bd` after successful CI run `42453520491` and current-head Codex review. Its caller `1a490e02` selects immutable source `768eff79` and wrapper `b8376b76`. Two distinct native-composition artifacts exercise unchanged PrismaNeon CRUD, sessions, ciphertext and assets against one restricted fixture; both trust and password authentication pass. Bounded transport checks reject wrong database/user and require completed SQL before credit. Source-bound callback recovery and immutable paused-task factual reports pass composed PostgreSQL checks. Setup migrations49/50 are verified on both existing Preview databases after decoded backups; original rows, prior48 history and runtime grants are unchanged. This is distinct from controlled production job acceptance. Genuine postmerge main-serving and production job acceptance remain. [Live upgrade](neon-preview49-50-live-upgrade.json). |
 | D12 workspace packaging | Restart repair merged and installed empty-host recovery accepted | PR413 passed full CI/current Codex review and merged into the epic. The actual retained host recovered its old startup-only lifetime through the normal installer after exact public-config restoration; signed old history remains valid. Active-task rebuild/resume and full rollout remain separate gates. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Task-preparation wake integrated; live acceptance remains | PR444 is integrated at `cd8f2c46` after all13 CI checks and current-head Codex review. The default-off same-Worker wake preserves browser reconciliation after handoff and the baseline for nonpilot tasks. Live enrollment remains off; no additional spending has been authorized. Credential rotation, template publication/logs/notices and account-backed integration remain gates. Terminal, clipboard, voice and agent-tools transports have local proofs. |
+| F07 background-service replacement | Task-preparation wake integrated; live acceptance remains | PR444 is integrated at `cd8f2c46` after all13 CI checks and current-head Codex review. The default-off same-Worker wake preserves browser reconciliation after handoff and the baseline for nonpilot tasks. Live enrollment remains off; included usage was checked for the bounded task pilot. PR448 adds exact-event agent callback wake and is integrated at `25f34003` after all 13 reported checks and current-head independent/Codex reviews pass. Delivery-step notices, credential rotation, template publication/logs and account-backed integration remain gates. Terminal, clipboard, voice and agent-tools transports have local proofs. |
 | F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
 | F10 agent account window | Real Codex connect accepted; native Accounts window source integrated; remaining live checks pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. PR443 adds the dedicated native Accounts window and preserves workspace/build selection; all81 focused checks and13 CI checks plus review pass. Actual Codex connect, official device flow and signed-in card previously passed under Agents in the real Preview browser with generic inventory disabled. Deployed native desktop navigation, singleton launcher, saved selection and mobile layout now pass, with actual signed-in Codex status retained across restart. Earlier mobile failure was not reproduced and its cause remains unestablished. Claude/maintenance were intercepted locally. No auth cache was copied. Claude, reconnect/disconnect actions and maintenance resume remain. [Scoped browser receipt](codex-account-ui-preview-20261108.json). |
 | F08 data cutover rehearsal | Fresh capture, local54 upgrade and original encryption-key validation passed; cutover remains off | A new read-only production snapshot contains81 application and7 migration rows. The original53 restore and subsequent additive54 upgrade preserve original fields and history in the owned local fixture. All7 original ciphertexts authenticate with the captured encryption key; a synthetic current-cookie round trip passes. The upgraded archive is privately retained and fully decoded. Historical cookies, target runtime privileges, final write boundary and recovery/cutover remain unproven. [Local53 receipt](production-data-capture/20261108-f08-local53-restore.json), [local54 follow-up](production-data-capture/20261108-f08-local54-followup.json). |
@@ -125,18 +125,11 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 
 ## Immediate implementation sequence
 
-1. PR429 unused-task recovery and PR430 bounded Infrastructure downloads are merged into the epic after current-head CI/Codex review. Finish the combined F05/F06 source, actual composed lifecycle checks and independent review; publish one complete image before installing it on the normally stopped retained20Gi workspace. Preserve the original task, source, prompt and signed history, enroll the exact final volume attestation, and pass strict readiness before its single owner retry. No journal reset, installed-code patch or replacement prompt.
-2. Run the real manager/child flow through source publication, independent semantic acceptance
-   and factual closure against the same native Preview. Do not equate local recovery proofs with
-   installed execution acceptance.
-3. Run Browser Testing Phase B for shared Conversation/Terminal continuity, durable task status
-   and acceptance. The completed OAuth navigation/reload checkpoint is a separate bounded gate.
-4. Complete remaining F07/F08/F10 account-backed parity, migration/recovery and release-controller
-   acceptance, full CI and independent review. The F07 durable-wake architecture is approved;
-   source corrections and included-usage verification precede live enrollment.
-5. Prepare explicit production OAuth, retained identities, bindings, migration compatibility,
-   schedules and rollback as the concrete final cutover package for owner approval. Production
-   execution remains disabled; only then complete PR #402 for the owner's merge.
+1. Implement the remaining exact successful-step report wake, reusing the existing same-Worker alarm binding/class with a separate typed identity. PR448 agent-event wake and its PostgreSQL test-race correction are integrated. Keep live wake enrollments disabled until their individual preflights pass.
+2. Resolve the clean4Gi workspace's storage reservation block. Exact completed Infrastructure deletion approval is pending; retain it and global storage settings meanwhile. Once ready, verify installed package/Pod image and account status before any time-limited enrollment.
+3. Prepare account, source, policy and read-only observers first, then run the bounded browser-closed preparation and real manager/child pilot. Preserve factual failure/hold evidence; local recovery proofs do not establish installed execution acceptance.
+4. Run Browser Testing Phase B for the actual shared manager Conversation/Terminal, task status and acceptance. Complete remaining F07/D06 background producers, F08/F10 account-backed parity and migration/recovery gates with CI and independent review.
+5. Prepare production OAuth, retained identities, bindings, migration compatibility, observation and recovery as a concrete cutover package. Production stays disabled until the owner merges and approves cutover; PR402 stays draft while these gates remain.
 
 - Project preparation and shared-session views: committed at 7635164, high difficulty. 69 focused
   project/UI/scheduling checks, host/package tests and typecheck pass. Accepted prompts are encrypted,
@@ -2321,3 +2314,47 @@ by this source checkpoint.
   actual manager/delegation, shared Conversation/Terminal views and broader
   F07/F08/F10/release acceptance remain separate roadmap gates. Production stays
   inactive pending the owner's final merge and cutover approval.
+
+### November9 reviewed image, isolation decision and storage blocker
+
+- **Integrate / Build: prospective recovery source, high difficulty.** PR447's
+  final `05f3cc87` passes all13 CI checks, current-head Codex review and independent
+  review before integration at `9ccc7a6f`. The existing image workflow42570302811
+  builds, smoke-tests and publishes the exact-source CLI image. Independent GHCR
+  manifest/config readback agrees on digest
+  `sha256:18875c2650f2e38144f8afd2c1657115d86a0aab5bff70ff00c9fb016e9416ac`.
+  This proves publication/source provenance, not installation on a running host.
+- **Reuse / Hold: persistent historical scope, moderate difficulty.** One inactive
+  template import and normal start reuse workspace `23023679` and its100Gi HOME.
+  Installed startup correctly rejects old authenticated Hive/issuer scope when
+  the proposed dedicated test identity differs. Zero current database work did
+  not establish HOME compatibility. One read-only diagnosis preserves old history;
+  one normal stop succeeds. No history reset, identity waiver or credential copy.
+- **Prepare / Diagnose: clean4Gi test, moderate difficulty.** Primary creation
+  records workspace `632d3c35`, owner/template/creation/build identities before use.
+  Its inactive template uses the reviewed image and empty repository seed; no
+  global template activation changes. Pod scheduling succeeds, but its HOME volume
+  reports insufficient Longhorn replica reservation. Both containers remain
+  unstarted. Read-only disk/replica/PV checks distinguish reservation from free
+  physical bytes. The completed Infrastructure capture is preserved in primary;
+  [one exact retained-workspace deletion proposal](test-storage-release-plan.md)
+  awaits owner approval. No deletion or storage-policy mutation occurs.
+- **CI / Hold: external image downloads, low implementation difficulty.** The
+  four non-CLI image checks fail GitHub release downloads with HTTP504 after their
+  existing four attempts. One failed-only rerun of42570268224 is performed. All
+  four then fail the same pinned Coder2.38.4 asset at Dockerfile118, before checksum
+  verification/extraction/smoke tests. Checksums and retries remain intact. No
+  further rerun, mirror, new credential or alternate publisher is introduced.
+  This external failure remains open; the separately published CLI image passed.
+- **Review / Validate: agent callback wake, high difficulty.** PR448 final
+  `4fc39860` passes independent and current-head Codex review. The first version
+  dropped the absolute wake deadline before transport; it now propagates through
+  both dispatch paths and checks expiry immediately before fetch. PostgreSQL CI
+  also exposed an old callback-test race: elapsed wall time did not prove the
+  sender had entered. The final test waits for actual abort/late database work
+  using an isolated client facade, without mutating Prisma's shared proxy. Focused
+  local cases, typecheck and formatting pass. All 13 reported checks, including
+  PostgreSQL and Workers Builds, then pass at `4fc39860`; root marks PR448 ready
+  and integrates it through GitHub at `25f34003`.
+  Default-off configuration and terminal-selector retention preserve bounded
+  exact-event handling. No live subscription/provider delivery is accepted yet.
