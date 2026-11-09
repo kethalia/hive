@@ -469,3 +469,29 @@ test("foreign-owner intent with the same task ID stays invisible to the enrolled
   assert.equal(row.phase, "queued");
   assert.equal(row.leaseId, null);
 });
+
+test("browser-first dispatch succeeds before the alarm with one effect and no failure/backoff", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t);
+  const reserved = await f.call("reserve");
+  // Keep the real alarm armed while ensuring the browser wins even on slow CI.
+  await f.call("write", { state: { ...reserved, nextWake: Date.now() + 60000 } });
+  await f.store.enqueue(f.payload, reserved.deadline);
+  assert.equal((await f.call("state")).attempts, 0);
+  const result = await f.call("browser");
+  assert.equal(result.processed, 1);
+  assert.equal(result.retry, 0);
+  assert.equal(f.hostCalls(), 1);
+  assert.equal(f.effects(), 1);
+  const row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "running");
+  assert.equal(row.failureCount, 0);
+  assert.equal(row.leaseId, null);
+  await f.due();
+  await f.call("tick");
+  assert.equal((await f.call("state")).phase, "running");
+  assert.equal(f.effects(), 1);
+  assert.equal(f.hostCalls(), 1);
+});

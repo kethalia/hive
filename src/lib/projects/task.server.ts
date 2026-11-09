@@ -414,7 +414,14 @@ export async function reconcileProjectTasks(
       beforeExecute: async () => {
         if (!wake) return;
         assertTaskWakeActive(wake);
-        if (!options.wake && target) assertTaskWakeActive(await readTaskWake(wake));
+        if (!options.wake && target)
+          assertTaskWakeActive(
+            await readTaskWake({
+              ownerId: wake.ownerId,
+              projectId: wake.projectId,
+              taskId: wake.taskId,
+            }),
+          );
       },
     },
   );

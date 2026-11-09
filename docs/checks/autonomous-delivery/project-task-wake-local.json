@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "scope": "F07 exact-task preparation wake local source validation",
-  "observedAt": "2026-11-09T01:05:04.957771+00:00",
+  "observedAt": "2026-11-09T01:18:18.669799+00:00",
   "sourceBase": "26ecc67aed3f080a73f49cf3bbf38cf8bdd14a7c",
   "branch": "codex/project-task-durable-wake",
   "defaultEnabled": false,
@@ -13,7 +13,7 @@
   "checks": {
     "unit": 38,
     "sqliteAndDeploy": 20,
-    "workerdPostgres": 7,
+    "workerdPostgres": 8,
     "typescript": "pass",
     "biome": "pass",
     "workflowYaml": "pass",
@@ -48,7 +48,8 @@
     "maintenance and changed repository identity deny host calls",
     "foreign-owner same-ID intent remains untouched",
     "cancelled unknown outcome retains its original PostgreSQL lease",
-    "auth/prompt/credential values absent from Durable Object state"
+    "auth/prompt/credential values absent from Durable Object state",
+    "browser-first wins the PostgreSQL claim with processed1/retry0/failureCount0 and one effect"
   ],
   "seams": [
     "Provider/native host replies and task idempotency are synthetic fixed responses",
@@ -70,7 +71,7 @@
     "deploy/cloudflare/app/project-tasks.ts": "4e632e8ef747bd449fa8a8d89622df9aafdf8c3db98055f3fc331cf25c448c11",
     "deploy/cloudflare/native/deploy.mjs": "f4fa9ad53799fbd771e8b090509fa3258dae7d6ad89c3d43270bb4d0f6372704",
     "deploy/cloudflare/native/deploy.test.mjs": "78ef3b087eb4039e6e80a954717cdb207f032a1396057aa8d38cb7514939433e",
-    "deploy/cloudflare/native/project-task-wake.integration.test.mjs": "bd07f027002170e47df8bf85199c7c07ea45eb6fec02efef9b28241831a52626",
+    "deploy/cloudflare/native/project-task-wake.integration.test.mjs": "fcc915ea402029b541096f397a799f25c031f4d00024ada99bccd7122eaf1cf0",
     "deploy/cloudflare/native/project-task-wake.mjs": "fa2dcdef76d666a431ab82db8e8d45d898cdbcc4c3b302f8eb6ea06ef78f0744",
     "deploy/cloudflare/native/project-task-wake.test.mjs": "e54ca502459c8f4dbe0c49c8a7862f230b3deae1b425fa2738898b7f51be855f",
     "deploy/cloudflare/native/worker.ts": "b831081409efcd7b5ae0051b9ba206da0a65ccf4cc19ad16c4e5d7b202076bd1",
@@ -82,13 +83,21 @@
     "src/lib/projects/task-intents.server.ts": "8824343f31f97ee86cb10145ba1821193fe7e48924ec77c883ccbc72a111cbc8",
     "src/lib/projects/task-wake-contracts.ts": "e8e6ad8ee9ea3d689a3c933db6358fc287243a04b46b8ce5550b7750e7684ebd",
     "src/lib/projects/task-wake.server.ts": "2605529363573f813fcd845d440a78f10b4860148277195471ce15ebd4760191",
-    "src/lib/projects/task.server.ts": "2bb03828d5c966bc9c8766d4fd5abb3ad6fc518acd50198e2d646d2fba06a0e5"
+    "src/lib/projects/task.server.ts": "983743186a98af1bed3ab0c52f381b8592999b14592fd169dbe1d6d8899e5f59"
   },
   "logHashes": {
-    "unit": "266810fa0610618275f6906e64bc938c7fc93ad494350e976b49234af2e52639",
+    "unit": "76379bdab4426a5585ae193137eed06009b2c81efa2b3a25a48a2118e88afbe1",
     "sqliteAndDeploy": "9b30b1b897da33c7016def11749ce381cfdf7289f7cb57e0b412b76e41d96f59",
-    "workerdPostgres": "e7a90ad71e760af9b3dd0a8a024be31fc42e090fd043ed42d66be43bebdaba91",
+    "workerdPostgres": "c34db6d92c0d85d44a9090c7c0119a99c726ae997473d8a6c5178610a5008f94",
     "types": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "format": "6853a216f66d34d833638c212305e06732c4a9b38c3cc3fd8ee5ddc0809fab49"
+  },
+  "reviewCorrection": {
+    "baselineSource": "02d2e75f3b02445ec2fce9925a1f97e1fed70792",
+    "finding": "Browser recheck supplied a full receipt to the strict identity parser",
+    "baselineReproduction": "Five browser-first claims incremented failureCount through5 and blocked the row with zero host calls",
+    "repair": "Explicit ownerId/projectId/taskId projection, retaining strict schema",
+    "verified": "Actual browser-first Workerd/PostgreSQL path processes one task, failureCount0, lease cleared and one effect after alarm replay",
+    "testOrdering": "Fixture retains the real alarm and moves its nextWake before enqueue to guarantee browser-first claim ordering"
   }
 }
