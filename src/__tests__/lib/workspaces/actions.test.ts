@@ -273,17 +273,34 @@ describe("workspace server actions", () => {
   });
 
   it("listWorkspacesAction returns workspace list", async () => {
-    const workspaces = [
-      { id: "ws-1", name: "dev", owner_name: "alice" },
-      { id: "ws-2", name: "prod", owner_name: "alice" },
-    ];
-    mockListWorkspaces.mockResolvedValueOnce({ workspaces, count: 2 });
+    const workspaces = ["dev", "prod"].map((name, index) => ({
+      id: `ws-${index + 1}`,
+      name,
+      template_id: "tpl-1",
+      owner_name: "alice",
+      latest_build: {
+        id: `build-${index + 1}`,
+        status: "running",
+        job: { status: "succeeded", error: "" },
+      },
+    }));
+    const providerWorkspaces = workspaces.map((workspace) => ({
+      ...workspace,
+      provider_secret: "must-not-reach-browser",
+      latest_build: {
+        ...workspace.latest_build,
+        resources: [{ agents: [{ auth_token: "must-not-reach-browser" }] }],
+      },
+    }));
+    mockListWorkspaces.mockResolvedValueOnce({ workspaces: providerWorkspaces, count: 2 });
 
     const { listWorkspacesAction } = await import("@/lib/actions/workspaces");
     const result = await listWorkspacesAction();
 
     expect(mockListWorkspaces).toHaveBeenCalledWith({ owner: "me" });
     expect(result?.data).toEqual(workspaces);
+    expect(JSON.stringify(result?.data)).not.toContain("must-not-reach-browser");
+    expect(result?.data?.[0].latest_build).not.toHaveProperty("resources");
   });
 
   it("listWorkspaceTemplatesAction omits the retired orchestrator template", async () => {

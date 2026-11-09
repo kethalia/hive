@@ -79,6 +79,9 @@ export async function cachedDiscovery<T>({
   refresh?: boolean;
   cacheable?: (value: T) => boolean;
 }): Promise<T> {
+  // A cached promise can retain another Workerd request's IO/database lifetime.
+  // Keep Node's existing cache; Workers use fresh authorized reads.
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") return load();
   const client = await connection();
   let epoch = "local";
   try {
@@ -146,6 +149,7 @@ export async function cachedDiscovery<T>({
 }
 
 export async function invalidateDiscovery(key: string) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") return;
   for (const existing of memory.keys()) if (existing.startsWith(`${key}:`)) remove(existing);
   for (const existing of pending.keys())
     if (existing.startsWith(`${key}:`)) pending.delete(existing);

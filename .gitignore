@@ -110,3 +110,9 @@ com[1-9]
 com[1-9].*
 lpt[1-9]
 lpt[1-9].*
+
+# Cloudflare generated runtime artifacts
+.open-next/
+.next-cloudflare/
+.artifacts/
+.wrangler/

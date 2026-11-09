@@ -1,4 +1,4 @@
-export { AuthServiceClient } from "./client";
+export { AuthServiceClient, type AuthServiceTransport } from "./client";
 export type {
   CloneTerminalProofClaims,
   CloneTerminalProofFailureReason,

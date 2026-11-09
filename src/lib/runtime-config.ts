@@ -18,11 +18,20 @@ declare global {
 
 export function getServerRuntimeConfig(): RuntimeConfig {
   return {
-    terminalWsUrl: process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "",
+    terminalWsUrl: serverTerminalWsUrl(),
     ...(process.env.HIVE_CODEX_VOICE_ENABLED === "true"
       ? { codexVoiceEnabled: true as const }
       : {}),
   };
+}
+
+export function serverTerminalWsUrl(): string {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare")
+    return process.env.HIVE_GENERIC_TERMINAL_ENABLED === "true" &&
+      process.env.HIVE_TERMINAL_WS_URL === "/"
+      ? "/"
+      : "";
+  return process.env.NEXT_PUBLIC_TERMINAL_WS_URL ?? "";
 }
 
 export function serializeRuntimeConfig(config: RuntimeConfig): string {

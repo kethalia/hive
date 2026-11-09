@@ -153,3 +153,21 @@ it("reads a shared cached value without a new scan", async () => {
   expect(await cachedDiscovery({ key, ttl: 1000, load })).toEqual(["shared"]);
   expect(load).not.toHaveBeenCalled();
 });
+
+it("never shares cached or pending Workerd reads or touches Redis", async () => {
+  vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+  vi.stubEnv("REDIS_URL", "redis://must-not-connect");
+  vi.clearAllMocks();
+  const firstRead = deferred<string>();
+  const first = cachedDiscovery({ key, ttl: 1000, load: () => firstRead.promise });
+  const second = cachedDiscovery({ key, ttl: 1000, load: async () => "second request" });
+  expect(await second).toBe("second request");
+  firstRead.resolve("first request");
+  expect(await first).toBe("first request");
+  expect(await cachedDiscovery({ key, ttl: 1000, load: async () => "third request" })).toBe(
+    "third request",
+  );
+  await invalidateDiscovery(key);
+  for (const call of [redis.options, redis.connect, redis.get, redis.set, redis.eval])
+    expect(call).not.toHaveBeenCalled();
+});

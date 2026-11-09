@@ -55,6 +55,7 @@ export interface WorkspaceBuildRequest {
 export interface CoderClientConfig {
   baseUrl: string;
   sessionToken: string;
+  signal?: AbortSignal;
 }
 
 /** Options for the waitForBuild polling method */

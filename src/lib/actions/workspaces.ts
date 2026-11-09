@@ -24,6 +24,7 @@ import {
   getIsolatedWorkspaceAppAuthRedirect,
   getWorkspaceAppIsolationContext,
 } from "@/lib/workspaces/app-access";
+import { toPublicWorkspace } from "@/lib/workspaces/public-workspace";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
 import { resolveTerminalFilePath } from "@/lib/workspaces/terminal-file-path";
 import {
@@ -37,7 +38,7 @@ const WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS = 5_000;
 export const listWorkspacesAction = authActionClient.action(async ({ ctx }) => {
   const client = await getCoderClientForUser(ctx.user.id);
   const result = await client.listWorkspaces({ owner: "me" });
-  return result.workspaces;
+  return result.workspaces.map(toPublicWorkspace);
 });
 
 export const listWorkspaceTemplatesAction = authActionClient.action(async ({ ctx }) => {
@@ -183,7 +184,7 @@ export const getWorkspaceAction = authActionClient
   .inputSchema(getWorkspaceSchema)
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
-    return client.getWorkspace(parsedInput.workspaceId);
+    return toPublicWorkspace(await client.getWorkspace(parsedInput.workspaceId));
   });
 
 export const getWorkspaceAgentAction = authActionClient
@@ -301,6 +302,12 @@ async function getSessionCurrentDirectory({
 export const getWorkspaceSessionsAction = authActionClient
   .inputSchema(getWorkspaceSessionsSchema)
   .action(async ({ parsedInput, ctx }) => {
+    if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+      const { readWorkspaceSessionInventory } = await import(
+        "@/lib/terminal/session-inventory.server"
+      );
+      return readWorkspaceSessionInventory(ctx, parsedInput.workspaceId);
+    }
     const client = await getCoderClientForUser(ctx.user.id);
 
     const workspace = await client.getWorkspace(parsedInput.workspaceId);

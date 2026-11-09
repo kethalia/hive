@@ -5,6 +5,7 @@ import extract from "tar-stream";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { cachedDiscovery, discoveryCacheKey } from "@/lib/discovery/server-cache";
 import { KNOWN_TEMPLATES, type KnownTemplate } from "@/lib/templates/catalog";
+import templateHashes from "./cloudflare-template-hashes.json";
 
 /** Deployable templates maintained by Hive. */
 export { KNOWN_TEMPLATES, type KnownTemplate };
@@ -55,6 +56,11 @@ async function collectFiles(dir: string, base: string = dir): Promise<string[]> 
  * Sorted paths + contents are fed into the hash deterministically.
  */
 export async function hashLocalTemplate(name: string): Promise<string> {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    const hash = (templateHashes as Record<string, string>)[name];
+    if (!hash || !/^[a-f0-9]{64}$/.test(hash)) throw new Error("Unknown template identity");
+    return hash;
+  }
   const templateDir = join(process.cwd(), "templates", name);
   const hash = createHash("sha256");
 

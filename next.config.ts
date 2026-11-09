@@ -12,13 +12,29 @@ export const contentSecurityPolicy = buildContentSecurityPolicy();
 const appBuildId = process.env.HIVE_APP_BUILD_ID ?? randomUUID();
 process.env.HIVE_APP_BUILD_ID = appBuildId;
 
+const cloudflareBuild = process.env.HIVE_RUNTIME_TARGET === "cloudflare";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   generateBuildId: async () => appBuildId,
   env: {
     NEXT_PUBLIC_HIVE_APP_VERSION: version,
+    ...(cloudflareBuild
+      ? { HIVE_RUNTIME_TARGET: "cloudflare", HIVE_DISABLE_BACKGROUND_WORKERS: "true" }
+      : {}),
     NEXT_PUBLIC_HIVE_APP_BUILD: process.env.NODE_ENV === "production" ? appBuildId : "development",
   },
+  ...(cloudflareBuild
+    ? {
+        serverExternalPackages: [
+          "@hive/db",
+          "@prisma/client",
+          "@prisma/adapter-neon",
+          "@neondatabase/serverless",
+        ],
+        outputFileTracingExcludes: { "/*": ["./.git/**/*", "./.artifacts/**/*", "./.env*"] },
+      }
+    : {}),
   // Next can resolve the ESM condition at runtime even when its file tracer
   // only discovers the CommonJS helper. Ship every conditional export.
   outputFileTracingIncludes: {

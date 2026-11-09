@@ -92,6 +92,24 @@ describe("getCoderClientForUser", () => {
     );
   });
 
+  it("passes caller cancellation through without adding schema fields", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "tok" });
+    const controller = new AbortController();
+    await getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal });
+    expect(CoderClient).toHaveBeenLastCalledWith({
+      baseUrl: MOCK_CODER_URL,
+      sessionToken: "tok",
+      signal: controller.signal,
+    });
+    controller.abort();
+    const calls = mockDb.coderToken.findFirst.mock.calls.length;
+    await expect(
+      getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(mockDb.coderToken.findFirst).toHaveBeenCalledTimes(calls);
+  });
+
   it("queries for the most recent token", async () => {
     mockDb.coderToken.findFirst.mockResolvedValue(mockToken({ user: mockUser() }));
     vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "tok" });
