@@ -30,9 +30,9 @@ or delete unrelated resources. Credentials stay outside source control and evide
 | D10 migrations/backfills | Combined source merged into epic; live installed/production acceptance remain | PR423 merged into the epic at `f05af0bd` after successful CI run `42453520491` and current-head Codex review. Its caller `1a490e02` selects immutable source `768eff79` and wrapper `b8376b76`. Two distinct native-composition artifacts exercise unchanged PrismaNeon CRUD, sessions, ciphertext and assets against one restricted fixture; both trust and password authentication pass. Bounded transport checks reject wrong database/user and require completed SQL before credit. Source-bound callback recovery and immutable paused-task factual reports pass composed PostgreSQL checks. Setup migrations49/50 are verified on both existing Preview databases after decoded backups; original rows, prior48 history and runtime grants are unchanged. This is distinct from controlled production job acceptance. Genuine postmerge main-serving and production job acceptance remain. [Live upgrade](neon-preview49-50-live-upgrade.json). |
 | D12 workspace packaging | Restart repair merged and installed empty-host recovery accepted | PR413 passed full CI/current Codex review and merged into the epic. The actual retained host recovered its old startup-only lifetime through the normal installer after exact public-config restoration; signed old history remains valid. Active-task rebuild/resume and full rollout remain separate gates. |
 | D06 durable notices | Dispatch implemented and local Worker crypto/transport proof passed | 1307b4c bounds durable claims, owner fanout, retry/exhaustion and preserves reports independently of push. Worker jobs have no cron/public endpoint and remain disabled. Actual scheduled delivery to a browser remains. |
-| F07 background-service replacement | Partial implementation; browser-independent preparation gap confirmed | Credential rotation, template publication/logs/notices and task resumption remain default-off. Terminal, clipboard, voice and agent-tools transports have local proofs. A same-Worker durable wake proposal awaits owner architecture approval; no new runtime/binding exists. Account-backed integration and legacy hook parity remain. |
+| F07 background-service replacement | Partial implementation; approved task-preparation wake in review | PR444 implements a default-off same-Worker Durable Object wake after owner approval. Review corrections cover browser reconciliation after handoff and preserving the baseline for nonpilot tasks. No live enrollment or additional spending is authorized. Credential rotation, template publication/logs/notices and account-backed integration remain gates. Terminal, clipboard, voice and agent-tools transports have local proofs. |
 | F09 Coder OAuth | Preview login/refresh/revocation/reconnect accepted; production gates remain | Real Coder consent/code exchange preserves the existing Hive user/session mapping; two concurrent expired-access requests advance one credential version. Chrome native-link navigation and authenticated Hive reload pass separately. Independent production enrollment/helper is ready without activation; explicit disconnect and same-owner restoration passed the real Browser/app/provider flow; final production acceptance remains. [Scoped evidence](coder-oauth-live-preview.json). |
-| F10 agent account window | Real Codex connect accepted; native Accounts window source integrated; remaining live checks pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. PR443 adds the dedicated native Accounts window and preserves workspace/build selection; all81 focused checks and13 CI checks plus review pass. Actual Codex connect, official device flow and signed-in card previously passed under Agents in the real Preview browser with generic inventory disabled. The new window browser check remains pending. No auth cache was copied. Claude, reconnect/disconnect actions and maintenance resume remain. [Scoped browser receipt](codex-account-ui-preview-20261108.json). |
+| F10 agent account window | Real Codex connect accepted; native Accounts window source integrated; remaining live checks pending | PR423 is integrated and preserves task/history/writer identities across owner maintenance and fresh execution epochs. Persisted pause/resume command IDs recover after lost delivery; UI polls status after an unknown initial response without resending the owner mutation. A separately reviewed five-file fix `029a8a08` makes scoped cards independent of disabled generic inventory and retains default-off maintenance enrollment. The reviewed fix is merged through PR426 and deployed. PR443 adds the dedicated native Accounts window and preserves workspace/build selection; all81 focused checks and13 CI checks plus review pass. Actual Codex connect, official device flow and signed-in card previously passed under Agents in the real Preview browser with generic inventory disabled. Deployed native desktop navigation, singleton launcher, saved selection and mobile layout now pass, with actual signed-in Codex status retained across restart. Earlier mobile failure was not reproduced and its cause remains unestablished. Claude/maintenance were intercepted locally. No auth cache was copied. Claude, reconnect/disconnect actions and maintenance resume remain. [Scoped browser receipt](codex-account-ui-preview-20261108.json). |
 | F08 data cutover rehearsal | Fresh capture, local54 upgrade and original encryption-key validation passed; cutover remains off | A new read-only production snapshot contains81 application and7 migration rows. The original53 restore and subsequent additive54 upgrade preserve original fields and history in the owned local fixture. All7 original ciphertexts authenticate with the captured encryption key; a synthetic current-cookie round trip passes. The upgraded archive is privately retained and fully decoded. Historical cookies, target runtime privileges, final write boundary and recovery/cutover remain unproven. [Local53 receipt](production-data-capture/20261108-f08-local53-restore.json), [local54 follow-up](production-data-capture/20261108-f08-local54-followup.json). |
 | Remaining F/D tasks | Pending | Follow docs/autonomous-delivery-epic.md dependencies; no automatic release enabled. |
 
@@ -132,7 +132,8 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 3. Run Browser Testing Phase B for shared Conversation/Terminal continuity, durable task status
    and acceptance. The completed OAuth navigation/reload checkpoint is a separate bounded gate.
 4. Complete remaining F07/F08/F10 account-backed parity, migration/recovery and release-controller
-   acceptance, full CI and independent review. The F07 durable-wake architecture decision remains pending.
+   acceptance, full CI and independent review. The F07 durable-wake architecture is approved;
+   source corrections and included-usage verification precede live enrollment.
 5. Prepare explicit production OAuth, retained identities, bindings, migration compatibility,
    schedules and rollback as the concrete final cutover package for owner approval. Production
    execution remains disabled; only then complete PR #402 for the owner's merge.
@@ -2168,3 +2169,41 @@ by this source checkpoint.
   capture task finished, evidence was preserved in primary, and normal stop1aa83712
   succeeded after all four creation identity fields matched. Its home/workspace
   remains retained; no deletion was requested.
+
+### November9 Accounts acceptance and retained-task diagnosis
+
+- **Validate: native Accounts desktop/mobile, moderate difficulty.** Desktop navigation,
+  actual launcher singleton reuse, saved workspace/build selection and reload pass.
+  A first mobile attempt held without enough diagnostics to establish its cause; a
+  separately bounded diagnostic passes all seven checks at390×844, with visible
+  signed-in status and contained controls. Both runs use the same deployed source
+  and retained workspace build. No account mutation, task/model call or production
+  operation is forwarded. Claude and maintenance status are local404 interceptions;
+  their provider acceptance and stale/missing-workspace live negatives remain open.
+  Browser processes close naturally; the persistent workspace remains for shared-thread
+  checks. [Desktop receipt](accounts-window-desktop-preview-20261109.json),
+  [mobile receipt](accounts-window-mobile-preview-20261109.json).
+- **Diagnose / Implement: retained native pilot, high difficulty.** The reviewed
+  source60bc CLI image passes installed package checks after normal inactive-template
+  restart on the same4Gi home. Auth metadata and strict OPEN-only history survive.
+  Original preparation times out; the explicit same-task owner retry records an
+  inspecting recovery, then holds before guardian authority or model execution.
+  Read-only diagnosis isolates a normal installer-exit parent-PID change: retained
+  and live startup attestations otherwise match. PR445 normalizes only that parent
+  field in a comparison copy, preserving signed records and all other identity
+  checks. Local real-installer red/green and mandatory three-build/two-retirement
+  tests pass. All13 CI checks and current Codex review pass before integration
+  into the epic at `c79c5fed`; corrected-image installed acceptance remains pending.
+  No new prompt/task, authority repair, manual installed-file edit or production
+  cutover occurs. Original recovery acknowledgment remains preserved.
+  [Installed package/history receipt](unused-bootstrap-installed-20261109.json).
+- **Implement / Review: F07 preparation wake, high difficulty.** Owner approval
+  permits PR444's same-Worker alarm implementation, default off. Real Workerd/SQLite
+  and PostgreSQL composition cover reserved wake/commit gaps and bounded holds.
+  Peer review fixed a strict identity projection error. Automatic review then found
+  running handoff incorrectly suppressed browser status repair; a scope check also
+  found nonpilot tasks could be held by single-pilot enrollment. Both corrections
+  pass initial regressions. Independent review then reproduces a delayed-alarm
+  handoff ordering that still suppresses metadata repair after the preparation
+  deadline; its narrow correction and regression remain in progress. Live enrollment, included usage, notification/
+  rotation/publication parity and full F07 completion are not established.

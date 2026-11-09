@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "status": "bounded_mobile_diagnostic_passed",
+  "phaseId": "4b050bd5-aeb4-48d5-aae9-64cc35a22700",
+  "sourceSha": "26ecc67aed3f080a73f49cf3bbf38cf8bdd14a7c",
+  "appBuildId": "66a34b25-2d5e-4866-9d65-c8b22362b05f",
+  "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+  "buildId": "8579341b-8ef9-4ea2-bed8-b141afb3057f",
+  "browserWorkspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "browserBuildId": "fb2d6854-e6d6-468b-8496-d52b247f0bb0",
+  "diagnosticManifestSha256": "aeb2a0b5a8edb133248a43c257501c3debf12625ff5888b32fe595fd12d41e67",
+  "driverSha256": "12292d27f2751e0ea9e49572e4ad4bd0d721277a1dccba326797127b9765e822",
+  "guardSha256": "1e3ce77f0a2e069605d89e881d178b883559e99c2c7a1091b7e4ec29ecaacf93",
+  "counts": {
+    "attempts": 26,
+    "forwarded": 22,
+    "status": 1,
+    "version": 1,
+    "workspaces": 1,
+    "local404": 2,
+    "blocked": 2
+  },
+  "actualStatus": {
+    "state": "signed-in",
+    "lifetimeId": "5471f9f1-4ea1-49f9-be7d-b21d0d5cb3c2",
+    "generation": 0,
+    "pending": false,
+    "httpStatus": 200
+  },
+  "acceptedChecks": {
+    "singleton": true,
+    "selectorMatches": true,
+    "savedSelectionMatches": true,
+    "originalFrameWithinPlaywrightViewport": true,
+    "originalCardWithinFrame": true,
+    "allowedActualStatus": true,
+    "routeGuardIntact": true
+  },
+  "mobileGeometry": {
+    "frameCount": 1,
+    "frame": {
+      "x": 4,
+      "y": 4,
+      "width": 276,
+      "height": 836,
+      "right": 280,
+      "bottom": 840
+    },
+    "card": {
+      "x": 21,
+      "y": 205,
+      "width": 242,
+      "height": 302,
+      "right": 263,
+      "bottom": 507
+    },
+    "selector": {
+      "x": 21,
+      "y": 89,
+      "width": 242,
+      "height": 40,
+      "right": 263,
+      "bottom": 129
+    },
+    "viewport": {
+      "innerWidth": 390,
+      "innerHeight": 844,
+      "clientWidth": 390,
+      "scrollWidth": 390,
+      "visualWidth": 390,
+      "visualHeight": 844,
+      "devicePixelRatio": 1,
+      "viewportMeta": "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    },
+    "playwrightViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "buttons": [
+      {
+        "label": "Refresh status",
+        "bounds": {
+          "x": 34,
+          "y": 406,
+          "width": 136.25,
+          "height": 40,
+          "right": 170.25,
+          "bottom": 446
+        },
+        "disabled": false
+      },
+      {
+        "label": "Reconnect",
+        "bounds": {
+          "x": 34,
+          "y": 454,
+          "width": 96.875,
+          "height": 40,
+          "right": 130.875,
+          "bottom": 494
+        },
+        "disabled": false
+      },
+      {
+        "label": "Disconnect",
+        "bounds": {
+          "x": 138.875,
+          "y": 454,
+          "width": 104.75,
+          "height": 40,
+          "right": 243.625,
+          "bottom": 494
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "privateScreenshotCapturedBeforeAssertions": true,
+  "visualReview": {
+    "screenshot": "mobile-before-assertions-private.png",
+    "visuallyInspectedThroughBrowserArtifactRead": true,
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "observations": [
+      "Native Accounts frame and Codex card are inside the viewport.",
+      "Workspace selector has an ellipsized label and retained exact selected workspace/build IDs.",
+      "Signed-in text is visible. Refresh status, Reconnect and Disconnect buttons remain fully readable, wrapping into two rows.",
+      "The notification prompt covers the lower otherwise-empty frame area and leaves the account controls visible."
+    ],
+    "productLayoutDefectEstablished": false,
+    "earlierFailureExactCauseEstablished": false
+  },
+  "otherProviders": {
+    "claudeAndMaintenanceStatus": "Two responses fulfilled locally404. Neither request was forwarded.",
+    "acceptanceClaimed": false
+  },
+  "cleanup": {
+    "contextClosedNaturally": true,
+    "browserClosedNaturally": true,
+    "independentRecordedProcessIdentitiesGone": true,
+    "readableSameUidLiveChromeCount": 0,
+    "unreadableSameUidEntries": 2,
+    "foregroundSshExited": true,
+    "signalsSent": 0,
+    "persistentBrowserRetainedRunning": true
+  },
+  "priorPhase": {
+    "id": "212ee85c-5721-45ce-8cd1-16c781192bbb",
+    "preserved": true,
+    "earlierFailureCauseStillUnestablished": true,
+    "newDiagnosticRepeatedItsGeometryChecksSuccessfully": true
+  },
+  "privateEvidence": {
+    "directory": "/home/coder/projects/kethalia/.private-hive-f10-accounts-ui-20261108/mobile-diagnostic-4b050bd5-aeb4-48d5-aae9-64cc35a22700/execution",
+    "directoryMode": "0700",
+    "fileModes": "0600",
+    "returnedFileSha256": {
+      "events.jsonl": "1c27aff66aaea5abedd8df5f40a4c3b059b0cd40fef417a9abdd816e62401bd4",
+      "individual-checks.json": "dbda2b66fbb78c45db3db2094a959d40d4e383d4a1f427d8f88f0cc3008bec5d",
+      "mobile-before-assertions-private.png": "247b7c2fde01a74353e9040d23eda9025b603dc4798f95bf371a3643762d741b",
+      "actual-status-safe.json": "b1d7fb4e186860e94ff433d333c4477fcb9280a41ba3361b1f92cdbaf6278126",
+      "result.json": "805c137d7139d648ffd5a7d1bb1af42e3981b9b38f131a5dd8d0c9e9c915c709",
+      "observer-started.json": "9b9169db6ea3100a08b72d6312cfaeb40b1a1e4f085437a8f57a320c32a6ce09",
+      "outcome-before-teardown.json": "9e82c6991d82b7a39de68621b59839b977b1e1b8915b0930cc606ea052db9d2d",
+      "typed-mobile-dom.json": "9cf1917197d9585d4f494364a74d7c2dbfbe50e138adba5e3e10eb0cb09abcaf",
+      "progress.json": "8799d2c2cc79a0adf297a988ef843a7e67735e495c748c1bf513b30a7c13cad2"
+    }
+  },
+  "limits": [
+    "This new phase accepted mobile geometry and current signed-in status. It did not establish the earlier mobile failure cause.",
+    "Stale-build/missing-workspace negative checks from the earlier sequence remain unexecuted.",
+    "Claude/maintenance status was intercepted locally404. Other provider account acceptance remains separate.",
+    "Account state reflects one observed status response. A concurrent or later native pilot may change lock/state.",
+    "Every recorded harness/Chrome identity is absent. Two unrelated same-UID proc entries were unreadable."
+  ],
+  "applicationMutationsForwarded": 0,
+  "taskModelOrProvisionCalls": 0,
+  "productSourceChanges": 0
+}

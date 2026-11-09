@@ -307,10 +307,15 @@ and final cutover remain unproven.
 
 Mobile project discovery and actual ordinary terminal transport/normal exit are accepted.
 Codex in-app device sign-in is accepted on the dedicated4Gi runtime; PR443 adds the
-Accounts window, whose deployed desktop/mobile check remains. The same software
-workspace is stopped with its home/auth/history retained. Reviewed CLI image publication,
-inactive template installation, preserved-task retry and the real manager/child/evaluator
-flow are next. Shared-thread views, safe completed-task cleanup, Claude/maintenance,
+Accounts window. Its deployed desktop navigation, launcher singleton, saved selection
+and mobile layout now pass; Codex remains signed in across the retained workspace's
+normal restart. Claude/maintenance responses were intercepted in those scoped checks.
+The reviewed CLI image and inactive4Gi template are installed on the same workspace.
+The retained task retry exposed a detached-installer parent-PID comparison defect before
+any model execution; PR445 supplies the narrow correction and is integrated after all13
+CI checks and current-head review. Its test image and installed acceptance are next.
+Preserved-task recovery and the real manager/child/evaluator flow are next.
+Shared-thread views, safe completed-task cleanup, Claude/maintenance,
 durable background service parity and production release acceptance remain gates.
 See the [execution ledger](checks/autonomous-delivery/progress.md) for exact evidence.
 
@@ -357,9 +362,11 @@ PR419 implements GitHub ruleset compatibility; the exact protected-target propos
 still awaits owner approval, and no repository protection has been changed.
 
 Finish the remaining F07/F08/F10 account-backed parity/recovery gates and release-controller
-acceptance. F07 still needs a browser-independent preparation wake; the
-[same-Worker durable alarm proposal](checks/autonomous-delivery/durable-wake-plan.md)
-is awaiting architecture approval, with no new binding or runtime implemented.
+acceptance. The owner approved F07's browser-independent preparation wake. PR444
+implements the [same-Worker durable alarm](checks/autonomous-delivery/durable-wake-plan.md)
+with default-off configuration; review corrections and composed regressions remain
+before integration. Live pilot enrollment remains off pending included-usage verification.
+This task-preparation wake does not complete notification, rotation or publication parity.
 Prepare production bindings, retained identities, explicit production OAuth,
 migration compatibility, scheduler handover and rollback as a concrete cutover package for the
 user's final approval. Production activation is not authorized. The

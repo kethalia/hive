@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "status": "installed_package_pass_task_recovery_held",
+  "observedAt": "2026-11-09T00:34:26.658Z",
+  "workspaceId": "5172dea9-a2d7-4ddf-9f58-a970a777f280",
+  "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+  "createdAt": "2026-11-08T21:53:01.180474Z",
+  "buildId": "8579341b-8ef9-4ea2-bed8-b141afb3057f",
+  "templateVersionId": "419a863c-70d3-4105-8f53-ed2e3645624f",
+  "agentId": "0b534a96-451b-4493-9b2e-36df8c448c79",
+  "lifecycleState": "ready",
+  "overallCoderHealthy": true,
+  "sourceSha": "60bc626ed8b988cda4735320c0b24bc302306076",
+  "imageDigest": "sha256:82b2e1f7031f62f71499a16fe6ef1b668bdf11987c2f9208a753ffddf5fd1685",
+  "imageDigestProvenance": "reviewed-immutable-template-import-and-registry-proof",
+  "hostManifestSha256": "ca655fae0c3615fae7ebae04eedf20072cf508c9f180978ae12886cebcc3f472",
+  "hostRawSha256": "c19f7630742a03ae70c6a09f3026843e07c11c2e4c90e2c3905e2b6ffffd723a",
+  "hostMemberCount": 55,
+  "allMemberDigestsMatch": true,
+  "guardianElfSha256": "0180d7f9551e9d4df364da8458385d1c163e3d7c507cc49f87f1df1acc880659",
+  "nodeSha256": "904a6d3484241d466989f9df9ba3aab822b1496191bdb28230eb491a55c32a52",
+  "sdkHelperSha256": "5cb01a6bde1a451cec77568e08ffebba491086d8271c0a785b8744b18a74ae39",
+  "bridgeManifestSha256": "9a6291523cfce559c7a3d9298b3dc06ac5f94e51c76ae696d4d34d0b809c95e3",
+  "currentLifetimeId": "2a9d8187-6f96-4053-b64a-be25c66c390f",
+  "currentLifetimePhase": "startupReady",
+  "volume": {
+    "accessModes": [
+      "ReadWriteOnce"
+    ],
+    "boundVolumeName": "pvc-4cd09896-c113-488b-b326-8273271b571c",
+    "capacity": "4Gi",
+    "claimReadOnly": false,
+    "containerName": "dev",
+    "mountPath": "/home/coder",
+    "namespace": "coder",
+    "podVolumeName": "home",
+    "pvcName": "coder-5172dea9-a2d7-4ddf-9f58-a970a777f280-home",
+    "pvcUid": "4cd09896-c113-488b-b326-8273271b571c",
+    "readOnly": false,
+    "storageClass": "longhorn",
+    "subPath": "",
+    "subPathExpr": ""
+  },
+  "authCacheMetadata": {
+    "present": true,
+    "regular": true,
+    "symlink": false,
+    "uid": 1000,
+    "mode": 384,
+    "nlink": 1,
+    "contentRead": false,
+    "contentHashed": false
+  },
+  "authContentRead": false,
+  "authContentHashed": false,
+  "homeCapacity": {
+    "totalBytes": "4143677440",
+    "availableBytes": "1317986304",
+    "minimumAvailableBytes": "805306368",
+    "repositorySeedBytes": 0
+  },
+  "processCounts": {
+    "nativeAppServers": 0,
+    "tmuxProcesses": 0,
+    "unreadableEntries": 0
+  },
+  "sshClosed": true,
+  "accountStatusRequested": false,
+  "taskOrProvisionRequested": false,
+  "modelStarted": false,
+  "mappingExecuted": false,
+  "history": {
+    "projectCount": 1,
+    "allTasksNull": true,
+    "oldLifetimeId": "fbf05420-04b9-4550-84b3-82ea7b84d9b5",
+    "oldPackageManifestSha256": "b9659bd6eabe82f2d66240bf9a894061d231446ea6f6a083cac8863f4c5ab216",
+    "rawProjectPreserved": true,
+    "rootRawPreserved": true,
+    "locatorComplete": true,
+    "authCachePrivate": true
+  },
+  "readService": {
+    "httpStatus": 200,
+    "readOnly": true,
+    "lifetimeId": "3a81b335-ea18-4ff9-9605-0d16e2cb2f6d",
+    "manifestSha256": "d44457b7751cfab4a2119841f14bb00aab19500ff44716e4a54c49be60345d48"
+  },
+  "limits": [
+    "Immutable template/registry/source/member evidence establishes image provenance; actual pod image field was not independently observed.",
+    "Installed package and preserved history acceptance do not establish post-installer identity discovery or task execution.",
+    "Subsequent same-task retry held at guardian_identity_transport before authority or model execution. PR445 corrects the isolated parent-PID comparison; its installed acceptance remains pending.",
+    "No global template activation, authentication content read/copy, production cutover or manual authority repair."
+  ]
+}
