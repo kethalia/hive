@@ -25,9 +25,7 @@
   "currentLifetimeId": "2a9d8187-6f96-4053-b64a-be25c66c390f",
   "currentLifetimePhase": "startupReady",
   "volume": {
-    "accessModes": [
-      "ReadWriteOnce"
-    ],
+    "accessModes": ["ReadWriteOnce"],
     "boundVolumeName": "pvc-4cd09896-c113-488b-b326-8273271b571c",
     "capacity": "4Gi",
     "claimReadOnly": false,

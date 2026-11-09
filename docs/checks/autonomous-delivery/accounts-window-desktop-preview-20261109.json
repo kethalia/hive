@@ -63,17 +63,12 @@
   },
   "interception": {
     "claudeAndMaintenanceStatusResponses": "Six locally fulfilled404 responses, never forwarded. Their provider/UI acceptance remains separate.",
-    "accountActionsForwarded": [
-      "codex/status"
-    ],
+    "accountActionsForwarded": ["codex/status"],
     "allOtherPostActionsBlocked": true,
     "webSocketsAndExternalOriginsBlocked": true
   },
   "cleanup": {
-    "contextsClosed": [
-      true,
-      true
-    ],
+    "contextsClosed": [true, true],
     "browserClosed": true,
     "foregroundHarnessSshExited": true,
     "independentRecordedPidPostcheckPassed": true,
