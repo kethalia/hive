@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { taskIntentHandedOff } from "@/lib/projects/task-intents.server";
 import {
   assertTaskWakeActive,
   readTaskWake,
+  taskWakeApplies,
   withTaskWakeEnvironment,
 } from "@/lib/projects/task-wake.server";
 import {
@@ -40,6 +42,38 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("exact-task durable wake admission", () => {
+  it("recognizes retained handoff only from exact status and fully erased prompt", () => {
+    const status = {
+      schemaVersion: 1,
+      projectId: identity.projectId,
+      taskId: identity.taskId,
+      phase: "awaitingRegistration",
+      nativeThreadId: "known-thread",
+      terminalSessionName: null,
+      reason: null,
+    };
+    const row = {
+      id: identity.taskId,
+      projectId: identity.projectId,
+      phase: "preparing",
+      status,
+      ciphertext: null,
+      iv: null,
+      authTag: null,
+    };
+    expect(taskIntentHandedOff(row)).toBe(true);
+    for (const name of ["ciphertext", "iv", "authTag"] as const)
+      expect(taskIntentHandedOff({ ...row, [name]: new Uint8Array([1]) })).toBe(false);
+    for (const phase of ["queued", "blocked"])
+      expect(taskIntentHandedOff({ ...row, phase })).toBe(false);
+    expect(taskIntentHandedOff({ ...row, status: { ...status, nativeThreadId: null } })).toBe(
+      false,
+    );
+    expect(taskIntentHandedOff({ ...row, status: { ...status, taskId: randomUUID() } })).toBe(
+      false,
+    );
+  });
+
   it("holds an enabled invocation without its scoped binding context", async () => {
     vi.stubEnv("HIVE_PROJECT_TASK_WAKE_ENABLED", "true");
     await expect(readTaskWake(identity, true)).rejects.toThrow("task_wake_context_unavailable");
@@ -53,6 +87,20 @@ describe("exact-task durable wake admission", () => {
       expect(await readTaskWake(identity)).toBeNull();
     });
     expect(getByName).not.toHaveBeenCalled();
+  });
+  it("scopes call-site applicability without weakening the strict adapter", async () => {
+    await withTaskWakeEnvironment(env, async () => {
+      expect(taskWakeApplies(identity)).toBe(true);
+      const other = { ...identity, taskId: randomUUID() };
+      expect(taskWakeApplies(other)).toBe(false);
+      await expect(readTaskWake(other)).rejects.toThrow("task_wake_unavailable");
+    });
+    expect(getByName).not.toHaveBeenCalled();
+    await expect(
+      withTaskWakeEnvironment({ ...env, HIVE_PROJECT_TASK_WAKE_TASK_JSON: undefined }, async () =>
+        taskWakeApplies(identity),
+      ),
+    ).rejects.toThrow();
   });
   it("routes server identity exactly and preserves the original deadline on replay", async () => {
     reserve.mockResolvedValue(receipt);

@@ -25,6 +25,14 @@ export function taskWakeEnabled() {
     throw new Error("task_wake_context_unavailable");
   return env?.HIVE_PROJECT_TASK_WAKE_ENABLED === "true";
 }
+/** Enrollment scopes the additional wake contract to one valid exact task. */
+export function taskWakeApplies(identity: TaskWakeIdentity) {
+  const env = context.getStore();
+  if (!taskWakeEnabled() || !env) return false;
+  const parsed = taskWakeIdentitySchema.parse(identity);
+  const enrolled = taskWakeEnrollment(env);
+  return !!enrolled && sameTaskWake(enrolled, parsed);
+}
 export async function readTaskWake(identity: TaskWakeIdentity, reserve = false) {
   const env = context.getStore();
   taskWakeEnabled();

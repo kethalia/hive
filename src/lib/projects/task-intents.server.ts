@@ -83,6 +83,24 @@ export function pendingTaskStatus(
     reason: row.phase === "blocked" ? "native_unavailable" : null,
   };
 }
+/** Running completion erases all prompt columns; later metadata preserves that fact. */
+export function taskIntentHandedOff(
+  row: Pick<
+    ProjectTaskIntent,
+    "id" | "projectId" | "phase" | "status" | "ciphertext" | "iv" | "authTag"
+  >,
+) {
+  if (row.phase === "running") return true;
+  if (
+    row.phase !== "preparing" ||
+    [row.ciphertext, row.iv, row.authTag].some((value) => value !== null)
+  )
+    return false;
+  const status = pendingTaskStatus(row);
+  return (
+    status.projectId === row.projectId && status.taskId === row.id && status.nativeThreadId !== null
+  );
+}
 export class ProjectTaskIntents {
   constructor(
     private readonly db: PrismaClient,
@@ -220,7 +238,11 @@ export class ProjectTaskIntents {
           'nativeThreadId',status->'nativeThreadId','terminalSessionName',status->'terminalSessionName',
           'reason','preparation_timeout'), updated_at=clock_timestamp()
       WHERE owner_id=${ownerId}::uuid AND id=${taskId}::uuid AND phase IN ('queued','preparing')
-        AND (lease_until IS NULL OR lease_until<=clock_timestamp())`;
+        AND (lease_until IS NULL OR lease_until<=clock_timestamp())
+        AND (phase='queued' OR ciphertext IS NOT NULL OR iv IS NOT NULL OR auth_tag IS NOT NULL
+          OR status->>'nativeThreadId' IS NULL
+          OR status->>'projectId' IS DISTINCT FROM project_id::text
+          OR status->>'taskId' IS DISTINCT FROM id::text)`;
   }
   async get(ownerId: string, projectId: string, taskId: string, workspaceId: string) {
     const row = await this.db.projectTaskIntent.findFirst({
@@ -389,7 +411,10 @@ export async function reconcileTaskIntents(
   execute: (payload: TaskIntentExecution, phase: string) => Promise<ProjectTaskStatus>,
   target?: { ownerId: string; taskId: string },
   limit = 3,
-  options: { signal?: AbortSignal; beforeExecute?: () => Promise<void> } = {},
+  options: {
+    signal?: AbortSignal;
+    beforeExecute?: (execution: TaskIntentExecution) => Promise<void>;
+  } = {},
 ) {
   z.number().int().min(1).max(3).parse(limit);
   const result = { processed: 0, retry: 0, stale: 0 };
@@ -410,7 +435,7 @@ export async function reconcileTaskIntents(
         options.signal?.throwIfAborted();
         throw new TaskExecutionStageError("intent_read");
       }
-      await options.beforeExecute?.();
+      await options.beforeExecute?.(execution);
       options.signal?.throwIfAborted();
       const value = await execute(execution, row.phase);
       options.signal?.throwIfAborted();

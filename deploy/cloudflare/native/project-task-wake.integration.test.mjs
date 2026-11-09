@@ -31,7 +31,7 @@ const intentModule = await tsImport(
 );
 const { ProjectTaskIntents } = intentModule.default ?? intentModule;
 const key = "a".repeat(64);
-async function fixture(t) {
+async function fixture(t, { pilot = true } = {}) {
   const db = new PrismaClient({ datasourceUrl: url });
   t.after(() => db.$disconnect());
   const user = await db.user.create({
@@ -72,6 +72,15 @@ async function fixture(t) {
       text: "synthetic private task",
     },
   };
+  const enrollment = pilot
+    ? identity
+    : { ownerId: randomUUID(), projectId: randomUUID(), taskId: randomUUID() };
+  const binding = {
+    coderOrigin: user.coderUrl,
+    workspaceId,
+    agentId: randomUUID(),
+    buildId: randomUUID(),
+  };
   const store = new ProjectTaskIntents(db, key);
   const directory = await mkdtemp(join(tmpdir(), "hive-task-wake-pg-"));
   const transport = await compatibilityDatabaseTransport(url, {
@@ -109,14 +118,14 @@ async function fixture(t) {
       fixtureWrite(value){this.ctx.storage.sql.exec('UPDATE wake SET state=? WHERE id=1',JSON.stringify(value))}
     }
     export default {async fetch(request,env){return withTaskWakeEnvironment(env,async()=>{
-      const input=await request.json(), identity=JSON.parse(env.HIVE_PROJECT_TASK_WAKE_TASK_JSON);
-      const stub=env.HIVE_PROJECT_TASK_WAKE.getByName('project-task/v1/'+identity.ownerId+'/'+identity.taskId);
-      if(input.operation==='reserve')return Response.json(await readTaskWake(identity,true));
-      if(input.operation==='cross-bundle')return Response.json(await frameworkRead(identity));
+      const input=await request.json(), identity=JSON.parse(env.HIVE_FIXTURE_TASK_IDENTITY), enrolled=JSON.parse(env.HIVE_PROJECT_TASK_WAKE_TASK_JSON);
+      const stub=env.HIVE_PROJECT_TASK_WAKE.getByName('project-task/v1/'+enrolled.ownerId+'/'+enrolled.taskId);
+      if(input.operation==='reserve')return Response.json(await readTaskWake(enrolled,true));
+      if(input.operation==='cross-bundle')return Response.json(await frameworkRead(enrolled));
       if(input.operation==='state')return Response.json(await stub.fixtureState());
       if(input.operation==='write'){await stub.fixtureWrite(input.state);return Response.json({ok:true})}
       if(input.operation==='tick'){await stub.tick();return Response.json({ok:true})}
-      if(input.operation==='short-attempt'){const state=await stub.fixtureState();try{await runExactProjectTaskWake(env,{...state,inFlightUntil:Date.now()+500});return Response.json({held:false})}catch{return Response.json({held:true})}}
+      if(input.operation==='short-attempt'){const state=await stub.fixtureState();try{const result=await runExactProjectTaskWake(env,{...state,inFlightUntil:Date.now()+500});return Response.json({held:false,phase:result.phase})}catch{return Response.json({held:true})}}
       if(input.operation==='browser'){
         const database=createCloudflareDatabaseRequest(env.DATABASE_URL,{queryTimeoutMillis:5000,transactionTimeoutMillis:5000,connectionTimeoutMillis:5000});
         return database.run(async()=>{try{return Response.json(await reconcileProjectTasks({ownerId:identity.ownerId,taskId:identity.taskId},1))}finally{await database.close()}})
@@ -149,6 +158,30 @@ async function fixture(t) {
             contents: `import {env} from 'cloudflare:workers'; export async function signedHostProjectRequest(user,workspaceId,path,payload,options){options?.signal?.throwIfAborted(); const r=await env.HOST_FIXTURE.fetch('https://synthetic.invalid/host',{method:'POST',body:JSON.stringify({ownerId:user.id,workspaceId,path,projectId:payload.projectId,taskId:payload.taskId})});if(!r.ok)throw Error('synthetic_ack_lost');return r.json()}`,
             loader: "js",
           }));
+          b.onResolve(
+            {
+              filter:
+                /^@\/lib\/(?:coder\/user-client|codex-session\/(?:registered-session|registration|bootstrap-delivery)\.server)$/,
+            },
+            (args) =>
+              args.importer.endsWith("task.server.ts")
+                ? { path: "registration", namespace: "fixture-registration" }
+                : undefined,
+          );
+          b.onLoad({ filter: /.*/, namespace: "fixture-registration" }, () => ({
+            loader: "js",
+            contents: `
+            import {env} from 'cloudflare:workers';
+            export async function getCoderClientForUser(){return {fixture:true}}
+            export function registeredSessionConfig(){return {}}
+            export function createRegisteredSessionService(){return {authority:{fixture:true}}}
+            export async function resolveVerifiedWorkspaceHost(){return {binding:JSON.parse(env.HIVE_FIXTURE_BINDING)}}
+            export async function provisionRegisteredHost(authority,coder,principal,workspaceId,agentId,projectIds){
+              const response=await env.REGISTRATION_FIXTURE.fetch('https://synthetic.invalid/register',{method:'POST',body:JSON.stringify({principal,workspaceId,agentId,projectIds})});
+              if(!response.ok)throw Error('synthetic_registration_rejected');
+            }
+          `,
+          }));
           b.onResolve({ filter: /\.wasm(?:\?module)?$/ }, (args) => {
             const path = resolve(args.resolveDir, args.path.replace(/\?module$/, ""));
             wasm.set(path, readFile(path));
@@ -159,6 +192,11 @@ async function fixture(t) {
     ],
   });
   let hostCalls = 0,
+    statusCalls = 0,
+    startCalls = 0,
+    registrations = 0,
+    registrationLost = false,
+    deferRepair = false,
     effects = 0,
     loseAck = false,
     waitHost;
@@ -200,17 +238,33 @@ async function fixture(t) {
             HIVE_NATIVE_MODE: "preview",
             HIVE_NATIVE_PREVIEW_ENABLED: "true",
             HIVE_PROJECT_TASK_WAKE_ENABLED: "true",
-            HIVE_PROJECT_TASK_WAKE_TASK_JSON: JSON.stringify(identity),
+            HIVE_PROJECT_TASK_WAKE_TASK_JSON: JSON.stringify(enrollment),
+            HIVE_FIXTURE_TASK_IDENTITY: JSON.stringify(identity),
+            HIVE_FIXTURE_BINDING: JSON.stringify(binding),
           },
           serviceBindings: {
+            REGISTRATION_FIXTURE: async (request) => {
+              const body = await request.json();
+              assert.equal(body.principal.hiveUserId, user.id);
+              assert.equal(body.principal.coderUserId, user.coderUserId);
+              assert.equal(body.workspaceId, workspaceId);
+              assert.equal(body.agentId, binding.agentId);
+              assert.deepEqual(body.projectIds, [project.id]);
+              registrations++;
+              if (deferRepair) deferRepair = false;
+              else registrationLost = false;
+              return Response.json({ registered: true });
+            },
             HOST_FIXTURE: async (request) => {
               const body = await request.json();
               assert.equal(body.ownerId, identity.ownerId);
               assert.equal(body.workspaceId, workspaceId);
               assert.equal(body.taskId, identity.taskId);
-              assert.equal(body.path, "/projects/tasks/start");
+              assert.ok(["/projects/tasks/start", "/projects/tasks/status"].includes(body.path));
               hostCalls++;
-              if (!seen.has(body.taskId)) {
+              if (body.path === "/projects/tasks/status") statusCalls++;
+              else startCalls++;
+              if (body.path === "/projects/tasks/start" && !seen.has(body.taskId)) {
                 seen.add(body.taskId);
                 effects++;
               }
@@ -223,7 +277,10 @@ async function fixture(t) {
                 schemaVersion: 1,
                 projectId: project.id,
                 taskId: identity.taskId,
-                phase: "running",
+                phase:
+                  body.path === "/projects/tasks/status" && registrationLost
+                    ? "awaitingRegistration"
+                    : "running",
                 nativeThreadId: "synthetic-thread",
                 terminalSessionName: null,
                 reason: null,
@@ -270,6 +327,13 @@ async function fixture(t) {
     transport,
     hostCalls: () => hostCalls,
     effects: () => effects,
+    startCalls: () => startCalls,
+    statusCalls: () => statusCalls,
+    registrations: () => registrations,
+    loseRegistration: (defer = false) => {
+      registrationLost = true;
+      deferRepair = defer;
+    },
     loseAck: () => {
       loseAck = true;
     },
@@ -494,4 +558,168 @@ test("browser-first dispatch succeeds before the alarm with one effect and no fa
   assert.equal((await f.call("state")).phase, "running");
   assert.equal(f.effects(), 1);
   assert.equal(f.hostCalls(), 1);
+});
+
+test("terminal handoff preserves browser-only status and repeated lost-registration repair", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t);
+  const reserved = await f.call("reserve");
+  await f.call("write", { state: { ...reserved, nextWake: Date.now() + 60000 } });
+  await f.store.enqueue(f.payload, reserved.deadline);
+  await f.call("browser");
+  await f.due();
+  await f.call("tick");
+  assert.equal((await f.call("state")).phase, "running");
+  f.loseRegistration(true);
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  let row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "preparing");
+  assert.equal(row.status.phase, "awaitingRegistration");
+  assert.equal(row.ciphertext, null);
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "running");
+  assert.equal(row.status.nativeThreadId, "synthetic-thread");
+  assert.equal(f.registrations(), 2);
+  assert.equal(f.startCalls(), 1);
+  assert.equal(f.effects(), 1);
+  assert.equal(f.statusCalls(), 4);
+  const queries = f.transport.counts[0].queries;
+  await f.call("tick");
+  assert.equal(f.transport.counts[0].queries, queries);
+});
+test("preparation deadline after handoff does not expire browser metadata repair", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t);
+  const reserved = await f.call("reserve");
+  await f.call("write", { state: { ...reserved, nextWake: Date.now() + 60000 } });
+  await f.store.enqueue(f.payload, reserved.deadline);
+  await f.call("browser");
+  await f.due();
+  await f.call("tick");
+  const state = await f.call("state"),
+    createdAt = Date.now() - 1800001;
+  await f.call("write", { state: { ...state, createdAt, deadline: createdAt + 1800000 } });
+  f.loseRegistration(true);
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  const pending = await f.db.projectTaskIntent.findUniqueOrThrow({
+    where: { id: f.identity.taskId },
+  });
+  assert.equal(pending.phase, "preparing");
+  assert.equal(pending.status.phase, "awaitingRegistration");
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  assert.equal(f.registrations(), 2);
+  assert.equal(f.startCalls(), 1);
+  assert.equal(f.effects(), 1);
+  const row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "running");
+  assert.equal(row.failureCount, 0);
+});
+test("valid nonpilot exact-task reconciliation keeps baseline and never contacts the pilot object", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t, { pilot: false });
+  const reserved = await f.call("reserve");
+  const state = { ...reserved, nextWake: Date.now() + 60000 };
+  await f.call("write", { state });
+  await f.store.enqueue(f.payload);
+  assert.equal((await f.call("browser")).processed, 1);
+  assert.equal(f.effects(), 1);
+  assert.deepEqual(await f.call("state"), state);
+});
+
+test("terminal handoff cannot authorize a contradictory queued prompt", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t),
+    reserved = await f.call("reserve");
+  await f.call("write", { state: { ...reserved, phase: "running", nextWake: Date.now() + 60000 } });
+  await f.store.enqueue(f.payload);
+  const result = await f.call("browser");
+  assert.equal(result.processed, 0);
+  assert.equal(f.startCalls(), 0);
+  assert.equal(f.effects(), 0);
+  const row = await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } });
+  assert.equal(row.phase, "queued");
+  assert.ok(row.ciphertext);
+});
+
+test("delayed alarm preserves prior handoff through awaitingRegistration and expired preparation", {
+  skip: !url,
+  timeout: 20000,
+}, async (t) => {
+  const f = await fixture(t),
+    reserved = await f.call("reserve");
+  await f.call("write", { state: { ...reserved, nextWake: Date.now() + 60000 } });
+  await f.store.enqueue(f.payload, reserved.deadline);
+  assert.equal((await f.call("browser")).processed, 1);
+  assert.equal((await f.call("state")).phase, "active");
+  f.loseRegistration(true);
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  const pending = await f.db.projectTaskIntent.findUniqueOrThrow({
+    where: { id: f.identity.taskId },
+  });
+  assert.equal(pending.phase, "preparing");
+  assert.equal(pending.status.phase, "awaitingRegistration");
+  assert.equal(pending.status.nativeThreadId, "synthetic-thread");
+  assert.equal(pending.ciphertext, null);
+  assert.equal((await f.call("state")).phase, "active");
+  // An active autonomous attempt observes durable handoff without status/repair work.
+  assert.deepEqual(await f.call("short-attempt"), { held: false, phase: "running" });
+  assert.equal(f.registrations(), 1);
+  assert.equal(f.statusCalls(), 2);
+  const createdAt = Date.now() - 1800001;
+  await f.call("write", {
+    state: { ...(await f.call("state")), createdAt, deadline: createdAt + 1800000 },
+  });
+  await f.call("tick");
+  assert.equal((await f.call("state")).phase, "held");
+  await f.store.holdWake(f.user.id, f.identity.taskId);
+  assert.equal(
+    (await f.db.projectTaskIntent.findUniqueOrThrow({ where: { id: f.identity.taskId } })).phase,
+    "preparing",
+  );
+  await f.db.projectTaskIntent.update({
+    where: { id: f.identity.taskId },
+    data: { nextAttemptAt: new Date(0) },
+  });
+  assert.equal((await f.call("browser")).processed, 1);
+  const repaired = await f.db.projectTaskIntent.findUniqueOrThrow({
+    where: { id: f.identity.taskId },
+  });
+  assert.equal(repaired.phase, "running");
+  assert.equal(repaired.failureCount, 0);
+  assert.equal(f.registrations(), 2);
+  assert.equal(f.startCalls(), 1);
+  assert.equal(f.effects(), 1);
+  assert.equal((await f.call("state")).phase, "held");
+  const queries = f.transport.counts[0].queries;
+  await f.call("tick");
+  assert.equal(f.transport.counts[0].queries, queries);
 });

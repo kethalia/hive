@@ -161,7 +161,11 @@ release scheduling, full F07/F08 or production cutover.
 without a namespace lookup. Enabling it requires the exact single public
 `HIVE_PROJECT_TASK_WAKE_TASK_JSON` object containing `ownerId`, `projectId`, and
 `taskId`, under the active native Preview. The app derives those values from the
-authenticated owner, owned project, and deterministic task ID. Off/invalid or
+authenticated owner, owned project, and deterministic task ID. The additional wake
+contract applies only to that exact tuple. Other valid authorized task starts,
+accepted replays, and exact-task status reads retain the existing path with zero
+namespace lookups. An enabled invocation with missing context or invalid enrollment
+continues to fail closed. Off/invalid or
 revoked enrollment stops alarm work and retains a hold. Default configuration
 contains the reviewed same-Worker class and SQLite migration, with no `script_name`.
 
@@ -176,7 +180,17 @@ with five-second connection/query/transaction limits. It cancels at the earlier
 of the fixed reservation deadline and 45-second attempt deadline, then bounds
 pool teardown to five seconds. The watchdog is stored before reconciliation.
 An unknown outcome retains the existing 90-second PostgreSQL task lease.
-The browser uses the same wake hold and lease guard. No public route authenticates
+Pilot preparation in the browser uses the same wake hold and lease guard.
+After a running handoff, explicit browser status retains the existing metadata and
+registration-repair path, including after the preparation deadline. The existing
+PostgreSQL facts retain that handoff when a bound native thread is present and
+all three encrypted prompt columns were erased by running completion. This also
+covers registration loss before the alarm first observes running. The atomic
+preparation-hold update preserves those retained facts. A pre-execution
+check prevents that handoff path from carrying a first-prompt request. Current
+owner, repository policy, registration, and PostgreSQL lease checks still apply.
+Autonomous terminal alarms remain stopped. Untargeted reconciliation stays held
+while pilot wakes are enabled, preserving the exact-task dispatch boundary. No public route authenticates
 or forwards a Durable Object operation.
 
 Local Workerd tests exercise actual SQLite alarms and restart persistence.
