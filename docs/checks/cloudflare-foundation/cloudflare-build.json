@@ -1,0 +1,18 @@
+{
+  "worker": "hive",
+  "preview": "codex/cloudflare-foundation",
+  "origin": "https://codex-cloudflare-foundation-hive.b00ste.workers.dev",
+  "sourceRevision": "9af9f32671753b3a490e5ce1dfb34e55c3b0e613",
+  "buildUuid": "834fb0db-0fcd-49ee-ab63-29ae0438e69a",
+  "triggerUuid": "6e151014-8d70-48ad-a135-48736cceb0fd",
+  "buildOutcome": "success",
+  "buildCommand": "pnpm build:cloudflare",
+  "deployCommand": "node deploy/cloudflare/native/deploy.mjs preview",
+  "createdAt": "2026-11-09T12:12:37.617Z",
+  "completedAt": "2026-11-09T12:14:21.111Z",
+  "deploymentId": "b9e0fe47-b541-40d0-bcd2-d2922b12b385",
+  "deploymentNumber": 3,
+  "sourceTag": "9af9f32",
+  "isolatedSecretsRetained": true,
+  "followingChange": "The final auth-deadline correction is validated by the PR checks and subsequent connected deployment recorded in the PR."
+}

@@ -1,3 +1,45 @@
+async function callAuth(auth, request, env, context) {
+  const signal = request.signal;
+  signal.throwIfAborted();
+  const work = Promise.resolve().then(() => {
+    signal.throwIfAborted();
+    return auth.fetch(request, env, context);
+  });
+  // The domain may still be finishing a database operation after its caller
+  // aborts. Retain it and release any response it can no longer deliver.
+  context.waitUntil(
+    work.then(
+      async (response) => {
+        if (signal.aborted) await response.body?.cancel().catch(() => {});
+      },
+      () => {},
+    ),
+  );
+  let aborted;
+  try {
+    const response = await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        aborted = () => reject(signal.reason);
+        signal.addEventListener("abort", aborted, { once: true });
+        if (signal.aborted) aborted();
+      }),
+    ]);
+    if (signal.aborted) {
+      context.waitUntil(Promise.resolve(response.body?.cancel()).catch(() => {}));
+      signal.throwIfAborted();
+    }
+    if (!response.body) return response;
+    // Also propagate cancellation after response headers, while a caller is
+    // reading the body. The auth request lifetime observes source cancellation.
+    const stream = new TransformStream();
+    context.waitUntil(response.body.pipeTo(stream.writable, { signal }).catch(() => {}));
+    return new Response(stream.readable, response);
+  } finally {
+    if (aborted) signal.removeEventListener("abort", aborted);
+  }
+}
+
 // Compose authentication inside the same Worker invocation and environment.
 export function createNativeWorker({ app, auth }) {
   return {
@@ -23,7 +65,7 @@ export function createNativeWorker({ app, auth }) {
       const local = { ...env };
       local.AUTH_SERVICE = {
         fetch(input, init) {
-          return auth.fetch(new Request(input, init), local, context);
+          return callAuth(auth, new Request(input, init), local, context);
         },
       };
       return app.fetch(request, local, context);

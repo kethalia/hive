@@ -1,0 +1,118 @@
+{
+  "origin": "https://codex-cloudflare-foundation-hive.b00ste.workers.dev",
+  "checks": [
+    {
+      "name": "browser credential sign-in",
+      "passed": true
+    },
+    {
+      "name": "authenticated settings endpoint",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "authenticated workspace endpoint",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "running workspace session inventory",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "name": "authenticated browser reload",
+      "passed": true
+    },
+    {
+      "name": "Settings window rendered",
+      "passed": true
+    },
+    {
+      "name": "create terminal and shell output through app",
+      "passed": true
+    },
+    {
+      "name": "shell reports valid dimensions after resizing",
+      "passed": true
+    },
+    {
+      "name": "mobile reload reconnects same shell",
+      "passed": true
+    },
+    {
+      "name": "normal shell exit shown",
+      "passed": true
+    },
+    {
+      "name": "exited test session absent from inventory",
+      "passed": true
+    },
+    {
+      "name": "mobile workspace shell rendered",
+      "passed": true
+    },
+    {
+      "name": "hosted browser transport exact resize/reconnect/exit",
+      "passed": true
+    },
+    {
+      "name": "all owned test sessions cleaned",
+      "passed": false
+    }
+  ],
+  "errors": [],
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "02081b0c-ef05-4102-a236-986e66db6351"
+  },
+  "inventory": {
+    "data": [
+      {
+        "name": "p01-browser-mw985blu",
+        "created": 1794226531,
+        "windows": 1
+      }
+    ]
+  },
+  "sessionName": "p01-browser-mw98766g",
+  "pid": 15816,
+  "mobileSize": "35 33",
+  "reconnectPid": 15816,
+  "transport": {
+    "pid": 16243,
+    "resize": true,
+    "reconnectPid": 16243,
+    "exitCode": 1000,
+    "accepted": true
+  },
+  "finalInventory": {
+    "data": [
+      {
+        "name": "p01-browser-mw985blu",
+        "created": 1794226531,
+        "windows": 1
+      }
+    ]
+  },
+  "accepted": false,
+  "sourceRevision": "9af9f32671753b3a490e5ce1dfb34e55c3b0e613",
+  "deploymentId": "b9e0fe47-b541-40d0-bcd2-d2922b12b385",
+  "harnessNote": "The final failed check found one owned terminal from a timed-out earlier run. A separate cleanup verification follows.",
+  "cleanupFollowup": {
+    "cleanup": {
+      "passed": true,
+      "method": "primary Coder SSH exact owned fixture, matching pane PID"
+    },
+    "inventory": {
+      "data": []
+    },
+    "allOwnedSessionsAbsent": true,
+    "logoutStatus": 200,
+    "revokedSettingsStatus": 307,
+    "location": "/login",
+    "revokedDiscoveryStatus": 401,
+    "accepted": true
+  },
+  "overallAccepted": true
+}

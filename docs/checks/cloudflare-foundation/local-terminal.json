@@ -1,0 +1,13 @@
+{
+  "sessionName": "p01-bc54fe18",
+  "firstReady": true,
+  "pid": 6610,
+  "resize": true,
+  "reconnectedReady": true,
+  "reconnectPid": 6610,
+  "exit": {
+    "code": 1000,
+    "reason": "Terminal session closed"
+  },
+  "accepted": true
+}
