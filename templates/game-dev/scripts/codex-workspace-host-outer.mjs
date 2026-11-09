@@ -89,6 +89,32 @@ export function readBootstrapConfigHistory(home, digest, current) {
   );
   return old;
 }
+// Called only under the outer journal flock with authenticated, closed ECHILD history.
+export async function prepareClosedEmptyLifetime(options, { receipt, startup }) {
+  const { home, config, packageManifestSha256, guardianElfSha256, nodeSha256 } = options;
+  check(
+    receipt.packageManifestSha256 === packageManifestSha256 &&
+      receipt.guardianSha256 === guardianElfSha256 &&
+      receipt.nodeSha256 === nodeSha256 &&
+      startup.packageManifestSha256 === packageManifestSha256 &&
+      startup.guardianSha256 === guardianElfSha256 &&
+      startup.nodeSha256 === nodeSha256,
+  );
+  const old = readBootstrapConfigHistory(home, startup.configSha256, config),
+    authority = openGuardianController({
+      config: old,
+      configSha256: startup.configSha256,
+      home,
+      stateDirectory: join(home, ".local/state/hive/codex-host-guardian"),
+      packageManifestSha256,
+      guardianElfSha256,
+      nodeSha256,
+      startupAttestation: () => {
+        throw new Error("closed_startup_has_no_live_authority");
+      },
+    });
+  return authority.archiveClosedEmptyController(receipt);
+}
 /** Serializes lifetime replacement; uncertain drain or restart never opens a second worker. */
 export function createGuardedRollover(launch) {
   let current,
@@ -217,6 +243,17 @@ export async function startInstalledGuardedHost() {
         acceptTreeReceipt: (...args) => authority.acceptTreeReceipt(...args),
         recoverTreeReceipt: (...args) => authority.recoverTreeReceipt(...args),
         postTreeClosed: (...args) => authority.postTreeClosed(...args),
+        prepareClosedEmptyLifetime: (facts) =>
+          prepareClosedEmptyLifetime(
+            {
+              home,
+              config,
+              packageManifestSha256: challenge.packageManifestSha256,
+              guardianElfSha256: files.sha256,
+              nodeSha256: challenge.nodeSha256,
+            },
+            facts,
+          ),
         prepareIdleLifetime: (receipt) =>
           archiveIdleProjectState(
             {

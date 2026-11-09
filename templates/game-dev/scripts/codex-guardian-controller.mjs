@@ -29,9 +29,10 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyEmptyRoot, inspectEmptyRoot } from "./codex-empty-root.mjs";
+import { applyEmptyRoot, inspectEmptyRoot, readEmptyRootHistory } from "./codex-empty-root.mjs";
 import { GUARDIAN_ADMISSION_BUDGET } from "./codex-guardian-worker.mjs";
 import {
+  archiveClosedEmptyProjectState,
   archiveClosedProjectState,
   parkAccountMaintenanceProjectState,
   readAccountMaintenanceArchive,
@@ -1672,6 +1673,278 @@ export function openGuardianController({
       ).toString("base64url"),
     };
   }
+  function emptyCloseClaims(grant, current, lifetimeId, at) {
+    check(typeof grant === "string" && grant.length <= 16384 && Number.isSafeInteger(at));
+    const parts = grant.split(".");
+    check(parts.length === 3 && parts.every((v) => /^[A-Za-z0-9_-]+$/.test(v)));
+    const header = JSON.parse(Buffer.from(parts[0], "base64url")),
+      claims = JSON.parse(Buffer.from(parts[1], "base64url")),
+      now = Math.floor(at / 1000);
+    check(
+      exact(header, ["alg", "typ", "kid"]) &&
+        header.alg === "EdDSA" &&
+        header.typ === "JWT" &&
+        header.kid === config.issuerKeyId &&
+        verify(
+          null,
+          Buffer.from(`${parts[0]}.${parts[1]}`),
+          issuer,
+          Buffer.from(parts[2], "base64url"),
+        ) &&
+        exact(claims, [
+          "iss",
+          "aud",
+          "scope",
+          "jti",
+          "iat",
+          "exp",
+          "runtimeId",
+          "hiveUserId",
+          "coderOwnerId",
+          "workspaceId",
+          "buildId",
+          "lifetimeId",
+          "runtimeGeneration",
+        ]) &&
+        claims.iss === config.hiveOrigin &&
+        claims.aud === "hive:workspace-guardian" &&
+        claims.scope === "workspace:guardian:recover-empty-close" &&
+        uuid(claims.jti) &&
+        Number.isSafeInteger(claims.iat) &&
+        Number.isSafeInteger(claims.exp) &&
+        claims.iat <= now &&
+        claims.exp > now &&
+        claims.exp - claims.iat <= 60 &&
+        claims.runtimeId === current.runtimeId &&
+        claims.runtimeGeneration === 1 &&
+        claims.lifetimeId === lifetimeId &&
+        claims.hiveUserId === config.binding.hiveUserId &&
+        claims.coderOwnerId === config.binding.ownerId &&
+        claims.workspaceId === config.binding.workspaceId &&
+        claims.buildId === config.binding.buildId,
+    );
+    return claims;
+  }
+  function archiveController(receipt, empty) {
+    check(
+      receipt?.guardianExited === true &&
+        uuid(receipt.lifetimeId) &&
+        uuid(receipt.workerBarrier?.barrierId),
+    );
+    const validate = (encoded) => {
+      const saved = JSON.parse(encoded);
+      check(
+        verify(
+          null,
+          Buffer.from(guardianCanonical(saved.state)),
+          publicKey,
+          Buffer.from(saved.signature, "base64url"),
+        ),
+      );
+      const current = saved.state,
+        closure = current.epicClosure;
+      if (empty) {
+        const history = current.enrollmentReceipt ?? current.enrollmentRecovery,
+          closed = current.emptyClosure;
+        check(
+          exact(current, [
+            "schemaVersion",
+            "lifetimeId",
+            "identityDigest",
+            "runtimeId",
+            "generation",
+            "projects",
+            "applications",
+            "launch",
+            "pending",
+            "hold",
+            "sequence",
+            "chainDigest",
+            current.enrollmentReceipt ? "enrollmentReceipt" : "enrollmentRecovery",
+            ...(current.enrollmentRecovery && current.enrollmentFailure !== undefined
+              ? ["enrollmentFailure"]
+              : []),
+            "expiredEmptyDrain",
+            "emptyClosure",
+          ]) &&
+            (current.enrollmentFailure === undefined ||
+              (current.enrollmentRecovery &&
+                exact(current.enrollmentFailure, ["category", "elapsedMs"]) &&
+                ["transport", "response", "timeout"].includes(current.enrollmentFailure.category) &&
+                Number.isSafeInteger(current.enrollmentFailure.elapsedMs) &&
+                current.enrollmentFailure.elapsedMs >= 0 &&
+                current.enrollmentFailure.elapsedMs <= 15000)) &&
+            current.lifetimeId === receipt.lifetimeId &&
+            current.generation === 2 &&
+            current.identityDigest ===
+              digest(
+                identity({ lifetimeId: receipt.lifetimeId, bindingDigest: receipt.bindingDigest }),
+              ) &&
+            !current.pending &&
+            !current.hold &&
+            !current.launch &&
+            !current.accountMaintenance &&
+            !Object.keys(current.projects).length &&
+            !Object.keys(current.applications).length &&
+            history?.receipt.runtimeGeneration === 1 &&
+            history.receipt.runtimeId === current.runtimeId &&
+            history.receipt.authorityUntil <= Date.now() &&
+            current.expiredEmptyDrain &&
+            closed &&
+            same(closed.receipt, receipt) &&
+            closed.acknowledgement.runtimeId === current.runtimeId &&
+            closed.acknowledgement.runtimeGeneration === 2 &&
+            closed.acknowledgement.treeExited === true &&
+            closed.acknowledgement.cleanupAuthorized === false &&
+            closed.acknowledgement.barrierId === receipt.workerBarrier.barrierId &&
+            closed.root.complete &&
+            same(closed.root, readEmptyRootHistory(home)) &&
+            closed.root.enrollmentToken === history.originalEnrollment.grant &&
+            closed.root.lifetimeId === current.lifetimeId &&
+            receipt.projects.length === 0 &&
+            receipt.decisions.length === 0,
+        );
+        const close = emptyCloseClaims(
+          current.expiredEmptyDrain.grant,
+          current,
+          receipt.lifetimeId,
+          current.expiredEmptyDrain.acceptedAt,
+        );
+        check(
+          current.expiredEmptyDrain.acceptedAt >= history.receipt.authorityUntil &&
+            close.exp * 1000 === current.expiredEmptyDrain.expiresAt &&
+            same(
+              enrollmentHistory(
+                history.originalEnrollment,
+                { accepted: true, ...history.receipt },
+                { lifetimeId: current.lifetimeId },
+              ),
+              history,
+            ),
+        );
+        archiveClosedEmptyProjectState(
+          {
+            stateDirectory: join(home, ".local/state/hive/codex-project-controller"),
+            ownerId: config.binding.ownerId,
+            workspaceId: config.binding.workspaceId,
+          },
+          receipt,
+        );
+        return;
+      }
+      if (current.accountMaintenance?.phase === "parked") {
+        check(
+          current.lifetimeId === receipt.lifetimeId &&
+            current.generation === receipt.generation &&
+            !current.pending &&
+            !current.hold &&
+            current.accountMaintenance.phase === "parked" &&
+            current.accountMaintenance.treeReceiptDigest === digest(receipt) &&
+            hex(current.accountMaintenance.parkedJournalDigest),
+        );
+        return;
+      }
+      check(
+        current.lifetimeId === receipt.lifetimeId &&
+          current.generation === receipt.generation &&
+          current.identityDigest ===
+            digest(
+              identity({
+                lifetimeId: receipt.lifetimeId,
+                bindingDigest: receipt.bindingDigest,
+              }),
+            ) &&
+          !current.pending &&
+          !current.hold &&
+          closure?.barrierId === receipt.workerBarrier.barrierId &&
+          hex(closure.archiveDigest) &&
+          receipt.projects.length > 0 &&
+          Object.keys(closure.projects).length === receipt.projects.length &&
+          receipt.projects.every(
+            (project) =>
+              closure.projects?.[project.projectId]?.acknowledged === true &&
+              closure.projects[project.projectId].cleanupAcknowledged === true,
+          ),
+      );
+    };
+    if (!existsSync(statePath)) {
+      const files = readdirSync(stateDirectory).filter((name) =>
+        /^controller-archive-[a-f0-9]{64}\.json$/.test(name),
+      );
+      check(files.length <= 256);
+      for (const name of files) {
+        try {
+          const encoded = privateRead(join(stateDirectory, name));
+          if (sha(encoded) !== name.slice(19, -5)) continue;
+          validate(encoded);
+          return { archived: true, digest: sha(encoded), replayed: true };
+        } catch {
+          /* A different historical archive cannot authorize this lifetime. */
+        }
+      }
+      check(false);
+    }
+    const encoded = privateRead(statePath);
+    validate(encoded);
+    const path = join(stateDirectory, `controller-archive-${sha(encoded)}.json`);
+    check(!existsSync(path));
+    renameSync(statePath, path);
+    const directory = openSync(
+      stateDirectory,
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+    );
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
+    state = null;
+    drainStartup = undefined;
+    return { archived: true, digest: sha(encoded) };
+  }
+  function acceptTreeClosed(receipt, response) {
+    check(
+      response?.runtimeId === state.runtimeId &&
+        response.runtimeGeneration === state.generation &&
+        response.barrierId === receipt.workerBarrier.barrierId &&
+        response.treeExited === true &&
+        response.cleanupAuthorized === false,
+    );
+    if (!state.expiredEmptyDrain) return;
+    const history = state.enrollmentReceipt ?? state.enrollmentRecovery;
+    check(
+      history &&
+        history.receipt.runtimeGeneration === 1 &&
+        history.receipt.runtimeId === state.runtimeId &&
+        state.generation === 2 &&
+        !state.launch &&
+        !state.accountMaintenance &&
+        !Object.keys(state.projects).length &&
+        !Object.keys(state.applications).length &&
+        Date.now() >= history.receipt.authorityUntil &&
+        receipt.guardianExited === true &&
+        receipt.finalWaitResult === "ECHILD" &&
+        receipt.waitFlags === "__WALL" &&
+        receipt.scope === "managed_native_tree_only" &&
+        receipt.cleanupAuthorized === false &&
+        receipt.projects.length === 0 &&
+        receipt.decisions.length === 0 &&
+        receipt.lifetimeId === state.lifetimeId &&
+        receipt.generation === state.generation,
+    );
+    const root = readEmptyRootHistory(home);
+    check(
+      root.enrollmentToken === history.originalEnrollment.grant &&
+        root.lifetimeId === state.lifetimeId,
+    );
+    const closure = {
+      receipt: structuredClone(receipt),
+      acknowledgement: structuredClone(response),
+      root,
+    };
+    check(!state.emptyClosure || same(state.emptyClosure, closure));
+    state.emptyClosure = closure;
+  }
   return {
     canIdleShutdown() {
       return !state && !challenge && !existsSync(statePath);
@@ -2242,55 +2515,9 @@ export function openGuardianController({
             typeof grant === "string" &&
             grant.length <= 16384,
         );
-        const parts = grant.split(".");
-        check(parts.length === 3 && parts.every((v) => /^[A-Za-z0-9_-]+$/.test(v)));
-        const header = JSON.parse(Buffer.from(parts[0], "base64url")),
-          claims = JSON.parse(Buffer.from(parts[1], "base64url")),
-          now = Math.floor(Date.now() / 1000);
-        check(
-          exact(header, ["alg", "typ", "kid"]) &&
-            header.alg === "EdDSA" &&
-            header.typ === "JWT" &&
-            header.kid === config.issuerKeyId &&
-            verify(
-              null,
-              Buffer.from(`${parts[0]}.${parts[1]}`),
-              issuer,
-              Buffer.from(parts[2], "base64url"),
-            ) &&
-            exact(claims, [
-              "iss",
-              "aud",
-              "scope",
-              "jti",
-              "iat",
-              "exp",
-              "runtimeId",
-              "hiveUserId",
-              "coderOwnerId",
-              "workspaceId",
-              "buildId",
-              "lifetimeId",
-              "runtimeGeneration",
-            ]) &&
-            claims.iss === config.hiveOrigin &&
-            claims.aud === "hive:workspace-guardian" &&
-            claims.scope === "workspace:guardian:recover-empty-close" &&
-            uuid(claims.jti) &&
-            Number.isSafeInteger(claims.iat) &&
-            Number.isSafeInteger(claims.exp) &&
-            claims.iat <= now &&
-            claims.exp > now &&
-            claims.exp - claims.iat <= 60 &&
-            claims.runtimeId === state.runtimeId &&
-            claims.runtimeGeneration === 1 &&
-            claims.lifetimeId === s.lifetimeId &&
-            claims.hiveUserId === config.binding.hiveUserId &&
-            claims.coderOwnerId === config.binding.ownerId &&
-            claims.workspaceId === config.binding.workspaceId &&
-            claims.buildId === config.binding.buildId,
-        );
-        state.expiredEmptyDrain = { grant, expiresAt: claims.exp * 1000 };
+        const acceptedAt = Date.now(),
+          claims = emptyCloseClaims(grant, state, s.lifetimeId, acceptedAt);
+        state.expiredEmptyDrain = { grant, expiresAt: claims.exp * 1000, acceptedAt };
         save();
         return true;
       }),
@@ -2425,14 +2652,7 @@ export function openGuardianController({
         return sendClosure(
           "tree_closed",
           { barrierId: receipt.workerBarrier.barrierId, receipt },
-          (r) =>
-            check(
-              r?.runtimeId === state.runtimeId &&
-                r.runtimeGeneration === state.generation &&
-                r.barrierId === receipt.workerBarrier.barrierId &&
-                r.treeExited === true &&
-                r.cleanupAuthorized === false,
-            ),
+          (r) => acceptTreeClosed(receipt, r),
         );
       }),
     recoverTreeReceipt: (receipt) =>
@@ -2491,14 +2711,7 @@ export function openGuardianController({
         const treeResult = await sendClosure(
           "tree_closed",
           { barrierId: receipt.workerBarrier.barrierId, receipt },
-          (r) =>
-            check(
-              r?.runtimeId === state.runtimeId &&
-                r.runtimeGeneration === state.generation &&
-                r.barrierId === receipt.workerBarrier.barrierId &&
-                r.treeExited === true &&
-                r.cleanupAuthorized === false,
-            ),
+          (r) => acceptTreeClosed(receipt, r),
         );
         const pending = state.recoveredClosurePending;
         if (pending && pending.action !== "tree_closed") {
@@ -2847,95 +3060,8 @@ export function openGuardianController({
         }
         return { eligible: true, archived: true };
       }),
-    archiveClosedController: (receipt) =>
-      serial(() => {
-        check(
-          receipt?.guardianExited === true &&
-            uuid(receipt.lifetimeId) &&
-            uuid(receipt.workerBarrier?.barrierId),
-        );
-        const validate = (encoded) => {
-          const saved = JSON.parse(encoded);
-          check(
-            verify(
-              null,
-              Buffer.from(guardianCanonical(saved.state)),
-              publicKey,
-              Buffer.from(saved.signature, "base64url"),
-            ),
-          );
-          const current = saved.state,
-            closure = current.epicClosure;
-          if (current.accountMaintenance?.phase === "parked") {
-            check(
-              current.lifetimeId === receipt.lifetimeId &&
-                current.generation === receipt.generation &&
-                !current.pending &&
-                !current.hold &&
-                current.accountMaintenance.phase === "parked" &&
-                current.accountMaintenance.treeReceiptDigest === digest(receipt) &&
-                hex(current.accountMaintenance.parkedJournalDigest),
-            );
-            return;
-          }
-          check(
-            current.lifetimeId === receipt.lifetimeId &&
-              current.generation === receipt.generation &&
-              current.identityDigest ===
-                digest(
-                  identity({
-                    lifetimeId: receipt.lifetimeId,
-                    bindingDigest: receipt.bindingDigest,
-                  }),
-                ) &&
-              !current.pending &&
-              !current.hold &&
-              closure?.barrierId === receipt.workerBarrier.barrierId &&
-              hex(closure.archiveDigest) &&
-              receipt.projects.length > 0 &&
-              Object.keys(closure.projects).length === receipt.projects.length &&
-              receipt.projects.every(
-                (project) =>
-                  closure.projects?.[project.projectId]?.acknowledged === true &&
-                  closure.projects[project.projectId].cleanupAcknowledged === true,
-              ),
-          );
-        };
-        if (!existsSync(statePath)) {
-          const files = readdirSync(stateDirectory).filter((name) =>
-            /^controller-archive-[a-f0-9]{64}\.json$/.test(name),
-          );
-          check(files.length <= 256);
-          for (const name of files) {
-            try {
-              const encoded = privateRead(join(stateDirectory, name));
-              if (sha(encoded) !== name.slice(19, -5)) continue;
-              validate(encoded);
-              return { archived: true, digest: sha(encoded), replayed: true };
-            } catch {
-              /* A different historical archive cannot authorize this lifetime. */
-            }
-          }
-          check(false);
-        }
-        const encoded = privateRead(statePath);
-        validate(encoded);
-        const path = join(stateDirectory, `controller-archive-${sha(encoded)}.json`);
-        check(!existsSync(path));
-        renameSync(statePath, path);
-        const directory = openSync(
-          stateDirectory,
-          constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-        );
-        try {
-          fsyncSync(directory);
-        } finally {
-          closeSync(directory);
-        }
-        state = null;
-        drainStartup = undefined;
-        return { archived: true, digest: sha(encoded) };
-      }),
+    archiveClosedController: (receipt) => serial(() => archiveController(receipt, false)),
+    archiveClosedEmptyController: (receipt) => serial(() => archiveController(receipt, true)),
     get status() {
       return { enrolled: Boolean(state?.runtimeId), held: Boolean(state?.hold || state?.pending) };
     },

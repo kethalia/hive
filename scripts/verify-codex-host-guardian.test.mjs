@@ -285,6 +285,94 @@ test("idle shutdown preserves authenticated ECHILD evidence across a changed bin
   await second.idleShutdown();
 });
 
+test("closed empty startup retains raw outer history through interrupted factual archival", async (t) => {
+  const f = fixture(t, { idle: true, startup: true });
+  f.allow();
+  const host = await f.open(),
+    receipt = await host.drain(),
+    path = join(f.options.stateDirectory, "lifetime.json"),
+    before = readFileSync(path);
+  let calls = 0;
+  await assert.rejects(
+    openGuardedHost({
+      ...f.options,
+      bindingDigest: "d".repeat(64),
+      prepareClosedEmptyLifetime: async (facts) => {
+        calls++;
+        assert.deepEqual(facts.receipt, receipt);
+        assert.equal(facts.startup.lifetimeId, receipt.lifetimeId);
+        throw new Error("fixture_empty_archive_interrupted");
+      },
+    }),
+    /fixture_empty_archive_interrupted/,
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(readFileSync(path), before);
+  const next = await openGuardedHost({
+    ...f.options,
+    bindingDigest: "d".repeat(64),
+    canIdleShutdown: async () => true,
+    prepareClosedEmptyLifetime: async (facts) => {
+      calls++;
+      assert.deepEqual(facts.receipt, receipt);
+      assert.deepEqual(readFileSync(path), before);
+      return { archived: true };
+    },
+  });
+  assert.equal(calls, 2);
+  const archive = readdirSync(f.options.stateDirectory).find((name) =>
+    /^lifetime-empty-[a-f0-9]{64}\.json$/.test(name),
+  );
+  assert.deepEqual(readFileSync(join(f.options.stateDirectory, archive)), before);
+  await next.idleShutdown();
+});
+for (const mutation of [
+  "receiptBinding",
+  "startupLifetime",
+  "used",
+  "indeterminate",
+  "missingClosed",
+  "unknown",
+]) {
+  test(`closed empty startup rejects ${mutation} before invoking factual archival`, async (t) => {
+    const f = fixture(t, { idle: true, startup: true });
+    f.allow();
+    const host = await f.open();
+    await host.drain();
+    const path = join(f.options.stateDirectory, "lifetime.json"),
+      saved = JSON.parse(readFileSync(path)),
+      exited = saved.state.events.at(-2),
+      startup = saved.state.events.find((event) => event.name === "startupReady");
+    if (mutation === "receiptBinding") exited.value.bindingDigest = "f".repeat(64);
+    if (mutation === "startupLifetime") startup.value.lifetimeId = randomUUID();
+    if (mutation === "unknown")
+      saved.state.events.unshift({ name: "unknown", value: {}, at: Date.now() });
+    if (mutation === "used")
+      saved.state.events.unshift({ name: "admissionIntent", value: {}, at: Date.now() });
+    if (mutation === "indeterminate")
+      saved.state.events.unshift({ name: "indeterminate", value: {}, at: Date.now() });
+    if (mutation === "missingClosed") saved.state.events.at(-1).name = "unknown";
+    saved.signature = createHmac("sha256", readFileSync(join(f.options.stateDirectory, "key")))
+      .update(JSON.stringify(saved.state))
+      .digest("hex");
+    writeFileSync(path, JSON.stringify(saved));
+    const before = readFileSync(path);
+    let called = false;
+    await assert.rejects(
+      openGuardedHost({
+        ...f.options,
+        bindingDigest: "d".repeat(64),
+        prepareClosedEmptyLifetime: async () => {
+          called = true;
+          return { archived: true };
+        },
+      }),
+    );
+    assert.equal(called, false);
+    assert.deepEqual(readFileSync(path), before);
+  });
+}
+
 test("idle shutdown refuses controller uncertainty and any admitted project", async (t) => {
   const idle = fixture(t, { idle: true });
   idle.options.canIdleShutdown = async () => false;

@@ -2,6 +2,4 @@
 "hive-web": patch
 ---
 
-Retain the original signed enrollment and committed epoch facts on a successful guardian enrollment ACK so owner empty-runtime closure can verify its original expired authority.
-
-Allow zero-admission closure to preserve strictly validated ordinary OPEN metadata with no task or execution evidence.
+Retain the exact original guardian enrollment and committed epoch facts on a normal ACK. Permit explicit owner closure of an expired unused runtime with strict ordinary OPEN metadata, preserve signed raw closure history, and support a normal manual rebuild through the existing previous-enrollment remount path.

@@ -466,6 +466,12 @@ export function archiveClosedProjectState(config, tokens, issuerPublicKeyPem) {
 /** Called only by the outer host after authenticating its idle ECHILD journal.
  * Archive before resetting, and require the same signed archive on replay. */
 export function archiveIdleProjectState(config, receipt) {
+  return archiveTasklessProjectState(config, receipt, false);
+}
+export function archiveClosedEmptyProjectState(config, receipt) {
+  return archiveTasklessProjectState(config, receipt, true);
+}
+function archiveTasklessProjectState(config, receipt, opened) {
   check(uuid(config.ownerId) && uuid(config.workspaceId), "idle_archive_identity_invalid");
   check(
     receipt?.guardianExited === true &&
@@ -499,14 +505,23 @@ export function archiveIdleProjectState(config, receipt) {
     const keyPath = join(config.stateDirectory, "projects.key"),
       statePath = join(config.stateDirectory, "projects.json"),
       receiptDigest = digest(receipt),
-      archivePath = join(config.stateDirectory, `projects-idle-${receiptDigest}.json`);
+      archivePath = join(
+        config.stateDirectory,
+        `projects-${opened ? "empty" : "idle"}-${receiptDigest}.json`,
+      );
     privatePath(keyPath);
     const key = readFileSync(keyPath);
     check(key.length === 32, "journal_key_invalid");
     const mac = (value) => createHmac("sha256", key).update(JSON.stringify(value)).digest("hex");
+    // A 4 MiB raw envelope can expand to 8 MiB when escaped, alongside
+    // at most 4 MiB of semantic state. The opened archive has a 16 MiB cap.
+    const archiveReadLimit = (opened ? 16 : 4) * 1024 * 1024;
     const readSigned = (path) => {
       privatePath(path);
-      check(lstatSync(path).size <= 4 * 1024 * 1024, "idle_archive_state_invalid");
+      check(
+        lstatSync(path).size <= (path === archivePath ? archiveReadLimit : 4 * 1024 * 1024),
+        "idle_archive_state_invalid",
+      );
       const saved = JSON.parse(readFileSync(path));
       check(
         typeof saved.signature === "string" &&
@@ -528,7 +543,18 @@ export function archiveIdleProjectState(config, receipt) {
         state.projects &&
         typeof state.projects === "object" &&
         !Array.isArray(state.projects) &&
-        Object.keys(state.projects).length === 0 &&
+        (opened
+          ? unusedBootstrapProjects(state.projects) &&
+            exact(state, [
+              "schemaVersion",
+              "ownerId",
+              "workspaceId",
+              "projects",
+              "guardianLifetimeId",
+              "hostProcess",
+              "guardianBarrier",
+            ])
+          : Object.keys(state.projects).length === 0) &&
         state.guardianLifetimeId === receipt.lifetimeId &&
         state.hostProcess?.pid === receipt.workerPid &&
         Array.isArray(barrier?.projects) &&
@@ -545,6 +571,18 @@ export function archiveIdleProjectState(config, receipt) {
         receipt.generation === barrier.generation + 1,
       "idle_archive_state_invalid",
     );
+    const projectRaw = opened ? (archived?.projectRaw ?? readFileSync(statePath, "utf8")) : null;
+    if (opened) {
+      check(
+        typeof projectRaw === "string" && Buffer.byteLength(projectRaw) <= 4 * 1024 * 1024,
+        "idle_archive_state_invalid",
+      );
+      const original = JSON.parse(projectRaw);
+      check(
+        digest(original.state) === digest(state) && original.signature === mac(original.state),
+        "journal_signature_invalid",
+      );
+    }
     const reset = structuredClone(state);
     delete reset.guardianBarrier;
     delete reset.guardianLifetimeId;
@@ -554,7 +592,13 @@ export function archiveIdleProjectState(config, receipt) {
       "idle_archive_state_changed",
     );
     const persist = (path, value) => {
-      writeAtomic(path, { state: value, signature: mac(value) });
+      const envelope = { state: value, signature: mac(value) };
+      if (opened && path === archivePath)
+        check(
+          Buffer.byteLength(JSON.stringify(envelope)) <= archiveReadLimit,
+          "idle_archive_state_invalid",
+        );
+      writeAtomic(path, envelope);
       const fd = openSync(config.stateDirectory, constants.O_RDONLY | constants.O_DIRECTORY);
       try {
         fsyncSync(fd);
@@ -562,7 +606,12 @@ export function archiveIdleProjectState(config, receipt) {
         closeSync(fd);
       }
     };
-    if (!archived) persist(archivePath, { receiptDigest, projectState: state });
+    if (!archived)
+      persist(archivePath, {
+        receiptDigest,
+        projectState: state,
+        ...(opened ? { projectRaw } : {}),
+      });
     persist(statePath, reset);
     return { receiptDigest };
   } finally {

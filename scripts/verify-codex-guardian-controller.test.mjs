@@ -1454,6 +1454,304 @@ test("expired recovered enrollment blocks normal work and requires scoped owner 
     f.close();
   }
 });
+async function emptyClosureFixture(t, { lostAck = false } = {}) {
+  const f = fixture();
+  t.after(() => f.close());
+  f.identity();
+  if (lostAck) {
+    f.mode("unknown");
+    await assert.rejects(f.client.bootstrap(f.grant()));
+    f.mode("normal");
+    await f.client.identity("b".repeat(64));
+  } else await f.client.bootstrap(f.grant());
+  const path = join(f.options.stateDirectory, "controller.json"),
+    history = (() => {
+      const state = JSON.parse(readFileSync(path)).state;
+      return state.enrollmentReceipt ?? state.enrollmentRecovery;
+    })();
+  t.mock.method(Date, "now", () => history.receipt.authorityUntil + 1);
+  await f.client.requestExpiredEmptyDrain(f.closeGrant());
+  await f.client.beginDrain();
+  const barrierId = randomUUID(),
+    barrier = {
+      closed: true,
+      lifetimeId: f.startup.lifetimeId,
+      bindingDigest: f.startup.bindingDigest,
+      ownershipDigest: f.startup.ownershipDigest,
+      generation: 1,
+      barrierId,
+      snapshots: [],
+      projects: [],
+    };
+  await f.client.authorizeDrain(
+    { ownershipDigest: barrier.ownershipDigest, projects: [] },
+    barrier,
+  );
+  const receipt = {
+    guardianExited: true,
+    finalWaitResult: "ECHILD",
+    waitFlags: "__WALL",
+    scope: "managed_native_tree_only",
+    cleanupAuthorized: false,
+    receiptId: randomUUID(),
+    lifetimeId: f.startup.lifetimeId,
+    bindingDigest: f.startup.bindingDigest,
+    ownershipDigest: f.startup.ownershipDigest,
+    generation: 2,
+    workerPid: process.pid,
+    projects: [],
+    decisions: [],
+    workerBarrier: {
+      closed: true,
+      barrierId,
+      lifetimeId: f.startup.lifetimeId,
+      generation: 1,
+      ownershipDigest: f.startup.ownershipDigest,
+    },
+  };
+  const managed = join(f.home, ".local/state/hive/managed-projects"),
+    root = join(f.home, "projects/.hive-managed"),
+    key = Buffer.alloc(32, 29);
+  mkdirSync(managed, { recursive: true, mode: 0o700 });
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  writeFileSync(join(managed, "key"), key, { mode: 0o600 });
+  const writeManaged = (name, record) =>
+    writeFileSync(
+      join(managed, name),
+      JSON.stringify({
+        record,
+        signature: createHmac("sha256", key).update(canonical(record)).digest("hex"),
+      }),
+      { mode: 0o600 },
+    );
+  const stat = statSync(root);
+  writeManaged("root.json", {
+    schemaVersion: 1,
+    path: root,
+    identity: { device: stat.dev, inode: stat.ino },
+    createdAt: 1,
+  });
+  writeManaged("empty-root.json", {
+    schemaVersion: 1,
+    phase: "complete",
+    receipt: {
+      enrollmentToken: history.originalEnrollment.grant,
+      anchor: { currentVolume: { lifetimeId: f.startup.lifetimeId } },
+    },
+  });
+  const directory = join(f.home, ".local/state/hive/codex-project-controller"),
+    projectId = randomUUID(),
+    projectKey = Buffer.alloc(32, 31),
+    projectState = {
+      schemaVersion: 1,
+      ownerId: f.options.config.binding.ownerId,
+      workspaceId: f.options.config.binding.workspaceId,
+      guardianLifetimeId: f.startup.lifetimeId,
+      hostProcess: { pid: process.pid },
+      guardianBarrier: barrier,
+      projects: {
+        [projectId]: {
+          projectId,
+          repositoryId: "123",
+          expectedAccountId: "456",
+          createdAt: 1,
+          task: null,
+        },
+      },
+    };
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  writeFileSync(join(directory, "projects.key"), projectKey, { mode: 0o600 });
+  const saveProject = () =>
+    writeFileSync(
+      join(directory, "projects.json"),
+      JSON.stringify({
+        state: projectState,
+        signature: createHmac("sha256", projectKey)
+          .update(JSON.stringify(projectState))
+          .digest("hex"),
+      }),
+      { mode: 0o600 },
+    );
+  saveProject();
+  return {
+    ...f,
+    path,
+    receipt,
+    managed,
+    directory,
+    projectState,
+    projectId,
+    saveProject,
+    mutateController(mutate) {
+      const saved = JSON.parse(readFileSync(path));
+      mutate(saved.state);
+      saved.signature = sign(
+        null,
+        Buffer.from(canonical(saved.state)),
+        readFileSync(join(f.options.stateDirectory, "controller-key.pem")),
+      ).toString("base64url");
+      writeFileSync(path, JSON.stringify(saved));
+    },
+    reopen() {
+      return openGuardianController(f.options);
+    },
+  };
+}
+test("expired empty closure archives exact factual ACK and preserves ordinary OPEN and root history on replay", async (t) => {
+  const f = await emptyClosureFixture(t),
+    projects = structuredClone(f.projectState.projects),
+    root = readFileSync(join(f.managed, "root.json")),
+    marker = readFileSync(join(f.managed, "empty-root.json"));
+  const projectRaw = readFileSync(join(f.directory, "projects.json"), "utf8");
+  await f.client.acceptTreeReceipt(f.receipt);
+  const acknowledged = JSON.parse(readFileSync(f.path)).state;
+  assert.deepEqual(acknowledged.emptyClosure.receipt, f.receipt);
+  assert.equal(acknowledged.pending, null);
+  assert.equal(acknowledged.emptyClosure.acknowledgement.treeExited, true);
+  assert.deepEqual(await f.client.postTreeClosed(f.receipt), { eligible: false });
+  await assert.rejects(f.client.archiveClosedController(f.receipt));
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).archived, true);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+  const reset = JSON.parse(readFileSync(join(f.directory, "projects.json"))).state;
+  assert.deepEqual(reset.projects, projects);
+  assert.equal(reset.guardianBarrier, undefined);
+  assert.equal(reset.guardianLifetimeId, undefined);
+  const projectArchivePath = join(
+      f.directory,
+      `projects-empty-${sha(JSON.stringify(f.receipt))}.json`,
+    ),
+    archive = JSON.parse(readFileSync(projectArchivePath));
+  assert.equal(archive.state.projectRaw, projectRaw);
+  assert.equal(acknowledged.emptyClosure.root.rootRaw, root.toString());
+  assert.equal(acknowledged.emptyClosure.root.markerRaw, marker.toString());
+  assert.deepEqual(readFileSync(join(f.managed, "root.json")), root);
+  assert.deepEqual(readFileSync(join(f.managed, "empty-root.json")), marker);
+  await assert.rejects(
+    f.client.archiveClosedEmptyController({ ...f.receipt, bindingDigest: "f".repeat(64) }),
+  );
+  archive.state.projectRaw = "{}";
+  archive.signature = createHmac("sha256", readFileSync(join(f.directory, "projects.key")))
+    .update(JSON.stringify(archive.state))
+    .digest("hex");
+  writeFileSync(projectArchivePath, JSON.stringify(archive));
+  const beforeReplay = readFileSync(join(f.directory, "projects.json"));
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  assert.deepEqual(readFileSync(join(f.directory, "projects.json")), beforeReplay);
+});
+test("lost enrollment ACK preserves its recognized diagnostic and exact raw controller on empty archive", async (t) => {
+  const f = await emptyClosureFixture(t, { lostAck: true });
+  await f.client.acceptTreeReceipt(f.receipt);
+  const raw = readFileSync(f.path),
+    saved = JSON.parse(raw).state;
+  assert.equal(saved.enrollmentReceipt, undefined);
+  assert.equal(saved.enrollmentFailure.category, "transport");
+  assert.ok(saved.enrollmentRecovery);
+  const archived = await f.client.archiveClosedEmptyController(f.receipt);
+  assert.deepEqual(
+    readFileSync(join(f.options.stateDirectory, `controller-archive-${archived.digest}.json`)),
+    raw,
+  );
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+});
+for (const mutation of [
+  "unknownField",
+  "unknownCategory",
+  "negativeElapsed",
+  "longElapsed",
+  "fractionalElapsed",
+]) {
+  test(`lost enrollment ACK refuses ${mutation} diagnostic on empty archive`, async (t) => {
+    const f = await emptyClosureFixture(t, { lostAck: true });
+    await f.client.acceptTreeReceipt(f.receipt);
+    f.mutateController((state) => {
+      if (mutation === "unknownField") state.enrollmentFailure.unknown = true;
+      if (mutation === "unknownCategory") state.enrollmentFailure.category = "unknown";
+      if (mutation === "negativeElapsed") state.enrollmentFailure.elapsedMs = -1;
+      if (mutation === "longElapsed") state.enrollmentFailure.elapsedMs = 15001;
+      if (mutation === "fractionalElapsed") state.enrollmentFailure.elapsedMs = 0.5;
+    });
+    const raw = readFileSync(f.path),
+      project = readFileSync(join(f.directory, "projects.json"));
+    await assert.rejects(f.reopen().archiveClosedEmptyController(f.receipt));
+    assert.deepEqual(readFileSync(f.path), raw);
+    assert.deepEqual(readFileSync(join(f.directory, "projects.json")), project);
+  });
+}
+test("opened empty archive preflights and replays escaped raw envelopes above the original file cap", async (t) => {
+  const f = await emptyClosureFixture(t),
+    path = join(f.directory, "projects.json"),
+    original = "\n".repeat(3 * 1024 * 1024) + readFileSync(path, "utf8");
+  assert.ok(Buffer.byteLength(original) < 4 * 1024 * 1024);
+  writeFileSync(path, original);
+  await f.client.acceptTreeReceipt(f.receipt);
+  await f.client.archiveClosedEmptyController(f.receipt);
+  const archive = join(f.directory, `projects-empty-${sha(JSON.stringify(f.receipt))}.json`);
+  assert.ok(statSync(archive).size > 4 * 1024 * 1024);
+  assert.ok(statSync(archive).size <= 16 * 1024 * 1024);
+  assert.equal(JSON.parse(readFileSync(archive)).state.projectRaw, original);
+  assert.equal((await f.client.archiveClosedEmptyController(f.receipt)).replayed, true);
+});
+test("opened empty archive retains the original project file 4 MiB input cap before resetting", async (t) => {
+  const f = await emptyClosureFixture(t),
+    path = join(f.directory, "projects.json"),
+    original = "\n".repeat(4 * 1024 * 1024) + readFileSync(path, "utf8");
+  writeFileSync(path, original);
+  await f.client.acceptTreeReceipt(f.receipt);
+  const controller = readFileSync(f.path);
+  await assert.rejects(f.client.archiveClosedEmptyController(f.receipt));
+  assert.deepEqual(readFileSync(f.path), controller);
+  assert.equal(readFileSync(path, "utf8"), original);
+});
+for (const mutation of [
+  "receiptBinding",
+  "generation",
+  "ownerSignature",
+  "acceptedAfterExpiry",
+  "consumption",
+  "missingAck",
+  "root",
+  "projectRecovery",
+  "unknownProject",
+  "nativeLaunch",
+  "enrollmentGeneration",
+  "unknownState",
+  "unexpectedDiagnostic",
+]) {
+  test(`expired empty closure refuses ${mutation} before resetting any history`, async (t) => {
+    const f = await emptyClosureFixture(t);
+    await f.client.acceptTreeReceipt(f.receipt);
+    const receipt = structuredClone(f.receipt);
+    if (mutation === "receiptBinding") receipt.bindingDigest = "f".repeat(64);
+    else if (mutation === "root")
+      writeFileSync(join(f.managed, "root.json"), "{}", { mode: 0o600 });
+    else if (mutation === "projectRecovery" || mutation === "unknownProject") {
+      f.projectState.projects[f.projectId][
+        mutation === "projectRecovery" ? "recovery" : "unknown"
+      ] = true;
+      f.saveProject();
+    } else
+      f.mutateController((state) => {
+        if (mutation === "generation") state.generation = 3;
+        if (mutation === "nativeLaunch") state.launch = { phase: "attempted" };
+        if (mutation === "enrollmentGeneration")
+          state.enrollmentReceipt.receipt.runtimeGeneration = 2;
+        if (mutation === "unknownState") state.unknown = true;
+        if (mutation === "unexpectedDiagnostic")
+          state.enrollmentFailure = { category: "transport", elapsedMs: 1 };
+        if (mutation === "ownerSignature") state.expiredEmptyDrain.grant += "x";
+        if (mutation === "acceptedAfterExpiry")
+          state.expiredEmptyDrain.acceptedAt = state.expiredEmptyDrain.expiresAt;
+        if (mutation === "consumption")
+          state.enrollmentReceipt.receipt.consumptionDigest = "f".repeat(64);
+        if (mutation === "missingAck") delete state.emptyClosure;
+      });
+    const controllerBefore = readFileSync(f.path),
+      projectBefore = readFileSync(join(f.directory, "projects.json"));
+    await assert.rejects(f.reopen().archiveClosedEmptyController(receipt));
+    assert.deepEqual(readFileSync(f.path), controllerBefore);
+    assert.deepEqual(readFileSync(join(f.directory, "projects.json")), projectBefore);
+  });
+}
 test("private signer permission changes and absent idle authority fail closed", async () => {
   const f = fixture();
   try {

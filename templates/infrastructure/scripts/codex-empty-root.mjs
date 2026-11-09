@@ -40,6 +40,11 @@ if p['operation']=='initialize':
   with manager.lock():pass
  result=None
 elif p['operation']=='capture':result=manager._capture_unused_bootstrap_root()
+elif p['operation']=='history':
+ with manager.lock(empty_root=True):
+  marker=manager.state/'empty-root.json';saved=manager.read(marker)
+  complete=saved.get('phase')=='complete'
+  result={'rootRaw':(manager.state/'root.json').read_text(),'markerRaw':marker.read_text(),'complete':complete,'enrollmentToken':saved['receipt']['enrollmentToken'] if complete else None,'lifetimeId':saved['receipt']['anchor']['currentVolume']['lifetimeId'] if complete else None}
 elif p['operation']=='inspect':result=manager._inspect_empty_root(manager._installed_observer,p["lifetimeId"],p.get("unusedBootstrap"))
 else:
  class Authority:
@@ -64,7 +69,7 @@ print(json.dumps(result,separators=(',',':')))`;
     env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" },
     stdio: ["pipe", "pipe", "pipe"],
     timeout: 10000,
-    maxBuffer: 32768,
+    maxBuffer: operation === "history" ? 262144 : 32768,
   });
   return JSON.parse(result);
 }
@@ -74,9 +79,17 @@ export function initializeEmptyRoot(home) {
 export function captureUnusedBootstrapRoot(home) {
   return run(home, "capture");
 }
+export function readEmptyRootHistory(home) {
+  return run(home, "history");
+}
 export function inspectEmptyRoot(home, lifetimeId, startup, config) {
   if (!existsSync(join(home, ".local/state/hive/managed-projects/root.json"))) return null;
-  const unusedBootstrap = startup && config ? readUnusedBootstrapRoot(home, startup, config) : null;
+  const marker = join(home, ".local/state/hive/managed-projects/empty-root.json"),
+    completed = existsSync(marker) ? readEmptyRootHistory(home) : null,
+    unusedBootstrap =
+      startup && config && (!completed?.complete || completed.lifetimeId === lifetimeId)
+        ? readUnusedBootstrapRoot(home, startup, config)
+        : null;
   const proposal = run(home, "inspect", null, null, null, lifetimeId, unusedBootstrap);
   if (proposal && Buffer.byteLength(JSON.stringify(proposal)) > 16384)
     throw new Error("empty_root_inventory_bound");
