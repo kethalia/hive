@@ -28,7 +28,9 @@
     "activeLeaseAndTerminalRowsFenced": true,
     "metadataOnlyObject": true,
     "defaultAndNonpilotZeroObjectIO": true,
-    "heldAndTerminalAlarmsZeroIdleDatabaseQueries": true
+    "heldAndTerminalAlarmsZeroIdleDatabaseQueries": true,
+    "ordinaryAndAlarmSenderShareAbsoluteWakeDeadline": true,
+    "subscriptionVapidAndFetchAdmissionRecheckAbsoluteDeadline": true
   },
   "bounds": {
     "reservationMilliseconds": 1800000,
@@ -71,7 +73,7 @@
       "skipped": 0
     },
     "existingPushRouteAndSender": {
-      "passed": 7,
+      "passed": 9,
       "failed": 0,
       "skipped": 0
     },
@@ -83,7 +85,13 @@
     "typecheck": true,
     "biome": true,
     "diffCheck": true,
-    "ciYamlParsed": true
+    "ciYamlParsed": true,
+    "senderAbsoluteDeadlineRegressions": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "includedInExistingPushRouteAndSender": true
+    }
   },
   "actualComposition": {
     "producerUsesActualAppCompositionAndRoute": true,
@@ -104,16 +112,17 @@
     "Held pending work is fenced, not falsely delivered. Existing consumers may fail due rows through normal claim/settle.",
     "Keep the selector until exact PostgreSQL terminal state and reconciliation of unknown producer commits. Removing it earlier releases the consumer fence.",
     "Rotation, warning deadlines, template publication and release arming remain outside this slice.",
-    "Cloudflare platform retry/no-op invocations remain possible after the application work boundary. The counter is not a billing cap."
+    "Cloudflare platform retry/no-op invocations remain possible after the application work boundary. The counter is not a billing cap.",
+    "An external fetch admitted before the absolute deadline can have an unknown outcome after abort. The deadline is rechecked immediately before any new fetch."
   ],
   "sourceSha256": {
     "src/lib/push/agent-event-wake-contracts.ts": "5c386a3ace1a0f17491ca4010e0ef377ff5a7ffaf4611f3a372a274e99b8b2f2",
     "src/lib/push/agent-event-wake.server.ts": "f03a48382dfd9df12997f6d053a759a982a97fb4b99f63a8ebd76f6d8fcade4e",
-    "src/lib/push/agent-events.ts": "e3a8d9f6d471234c041b009b88a7f5346f3c45bd5dd3462fa6b36f045052a19b",
+    "src/lib/push/agent-events.ts": "59e913449881de90668198c85b40ba625c5d33e9a45b5f4d6cb5b4f4cf31aa94",
     "src/lib/push/durable-outbox.ts": "4566217a2f33a7cab67daf1ec467c7c4b21818d6c398a7c71ccfd2ece884dceb",
-    "deploy/cloudflare/app/agent-notification-wake.ts": "093fa854dcdd5d98e592cadbdba256225d370753391582b8f70964f8c7132439",
+    "deploy/cloudflare/app/agent-notification-wake.ts": "9f20bd5d8faa4fb6e88454bb42a07e1f60afbc4ed23b90eef7b4e7dfd9ec3079",
     "deploy/cloudflare/app/composition.ts": "79e8758dbdbd1f4e37ea2ba6e047dcc8c52023d02343faff5f7a52ea5dc845ae",
-    "deploy/cloudflare/jobs/worker.ts": "2e8e2bf5a8ad8a2d0d7e931f7a32fbaef8122079a2ff634c85c239c19e3bc600",
+    "deploy/cloudflare/jobs/worker.ts": "e3ff49eae1c436c141a16fbd612b2dc14c1c9cd31f6553444b26f3a8268ea622",
     "deploy/cloudflare/native/agent-notification-wake.mjs": "a2671e1589be23e52e02b80a1e791635c11f5787a1b5e03df686485552a740bc",
     "deploy/cloudflare/native/agent-notification-wake.test.mjs": "983a60220d69928790e490ece7f71ebe6db225e5908a508d457d4b6877bfa558",
     "deploy/cloudflare/native/agent-notification-wake.integration.test.mjs": "ec518aa1bfb59be2c7875c519e58ac964d12759064b6d6d154ab8377ede2cc2b",
@@ -124,6 +133,8 @@
     "src/__tests__/push/agent-event-wake.integration.test.ts": "bc778ec3da5619ba9787074e0e678fa9798e79338bda3744f13bc4cbfc10ec24",
     "services/migrate/src/delivery/compatibility-ws.mjs": "28e9675b11a7ab9b87bf26226705b557fcb0da730bae3da9ec732fd895ded7ef",
     ".github/workflows/ci.yml": "4be91350aced763c13fb6b48fdfd20cb9097a39fb6db349faba7f0daaf559142",
-    "package.json": "8faf97fe00ed54ecaa13c073d398e20e4611e6c8a5b3cdaea55c613f3a126500"
+    "package.json": "8faf97fe00ed54ecaa13c073d398e20e4611e6c8a5b3cdaea55c613f3a126500",
+    "src/lib/push/bounded-send.ts": "9cb948033d6aafb3f419f20ac77aeec608cdc061ccf47691df7c40bcc51d4b85",
+    "src/__tests__/push/bounded-send.test.ts": "ef18778907bb29cb307027ab45f0f2634b7ff83228928d7c1a4189361fdcbada"
   }
 }

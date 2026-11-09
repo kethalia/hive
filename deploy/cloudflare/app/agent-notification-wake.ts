@@ -44,13 +44,14 @@ export async function runExactAgentNotificationWake(
         signal.throwIfAborted();
         await dispatchAgentEvents(
           db,
-          (ownerId, payload, signal) =>
+          (ownerId, payload, signal, deadline) =>
             sendBoundedPush(
               db,
               ownerId,
               payload,
               env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
               signal,
+              deadline,
             ),
           { enabled: true, exact: receipt, signal },
         );

@@ -109,13 +109,14 @@ export async function dispatchScheduled(env: Environment) {
           ? withAgentWakeEnvironment(env, () =>
               dispatchAgentEvents(
                 db,
-                (ownerId, payload, signal) =>
+                (ownerId, payload, signal, deadline) =>
                   sendBoundedPush(
                     db,
                     ownerId,
                     payload,
                     env.VAPID_SUBJECT?.trim() || env.HIVE_PUBLIC_ORIGIN?.trim() || "",
                     signal,
+                    deadline,
                   ),
                 { enabled: true },
               ),

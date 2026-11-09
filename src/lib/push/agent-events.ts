@@ -153,6 +153,7 @@ export async function dispatchAgentEvents(
     ownerId: string,
     payload: PushPayload,
     signal: AbortSignal,
+    deadline?: number,
   ) => Promise<"delivered" | "retry" | "failed">,
   options: {
     enabled?: boolean;
@@ -200,6 +201,7 @@ export async function dispatchAgentEvents(
   options.signal?.throwIfAborted();
   const row = await notification(db, claim);
   let permitted = true;
+  let wakeDeadline: number | undefined;
   let unavailable = false;
   if (row) {
     try {
@@ -208,6 +210,7 @@ export async function dispatchAgentEvents(
         sourceId: row.sourceId,
         eventKey: row.eventKey,
       });
+      wakeDeadline = receipt?.deadline;
       permitted = !receipt || agentWakeActive(receipt);
     } catch {
       permitted = false;
@@ -216,15 +219,21 @@ export async function dispatchAgentEvents(
   }
   options.signal?.throwIfAborted();
   let result: "delivered" | "retry" | "failed" = unavailable ? "retry" : "failed";
-  if (row && permitted) {
+  const sendMs = Math.min(
+    ms,
+    wakeDeadline === undefined ? ms : Math.max(0, wakeDeadline - Date.now()),
+  );
+  if (row && permitted && sendMs > 0) {
     const controller = new AbortController(),
-      timer = setTimeout(() => controller.abort(), ms);
+      timer = setTimeout(() => controller.abort(), sendMs);
     const signal = options.signal
       ? AbortSignal.any([controller.signal, options.signal])
       : controller.signal;
     const work = Promise.resolve().then(() => {
       signal.throwIfAborted();
-      return send(claim.ownerId, row.payload, signal);
+      if (wakeDeadline !== undefined && Date.now() >= wakeDeadline)
+        throw Error("agent_wake_expired");
+      return send(claim.ownerId, row.payload, signal, wakeDeadline);
     });
     try {
       result = await publicationAwait(work, signal);

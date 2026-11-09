@@ -11,13 +11,18 @@ export async function sendBoundedPush(
   payload: PushPayload,
   subject: string,
   signal: AbortSignal = AbortSignal.timeout(15000),
+  deadline?: number,
 ): Promise<"delivered" | "retry" | "failed"> {
-  signal.throwIfAborted();
+  const checkDeadline = () => {
+    signal.throwIfAborted();
+    if (deadline !== undefined && Date.now() >= deadline) throw Error("push_deadline");
+  };
+  checkDeadline();
   const subscriptions = await db.pushSubscription.findMany({
     where: { userId: ownerId },
     take: 21,
   });
-  signal.throwIfAborted();
+  checkDeadline();
   if (subscriptions.length > 20) return "failed";
   const enabled = subscriptions.filter(
     (row) => notificationPreferencesSchema.parse(row.preferences ?? {})[payload.kind ?? "template"],
@@ -25,9 +30,11 @@ export async function sendBoundedPush(
   if (!enabled.length) return "delivered";
   if (!subject) return "retry";
   const keys = await getVapidKeys();
-  signal.throwIfAborted();
+  checkDeadline();
   const boundedTransport: typeof fetch = async (input, init) => {
     const requestSignal = AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]);
+    checkDeadline();
+    requestSignal.throwIfAborted();
     const response = await publicationFetch(
       fetch(input, { ...init, signal: requestSignal }),
       requestSignal,
@@ -41,7 +48,7 @@ export async function sendBoundedPush(
   const sends = await Promise.allSettled(
     enabled.map(async (row) => {
       try {
-        signal.throwIfAborted();
+        checkDeadline();
         await sendFetchPush(
           { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
           JSON.stringify(payload),
@@ -58,7 +65,7 @@ export async function sendBoundedPush(
         const code =
           error && typeof error === "object" && "statusCode" in error ? error.statusCode : null;
         if (code !== 404 && code !== 410) throw error;
-        signal.throwIfAborted();
+        checkDeadline();
         await db.pushSubscription.deleteMany({
           where: { id: row.id, userId: ownerId, endpoint: row.endpoint },
         });

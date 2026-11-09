@@ -222,8 +222,12 @@ The alarm uses an independent bounded PostgreSQL request lifetime and the existi
 exact-row push claim/settle adapter. Both exhausted-row updates and candidate
 claims are filtered by owner and exact row ID. Five delivery attempts, PostgreSQL
 lease fences, subscription preferences and stable source/event tags continue to
-apply. Alarm delivery and external push are at least once. An already admitted
-sender can have an unknown outcome after disablement.
+apply. Alarm and ordinary jobs dispatch propagate the original absolute wake deadline
+through subscription/VAPID reads and fetch admission. The send timer uses the
+earlier of that deadline and the existing 15-second budget. Fetch admission also
+checks the absolute clock after signing, including when timer delivery is delayed.
+Alarm delivery and external push are at least once. A fetch admitted before the
+cutoff can have an unknown outcome after abort or disablement.
 
 Keep the exact selector configured when disabling the wake flag. Inspection marks
 that retained enrollment held, and all existing outbox consumers check it before
