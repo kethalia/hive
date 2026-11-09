@@ -1,0 +1,49 @@
+[
+  {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "type": "coder_env",
+    "name": "coder_session_token"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000002",
+    "type": "coder_env",
+    "name": "coder_url"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000003",
+    "type": "coder_env",
+    "name": "git_author_email"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000004",
+    "type": "coder_env",
+    "name": "git_author_name"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000005",
+    "type": "coder_env",
+    "name": "git_commmiter_email"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000006",
+    "type": "coder_env",
+    "name": "git_commmiter_name"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000007",
+    "type": "kubernetes_persistent_volume_claim_v1",
+    "name": "home"
+  },
+  {
+    "id": "10000000-0000-4000-8000-000000000008",
+    "type": "kubernetes_deployment_v1",
+    "name": "workspace",
+    "metadata": [
+      {
+        "key": "hive_home_volume_v1",
+        "value": "{\"accessModes\":[\"ReadWriteOnce\"],\"boundVolumeName\":\"pvc-20000000-0000-4000-8000-000000000001\",\"capacity\":\"4Gi\",\"claimReadOnly\":false,\"containerName\":\"dev\",\"mountPath\":\"/home/coder\",\"namespace\":\"coder\",\"podVolumeName\":\"home\",\"pvcName\":\"coder-00000000-0000-4000-8000-000000000003-home\",\"pvcUid\":\"20000000-0000-4000-8000-000000000001\",\"readOnly\":false,\"storageClass\":\"longhorn\",\"subPath\":\"\",\"subPathExpr\":\"\"}",
+        "sensitive": false
+      }
+    ]
+  }
+]
