@@ -30,11 +30,15 @@ export function readHistoricalHomeIdentity(resources: WorkspaceResource[]) {
   const rows = resources.filter(
     (r) => r.type === "kubernetes_deployment_v1" && r.name === "workspace",
   );
-  check(rows.length === 1 && rows[0].agents?.length === 1);
-  check(
-    resources.flatMap((r) => r.agents ?? []).filter((a) => a.id === rows[0].agents?.[0].id)
-      .length === 1,
-  );
+  check(rows.length === 1);
+  const agents = resources.flatMap((r) => r.agents ?? []);
+  // Historical Coder builds can omit all agent associations. Any associations
+  // that remain must still identify one unique agent on this deployment.
+  if (agents.length)
+    check(
+      rows[0].agents?.length === 1 &&
+        agents.filter((a) => a.id === rows[0].agents?.[0].id).length === 1,
+    );
   z.string().uuid().parse(rows[0].id);
   const values = (rows[0].metadata ?? []).filter((m) => m.key === "hive_home_volume_v1");
   check(

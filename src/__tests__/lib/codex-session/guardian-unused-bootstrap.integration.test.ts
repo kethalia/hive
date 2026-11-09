@@ -161,7 +161,6 @@ async function fixture(
     readOnly: false,
     claimReadOnly: false,
   });
-  const { boundVolumeName: _bound, ...historical } = physicalVolume;
   const volume = {
     buildId: binding.buildId,
     lifetimeId: identity.lifetimeId,
@@ -195,9 +194,19 @@ async function fixture(
     readEmptyRootVolume: async () => ({ ...volume, observedAt: Date.now() }),
     readUnusedBootstrapSource: async () => ({
       oldBuildId: proposal.unusedBootstrap!.oldBuildId,
-      resourceId: oldResourceId,
-      identity: historical,
-      observedBoundVolumeName: null,
+      ...readHistoricalHomeIdentity([
+        {
+          id: oldResourceId,
+          type: "kubernetes_deployment_v1",
+          name: "workspace",
+          metadata: [
+            {
+              key: "hive_home_volume_v1",
+              value: JSON.stringify({ ...physicalVolume, boundVolumeName: "" }),
+            },
+          ],
+        },
+      ]),
     }),
     resolveWorkspace: async (p) => {
       resolutions++;
