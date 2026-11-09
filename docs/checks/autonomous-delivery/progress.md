@@ -1,19 +1,22 @@
 # Autonomous delivery epic execution ledger
 
-Updated: 2026-11-09. Status: implementation in progress, not release-ready.
-Branch: `codex/delivery-system-design`.
+Updated: 2026-11-09. Status: feature implementation paused for PR migration planning.
+Reference branch: `codex/delivery-system-design`.
+The [feature PR migration plan](../../autonomous-delivery-pr-migration.md) records
+the Cloudflare-first P01–P11 sequence and per-increment owner acceptance gates.
 
 ## Authorization and boundaries
 
 The owner authorized autonomous implementation, trusted subagents, isolated preview validation,
-and a completed PR for their merge and production cutover approval. Use free tiers by default; ask before adding costs. The owner separately authorized the
-bounded R2 proof and up to one GB if needed; its actual payload is 117 bytes. Do not change production or merge the final PR to main. The owner authorized the November 5 rebase; do not otherwise rewrite history,
+and owner-reviewed feature PRs followed by a production cutover approval package. Use free tiers by default; ask before adding costs. The owner separately authorized the
+bounded R2 proof and up to one GB if needed; its actual payload is 117 bytes. The owner merges accepted feature PRs and approves production cutover. The owner authorized the November 5 rebase; do not otherwise rewrite history,
 or delete unrelated resources. Credentials stay outside source control and evidence.
 
 ## Current work
 
 | Task | State | Evidence / next action |
 | --- | --- | --- |
+| PR migration | Sequence documented, extraction paused | Follow P01–P11 in the [migration plan](../../autonomous-delivery-pr-migration.md). P01 Cloudflare deployment is the first increment. Each PR gets a preview, focused checks and owner acceptance before merge. |
 | Released baseline | Reconciled with current main | Authorized rebase onto `1ace8774` preserves new dock/config/template features; fresh fetch confirms no newer main. |
 | F01 fixed Coder host | Real preview login passed; full expiry/owner scenarios remain | 9cd5005 removes host input and enforces configured origin across login/session/terminal boundaries. Service and web tests pass. 98cf4e9 preserves redirect rejection using Workers-compatible fetch. |
 | F02 Cloudflare/Neon | One native Worker and automatic PR builds validated; full parity pending | Only `hive` remains, with the native branch Preview on `hive_native_preview`; both Preview databases are upgraded through migration54 with prior rows/history and runtime privileges unchanged. OAuth login/navigation and authenticated reload pass; real manager/host and Phase B acceptance remain open. Production stays inactive. |
@@ -64,9 +67,10 @@ from the creation response before use. Do not copy primary owner or Codex creden
 
 ## Completion gates
 
-Implementation and preview acceptance precede the final ready PR. Real production activation,
-production pilots and observation remain pending until the owner merges and authorizes cutover.
-A passing probe or a merged baseline-sync PR does not complete any broader roadmap milestone.
+Each feature PR meets its implementation, review and preview acceptance gates
+before owner merge. P11 supplies the production migration and cutover package.
+Production pilots and observation follow the owner's cutover approval. Record
+individual checks against the increment and broader requirements they exercise.
 
 - Shared-session runtime proof: complete for bounded shell-command stimuli, moderate difficulty.
   Parent independently reproduced five reconciled turns and same live thread in CLI plus clients.
@@ -125,11 +129,20 @@ A passing probe or a merged baseline-sync PR does not complete any broader roadm
 
 ## Immediate implementation sequence
 
-1. Implement the remaining exact successful-step report wake, reusing the existing same-Worker alarm binding/class with a separate typed identity. PR448 agent-event wake and its PostgreSQL test-race correction are integrated. Keep live wake enrollments disabled until their individual preflights pass.
-2. Resolve the clean4Gi workspace's storage reservation block. Exact completed Infrastructure deletion approval is pending; retain it and global storage settings meanwhile. Once ready, verify installed package/Pod image and account status before any time-limited enrollment.
-3. Prepare account, source, policy and read-only observers first, then run the bounded browser-closed preparation and real manager/child pilot. Preserve factual failure/hold evidence; local recovery proofs do not establish installed execution acceptance.
-4. Run Browser Testing Phase B for the actual shared manager Conversation/Terminal, task status and acceptance. Complete remaining F07/D06 background producers, F08/F10 account-backed parity and migration/recovery gates with CI and independent review.
-5. Prepare production OAuth, retained identities, bindings, migration compatibility, observation and recovery as a concrete cutover package. Production stays disabled until the owner merges and approves cutover; PR402 stays draft while these gates remain.
+1. Record the agreed P01–P11 feature sequence and owner acceptance gates in the
+   [PR migration plan](../../autonomous-delivery-pr-migration.md). This planning
+   update supersedes the previous order of continuing implementation on the epic.
+2. After resumption, inventory and extract P01 Cloudflare/Neon deployment from the
+   reviewed reference source. Resolve its branch/origin configuration, schema and
+   runtime dependency boundary before presenting the preview for acceptance.
+3. Validate P01 against its checklist and relevant existing behavior. The owner
+   reviews and merges the accepted increment. Continue P02–P11 from accepted bases.
+4. Preserve the paused `codex/delivery-step-durable-wake` changes for P07. Its
+   dispatcher, configuration and regression/composition proofs remain unfinished.
+5. Carry the storage attachment and image-download blockers into affected
+   validation gates. Exact persistent-workspace deletion approval remains pending.
+6. Prepare the P11 migration/recovery package and obtain owner cutover approval
+   before production activation. Record production verification after cutover.
 
 - Project preparation and shared-session views: committed at 7635164, high difficulty. 69 focused
   project/UI/scheduling checks, host/package tests and typecheck pass. Accepted prompts are encrypted,

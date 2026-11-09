@@ -2,7 +2,9 @@
 
 Status: implementation started 2026-10-29; preview and production gates remain open. Owner: Hive delivery manager.
 Design contract: [Autonomous delivery](autonomous-delivery.md).
-Accepted foundation and release sequence below supersedes the original queue ordering.
+The [feature PR migration plan](autonomous-delivery-pr-migration.md) records the
+accepted Cloudflare-first sequence from 9 November 2026. It supersedes the single
+final epic merge strategy. The F/D requirements below retain their scope.
 
 ## Acceptance criteria
 
@@ -56,9 +58,13 @@ cutover has occurred.
 
 Current step reports and blockers: [execution ledger](checks/autonomous-delivery/progress.md). Each task follows Understand → Implement → Review →
 Validate, adding Release/Observe when it changes deployed behavior. Record attempts, issues,
-difficulty with rationale, evidence, and next action on every completed step. Implement small
-reviewable slices on the integration branch; keep the final main-targeting PR as a draft until
-the release gates below pass. The user explicitly authorized rebasing this epic onto the newer main on 2026-11-05; that reconciliation is recorded in the execution ledger. Other local merges or history rewriting still require authorization.
+difficulty with rationale, evidence, and next action on every completed step.
+Extract coherent feature increments according to the migration plan. Keep each
+feature PR draft through its own implementation and validation, then mark it ready
+for owner acceptance. PR402 preserves the reference implementation during extraction.
+The user explicitly authorized rebasing this epic onto the newer main on 2026-11-05.
+That reconciliation is recorded in the execution ledger. Other local merges or
+history rewriting still require authorization.
 
 | ID | Task | Depends on | Done when |
 | --- | --- | --- | --- |
@@ -182,49 +188,34 @@ service bindings cannot reach production. Production remains inactive pending re
 main artifacts and user-approved cutover. See [environment setup](../deploy/cloudflare/environments.md);
 this supersedes the temporary separately named preview/production target layout.
 
-Use one long-lived integration branch for this bounded major project. The current branch is
-`codex/delivery-system-design`; it can remain the integration branch rather than creating a new
-clone or restarting the task. Preserve the primary checkout and isolate only concurrent work.
-Create Conventional Commit slices and obtain review incrementally. If child branches are needed,
-use GitHub PRs into the integration branch; local merges/rebases require explicit user authorization.
-Keep one draft PR from the integration branch to main while work remains. The authorized 2026-11-05 rebase is published with an explicit lease against the recorded remote epic head; other force pushes remain prohibited.
+The accepted sequence from 9 November 2026 is documented in the
+[feature PR migration plan](autonomous-delivery-pr-migration.md). Start with P01,
+the Cloudflare/Neon deployment foundation. Subsequent increments add OAuth,
+Accounts, project discovery, the managed runtime, progress UI, background work,
+GitHub delivery, epics, database changes and production cutover readiness.
 
-A single branch does not mean a single final validation pass. Run narrow checks after every slice,
-CI regularly, and deploy integration revisions to isolated Cloudflare preview environments backed
-by separate Neon test data and R2 namespaces/buckets. Do not point development deployments at live
-production credentials/data by default. Track exact source revision and deployed artifact identity.
-Maintain a requirements-to-evidence matrix for all accepted features, including features already
-working today. Check drift from main regularly; reconcile through an authorized GitHub workflow,
-not an unrequested local merge/rebase. Keep schema changes backward-compatible where feasible.
+Each increment has a working preview, focused automated checks, current-source
+review and an owner acceptance checklist. The owner merges accepted feature PRs
+through GitHub. Dependent PRs may target their predecessor while it is in review.
+After an accepted predecessor merges, update the dependent target and validate
+against the actual merged baseline. Preserve history through normal pushes and
+the repository's authorized merge workflow.
 
-The intended sequence is:
+Keep `codex/delivery-system-design` and PR402 as the reference implementation while
+extracting the features. Carry reviewed fixes, matching host artifacts, migrations
+and evidence into the increment that owns their behavior. The larger managed
+execution feature remains coherent where guardian/session/checkout protocols
+share authority. Its checklist exercises the individual behaviors separately.
 
-1. Complete foundation prototypes and document remaining capability gaps.
-2. Implement and review small integration-branch slices; keep production on the existing release.
-3. Deploy the complete release candidate to Cloudflare preview; validate real browser, auth,
-   shared sessions, notifications, workflow recovery, migration, and rollback behavior.
-4. Rehearse production-data migration with sanitized data or tightly controlled access, record
-   integrity checks, and choose the cutover write strategy. Prefer a bounded maintenance window
-   for the initial migration over unproven dual writes. Define how post-cutover writes are handled
-   before claiming that routing back to the old database is a safe rollback.
-5. Mark the final PR ready only after implementation scope is complete and preview/rehearsal gates pass. Merge
-   through GitHub under the effective policy, build/identify the main revision's release artifacts,
-   and validate them before promotion. Do not assume a PR artifact equals the merged artifact.
-6. Cut over the production application and database using the rehearsed plan, release the version,
-   and verify real production behavior through the observation window. Keep the old deployment
-   recoverable until the defined retirement gate; no automatic deletion of cluster resources.
-7. Close the epic only after production verification, migration cleanup, and preservation evidence
-   are complete. Update the feature catalog/runbooks and clean up managed task resources.
+Production migration and Cloudflare traffic cutover follow the final rehearsed
+package and explicit owner approval. P11 includes original-data integrity,
+historical session/key continuity, the write boundary, R2/backup restoration and
+recovery. Production-only acceptance follows activation and observation. Define
+post-cutover write handling before relying on a return to the previous database.
 
-Clarification: the full candidate should already work on Cloudflare **preview before merge**.
-Production cutover and production-only verification necessarily occur at/after release. Do not
-claim full production validation before production traffic reaches the new deployment. If a canary
-is selected later, define its data/routing isolation and rollback conditions explicitly.
-
-User preference is to keep main unchanged by this project until the complete candidate is validated.
-The initial bootstrap release is governed by the current human-merge policy. Automatic release
-capabilities built by this epic are enabled only after their own gates and authority changes pass.
-No workspace/template rollout or production mutation is authorized merely by recording this plan.
+The execution ledger records accepted increments and remaining roadmap gates.
+Workspace/template installation and feature activation follow the scope and
+checks of the increment that introduces each capability.
 
 ## Account connection refactoring (added 2026-11-05)
 
