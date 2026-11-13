@@ -65,8 +65,28 @@ to work. This is recorded as user-reported acceptance.
 The experimental `CodexVoiceControls` component has no UI caller in merged P01
 or this branch. Its separate API authentication test was incorrectly listed as a
 cutover gate. Live API validation remains a follow-up for that experimental
-component. Hosted template-publication acceptance remains open. The test Coder
-account already has the `template-admin` role.
+component.
+
+Hosted template publication passed on source `dcb0b435`. The normal HTTP/SSE check
+uploaded, imported and activated a source-equivalent Electronics template version.
+Actual headed Chrome then passed all 21 UI checks. Window close/reopen retained
+one request and job across two ordinary Publish/Confirm actions, displayed logs
+and terminal success, and cleared the completed pending request. Both successful
+publications retained all 39 source files and executable modes. The other four
+active templates retained their version identities. Receipts are in
+`template-publication-hosted.json`, `template-publication-ui.json` and
+`browser-hosted/template-publication-ui/`.
+
+Hosted validation caught empty-body handling across the Next request adapter and
+a native Workers fetch receiver error. The corrections passed 44 focused checks,
+including two actual Workerd provider tests and 22 PostgreSQL cases. Actual alarm
+traces corroborated the tested source version. Durable Objects can defer code
+updates for up to 300 seconds, which explained an initial diagnostic-version
+mismatch. [Cloudflare code-update documentation](https://developers.cloudflare.com/durable-objects/deployments/durable-objects-code-updates/)
+
+The loaded template detail card retains its version/date snapshot after a push.
+Fresh status API reads return the new active version. Explicit Refresh UI behavior
+was outside this check. The same snapshot behavior exists in merged P01.
 
 The installed notification hook also passed one callback and durable outbox
 processing with the browser closed. Its event reached `delivered` on attempt one.

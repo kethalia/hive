@@ -210,5 +210,25 @@
     "reportedOutcome": "seems to be working",
     "verificationMethod": "user report",
     "workspaceSpecified": false
+  },
+  "templatePublicationAcceptance": {
+    "accepted": true,
+    "sourceCommit": "dcb0b435e42284060e589a9cf078dd167a1e6057",
+    "uiCheckCount": 21,
+    "distinctUiJobs": 1,
+    "closeReopenRetainedIntent": true,
+    "sourceEquivalentTemplate": "electronics",
+    "sourceFiles": 39,
+    "otherFourActiveVersionsUnchanged": true,
+    "apiReceipt": "../template-publication-hosted.json",
+    "uiReceipt": "../template-publication-ui.json",
+    "uiArtifacts": "template-publication-ui/",
+    "detailMetadataRefresh": {
+      "loadedDetailCardSnapshotRetained": true,
+      "newActiveVersionIdReturnedByFreshStatusApi": true,
+      "explicitRefreshUiExercised": false,
+      "newActiveVersionIdRenderedAfterUiRefreshVerified": false,
+      "baselineBehaviorPreserved": true
+    }
   }
 }

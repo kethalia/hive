@@ -186,8 +186,9 @@ and PostgreSQL checks. Hosted Chrome acceptance now covers sign-in, terminals,
 clipboard, diagnostics, File Browser, agent inspection and browser push. The
 installed callback also reached durable processing with the browser closed, and
 native audio passed a hardware-free protocol smoke. The owner subsequently
-reported working microphone and speaker controls. Hosted template publication,
-production activation and live Kubernetes retirement remain pending. Fresh
+reported working microphone and speaker controls. Hosted template publication
+and its 21-check browser close/reopen flow now pass. Production activation and
+live Kubernetes retirement remain pending. Fresh
 production initialization and independent production secret configuration are
 complete. The owner waived legacy data transfer on 13 November 2026. Fresh
 production initialization replaces the Rancher/source-backup dependency. The
