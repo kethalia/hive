@@ -202,5 +202,13 @@
       "No microphone device request, ownership claim, PCM transmission/playback, native model or full media loopback was exercised.",
       "Private null-sink broker lifecycle and hosted browser-to-Worker-to-Coder PTY control transport were exercised."
     ]
+  },
+  "userReportedAudioAcceptance": {
+    "date": "2026-11-13",
+    "reportedBy": "owner",
+    "scope": "microphone and speaker controls",
+    "reportedOutcome": "seems to be working",
+    "verificationMethod": "user report",
+    "workspaceSpecified": false
   }
 }

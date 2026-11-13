@@ -60,12 +60,17 @@ independent lifetime review. Hosted sign-in then completed in 3.4 seconds.
 The native audio protocol smoke passed readiness, inactive state, heartbeat,
 release and clean close. The owned broker, its four children and local sockets
 were removed. `browser-hosted/native-audio/` records this hardware-free check.
-PCM round-trip and modeled voice were outside that check.
+PCM round-trip and modeled voice were outside that automated check. On
+13 November 2026, the owner reported that microphone and speaker testing appeared
+to work. This is recorded as user-reported acceptance.
 
-Authenticated live voice metadata remains unverified because the test workspace's
-default Codex CLI was signed out and the device sign-in code expired. A separate
-existing authenticated runtime has its own credential home. Production-template
-activation remains unverified. The installed notification hook also passed one callback and durable outbox
+The experimental `CodexVoiceControls` component has no UI caller in merged P01
+or this branch. Its separate API authentication test was incorrectly listed as a
+cutover gate. Live API validation remains a follow-up for that experimental
+component. Hosted template-publication acceptance remains open. The test Coder
+account already has the `template-admin` role.
+
+The installed notification hook also passed one callback and durable outbox
 processing with the browser closed. Its event reached `delivered` on attempt one.
 That separate check had no push subscription. The direct browser test above
 proved provider acceptance and visible notification delivery. Hook source

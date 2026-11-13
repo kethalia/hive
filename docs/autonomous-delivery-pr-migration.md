@@ -185,10 +185,12 @@ baseline. The Kubernetes retirement source is prepared separately in
 and PostgreSQL checks. Hosted Chrome acceptance now covers sign-in, terminals,
 clipboard, diagnostics, File Browser, agent inspection and browser push. The
 installed callback also reached durable processing with the browser closed, and
-native audio passed a hardware-free protocol smoke. Live authenticated Codex voice,
+native audio passed a hardware-free protocol smoke. The owner subsequently
+reported working microphone and speaker controls. Hosted template publication,
 a fresh production-data rehearsal, production activation and live Kubernetes
-retirement remain pending. The previously
-supplied Rancher key currently returns HTTP 401 for database access.
+retirement remain pending. The previously supplied Rancher key returned HTTP 401
+for database access. The separate experimental Codex Voice component has no UI
+caller, so its additional sign-in test was removed from the cutover gates.
 
 The existing production application remains the serving target during this work.
 P02–P10 continue in the agreed feature order after P01b acceptance.
