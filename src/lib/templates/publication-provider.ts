@@ -124,9 +124,10 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
       ...(this.signal ? [this.signal] : []),
     ]);
     let response: Response;
+    const fetcher = this.fetcher;
     try {
       response = await publicationFetch(
-        this.fetcher(this.actor.origin + path, {
+        fetcher(this.actor.origin + path, {
           method,
           redirect: "manual",
           credentials: "omit",

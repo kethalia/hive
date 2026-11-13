@@ -41,7 +41,7 @@
     "deploy:cloudflare:preview": "node deploy/cloudflare/native/deploy.mjs preview",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare/tsconfig.json",
     "types:cloudflare": "wrangler types deploy/cloudflare/native/env.d.ts --config deploy/cloudflare/native/wrangler.jsonc --env-interface CloudflareBindings --include-runtime false",
-    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test"
+    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
