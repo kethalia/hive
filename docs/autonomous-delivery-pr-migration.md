@@ -182,8 +182,12 @@ P01 is merged at `a8ea4384`. Its hosted acceptance evidence remains in
 P01b implementation is in `codex/hive-production-cutover`, based on that merged
 baseline. The Kubernetes retirement source is prepared separately in
 `kethalia/k8s-cluster` on `codex/retire-hive-app`. Feature ports have focused local
-and PostgreSQL checks. Hosted acceptance, a fresh production-data rehearsal,
-production activation and live Kubernetes retirement remain pending. The previously
+and PostgreSQL checks. Hosted Chrome acceptance now covers sign-in, terminals,
+clipboard, diagnostics, File Browser, agent inspection and browser push. The
+installed callback also reached durable processing with the browser closed, and
+native audio passed a hardware-free protocol smoke. Live authenticated Codex voice,
+a fresh production-data rehearsal, production activation and live Kubernetes
+retirement remain pending. The previously
 supplied Rancher key currently returns HTTP 401 for database access.
 
 The existing production application remains the serving target during this work.

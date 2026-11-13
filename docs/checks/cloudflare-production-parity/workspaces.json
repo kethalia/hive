@@ -13,7 +13,14 @@
       "designation": "reused-persistent",
       "task": "hive-production-cutover",
       "observed_at": "2026-11-13T16:33:11.516236+00:00",
-      "recordedBy": "primary workspace from Coder inspection"
+      "recordedBy": "primary workspace from Coder inspection",
+      "last_observation": {
+        "observed_at": "2026-11-13T18:39:23.329966+00:00",
+        "status": "stopped",
+        "build_id": "f5c00d98-a8d0-488c-95ff-e81d16349757",
+        "identity_fields_matched": true,
+        "storage_retained": true
+      }
     },
     {
       "deployment": "https://coder.kethalia.com",
@@ -27,7 +34,14 @@
       "designation": "reused-persistent",
       "task": "hive-production-cutover",
       "observed_at": "2026-11-13T16:49:37.775766+00:00",
-      "recordedBy": "primary workspace from Coder inspection"
+      "recordedBy": "primary workspace from Coder inspection",
+      "last_observation": {
+        "observed_at": "2026-11-13T18:39:23.330047+00:00",
+        "status": "stopped",
+        "build_id": "0fb5b798-26a3-476f-8e29-aaee04e42005",
+        "identity_fields_matched": true,
+        "storage_retained": true
+      }
     },
     {
       "id": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
@@ -39,7 +53,14 @@
       "observed_at": "2026-11-13T16:52:42.743756+00:00",
       "recordedBy": "primary workspace from Coder inspection",
       "designation": "reused-persistent",
-      "task": "hive-production-cutover"
+      "task": "hive-production-cutover",
+      "last_observation": {
+        "observed_at": "2026-11-13T18:39:23.330102+00:00",
+        "status": "stopped",
+        "build_id": "a3b2f70f-cbda-48c9-8194-6dc624208fc7",
+        "identity_fields_matched": true,
+        "storage_retained": true
+      }
     }
   ]
 }

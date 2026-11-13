@@ -43,23 +43,40 @@ with existing application features ported first. Implementation is on
 
 The target Preview is
 `https://codex-hive-production-cutover.hive-preview.kethalia.com`.
-The original `workers.dev` build was published by the connected push-triggered
-pipeline and passed hosted terminal, repository, clipboard, agent-inspection,
-diagnostic and mobile checks. File Browser reached Coder login after local-network
-permission was granted, which held iframe acceptance. The same-site Preview is
-published through the connected build pipeline. Its first login attempts reached
-the existing ten-second authentication-client deadline. Read-only database checks
-confirmed that the authentication domain created sessions after those callers
-timed out. A Cloudflare-specific bounded login deadline correction is being checked
-before repeating the same-site browser acceptance.
+The existing repository-connected build pipeline published source `4f0e097b`.
+Actual headed Chrome passed all thirteen same-site acceptance checks, including
+sign-in, ordinary terminals, diagnostics, File Browser's signed app redirect and
+repository README listing, subscription creation, provider acceptance and one
+browser-reported notification. Test subscriptions, terminal sessions, repository
+fixtures and the temporary browser profile were cleaned.
 
-Chrome push registration remains unverified after a browser permission error.
+The original `workers.dev` preview passed clipboard uploads, repository terminals,
+agent inspection and mobile reload continuity. Its iframe authentication failure
+led to the same-site preview domain. The first canonical login exposed the
+existing ten-second authentication-client deadline. The bounded Cloudflare login
+correction and HTTP error-status preservation passed 47 focused checks and an
+independent lifetime review. Hosted sign-in then completed in 3.4 seconds.
+
+The native audio protocol smoke passed readiness, inactive state, heartbeat,
+release and clean close. The owned broker, its four children and local sockets
+were removed. `browser-hosted/native-audio/` records this hardware-free check.
+PCM round-trip and modeled voice were outside that check.
+
 Authenticated live voice metadata remains unverified because the test workspace's
-default Codex CLI was signed out. Production-template activation remains unverified.
+default Codex CLI was signed out and the device sign-in code expired. A separate
+existing authenticated runtime has its own credential home. Production-template
+activation remains unverified. The installed notification hook also passed one callback and durable outbox
+processing with the browser closed. Its event reached `delivered` on attempt one.
+That separate check had no push subscription. The direct browser test above
+proved provider acceptance and visible notification delivery. Hook source
+revocation and exact original file restoration both passed.
+`notification-hook-hosted.json` records the bounded background check.
 
 The serving production application remains in Kubernetes. A fresh production
 capture is blocked by HTTP 401 from the previously supplied Rancher key. The
 production database, domain activation and live Kubernetes retirement are pending.
+An additional Infrastructure-only attempt using the saved application connection
+resolved the production PostgreSQL service but received a TCP connection refusal.
 The new Neon production database is empty.
 
 The migration procedure is in `docs/cloudflare-production-migrations.md`.

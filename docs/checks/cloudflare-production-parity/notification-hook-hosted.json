@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-13T18:33:58.591871+00:00",
+  "scope": "hosted_legacy_notification_hook_callback_background",
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceCommitExpectedFromRootDeployment": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspace": {
+    "fourIdentityFieldsMatch": true,
+    "buildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+    "agentId": "e7344369-03ef-417b-b708-20ffa046ac28",
+    "connected": true
+  },
+  "baseline": {
+    "sources": 0,
+    "events": 0,
+    "subscriptions": 0,
+    "existingAgentHooks": false,
+    "claudeSettingsRestored": true
+  },
+  "install": {
+    "status": 200,
+    "durationMs": 5464,
+    "success": true,
+    "errorCategory": null
+  },
+  "callback": {
+    "installedHookInvoked": true,
+    "sourceId": "824b6b2b-8027-47f0-bbd9-d7cc30b1ba87",
+    "generation": 1,
+    "callbackAttempts": [
+      {
+        "forwarded": true,
+        "status": 202
+      }
+    ],
+    "browserClosed": true,
+    "eventCount": 1,
+    "modelCalls": 0,
+    "helperErrorClass": null,
+    "priorObserverFailureBeforeNetwork": true
+  },
+  "durableEvent": {
+    "id": "a62f8d93-ce6b-4b40-82dc-7096f40d6888",
+    "source_id": "824b6b2b-8027-47f0-bbd9-d7cc30b1ba87",
+    "event_id": "c55e34c7-2891-4d5a-860d-cbb8556107d0",
+    "status": "delivered",
+    "attempts": 1,
+    "created_at": "2026-11-13T18:32:29.644Z"
+  },
+  "background": {
+    "browserClosedBeforeCallback": true,
+    "eventObservedAfterCallback": "2026-11-13T18:32:32.271Z",
+    "perOwnerDurableObjectAlarmPathVerifiedInSource": true,
+    "directDoTelemetryCollected": false,
+    "noBrowserPollingDriver": true
+  },
+  "revoke": {
+    "status": 200,
+    "durationMs": 1307,
+    "success": true,
+    "errorCategory": null
+  },
+  "cleanup": {
+    "allOwnedInstalledBytesMatchedBeforeRestore": true,
+    "originalFileBytesRestored": true,
+    "originalAbsentFilesAbsent": true,
+    "newNotificationDirectoryRemoved": true,
+    "unrelatedHomePreserved": true
+  },
+  "finalSourceCount": 0,
+  "finalEventCount": 0,
+  "finalReadAt": "2026-11-13T18:33:13.942Z",
+  "devicePushDeliveryAccepted": false,
+  "limitation": "No push subscriptions existed. Delivered is the outbox dispatcher result, without a device send. DO attribution combines deployed source wiring with browser-closed terminal event observation.",
+  "effects": {
+    "sourcePost": 1,
+    "callbackPost": 1,
+    "sourceDelete": 1,
+    "syntheticEvents": 1,
+    "modelCalls": 0,
+    "realtimeCalls": 0,
+    "workspaceLifecycleChanges": 0
+  },
+  "preEffectHarnessCorrections": [
+    "Private Python filename shadowed stdlib http before network dispatch",
+    "Observer corrected Request.method to get_method before callback forwarding"
+  ]
+}

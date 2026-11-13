@@ -1,0 +1,8 @@
+{
+  "ownedDirectoryInitiallyAbsent": true,
+  "audioIdentity": "3ef4c6e2275e21c57ade274d",
+  "helperPath": "/usr/local/bin/hive-audio",
+  "helperSha256": "8faa9b91142467e0c6d89a494a692ff2bf557bb2aa6012f243cae693c6e74f42",
+  "requiredCommandsAvailable": true,
+  "pidfdAvailable": true
+}

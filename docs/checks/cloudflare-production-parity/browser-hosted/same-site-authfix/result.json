@@ -1,0 +1,427 @@
+{
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceCommit": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+  "connectedBuildEventId": "7640a7fe-2e2c-4813-a156-4f5e22567b7d",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspaceBuildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+  "runId": "42e892f7d551dacc",
+  "launch": {
+    "headless": false,
+    "persistentProfile": true,
+    "display": ":1",
+    "arguments": ["--no-sandbox", "--disable-dev-shm-usage"]
+  },
+  "permissions": {
+    "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+    "names": ["local-network-access", "notifications"],
+    "states": {
+      "notifications": "granted",
+      "localNetwork": "granted"
+    }
+  },
+  "checks": [
+    {
+      "name": "real same-site UI sign-in",
+      "passed": true
+    },
+    {
+      "name": "app version read",
+      "passed": true
+    },
+    {
+      "name": "fresh published build captured",
+      "passed": true
+    },
+    {
+      "name": "workspace discovery",
+      "passed": true
+    },
+    {
+      "name": "exact unchanged running software build",
+      "passed": true
+    },
+    {
+      "name": "canonical-origin terminal ticket and WS output",
+      "passed": true
+    },
+    {
+      "name": "canonical-origin diagnostics ticket",
+      "passed": true
+    },
+    {
+      "name": "owned fixture discovery",
+      "passed": true
+    },
+    {
+      "name": "same-site File Browser README visible",
+      "passed": true
+    },
+    {
+      "name": "fresh persistent profile has no subscription",
+      "passed": true
+    },
+    {
+      "name": "persistent browser subscription saved",
+      "passed": true
+    },
+    {
+      "name": "created notification subscription removed",
+      "passed": true
+    },
+    {
+      "name": "published build stable through check",
+      "passed": true
+    }
+  ],
+  "failures": [],
+  "http": [
+    {
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/login/page-94746116d41ccfe1.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/login/layout-d0f4b48893bf4886.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/main-app-99217abb78d624ff.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/css/21bb66de8c3f6517.css",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/544-7be8149f19cf54a8.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/webpack-f400e00e3787b433.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/6133-cd164f475829a1eb.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/94f83771-2ef8ee5debbf2adb.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/1258-902a2d6836c6d5c7.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/manifest.webmanifest",
+      "status": 200,
+      "count": 4
+    },
+    {
+      "method": "GET",
+      "path": "/fonts/FiraCode-Medium.ttf",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/fonts/FiraCode-Regular.ttf",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/icons/icon-192.png",
+      "status": 200,
+      "count": 4
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/icons/hive-mark.svg",
+      "status": 200,
+      "count": 5
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/workspaces",
+      "status": 200,
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/css/957d82b1d46825d6.css",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/css/d825c52001c67727.css",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/(dashboard)/layout-1097a502ed46f11e.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/8450-e9e3bf9f6e372452.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/6617-071f158209a35cd4.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/154-e157519c7de5f5bc.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/(dashboard)/workspaces/page-b850e64e81363a1a.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/3931-a9b13e4aea430b2b.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/sessions",
+      "status": 503,
+      "workspaceId": "e6aa588f-89a7-464b-9cf9-a6371d0b819d",
+      "count": 3
+    },
+    {
+      "method": "POST",
+      "path": "/workspaces",
+      "status": 200,
+      "count": 7
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/sessions",
+      "status": 200,
+      "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/sessions",
+      "status": 503,
+      "workspaceId": "057566a6-d68a-4f63-b458-8d8d9654730b",
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/repositories",
+      "status": 503,
+      "workspaceId": "e6aa588f-89a7-464b-9cf9-a6371d0b819d",
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/agent",
+      "status": 200,
+      "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/7137.54ad5178bb2a7fa4.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/8003.f970e8859abd49dd.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/2571.ae68adaa884517f6.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/111acf76.3d8b0b2f7bc77cdd.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/terminal-ticket",
+      "status": 200,
+      "count": 5
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/repositories",
+      "status": 200,
+      "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/repositories",
+      "status": 503,
+      "workspaceId": "057566a6-d68a-4f63-b458-8d8d9654730b",
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/2444.09a2345b7f6be566.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/3315.ea50752f42606a81.js",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/session-events",
+      "status": 200,
+      "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/discovery/workspaces",
+      "status": 200,
+      "count": 3
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/window",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/7187.d3685ea60ce8d7c3.js",
+      "status": 200,
+      "count": 1
+    }
+  ],
+  "external": [
+    {
+      "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      "path": "/",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "origin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+      "status": 303,
+      "frameAncestorsPresent": false,
+      "frameOptionsPresent": false
+    },
+    {
+      "origin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+      "status": 200,
+      "frameAncestorsPresent": false,
+      "frameOptionsPresent": false
+    },
+    {
+      "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "error": "net::ERR_ABORTED"
+    }
+  ],
+  "screenshots": ["terminal.png", "file-browser.png", "notification-test.png"],
+  "cleanup": {
+    "softwareFixturePending": true,
+    "notificationSubscriptionRemoved": true,
+    "profileRemoved": true,
+    "browserClosed": true
+  },
+  "login": {
+    "status": 200,
+    "elapsedMs": 3385
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44"
+  },
+  "diagnostics": {
+    "ticketStatus": 200,
+    "status": 200,
+    "eventCount": 6,
+    "scoped": true
+  },
+  "frame": {
+    "origin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+    "path": "/files/hive-parity-42e892f7d551dacc"
+  },
+  "notificationSubscriptionPresent": true,
+  "notificationError": null,
+  "pushProviderAccepted": true,
+  "visibleNotificationCount": 1,
+  "sessionCreated": true,
+  "accepted": true
+}

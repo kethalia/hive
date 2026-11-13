@@ -1,13 +1,13 @@
 {
-  "status": "partial-acceptance-file-auth-and-browser-push-held",
-  "sourceCommit": "be7509212f8fbf190a1f83f80d3d57430b340e8c",
-  "connectedBuildEventId": "9622b0ab-80cf-409e-845a-c22709fe93ac",
+  "status": "same-site-hosted-acceptance-passed",
+  "sourceCommit": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+  "connectedBuildEventId": "7640a7fe-2e2c-4813-a156-4f5e22567b7d",
   "previewVersionId": "ae3c7eea9c324a03bb03090fbc3384a5",
   "appVersion": {
     "version": "2.33.0",
-    "buildId": "47eb3c0a-677c-4f15-bbad-2325f309b029"
+    "buildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44"
   },
-  "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
   "browserWorkspace": {
     "id": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
     "buildId": "cb7cfa1d-9cbd-48c6-8d5a-4ff4325fc687",
@@ -31,9 +31,101 @@
     "persisted terminal diagnostics through normal browser ticket",
     "mobile390x844 same shell PID",
     "mobile reload preserves shell PID",
-    "stable published build throughout final pass"
+    "stable published build throughout final pass",
+    "canonical same-site File Browser signed redirect and README listing",
+    "fresh headed persistent browser notification subscription",
+    "own endpoint test push provider acceptance and one browser-reported notification",
+    "own notification subscription UI removal",
+    "hardware-free native audio ticket/readiness/inactive/ping-pong/release protocol"
   ],
-  "held": [
+  "cleanup": {
+    "unrelatedSessionsPreserved": true,
+    "unrelatedSessionCount": 0,
+    "fixtureRemoved": true,
+    "ownedWebSessionsClosed": 2,
+    "ownedWebSessionsAbsent": true,
+    "ownedPasteFilesRemoved": 1,
+    "lnaFixtureRemoved": true,
+    "notificationSubscriptionsCreated": 1,
+    "browserContextsClosed": true,
+    "exactOwnedRepositoryRemoved": true,
+    "ownedSessionClosed": true,
+    "ownedSessionAbsent": true,
+    "notificationSubscriptionsRemoved": 1,
+    "ownedPersistentProfileRemoved": true
+  },
+  "limits": [
+    "File upload used synthetic ClipboardEvent through existing UI handler.",
+    "Temporary repository setup and exact cleanup used authorized Coder SSH; feature operations used actual browser UI.",
+    "Initial long keyboard entry failed; later short command and insertText checks passed.",
+    "Early new-context palette invocation preceded hydration; final continuation uses hydrated UI button and passes mobile.",
+    "Background discovery503 counts aggregate all existing workspaces; exact target230 reads returned200.",
+    "No model invocation, account credential mutation, template publication/activation or workspace lifecycle actions.",
+    "Hive test session retained privately for root follow-up; logout deferred.",
+    "Initial notification probe matched an unrelated page alert too early; corrected Settings-scoped wait produced the preserved registration-denied result.",
+    "Origin-specific local-network-access and notifications grants applied only within disposable Playwright browser contexts; contexts closed afterward."
+  ],
+  "harnessSha256": {
+    "acceptance.mjs": "d1099cfe247d392c9b5b1d09d46442e966f6ac0780ab1629884bea7959fb09a4",
+    "acceptance-second.mjs": "29579baee2eb87341df987f834e5b386b45e7f9856feccbad1efdfb099273d64",
+    "continuation.mjs": "7bb459f8d5149f903df4fa57ceef33d116233827105113cc2525af3c0b6ac4b7",
+    "continuation-final.mjs": "bcf276be10d7f456297e2d1fd54a9983f93fc81d889fa59b610f5315de116b76",
+    "lna.mjs": "a0f2b0af79ce0c5c31630e6592b2bf65996d2e9d896fe8c9d409362e36bb4823",
+    "notifications.mjs": "f076d37539e4af7df6d6e7dfde3c1ddc6b8b469e1456ae09a25192e604d3e804",
+    "notifications-final.mjs": "3dbb4d765dd349803e01c48d2909d762928b1beff0f37bbedc1dc905066d2608",
+    "same-site.mjs": "ab1a8293f100b5e7db16dbfb34a27af192b95b0bd8946a278f73c3a6f1c313c6",
+    "same-site-authfix.mjs": "c54338552e769d9af078a7f85c9589d4d7bd36d225bada20a230bad4de5c760b",
+    "audio.mjs": "1662851809b70ad2adfe0a969412603782509b891ac44802b0089495a5b8a2d7"
+  },
+  "receipts": [
+    "initial/result.json",
+    "desktop/result.json",
+    "continuation/result.json",
+    "final/result.json",
+    "final/cleanup.json",
+    "lna/result.json",
+    "lna/cleanup.json",
+    "notifications/result.json",
+    "notifications-final/result.json",
+    "same-site/result.json",
+    "same-site/cleanup.json",
+    "same-site-authfix/result.json",
+    "same-site-authfix/cleanup.json",
+    "native-audio/result.json",
+    "native-audio/preflight.json",
+    "native-audio/cleanup.json"
+  ],
+  "latestSameSiteAttempt": {
+    "sourceCommit": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+    "connectedBuildEventId": "7640a7fe-2e2c-4813-a156-4f5e22567b7d",
+    "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+    "status": "passed",
+    "checkCount": 13,
+    "login": {
+      "status": 200,
+      "elapsedMs": 3385
+    },
+    "appVersion": {
+      "version": "2.33.0",
+      "buildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44"
+    },
+    "providerAccepted": true,
+    "browserNotificationCount": 1,
+    "softwareFixtureCleanup": {
+      "exactOwnedRepositoryRemoved": true,
+      "ownedSessionClosed": true,
+      "ownedSessionAbsent": true,
+      "unrelatedSessionsPreserved": true,
+      "unrelatedSessionCount": 0
+    },
+    "browserCleanup": {
+      "notificationSubscriptionRemoved": true,
+      "profileRemoved": true,
+      "browserClosed": true
+    },
+    "pendingCodexLoginUntouched": true
+  },
+  "historicalHeldFindings": [
     {
       "feature": "isolated File Browser iframe",
       "defaultCause": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
@@ -60,68 +152,55 @@
       "limitation": "Observed browser PushManager registration denial; underlying Chrome/provider cause not established."
     }
   ],
-  "cleanup": {
-    "unrelatedSessionsPreserved": true,
-    "unrelatedSessionCount": 0,
-    "fixtureRemoved": true,
-    "ownedWebSessionsClosed": 2,
-    "ownedWebSessionsAbsent": true,
-    "ownedPasteFilesRemoved": 1,
-    "lnaFixtureRemoved": true,
-    "notificationSubscriptionsCreated": 0,
-    "browserContextsClosed": true
+  "held": [],
+  "acceptanceSourceScope": {
+    "earlierDesktopMobileClipboardAgentChecks": "be7509212f8fbf190a1f83f80d3d57430b340e8c",
+    "latestCanonicalAuthTerminalDiagnosticsFilesNotificationChecks": "4f0e097bca0a8b5212afd7e61acb323fb68bea57"
   },
-  "limits": [
-    "File upload used synthetic ClipboardEvent through existing UI handler.",
-    "Temporary repository setup and exact cleanup used authorized Coder SSH; feature operations used actual browser UI.",
-    "Initial long keyboard entry failed; later short command and insertText checks passed.",
-    "Early new-context palette invocation preceded hydration; final continuation uses hydrated UI button and passes mobile.",
-    "Background discovery503 counts aggregate all existing workspaces; exact target230 reads returned200.",
-    "No model invocation, account credential mutation, template publication/activation or workspace lifecycle actions.",
-    "Hive test session retained privately for root follow-up; logout deferred.",
-    "Initial notification probe matched an unrelated page alert too early; corrected Settings-scoped wait produced the preserved registration-denied result.",
-    "Origin-specific local-network-access and notifications grants applied only within disposable Playwright browser contexts; contexts closed afterward."
+  "prerequisites": [
+    "Canonical same-site native Preview hostname preserves workspace app browser authentication.",
+    "Normal Chrome local-network-access permission for exact Preview origin is required in this Browser Testing network.",
+    "Browser Push acceptance was proved using an isolated headed persistent Chrome profile; prior nonpersistent contexts denied registration."
   ],
-  "harnessSha256": {
-    "acceptance.mjs": "d1099cfe247d392c9b5b1d09d46442e966f6ac0780ab1629884bea7959fb09a4",
-    "acceptance-second.mjs": "29579baee2eb87341df987f834e5b386b45e7f9856feccbad1efdfb099273d64",
-    "continuation.mjs": "7bb459f8d5149f903df4fa57ceef33d116233827105113cc2525af3c0b6ac4b7",
-    "continuation-final.mjs": "bcf276be10d7f456297e2d1fd54a9983f93fc81d889fa59b610f5315de116b76",
-    "lna.mjs": "a0f2b0af79ce0c5c31630e6592b2bf65996d2e9d896fe8c9d409362e36bb4823",
-    "notifications.mjs": "f076d37539e4af7df6d6e7dfde3c1ddc6b8b469e1456ae09a25192e604d3e804",
-    "notifications-final.mjs": "3dbb4d765dd349803e01c48d2909d762928b1beff0f37bbedc1dc905066d2608",
-    "same-site.mjs": "ab1a8293f100b5e7db16dbfb34a27af192b95b0bd8946a278f73c3a6f1c313c6"
-  },
-  "receipts": [
-    "initial/result.json",
-    "desktop/result.json",
-    "continuation/result.json",
-    "final/result.json",
-    "final/cleanup.json",
-    "lna/result.json",
-    "lna/cleanup.json",
-    "notifications/result.json",
-    "notifications-final/result.json",
-    "same-site/result.json",
-    "same-site/cleanup.json"
-  ],
-  "latestSameSiteAttempt": {
-    "sourceCommit": "2660fff62ed32881432e7db31b1e393884bfb706",
-    "connectedBuildEventId": "3f21abd0-4a6d-4dc2-abf2-61473f636d0b",
-    "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
-    "status": "held-at-first-login-timeout",
-    "loginPageStatus": 200,
-    "loginPostStatus": 401,
-    "visibleError": "The operation was aborted due to timeout",
-    "browserLaunch": "headed persistent Chrome on existing DISPLAY=:1 succeeded",
-    "appBuildCaptured": false,
-    "softwareFixtureCleanup": {
-      "exactOwnedRepositoryRemoved": true,
-      "ownedSessionClosed": false,
-      "ownedSessionAbsent": true,
-      "unrelatedSessionsPreserved": true,
-      "unrelatedSessionCount": 0
+  "nativeAudio": {
+    "sourceCommit": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+    "appVersion": {
+      "version": "2.33.0",
+      "buildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44"
     },
-    "pendingCodexLoginUntouched": true
+    "accepted": true,
+    "protocol": {
+      "ticketStatus": 200,
+      "opened": true,
+      "ready": true,
+      "claimRequired": true,
+      "inactive": true,
+      "pingSent": true,
+      "pong": true,
+      "releaseSent": true,
+      "unexpectedMediaFrames": 0,
+      "selectedProtocol": "hive-audio-v1",
+      "playbackGeneration": true,
+      "closeCode": 1000,
+      "wasClean": true,
+      "elapsedMs": 4211
+    },
+    "cleanup": {
+      "initialOwnedDirectoryAbsent": true,
+      "brokerCountBefore": 1,
+      "method": "exact argv/session/hash/starttime verified pidfd SIGTERM",
+      "tmuxCreated": false,
+      "ownedProcessCountBefore": 5,
+      "ownedHelperRelayProcessesAfter": 0,
+      "ownedTmuxAbsent": true,
+      "bridgeAndPulseSocketsUnlinked": true,
+      "ownedDirectoryRemoved": true,
+      "ownedChildrenAfter": 0,
+      "ownedZombieProcessesAfter": 0
+    },
+    "limits": [
+      "No microphone device request, ownership claim, PCM transmission/playback, native model or full media loopback was exercised.",
+      "Private null-sink broker lifecycle and hosted browser-to-Worker-to-Coder PTY control transport were exercised."
+    ]
   }
 }
