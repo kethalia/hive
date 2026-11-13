@@ -29,6 +29,39 @@ verification. Do not change passwords, memberships, ownership, or privileges in 
 
 ## Preserve data before switching writers
 
+### Infrastructure-only Rancher route
+
+The Infrastructure workspace can reach the existing internal ingress service with the original
+Rancher TLS name. Its public DNS route currently fails certificate verification. For the bounded
+capture, run this foreground helper in that workspace.
+
+```sh
+python3 scripts/checks/data-migration/rancher_tunnel.py
+```
+
+Its single ready JSON line contains an ephemeral `http://127.0.0.1:PORT` proxy URL. Set that value
+as `proxy-url` in the **private execution kubeconfig's existing cluster entry**. Keep its original
+`server` URL, including the Rancher Kubernetes cluster path, its CA configuration, and its existing
+private authentication. `kubectl port-forward` then uses HTTP CONNECT through the loopback helper.
+Keep TLS verification enabled. Run the separately reviewed capture operator with that kubeconfig.
+
+The helper accepts only `CONNECT rancher.local.kethalia.com:443` and dials only
+`ingress-nginx-controller-internal.ingress-nginx.svc.cluster.local:443`. TLS, the original SNI and
+HTTP Host pass end to end. The helper has no credential inputs and logs only its loopback ready URL.
+It binds only loopback, limits headers to 8 KiB and ten seconds, and accepts at most eight concurrent
+tunnels with bounded per-direction buffers. Live entry requires `HIVE_WORKSPACE_PROFILE` to identify
+the Infrastructure workspace. Its local tests use synthetic socket peers.
+
+For a private Python operator, load the module and use `with RancherTunnel() as tunnel` to obtain
+`tunnel.proxy_url`. Keep the port-forward child inside that context, terminate and wait for that
+owned child before leaving it, and remove the ephemeral proxy setting from the execution kubeconfig
+afterward. Foreground use ends with Ctrl-C or SIGTERM. Both paths close the owned listener and active
+sockets and join their threads. The fixed upstream connect timeout is ten seconds. Retain the normal
+capture bounds and private artifact handling below. This route preparation has local socket-test
+coverage. Actual Infrastructure TLS and port-forward acceptance remain a separate execution step.
+
+### Consistent source snapshot
+
 1. Freeze the exact source/migration hashes and capture the source database's completed migration
    names/checksums, database identity, application-table counts, and safe byte-comparison digests.
    Any failed/unfinished history or history other than the verified seven migrations is a hold;

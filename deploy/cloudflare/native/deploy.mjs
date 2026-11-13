@@ -12,7 +12,15 @@ export function deploymentPlan(target, branch, config, profiles) {
   assert.equal(config.name, "hive");
   assert.equal(config.account_id, "225177f82b9234ede14e897fe15e0cb5");
   assert.equal(config.main, "worker.ts");
-  assert.deepEqual(config.routes, [{ pattern: "hive.kethalia.com", custom_domain: true }]);
+  assert.deepEqual(config.routes, [
+    { pattern: "hive.kethalia.com", custom_domain: true },
+    {
+      pattern: "hive-preview.kethalia.com",
+      custom_domain: true,
+      enabled: false,
+      previews_enabled: true,
+    },
+  ]);
   assert.equal(config.previews.routes, undefined, "Preview cannot route the production domain");
   assert.deepEqual(config.secrets.required, [
     "DATABASE_URL",
@@ -30,6 +38,7 @@ export function deploymentPlan(target, branch, config, profiles) {
       databaseRole: "hive_production_runtime",
     };
     vars = config.vars;
+    assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
   } else {
     assert.ok(
       branch !== "main" && Object.hasOwn(profiles, branch),
@@ -40,6 +49,18 @@ export function deploymentPlan(target, branch, config, profiles) {
     assert.equal(profile.databaseName, "hive_foundation_preview");
     assert.equal(profile.databaseRole, "hive_foundation_runtime");
     vars = config.previews.vars;
+    if (branch === "codex/hive-production-cutover") {
+      assert.equal(
+        profile.origin,
+        "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+      );
+      assert.equal(
+        vars.HIVE_PREVIEW_ORIGIN_ALIAS,
+        "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+      );
+    } else {
+      assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
+    }
   }
   assert.equal(vars.HIVE_NATIVE_MODE, target);
   assert.equal(vars.HIVE_PUBLIC_ORIGIN, profile.origin);

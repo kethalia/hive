@@ -19,7 +19,7 @@ with existing application features ported first. Implementation is on
 
 ## Checks completed before hosted acceptance
 
-- Broad Vitest run passed 2,161 tests across 187 files, with 55 opt-in tests skipped.
+- Broad Vitest run passed 2,195 tests across 190 files, with 59 opt-in tests skipped.
 - Separate PostgreSQL run passed all 56 cases across notification, rotation,
   template publication, diagnostics and combined migration suites.
 - Independent voice review passed 65 cases, including actual Python/PTY transport
@@ -42,9 +42,16 @@ with existing application features ported first. Implementation is on
 ## Hosted and production status
 
 The target Preview is
-`https://codex-hive-production-cutover-hive.b00ste.workers.dev`.
-Publication and Browser Testing acceptance are pending. Live provider voice and
-production-template activation remain unverified.
+`https://codex-hive-production-cutover.hive-preview.kethalia.com`.
+The original `workers.dev` build was published by the connected push-triggered
+pipeline and passed hosted terminal, repository, clipboard, agent-inspection,
+diagnostic and mobile checks. File Browser reached Coder login after local-network
+permission was granted, which held iframe acceptance. The same-site Preview is
+being deployed to exercise Coder's existing SameSite cookie policy.
+
+Chrome push registration remains unverified after a browser permission error.
+Authenticated live voice metadata remains unverified because the test workspace's
+default Codex CLI was signed out. Production-template activation remains unverified.
 
 The serving production application remains in Kubernetes. A fresh production
 capture is blocked by HTTP 401 from the previously supplied Rancher key. The

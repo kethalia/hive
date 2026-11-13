@@ -1,0 +1,111 @@
+{
+  "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+  "sourceCommit": "be7509212f8fbf190a1f83f80d3d57430b340e8c",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspaceBuildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+  "runId": "3b467d008a95adaf",
+  "checks": [
+    {
+      "name": "real UI sign-in",
+      "passed": true
+    },
+    {
+      "name": "/api/app-version",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "published build identity captured",
+      "passed": true
+    },
+    {
+      "name": "/api/discovery/workspaces",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "exact running software build",
+      "passed": true
+    },
+    {
+      "name": "/api/discovery/sessions",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "fixture session names initially absent",
+      "passed": true
+    },
+    {
+      "name": "/api/settings/window",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "Settings window",
+      "passed": true
+    },
+    {
+      "name": "ordinary terminal command output",
+      "passed": true
+    }
+  ],
+  "http": [
+    {
+      "request": "POST /api/auth/login 200",
+      "count": 1
+    },
+    {
+      "request": "GET /api/discovery/workspaces 200",
+      "count": 7
+    },
+    {
+      "request": "GET /api/settings/window 200",
+      "count": 1
+    },
+    {
+      "request": "GET /api/discovery/sessions 503",
+      "count": 6
+    },
+    {
+      "request": "GET /api/discovery/sessions 200",
+      "count": 2
+    },
+    {
+      "request": "GET /api/discovery/repositories 503",
+      "count": 4
+    },
+    {
+      "request": "GET /api/discovery/agent 200",
+      "count": 1
+    },
+    {
+      "request": "GET /api/discovery/repositories 200",
+      "count": 1
+    },
+    {
+      "request": "POST /api/auth/terminal-ticket 200",
+      "count": 6
+    }
+  ],
+  "screenshots": ["desktop-workspaces.png", "desktop-settings.png", "failure.png"],
+  "errors": [],
+  "cleanup": {
+    "fixture": false,
+    "ordinarySession": false,
+    "repositorySession": false,
+    "error": {
+      "stage": "exact_owned_cleanup",
+      "type": "Error"
+    }
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "47eb3c0a-677c-4f15-bbad-2325f309b029"
+  },
+  "failure": {
+    "stage": "fixture",
+    "type": "Error"
+  },
+  "accepted": false
+}

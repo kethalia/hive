@@ -119,6 +119,12 @@ class CapturePostgres(unittest.TestCase):
                     self.assertEqual(capture.fingerprint(target, tables, 100), manifest["tables"])
                 finally:
                     target.close()
+                sql(urls[1], "ALTER TABLE sample ADD COLUMN added_field text DEFAULT 'new';")
+                upgraded = capture.Snapshot(capture.environment(urls[1]), 30)
+                try:
+                    self.assertEqual(capture.fingerprint(upgraded, tables, 100), manifest["tables"])
+                finally:
+                    upgraded.close()
                 with self.assertRaises(ValueError):
                     capture.capture(credential, root / "too-many", 10 * 1024 ** 2, 1, 30)
                 self.assertFalse((root / "too-many/capture.json").exists())

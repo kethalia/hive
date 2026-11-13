@@ -36,7 +36,9 @@ Preview requires `hive_foundation_preview` and `hive_foundation_runtime`.
 HTTP, scheduled work and background alarms validate this scope before database use.
 
 P01b's Preview is
-`https://codex-hive-production-cutover-hive.b00ste.workers.dev`.
+`https://codex-hive-production-cutover.hive-preview.kethalia.com`.
+Its original `workers.dev` URL redirects browser navigation to this canonical host.
+The same-site Preview exercises Coder workspace-app cookies under the production site.
 Configure its existing Workers Builds Preview settings for automatic branch builds.
 The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.
 

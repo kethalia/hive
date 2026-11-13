@@ -192,3 +192,104 @@ test("runtime rejects cross-environment credentials and production-origin substi
   }
   assert.equal(calls, 0);
 });
+
+const alias = "https://codex-hive-production-cutover-hive.b00ste.workers.dev";
+
+test("old preview GET and HEAD redirect to the exact canonical origin without application I/O", async () => {
+  let calls = 0;
+  const handler = {
+    fetch() {
+      calls++;
+      return new Response("unexpected");
+    },
+  };
+  const worker = createNativeWorker({ app: handler, auth: handler });
+  for (const method of ["GET", "HEAD"]) {
+    const response = await worker.fetch(
+      new Request(`${alias}//other.example/workspaces?id=a%2Fb&next=https%3A%2F%2Fevil.example`, {
+        method,
+      }),
+      env,
+      context,
+    );
+    assert.equal(response.status, 307);
+    assert.equal(
+      response.headers.get("location"),
+      `${origin}//other.example/workspaces?id=a%2Fb&next=https%3A%2F%2Fevil.example`,
+    );
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(await response.text(), "");
+  }
+  assert.equal(calls, 0);
+});
+
+test("preview alias denies writes, upgrades, lookalike hosts and production requests", async () => {
+  const handler = {
+    fetch() {
+      throw Error("Unexpected application dispatch");
+    },
+  };
+  const worker = createNativeWorker({ app: handler, auth: handler });
+  for (const request of [
+    new Request(alias, { method: "POST" }),
+    new Request(alias, { method: "PUT" }),
+    new Request(alias, { method: "DELETE" }),
+    new Request(alias, { headers: { Upgrade: "websocket" } }),
+    new Request(alias, { method: "HEAD", headers: { Upgrade: "websocket" } }),
+    new Request("http://codex-hive-production-cutover-hive.b00ste.workers.dev/"),
+    new Request(`${alias}.evil.example/`),
+    new Request("https://other.hive-preview.kethalia.com/"),
+  ]) {
+    assert.equal((await worker.fetch(request, env, context)).status, 403);
+  }
+  assert.equal((await worker.fetch(new Request(alias), productionEnv, context)).status, 403);
+});
+
+test("alias configuration is exact, HTTPS and preview-only at source and runtime boundaries", async () => {
+  const handler = {
+    fetch() {
+      throw Error("Unexpected application dispatch");
+    },
+  };
+  const worker = createNativeWorker({ app: handler, auth: handler });
+  for (const value of [
+    undefined,
+    "https://other.example",
+    `${alias}/`,
+    alias.replace("https:", "http:"),
+  ]) {
+    const changed = structuredClone(config);
+    changed.previews.vars.HIVE_PREVIEW_ORIGIN_ALIAS = value;
+    assert.throws(() => deploymentPlan("preview", branch, changed, profiles));
+    if (value !== undefined) {
+      assert.equal(
+        (
+          await worker.fetch(
+            new Request(alias),
+            { ...env, HIVE_PREVIEW_ORIGIN_ALIAS: value },
+            context,
+          )
+        ).status,
+        503,
+      );
+    }
+  }
+  const changed = structuredClone(config);
+  changed.vars.HIVE_PREVIEW_ORIGIN_ALIAS = alias;
+  assert.throws(() => deploymentPlan("production", "main", changed, profiles));
+  assert.equal(
+    (
+      await worker.fetch(
+        new Request(productionOrigin),
+        { ...productionEnv, HIVE_PREVIEW_ORIGIN_ALIAS: alias },
+        context,
+      )
+    ).status,
+    503,
+  );
+  for (const field of ["enabled", "previews_enabled"]) {
+    const changed = structuredClone(config);
+    changed.routes[1][field] = !changed.routes[1][field];
+    assert.throws(() => deploymentPlan("preview", branch, changed, profiles));
+  }
+});

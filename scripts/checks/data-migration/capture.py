@@ -135,8 +135,12 @@ def fingerprint(snapshot, tables, max_rows):
     for table in tables:
         name = table["name"]
         digest, count = hashlib.sha256(), 0
-        sql = ('SELECT row_to_json(t)::text FROM ONLY public.' + identifier(name)
-               + ' t ORDER BY row_to_json(t)::text COLLATE "C";')
+        # Select the captured columns in their original order so an additive
+        # target migration preserves the original source-row fingerprint.
+        projection = ",".join(identifier(column) for column in table["columns"] or [])
+        sql = ('SELECT row_to_json(t)::text FROM (SELECT ' + projection
+               + ' FROM ONLY public.' + identifier(name)
+               + ') t ORDER BY row_to_json(t)::text COLLATE "C";')
         for row in snapshot.rows(sql):
             require(row.startswith("{"))
             encoded = row.encode()
