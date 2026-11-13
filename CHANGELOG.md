@@ -1,5 +1,17 @@
 # hive-orchestrator
 
+## 2.34.0
+
+### Minor Changes
+
+- a8ea438: Serve Hive previews from the existing Cloudflare Worker with request-scoped Neon database access, in-process authentication, portable workspace/settings reads and ordinary terminal transport.
+
+### Patch Changes
+
+- Updated dependencies [a8ea438]
+  - @hive/db@0.4.0
+  - @hive/auth@1.0.5
+
 ## 2.33.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # hive-auth
 
+## 1.1.6
+
+### Patch Changes
+
+- a8ea438: Serve Hive previews from the existing Cloudflare Worker with request-scoped Neon database access, in-process authentication, portable workspace/settings reads and ordinary terminal transport.
+- Updated dependencies [a8ea438]
+  - @hive/db@0.4.0
+  - @hive/auth@1.0.5
+
 ## 1.1.5
 
 ### Patch Changes
