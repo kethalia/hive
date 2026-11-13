@@ -1,4 +1,10 @@
 import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
+import {
+  terminalDiagnosticsPath,
+  terminalDiagnosticsRuntime,
+} from "@/lib/terminal/diagnostics.server";
+import { audioPath } from "./audio-relay";
+import { audioRuntime } from "./audio-runtime";
 import { genericTerminalPath } from "./generic-terminal-relay";
 import { type GenericTerminalEnvironment, genericTerminalRelay } from "./generic-terminal-runtime";
 import {
@@ -22,19 +28,19 @@ export function createAppWorker(
 ) {
   return {
     async fetch(request: Request, env: Environment, context: Context): Promise<Response> {
-      if (genericTerminalPath(request))
-        return genericTerminalRelay(request, env, Number.MAX_SAFE_INTEGER, context);
+      if (audioPath(request)) return audioRuntime(request, env, Number.MAX_SAFE_INTEGER, context);
+      if (genericTerminalPath(request)) {
+        const databaseUrl = env.DATABASE_URL;
+        return genericTerminalRelay(request, env, Number.MAX_SAFE_INTEGER, context, (bounds) =>
+          createCloudflareDatabaseRequest(databaseUrl, bounds),
+        );
+      }
       const path = new URL(request.url).pathname;
       const unavailable =
         request.headers.has("Upgrade") ||
         isUnsupportedPageMutation(request, actions) ||
         (request.headers.has("Next-Action") && !isPortableServerAction(request, actions)) ||
-        (path.startsWith("/api/discovery/") && !isPortableDiscovery(request)) ||
-        path.startsWith("/api/templates/") ||
-        path.startsWith("/api/workspace-proxy") ||
-        path === "/api/notifications/events" ||
-        (path === "/api/notifications/sources" && request.method !== "GET") ||
-        /^\/api\/workspaces\/[^/]+\/(voice|terminal\/paste-assets)(\/|$)/.test(path);
+        (path.startsWith("/api/discovery/") && !isPortableDiscovery(request, true, true));
       if (unavailable)
         return Response.json(
           { error: "This capability is unavailable in this preview." },
@@ -47,7 +53,9 @@ export function createAppWorker(
       }
       const database = createCloudflareDatabaseRequest(env.DATABASE_URL);
       const response = await runRequestLifetime(database, context, (tracked) =>
-        framework.fetch(request, env, tracked),
+        terminalDiagnosticsPath(request)
+          ? terminalDiagnosticsRuntime(request, env)
+          : framework.fetch(request, env, tracked),
       );
       const headers = new Headers(response.headers);
       headers.set("Cache-Control", "private, no-store");

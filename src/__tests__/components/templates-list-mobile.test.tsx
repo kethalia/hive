@@ -126,6 +126,7 @@ afterAll(() => {
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   vi.useRealTimers();
   vi.clearAllMocks();
   MockEventSource.instances = [];
@@ -140,7 +141,7 @@ describe("templates mobile list", () => {
       json: async () => (url.endsWith("/status") ? statuses : { jobId: "job-1" }),
     }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    render(<TemplatesClient initialStatuses={statuses} />);
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={statuses} />);
     fireEvent.click(screen.getByRole("button", { name: "Push all" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Confirm push" }));
@@ -176,7 +177,7 @@ describe("templates mobile list", () => {
       json: async () => (url.endsWith("/status") ? statuses : { jobId: "job-1" }),
     }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    render(<TemplatesClient initialStatuses={statuses} />);
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={statuses} />);
     fireEvent.click(screen.getByRole("button", { name: "Push all" }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Confirm push all" }));
@@ -213,7 +214,7 @@ describe("templates mobile list", () => {
       });
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    render(<TemplatesClient initialStatuses={statuses} />);
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={statuses} />);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(scans).toBe(1);
@@ -249,7 +250,9 @@ describe("templates mobile list", () => {
       return Promise.resolve({ ok: true, json: async () => ({ jobId: "job-1" }) });
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const { unmount } = render(<TemplatesClient initialStatuses={statuses} />);
+    const { unmount } = render(
+      <TemplatesClient userId="fixture-owner" initialStatuses={statuses} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Push all" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Push all 3 templates?");
@@ -264,6 +267,7 @@ describe("templates mobile list", () => {
     for (const status of statuses)
       expect(fetchMock).toHaveBeenCalledWith(`/api/templates/${status.name}/push`, {
         method: "POST",
+        headers: { "Idempotency-Key": expect.any(String) },
       });
     expect(screen.getAllByTestId("terminal-panel")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Push all" })).toBeDisabled();
@@ -284,13 +288,14 @@ describe("templates mobile list", () => {
   });
 
   it("disables Push all for an empty list", () => {
-    render(<TemplatesClient initialStatuses={[]} />);
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={[]} />);
     expect(screen.getByRole("button", { name: "Push all" })).toBeDisabled();
   });
 
   it("renders mobile cards, desktop table columns, and 44px mobile push actions", () => {
     render(
       <TemplatesClient
+        userId="fixture-owner"
         initialStatuses={[
           makeStatus({ name: "ai-dev-k8s", stale: true }),
           makeStatus({ name: "browser-testing", stale: false, remoteHash: "local-hash" }),
@@ -335,7 +340,7 @@ describe("templates mobile list", () => {
   });
 
   it("renders an empty mobile status card without removing the desktop table", () => {
-    render(<TemplatesClient initialStatuses={[]} />);
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={[]} />);
 
     expect(screen.getByTestId("templates-empty-card")).toHaveTextContent("No templates found");
     expect(screen.getByTestId("templates-mobile-card-stack")).toHaveClass("md:hidden");
@@ -350,7 +355,9 @@ describe("templates mobile list", () => {
     const fetchMock = vi.fn(() => statusPromise);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<TemplatesClient initialStatuses={[makeStatus({ stale: true })]} />);
+    render(
+      <TemplatesClient userId="fixture-owner" initialStatuses={[makeStatus({ stale: true })]} />,
+    );
     const surface = screen.getByTestId("pull-to-refresh");
 
     dragPull(surface, PULL_REFRESH_TRIGGER_PX);
@@ -394,7 +401,12 @@ describe("templates mobile list", () => {
     const fetchMock = vi.fn(fetchImpl);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<TemplatesClient initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]} />);
+    render(
+      <TemplatesClient
+        userId="fixture-owner"
+        initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]}
+      />,
+    );
     const surface = screen.getByTestId("pull-to-refresh");
 
     dragPull(surface, PULL_REFRESH_TRIGGER_PX);
@@ -417,7 +429,12 @@ describe("templates mobile list", () => {
     const fetchMock = vi.fn(() => pushPromise);
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    render(<TemplatesClient initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]} />);
+    render(
+      <TemplatesClient
+        userId="fixture-owner"
+        initialStatuses={[makeStatus({ name: "ai-dev-k8s", stale: true })]}
+      />,
+    );
     const card = screen.getByTestId("template-mobile-card");
     const mobilePush = within(card).getByRole("button", { name: /Push/ });
 
@@ -425,7 +442,10 @@ describe("templates mobile list", () => {
     fireEvent.click(screen.getByRole("button", { name: /Confirm push/ }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/templates/ai-dev-k8s/push", { method: "POST" });
+      expect(fetchMock).toHaveBeenCalledWith("/api/templates/ai-dev-k8s/push", {
+        method: "POST",
+        headers: { "Idempotency-Key": expect.any(String) },
+      });
       expect(within(card).getByRole("button", { name: /Pushing/ })).toBeDisabled();
     });
 

@@ -27,10 +27,21 @@
     "redact_query_string": true
   },
   "triggers": {
-    "crons": []
+    "crons": ["17 * * * *"]
   },
   "vars": {
-    "HIVE_NATIVE_MODE": "bootstrap"
+    "HIVE_NATIVE_MODE": "production",
+    "HIVE_RUNTIME_TARGET": "cloudflare",
+    "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
+    "HIVE_GENERIC_TERMINAL_ENABLED": "true",
+    "HIVE_TERMINAL_WS_URL": "/",
+    "HIVE_PUBLIC_ORIGIN": "https://hive.kethalia.com",
+    "CODER_URL": "https://coder.kethalia.com",
+    "HIVE_DATABASE_NAME": "hive_production",
+    "HIVE_DATABASE_ROLE": "hive_production_runtime",
+    "ALLOWED_CODER_URLS": "https://coder.kethalia.com",
+    "HIVE_TERMINAL_PASTE_ENABLED": "true",
+    "HIVE_CODEX_VOICE_ENABLED": "true"
   },
   "previews": {
     "placement": {
@@ -42,14 +53,54 @@
       "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
       "HIVE_GENERIC_TERMINAL_ENABLED": "true",
       "HIVE_TERMINAL_WS_URL": "/",
-      "HIVE_PUBLIC_ORIGIN": "https://codex-cloudflare-foundation-hive.b00ste.workers.dev",
+      "HIVE_PUBLIC_ORIGIN": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
       "CODER_URL": "https://coder.kethalia.com",
       "HIVE_DATABASE_NAME": "hive_foundation_preview",
       "HIVE_DATABASE_ROLE": "hive_foundation_runtime",
-      "ALLOWED_CODER_URLS": "https://coder.kethalia.com"
+      "ALLOWED_CODER_URLS": "https://coder.kethalia.com",
+      "HIVE_TERMINAL_PASTE_ENABLED": "true",
+      "HIVE_CODEX_VOICE_ENABLED": "true",
+      "HIVE_PREVIEW_ORIGIN_ALIAS": "https://codex-hive-production-cutover-hive.b00ste.workers.dev"
+    },
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "BACKGROUND",
+          "class_name": "HiveBackground"
+        }
+      ]
     }
   },
   "secrets": {
     "required": ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"]
-  }
+  },
+  "routes": [
+    {
+      "pattern": "hive.kethalia.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "hive-preview.kethalia.com",
+      "custom_domain": true,
+      "enabled": false,
+      "previews_enabled": true
+    }
+  ],
+  "placement": {
+    "region": "aws:us-east-1"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "BACKGROUND",
+        "class_name": "HiveBackground"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "hive-background-v1",
+      "new_sqlite_classes": ["HiveBackground"]
+    }
+  ]
 }

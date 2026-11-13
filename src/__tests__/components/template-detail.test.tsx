@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -111,6 +111,7 @@ function mockEventSourceConstructor(): typeof EventSource {
 describe("TemplateDetailClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     global.fetch = vi.fn();
   });
 
@@ -120,12 +121,12 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders template name", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     expect(screen.getByText("browser-testing")).toBeInTheDocument();
   });
 
   it("renders catalog profile, runtime, and purpose", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     expect(screen.getByText("Browser testing")).toBeInTheDocument();
     expect(screen.getByText("Kubernetes")).toBeInTheDocument();
     expect(screen.getByText("Browser + desktop")).toBeInTheDocument();
@@ -137,22 +138,32 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders staleness badge when stale", () => {
-    render(<TemplateDetailClient status={makeStatus({ stale: true })} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus({ stale: true })} />);
     expect(screen.getByText("Stale")).toBeInTheDocument();
   });
 
   it("renders Current badge when not stale", () => {
-    render(<TemplateDetailClient status={makeStatus({ stale: false, remoteHash: "abc" })} />);
+    render(
+      <TemplateDetailClient
+        userId="fixture-owner"
+        status={makeStatus({ stale: false, remoteHash: "abc" })}
+      />,
+    );
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
   it("renders Unknown badge when remoteHash is null", () => {
-    render(<TemplateDetailClient status={makeStatus({ stale: false, remoteHash: null })} />);
+    render(
+      <TemplateDetailClient
+        userId="fixture-owner"
+        status={makeStatus({ stale: false, remoteHash: null })}
+      />,
+    );
     expect(screen.getByText("Unknown")).toBeInTheDocument();
   });
 
   it("renders lastPushed, activeVersionId, and hashes", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     expect(screen.getByText("Last Pushed")).toBeInTheDocument();
     expect(screen.getByText("ver-abc123")).toBeInTheDocument();
     expect(screen.getByText("abc123def456")).toBeInTheDocument();
@@ -160,7 +171,7 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders push button", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     expect(screen.getByText("Push")).toBeInTheDocument();
   });
 
@@ -173,15 +184,49 @@ describe("TemplateDetailClient", () => {
 
     global.EventSource = mockEventSourceConstructor();
 
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
     fireEvent.click(screen.getByText("Confirm push"));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith("/api/templates/browser-testing/push", {
         method: "POST",
+        headers: { "Idempotency-Key": expect.any(String) },
       });
     });
+  });
+
+  it("reuses the normal UI request after lost ACK and reload, then clears it on observed completion", async () => {
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(Error("lost ACK"))
+      .mockResolvedValue({ ok: true, json: async () => ({ jobId: "same-job" }) });
+    global.fetch = fetch;
+    global.EventSource = mockEventSourceConstructor();
+    const first = render(<TemplateDetailClient userId="owner-a" status={makeStatus()} />);
+    fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
+    await waitFor(() => expect(screen.getByText("Push failed")).toBeInTheDocument());
+    const requestId = fetch.mock.calls[0][1].headers["Idempotency-Key"];
+    first.unmount();
+    render(<TemplateDetailClient userId="owner-a" status={makeStatus()} />);
+    fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(fetch.mock.calls[1][1].headers["Idempotency-Key"]).toBe(requestId);
+    const source = vi.mocked(global.EventSource).mock.results.at(-1)?.value;
+    await waitFor(() =>
+      expect(source.addEventListener).toHaveBeenCalledWith("status", expect.any(Function)),
+    );
+    const status = source.addEventListener.mock.calls.find(
+      (call: unknown[]) => call[0] === "status",
+    )[1];
+    act(() => status(new MessageEvent("status", { data: '{"success":true}' })));
+    await waitFor(() => expect(screen.getByText("Push succeeded")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+    expect(fetch.mock.calls[2][1].headers["Idempotency-Key"]).not.toBe(requestId);
   });
 
   it("shows error message on push failure (non-ok response)", async () => {
@@ -191,7 +236,7 @@ describe("TemplateDetailClient", () => {
     });
     global.fetch = mockFetch;
 
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
     fireEvent.click(screen.getByText("Confirm push"));
 
@@ -205,7 +250,7 @@ describe("TemplateDetailClient", () => {
     const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
     global.fetch = mockFetch;
 
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
     fireEvent.click(screen.getByText("Confirm push"));
 
@@ -215,14 +260,14 @@ describe("TemplateDetailClient", () => {
   });
 
   it("does not render the old back link to /templates in the compact header", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
 
     expect(screen.queryByText("Templates")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /templates/i })).not.toBeInTheDocument();
   });
 
   it("renders the template header without sidebar controls", () => {
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
 
     expect(screen.queryByTestId("page-sidebar-trigger")).not.toBeInTheDocument();
     expect(screen.getByRole("banner")).toHaveAttribute("data-dashboard-page-nav");
@@ -237,7 +282,7 @@ describe("TemplateDetailClient", () => {
 
     global.EventSource = mockEventSourceConstructor();
 
-    render(<TemplateDetailClient status={makeStatus()} />);
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
     fireEvent.click(screen.getByText("Push"));
     fireEvent.click(screen.getByText("Confirm push"));
 
@@ -248,7 +293,9 @@ describe("TemplateDetailClient", () => {
   });
 
   it("renders dash for missing lastPushed", () => {
-    render(<TemplateDetailClient status={makeStatus({ lastPushed: null })} />);
+    render(
+      <TemplateDetailClient userId="fixture-owner" status={makeStatus({ lastPushed: null })} />,
+    );
     const dds = screen.getAllByText("—");
     expect(dds.length).toBeGreaterThanOrEqual(1);
   });

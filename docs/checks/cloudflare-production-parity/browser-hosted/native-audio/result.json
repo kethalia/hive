@@ -1,0 +1,39 @@
+{
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceCommit": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+  "expectedBuildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspaceBuildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+  "sessionName": "parity-audio-2c77b603defc9257",
+  "audioIdentity": "3ef4c6e2275e21c57ade274d",
+  "coverage": "hardware-free native audio ticket/WebSocket/control protocol only",
+  "microphoneRequested": false,
+  "pcmSent": false,
+  "ownershipClaimSent": false,
+  "modelInvoked": false,
+  "tmuxCreated": false,
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44"
+  },
+  "agentId": "e7344369-03ef-417b-b708-20ffa046ac28",
+  "protocol": {
+    "ticketStatus": 200,
+    "opened": true,
+    "ready": true,
+    "claimRequired": true,
+    "inactive": true,
+    "pingSent": true,
+    "pong": true,
+    "releaseSent": true,
+    "unexpectedMediaFrames": 0,
+    "selectedProtocol": "hive-audio-v1",
+    "playbackGeneration": true,
+    "closeCode": 1000,
+    "wasClean": true,
+    "elapsedMs": 4211
+  },
+  "stableBuild": true,
+  "accepted": true,
+  "browserClosed": true
+}

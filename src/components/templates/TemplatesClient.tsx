@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
+import { completeTemplatePush, pendingTemplatePush } from "@/lib/templates/push-request";
 import { followTemplatePush } from "@/lib/templates/push-stream";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
@@ -49,6 +50,7 @@ interface PushState {
 }
 
 interface TemplatesClientProps {
+  userId: string;
   initialStatuses: TemplateStatus[];
   embedded?: boolean;
   headerControls?: ReactNode;
@@ -82,6 +84,7 @@ function runtimeLabel(templateName: string): string {
 }
 
 export function TemplatesClient({
+  userId,
   initialStatuses,
   embedded = false,
   headerControls,
@@ -203,8 +206,13 @@ export function TemplatesClient({
       }));
 
       let jobId: string;
+      let requestId: string;
       try {
-        const res = await fetch(`/api/templates/${name}/push`, { method: "POST" });
+        requestId = pendingTemplatePush(userId, name);
+        const res = await fetch(`/api/templates/${name}/push`, {
+          method: "POST",
+          headers: { "Idempotency-Key": requestId },
+        });
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "Unknown error" }));
           writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
@@ -227,6 +235,7 @@ export function TemplatesClient({
         onReconnect: () =>
           writeLine(name, "[stream] Connection interrupted; reconnecting to this push…"),
         onStatus: ({ success, error }) => {
+          completeTemplatePush(userId, name, requestId);
           // Always write a final status line so the terminal is never blank
           if (success) {
             writeLine(name, "\r\n\x1b[32m✓ Push succeeded\x1b[0m");
@@ -239,7 +248,7 @@ export function TemplatesClient({
       });
       pushStreams.current.set(name, stop);
     },
-    [refreshAfterPushes, writeLine],
+    [refreshAfterPushes, writeLine, userId],
   );
 
   const handleCloseTerminal = useCallback((name: string) => {

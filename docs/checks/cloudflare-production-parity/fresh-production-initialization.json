@@ -1,0 +1,65 @@
+{
+  "strategy": "fresh-production",
+  "ownerApprovedLegacyDataDiscard": true,
+  "database": "hive_production",
+  "databaseOid": "344064",
+  "runtimeRole": "hive_production_runtime",
+  "before": {
+    "database": "hive_production",
+    "user": "hive_epic_owner",
+    "oid": "344064",
+    "owner": "hive_epic_owner",
+    "tables": 0
+  },
+  "after": {
+    "applicationTables": 13,
+    "sequences": 1,
+    "users": 0,
+    "sessions": 0,
+    "oppositeEnvironmentTableAccess": 0
+  },
+  "completedMigrations": 11,
+  "migrationChecksumsMatchedSource": true,
+  "grantSqlSha256": "fe48c9490fdfe1ebf565756402a0a897f9567ba28cf69fb1f133c94623831ed4",
+  "runtimeVerified": true,
+  "runtimeTablePrivilegeMatrixVerified": true,
+  "runtimeChecks": {
+    "schemaCreate": false,
+    "databaseCreate": false,
+    "temporary": false,
+    "sequenceUsage": true,
+    "sequenceSetval": false,
+    "users": 0,
+    "sessions": 0
+  },
+  "cloudflare": {
+    "worker": "hive",
+    "productionSecretNames": [
+      "AUTH_SERVICE_SECRET",
+      "COOKIE_SECRET",
+      "DATABASE_URL",
+      "ENCRYPTION_KEY"
+    ],
+    "placeholderDeployment": [
+      {
+        "id": "39bb7cc3-6efd-441d-920c-7878dd7c47a7",
+        "versions": [
+          {
+            "version_id": "5ad45dfa-70d7-4e8c-b551-886e444f2540",
+            "percentage": 100
+          }
+        ]
+      }
+    ],
+    "hiveDomains": [
+      {
+        "hostname": "hive-preview.kethalia.com",
+        "enabled": false,
+        "previews_enabled": true
+      }
+    ]
+  },
+  "productionApplicationActivationPending": true,
+  "productionDomainActivationPending": true,
+  "allProductionSecretsDifferFromPreview": true
+}

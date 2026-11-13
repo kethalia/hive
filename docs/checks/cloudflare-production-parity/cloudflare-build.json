@@ -1,0 +1,13 @@
+{
+  "worker": "hive",
+  "previewId": "ae3c7eea9c324a03bb03090fbc3384a5",
+  "preview": "codex/hive-production-cutover",
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceRevision": "4f0e097bca0a8b5212afd7e61acb323fb68bea57",
+  "buildUuid": "7640a7fe-2e2c-4813-a156-4f5e22567b7d",
+  "trigger": "push_event",
+  "buildOutcome": "success",
+  "deployedAt": "2026-11-13T18:24:07.748Z",
+  "appBuildId": "a6756d23-7e19-47c1-9c92-7ab9f0f7bb44",
+  "schemaMigrations": 11
+}

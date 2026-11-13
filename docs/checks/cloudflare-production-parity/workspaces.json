@@ -1,0 +1,67 @@
+{
+  "task": "hive-production-cutover",
+  "records": [
+    {
+      "deployment": "https://coder.kethalia.com",
+      "id": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+      "name": "hive-project-preview",
+      "owner_id": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+      "template_id": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+      "created_at": "2026-10-30T06:22:11.688933Z",
+      "latest_build_id": "577d6490-5e4f-453a-959f-5844bbe89b63",
+      "status": "stopped",
+      "designation": "reused-persistent",
+      "task": "hive-production-cutover",
+      "observed_at": "2026-11-13T16:33:11.516236+00:00",
+      "recordedBy": "primary workspace from Coder inspection",
+      "last_observation": {
+        "observed_at": "2026-11-13T22:44:28.786667+00:00",
+        "status": "stopped",
+        "build_id": "d590b87e-4256-438a-abd3-f50d0a864dc9",
+        "identity_fields_matched": true,
+        "storage_retained": true,
+        "browser_ui_validation_completed": true
+      }
+    },
+    {
+      "deployment": "https://coder.kethalia.com",
+      "id": "23023679-3c7b-4a50-ba52-4ca31673148e",
+      "name": "hive-epic-child",
+      "owner_id": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+      "template_id": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+      "created_at": "2026-11-05T16:35:36.5537Z",
+      "latest_build_id": "5b0a9ccd-6b03-4e4b-8b34-bee4c72b944f",
+      "status": "stopped",
+      "designation": "reused-persistent",
+      "task": "hive-production-cutover",
+      "observed_at": "2026-11-13T16:49:37.775766+00:00",
+      "recordedBy": "primary workspace from Coder inspection",
+      "last_observation": {
+        "observed_at": "2026-11-13T18:39:23.330047+00:00",
+        "status": "stopped",
+        "build_id": "0fb5b798-26a3-476f-8e29-aaee04e42005",
+        "identity_fields_matched": true,
+        "storage_retained": true
+      }
+    },
+    {
+      "id": "76a2812a-ea32-48da-89ca-538fcd64f6a2",
+      "owner_id": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+      "template_id": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+      "created_at": "2026-11-08T21:50:10.112691Z",
+      "build": "e93c4806-e697-49de-a3a8-17ac3d0ecc91",
+      "status": "running",
+      "observed_at": "2026-11-13T16:52:42.743756+00:00",
+      "recordedBy": "primary workspace from Coder inspection",
+      "designation": "reused-persistent",
+      "task": "hive-production-cutover",
+      "last_observation": {
+        "observed_at": "2026-11-13T18:39:23.330102+00:00",
+        "status": "stopped",
+        "build_id": "a3b2f70f-cbda-48c9-8194-6dc624208fc7",
+        "identity_fields_matched": true,
+        "storage_retained": true
+      }
+    }
+  ]
+}

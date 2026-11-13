@@ -1,4 +1,4 @@
-import { signCookie } from "@hive/auth";
+import { AuthServiceError, signCookie } from "@hive/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockServiceClient = vi.hoisted(() => ({
@@ -137,6 +137,7 @@ describe("auth route cookies", () => {
     expect(mockServiceClient.login).toHaveBeenCalledWith(
       { coderUrl: "https://coder.example.com", email: "test@example.com", password: "fixture" },
       ip,
+      expect.any(AbortSignal),
     );
   });
 
@@ -168,7 +169,11 @@ describe("auth route cookies", () => {
     );
     expect(response.status).toBe(200);
     expect(mockCheckRateLimit).toHaveBeenCalledWith("unknown");
-    expect(mockServiceClient.login).toHaveBeenCalledWith(expect.anything(), "unknown");
+    expect(mockServiceClient.login).toHaveBeenCalledWith(
+      expect.anything(),
+      "unknown",
+      expect.any(AbortSignal),
+    );
   });
 
   it("preview login expires old domain cookies while keeping the new cookie host-only", async () => {
@@ -261,6 +266,48 @@ describe("auth route cookies", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "invalid credentials" });
+    expect(getSetCookies(response)).toEqual([]);
+  });
+
+  it.each([
+    401, 429, 500, 502, 503, 504,
+  ])("preserves auth service status %s without session cookies", async (status) => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    mockServiceClient.login.mockRejectedValue(
+      new AuthServiceError("Service rejected login", status),
+    );
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coderUrl: "https://coder.example.com",
+          email: "test@example.com",
+          password: "fixture",
+        }),
+      }),
+    );
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error: "Service rejected login" });
+    expect(getSetCookies(response)).toEqual([]);
+  });
+
+  it("returns a retryable timeout without session cookies", async () => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    mockServiceClient.login.mockRejectedValue(new DOMException("Deadline expired", "TimeoutError"));
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coderUrl: "https://coder.example.com",
+          email: "test@example.com",
+          password: "fixture",
+        }),
+      }),
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "Sign-in timed out. Please try again." });
     expect(getSetCookies(response)).toEqual([]);
   });
 

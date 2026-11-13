@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "accepted": true,
+  "scope": "normal hosted Templates UI publication with window-close/reopen same-intent recovery",
+  "sourceCommit": "dcb0b435e42284060e589a9cf078dd167a1e6057",
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "10261da8-1b50-4869-8777-51086c6ca2ae"
+  },
+  "browserWorkspace": {
+    "name": "daniel/hive-project-preview",
+    "id": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "buildId": "98a51ebe-6524-4520-96c2-10f6e14ca131",
+    "designation": "reused-persistent",
+    "lifecycleOwner": "root"
+  },
+  "checkCount": 21,
+  "templateName": "electronics",
+  "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+  "requestId": "58b8ed77-dba1-4f4f-8489-9a9dfd9ba167",
+  "jobId": "f8be454e-f0da-4010-b484-3665177446ae",
+  "publicationPostCount": 2,
+  "distinctJobCount": 1,
+  "beforeActiveVersionId": "9642eac0-b027-4998-94ed-1fdeeaf63081",
+  "afterActiveVersionId": "ebb21edf-53f9-4570-a0e4-c927700cc121",
+  "sourceFiles": 39,
+  "allSourceBytesAndModesMatch": true,
+  "otherFourActiveVersionsUnchanged": true,
+  "sse": {
+    "connections": 3,
+    "logMessages": 136,
+    "statusEvents": [
+      {
+        "success": true
+      }
+    ]
+  },
+  "cleanup": {
+    "logoutStatus": 200,
+    "ownedBrowserClosed": true,
+    "ownedProfileRemoved": true,
+    "ownedProfileAbsent": true,
+    "ownedProcessesRemaining": 0,
+    "ownedScratchRemovedAfterEvidencePreservation": true,
+    "otherProfilesProcessesModified": false,
+    "workspaceLifecycleActions": 0
+  },
+  "notes": [
+    "UI request ID was generated and retained by the application; no sessionStorage injection or mocked API/worker/auth.",
+    "First UI Publish/Confirm accepted one job; window close/reopen and ordinary Publish/Confirm reused the exact request and job.",
+    "Detail card active-version/date remains its loaded snapshot; success/output render correctly and normal status refresh returns the new active version. The same onStatus behavior exists in baseline a8ea4384.",
+    "No workspace created/started/stopped by this test; root resumed its owned Browser build after the owner manually stopped the earlier build.",
+    "No source changes or production app domain/main merge actions."
+  ],
+  "detailMetadataRefresh": {
+    "loadedDetailCardSnapshotRetained": true,
+    "newActiveVersionIdReturnedByFreshStatusApi": true,
+    "explicitRefreshUiExercised": false,
+    "newActiveVersionIdRenderedAfterUiRefreshVerified": false,
+    "baselineBehaviorPreserved": true
+  },
+  "sourceReceiptSha256": "6190f3397a2045d1c58ade9464596e731f886758eae38bb8da7e75ee0714393c",
+  "originalArtifactDigests": {
+    "harness.mjs": "7c85716f33b9f8ec7b1512ad984753ba711b113b108771423329ce1c7f0ef1f4",
+    "browser-result.json": "78e8fe863a6ff85db2d072cb491112a73c7d2ba0131016da8d25c6be42eb6a9d",
+    "provider-before.json": "b05f2bb4e42476e1f8a217c781e5a2fa6a74c8c0c20bd67eaba4fc6433eee295",
+    "provider-after.json": "94c70a0c4e42581cf7ed43aa7ccb792377e5a7e8b91c7393c81f21896bff4d56",
+    "cleanup.json": "69afbfd47a7df7d01269f7ac2e9d6d8419bf8707c6816c7ef7d8d49a4517baef",
+    "publication-success.png": "1ba738f06ff1c72a8aaee071c97d00f9405c46b4fc4945717efcfa3a06f120d3",
+    "publication-progress.png": "24541603137b9da659635e07c69430bfbf8e1903bb2ecd9e9c10dbf4cac07d5b",
+    "confirmation-0.png": "74b09df17512cc504b0fcdb02c25299c3ab4a19535ff518ea925245d150c9fd7",
+    "confirmation-1.png": "74b09df17512cc504b0fcdb02c25299c3ab4a19535ff518ea925245d150c9fd7",
+    "electronics-before.png": "74b09df17512cc504b0fcdb02c25299c3ab4a19535ff518ea925245d150c9fd7",
+    "success-output-closed.png": "46a77287579842cd2e42c44adeb6f3e68257a4fe32699ddf7d50791fb4ce2a43"
+  },
+  "committedArtifacts": {
+    "browser-hosted/template-publication-ui/browser-result.json": "e682e42fcccb796227d2f029965e9d46f6cbc1d9c3c49706a04d83df75b47644",
+    "browser-hosted/template-publication-ui/cleanup.json": "5f88ea96be2ea19e9b29b14ef0fde2a013d3f6dda51c708a673eaf04df27e521",
+    "browser-hosted/template-publication-ui/provider-after.json": "94c70a0c4e42581cf7ed43aa7ccb792377e5a7e8b91c7393c81f21896bff4d56",
+    "browser-hosted/template-publication-ui/provider-before.json": "b05f2bb4e42476e1f8a217c781e5a2fa6a74c8c0c20bd67eaba4fc6433eee295",
+    "browser-hosted/template-publication-ui/publication-progress.png": "24541603137b9da659635e07c69430bfbf8e1903bb2ecd9e9c10dbf4cac07d5b",
+    "browser-hosted/template-publication-ui/publication-success.png": "1ba738f06ff1c72a8aaee071c97d00f9405c46b4fc4945717efcfa3a06f120d3"
+  }
+}

@@ -2,28 +2,57 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-// Export-level admission. Other exports in these modules may require a workspace helper.
-const workspaceActions = new Set([
-  "listWorkspacesAction",
-  "listWorkspaceTemplatesAction",
-  "getWorkspaceAction",
-  "getWorkspaceAgentAction",
-  "getWorkspaceSessionsAction",
-  "createSessionAction",
-  "createWorkspaceAction",
-  "startWorkspaceAction",
-  "stopWorkspaceAction",
-  "deleteWorkspaceAction",
-]);
+// Export-level compatibility follows the existing dashboard entry point.
+const dashboardActions = {
+  "lib/actions/workspaces.ts": [
+    "listWorkspacesAction",
+    "listWorkspaceTemplatesAction",
+    "getWorkspaceAction",
+    "getWorkspaceAgentAction",
+    "getWorkspaceSessionsAction",
+    "createSessionAction",
+    "createWorkspaceAction",
+    "startWorkspaceAction",
+    "stopWorkspaceAction",
+    "deleteWorkspaceAction",
+    "getExistingTerminalPathsAction",
+    "getWorkspaceSessionToolsAction",
+    "getWorkspaceAppToolAction",
+    "restartWorkspaceAction",
+    "renameSessionAction",
+    "killSessionAction",
+  ],
+  "lib/actions/templates.ts": ["listTemplateStatusesAction"],
+  "lib/actions/agent-tools.ts": [
+    "inspectAgentToolsAction",
+    "configureAgentToolsAction",
+    "resumeAgentSessionAction",
+  ],
+  "lib/actions/git-clones.ts": [
+    "restoreGitCloneTerminalsAction",
+    "listGitClonesAction",
+    "resolveGitCloneTerminalAction",
+    "resolveGitCloneNotificationAction",
+    "closeGitCloneTerminalAction",
+  ],
+  "lib/actions/clone-project.ts": ["cloneProjectAction"],
+  "lib/actions/settings-window.ts": ["getSettingsWindowAction"],
+  "lib/actions/user-settings.ts": ["getTerminalSettingsAction", "updateTerminalSettingsAction"],
+  "lib/push/actions.ts": ["getVapidPublicKeyAction", "testPushAction"],
+  "lib/push/subscribe.ts": [
+    "subscribePushAction",
+    "unsubscribePushAction",
+    "getPushPreferencesAction",
+    "updatePushPreferencesAction",
+  ],
+};
 export function portableActionManifest(manifest) {
   assert.ok(manifest?.node && typeof manifest.node === "object");
   const actions = {};
   for (const [id, entry] of Object.entries(manifest.node)) {
     const allowed =
-      (entry.filename === "lib/actions/workspaces.ts" &&
-        workspaceActions.has(entry.exportedName)) ||
-      (entry.filename === "lib/actions/templates.ts" &&
-        entry.exportedName === "listTemplateStatusesAction");
+      Object.hasOwn(dashboardActions, entry.filename) &&
+      dashboardActions[entry.filename].includes(entry.exportedName);
     if (!allowed || !Object.hasOwn(entry.workers ?? {}, "app/(dashboard)/workspaces/page"))
       continue;
     assert.match(id, /^[0-7][a-f0-9]{41}$/);

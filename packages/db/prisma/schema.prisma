@@ -46,9 +46,16 @@ model CoderToken {
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
+  rotationNextAt DateTime @default(now()) @map("rotation_next_at") @db.Timestamptz
+  rotationLeaseId String? @map("rotation_lease_id") @db.Uuid
+  rotationLeaseUntil DateTime? @map("rotation_lease_until") @db.Timestamptz
+  rotationState Json? @map("rotation_state")
+  warningNextAt DateTime? @map("warning_next_at") @db.Timestamptz
+
   user User @relation(fields: [userId], references: [id])
 
   @@unique([userId])
+  @@index([rotationNextAt], map: "coder_tokens_rotation_due_idx")
   @@map("coder_tokens")
 }
 
@@ -117,6 +124,121 @@ model NotificationSource {
   credentialGeneration Int @default(0) @map("credential_generation")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentNotifications AgentNotificationEvent[]
+  agentNotificationRateWindow AgentNotificationRateWindow?
+  @@unique([userId, id], map: "notification_sources_user_id_id_key")
   @@unique([userId, workspaceId])
   @@map("notification_sources")
+}
+
+model AgentNotificationEvent {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  sourceId String @map("source_id") @db.Uuid
+  eventId String @unique @map("event_id") @db.Uuid
+  eventKey String @map("event_key")
+  payload Json
+  payloadDigest String @map("payload_digest")
+  coderUserId String @map("coder_user_id") @db.Uuid
+  coderOrigin String @map("coder_origin")
+  channel String @default("push")
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  source NotificationSource @relation(fields: [ownerId, sourceId], references: [userId, id], onDelete: Cascade, onUpdate: NoAction, map: "agent_notification_source_owner_fk")
+  @@unique([sourceId, eventKey], map: "agent_notification_event_key")
+  @@index([status, nextAttemptAt], map: "agent_notification_events_status_due_idx")
+  @@index([ownerId, status, nextAttemptAt], map: "agent_notification_events_owner_due_idx")
+  @@index([sourceId, status], map: "agent_notification_events_source_status_idx")
+  @@map("agent_notification_events")
+}
+model AgentNotificationRateWindow {
+  sourceId String @id @map("source_id") @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  windowStart DateTime @map("window_start") @db.Timestamptz
+  accepted Int
+  source NotificationSource @relation(fields: [ownerId, sourceId], references: [userId, id], onDelete: Cascade, onUpdate: NoAction, map: "agent_notification_rate_owner_fk")
+  @@unique([ownerId, sourceId], map: "agent_notification_rate_owner_source_key")
+  @@map("agent_notification_rate_windows")
+}
+
+
+// Legacy template publication only; no delivery or managed runtime relations.
+model TemplateJob {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  coderUserId String @map("coder_user_id") @db.Uuid
+  sessionId String @map("session_id") @db.Uuid
+  origin String
+  organizationId String @map("organization_id") @db.Uuid
+  name String
+  artifact Json
+  state Json
+  phase String @default("queued")
+  reason String?
+  holder String? @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  attempts Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  deadline DateTime @db.Timestamptz
+  @@unique([ownerId, requestId])
+  @@index([phase, nextAttemptAt])
+  @@map("template_jobs")
+}
+model TemplateNotice {
+  id String @id @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  jobId String @unique @map("job_id") @db.Uuid
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at") @db.Timestamptz
+  @@index([status, nextAttemptAt])
+  @@map("template_notices")
+}
+
+// Request-owned terminal diagnostics shared across Worker isolates.
+model TerminalConnection {
+  id                 String   @id @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  coderUserId        String   @map("coder_user_id") @db.Uuid
+  coderOrigin        String   @map("coder_origin")
+  workspaceId        String   @map("workspace_id") @db.Uuid
+  buildId            String   @map("build_id") @db.Uuid
+  agentId            String   @map("agent_id") @db.Uuid
+  sessionName        String   @map("session_name")
+  sessionKind        String   @map("session_kind")
+  authorityExpiresAt DateTime @map("authority_expires_at") @db.Timestamptz
+  leaseUntil         DateTime @map("lease_until") @db.Timestamptz
+  health             Json
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  closedAt           DateTime? @map("closed_at") @db.Timestamptz
+  closeCode          Int?     @map("close_code")
+  closeReason        String?  @map("close_reason")
+
+  @@index([userId, coderOrigin, coderUserId, workspaceId, leaseUntil], map: "terminal_connections_owner_workspace_lease_idx")
+  @@index([updatedAt])
+  @@map("terminal_connections")
+}
+
+model TerminalEvent {
+  id           BigInt   @id @default(autoincrement())
+  userId       String   @map("user_id") @db.Uuid
+  coderUserId  String   @map("coder_user_id") @db.Uuid
+  coderOrigin  String   @map("coder_origin")
+  workspaceId  String   @map("workspace_id") @db.Uuid
+  connectionId String   @map("connection_id") @db.Uuid
+  sessionName  String   @map("session_name")
+  sessionKind  String   @map("session_kind")
+  level        String
+  type         String
+  details      Json
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, id])
+  @@index([createdAt])
+  @@map("terminal_events")
 }

@@ -1,5 +1,11 @@
-import { SECURE_SESSION_COOKIE_NAME, signCookie, verifyTerminalTicket } from "@hive/auth";
+import {
+  createCloneTerminalProof,
+  SECURE_SESSION_COOKIE_NAME,
+  signCookie,
+  verifyTerminalTicket,
+} from "@hive/auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createCloneSessionKey, createSafeCloneTerminalSessionName } from "@/lib/git/clone-tree";
 
 const mock = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
 vi.mock("@opennextjs/cloudflare", () => ({ getCloudflareContext: () => ({ env: mock.env }) }));
@@ -56,6 +62,37 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Cloudflare generic terminal ticket issuer", () => {
+  it("binds clone terminal ticket issuance to the existing proof and current browser session", async () => {
+    const clonePath = "projects/owner/repo",
+      sessionName = createSafeCloneTerminalSessionName(createCloneSessionKey(clonePath.split("/")));
+    const params = new URLSearchParams(target.slice(4));
+    params.set("sessionName", sessionName);
+    params.set("clonePath", clonePath);
+    const claims = {
+      workspaceId: params.get("workspaceId")!,
+      agentId: params.get("agentId")!,
+      sessionId: session.sessionId,
+      sessionName,
+      clonePath,
+    };
+    params.set("cloneProof", createCloneTerminalProof(claims, secret));
+    const path = `/ws?${params}`;
+    const response = await POST(request(path));
+    expect(response.status).toBe(200);
+    expect(
+      verifyTerminalTicket((await response.json()).ticket, secret, {
+        audience: "hive.example",
+        origin,
+        requestTarget: path,
+      }),
+    ).toMatchObject({ sessionId: session.sessionId });
+    params.set(
+      "cloneProof",
+      createCloneTerminalProof({ ...claims, sessionId: "another-session" }, secret),
+    );
+    expect((await POST(request(`/ws?${params}`))).status).toBe(400);
+  });
+
   it("the configured Worker root resolves to the browser WebSocket and the same ticket audience", async () => {
     const config = getServerRuntimeConfig();
     expect(config.terminalWsUrl).toBe("/");
@@ -93,8 +130,38 @@ describe("Cloudflare generic terminal ticket issuer", () => {
     expect(auth).toHaveBeenCalledOnce();
   });
   it.each([
-    "/ws/audio",
     "/keepalive/status",
+    `/session-events?workspaceId=10000000-0000-4000-8000-000000000001&sessionName=shell&after=5&limit=500`,
+    `/ws/audio?workspaceId=10000000-0000-4000-8000-000000000001&agentId=20000000-0000-4000-8000-000000000001&sessionName=shell`,
+  ])("issues only exact signed same-origin audio/diagnostic target %s", async (path) => {
+    const response = await POST(request(path));
+    expect(response.status).toBe(200);
+    const ticket = (await response.json()).ticket;
+    expect(
+      verifyTerminalTicket(ticket, secret, {
+        audience: "hive.example",
+        origin,
+        requestTarget: path,
+      }),
+    ).toMatchObject({ sessionId: session.sessionId });
+    expect(
+      verifyTerminalTicket(ticket, secret, {
+        audience: "hive.example",
+        origin,
+        requestTarget: `${path}&extra=1`,
+      }),
+    ).toBeNull();
+  });
+  it.each([
+    "/keepalive/status?unknown=1",
+    "/session-events?after=1&after=2",
+    "/ws/audio?sessionName=x&command=id",
+  ])("rejects diagnostic/audio target substitution %s", async (path) => {
+    expect((await POST(request(path))).status).toBe(400);
+    expect(auth).not.toHaveBeenCalled();
+  });
+  it.each([
+    "/ws/audio",
     `${target}&command=id`,
     `${target}&clonePath=repo`,
   ])("never expands generic ticket scope to %s", async (path) => {

@@ -1,6 +1,7 @@
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { type ConnectionOptions, type Job, Queue, Worker } from "bullmq";
+import { z } from "zod";
 import { CoderClient } from "@/lib/coder/client";
 import {
   PUSH_NOTIFICATION_HOURS,
@@ -126,32 +127,59 @@ export async function processTokenRotation(_job: Job<TokenRotationJobData>): Pro
     if (updatedCount === 0) {
       console.log(`[token-rotation] Skipped — version conflict for user ${userId}`);
       try {
-        const keys = await CoderClient.listApiKeys(coderUrl, currentSessionToken, userId);
-        for (const k of keys) {
-          if (k.id !== newKey.slice(0, 10)) {
-            await CoderClient.deleteApiKey(coderUrl, currentSessionToken, userId, k.id);
+        const newKeyId = newKey.match(/^([A-Za-z0-9]{10})-[A-Za-z0-9]{22}$/)?.[1];
+        const latest = newKeyId
+          ? await db.coderToken.findUnique({
+              where: { userId: token.userId },
+              include: { user: true },
+            })
+          : null;
+        if (
+          newKeyId &&
+          latest &&
+          latest.user.coderUserId === userId &&
+          latest.user.coderUrl === coderUrl
+        ) {
+          const stored = tryDecrypt(
+            {
+              ciphertext: Buffer.from(latest.ciphertext),
+              iv: Buffer.from(latest.iv),
+              authTag: Buffer.from(latest.authTag),
+            },
+            encryptionKey,
+          );
+          if (stored.ok && !stored.plaintext.startsWith(`${newKeyId}-`)) {
+            // Only this losing invocation's returned key is a cleanup target.
+            await CoderClient.deleteApiKey(coderUrl, newKey, userId, newKeyId);
           }
         }
       } catch {
-        // best-effort cleanup
+        // Best-effort cleanup never enumerates unrelated account keys.
       }
       continue;
     }
 
     try {
-      const keys = await CoderClient.listApiKeys(coderUrl, newKey, userId);
-      for (const k of keys) {
-        if (k.id !== newKey.slice(0, 10)) {
-          const deleted = await CoderClient.deleteApiKey(coderUrl, newKey, userId, k.id);
-          if (!deleted) {
-            console.warn(`[token-rotation] Failed to delete old key ${k.id} for user ${userId}`);
-          }
-        }
+      const proof = z
+        .object({
+          managed: z.object({
+            id: z.string().regex(/^[A-Za-z0-9]{10}$/),
+            name: z.string().regex(/^hive-r-[a-f0-9-]{36}$/),
+            version: z.number().int().positive(),
+          }),
+        })
+        .safeParse(token.rotationState);
+      // Legacy credentials have no creation provenance. Retain them to expiry.
+      if (
+        proof.success &&
+        proof.data.managed.version === oldVersion &&
+        currentSessionToken.startsWith(`${proof.data.managed.id}-`) &&
+        !newKey.startsWith(`${proof.data.managed.id}-`)
+      ) {
+        await CoderClient.deleteApiKey(coderUrl, newKey, userId, proof.data.managed.id);
       }
-    } catch (err) {
-      console.warn(
-        `[token-rotation] Old key cleanup failed for user ${userId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch {
+      console.warn("[token-rotation] Old key cleanup failed");
     }
 
     console.log(

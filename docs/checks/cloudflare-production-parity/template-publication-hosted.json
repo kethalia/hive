@@ -1,0 +1,446 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-13T22:22:57.428340+00:00",
+  "acceptance": true,
+  "scope": "hosted_preview_normal_template_publication_source_equivalent_electronics",
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "runtime": {
+    "deployment": {
+      "commit": "dcb0b435e42284060e589a9cf078dd167a1e6057",
+      "outcome": "success",
+      "buildId": "034b9f4a-c80d-4a05-b71c-981ba2af83fa",
+      "deploymentId": "a470ff45-dc4d-4490-b8d6-a059a2e0af1d",
+      "tag": "dcb0b43",
+      "createdAt": "2026-11-13T22:11:44.861447+00:00",
+      "readyAfterEpoch": 1794608204.861447,
+      "checkedAtEpoch": 1794608247.4430652
+    },
+    "appVersion": {
+      "version": "2.33.0",
+      "buildId": "10261da8-1b50-4869-8777-51086c6ca2ae"
+    },
+    "actualDurableObject": {
+      "previewId": "ae3c7eea9c324a03bb03090fbc3384a5",
+      "entrypoint": "HiveBackground",
+      "scriptVersionId": "a470ff45-dc4d-4490-b8d6-a059a2e0af1d",
+      "observedSpanTimestampMillis": 1794608279454
+    }
+  },
+  "intent": {
+    "requestId": "3b08fe69-49bb-43aa-85ac-335665fdf1f9",
+    "templateName": "electronics",
+    "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+    "beforeActiveVersionId": "e01495b8-2cc1-4293-b457-3b6639e8f0fa",
+    "sourceByteEquivalent": true,
+    "at": 1794608247.443172,
+    "deferredDoCodeUpdateElapsed": true
+  },
+  "httpAccepted": {
+    "status": 200,
+    "jobId": "a6247561-43fe-417e-a32c-d7dd59094ab9",
+    "errorCategory": null
+  },
+  "normalSse": {
+    "jobId": "a6247561-43fe-417e-a32c-d7dd59094ab9",
+    "terminal": {
+      "success": true
+    },
+    "streamConnections": 2,
+    "logLines": 232,
+    "elapsedMs": 33484
+  },
+  "durableLedger": {
+    "observedAt": "2026-11-13T22:18:47.687Z",
+    "database": "hive_foundation_preview",
+    "role": "hive_foundation_runtime",
+    "job": {
+      "id": "a6247561-43fe-417e-a32c-d7dd59094ab9",
+      "request_id": "3b08fe69-49bb-43aa-85ac-335665fdf1f9",
+      "name": "electronics",
+      "phase": "succeeded",
+      "reason": null,
+      "attempts": 11,
+      "created_at": "2026-11-13T22:17:34.153Z",
+      "deadline": "2026-11-13T22:32:34.153Z",
+      "archive_digest": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+      "file_id": "b432c0b5-3af2-4af9-85ba-441099e9b7fa",
+      "version_id": "9642eac0-b027-4998-94ed-1fdeeaf63081",
+      "import_job_id": "4da53228-ab9a-4959-8564-3f3a0a7167c8",
+      "version_name": "hive-a6247561-43fe-417e-a32c-d7dd59094ab9",
+      "effect_issued": "true",
+      "notice_status": "delivered",
+      "notice_attempts": 1
+    }
+  },
+  "providerAudit": {
+    "observedAt": "2026-11-13T22:20:06.016120+00:00",
+    "fiveTemplates": [
+      {
+        "name": "ai-dev-k8s",
+        "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+        "beforeActiveVersionId": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa",
+        "afterActiveVersionId": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa",
+        "sourceEquivalentPublication": false
+      },
+      {
+        "name": "browser-testing",
+        "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+        "beforeActiveVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d",
+        "afterActiveVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d",
+        "sourceEquivalentPublication": false
+      },
+      {
+        "name": "game-dev",
+        "templateId": "696e7eca-937c-451c-b70d-e611ccb46f13",
+        "beforeActiveVersionId": "5a563463-1e1c-43f1-a7b3-b955eb737031",
+        "afterActiveVersionId": "5a563463-1e1c-43f1-a7b3-b955eb737031",
+        "sourceEquivalentPublication": false
+      },
+      {
+        "name": "electronics",
+        "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+        "beforeActiveVersionId": "e01495b8-2cc1-4293-b457-3b6639e8f0fa",
+        "afterActiveVersionId": "9642eac0-b027-4998-94ed-1fdeeaf63081",
+        "sourceEquivalentPublication": true
+      },
+      {
+        "name": "infrastructure",
+        "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+        "beforeActiveVersionId": "68b0eb0a-5cf5-4352-a065-0e87fd4acd1f",
+        "afterActiveVersionId": "68b0eb0a-5cf5-4352-a065-0e87fd4acd1f",
+        "sourceEquivalentPublication": false
+      }
+    ],
+    "versionId": "9642eac0-b027-4998-94ed-1fdeeaf63081",
+    "versionName": "hive-a6247561-43fe-417e-a32c-d7dd59094ab9",
+    "fileId": "b432c0b5-3af2-4af9-85ba-441099e9b7fa",
+    "importJobId": "4da53228-ab9a-4959-8564-3f3a0a7167c8",
+    "importStatus": "succeeded",
+    "creatorId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "archiveSha256": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+    "archiveBytes": 244736,
+    "sourceFiles": 39,
+    "allOldSourceBytesAndModesMatch": true,
+    "exactVersionNameLookupMatches": true,
+    "observedPublishedVersionIdCount": 1,
+    "directoryHeaders": ["scripts"],
+    "providerMutationsByAudit": 0
+  },
+  "sourceFileEvidence": {
+    "templateName": "electronics",
+    "beforeActiveVersionId": "e01495b8-2cc1-4293-b457-3b6639e8f0fa",
+    "beforeFileId": "0508e273-e689-4820-bb36-c8bfef573239",
+    "allRegularFileBytesAndExecutableModesMatch": true,
+    "files": [
+      {
+        "path": ".terraform.lock.hcl",
+        "sha256": "9e5c275b1cd4e37f81a8af3adbc3ab0954ad97e1609bde2f86b4127169fc2a34",
+        "mode": 420
+      },
+      {
+        "path": "CLAUDE.md",
+        "sha256": "dd3e5f139619b779a26da9e7b19957f9c544c6901daab94becd3f3842f8a00b6",
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "sha256": "4f5742c3acc3fbe7c2cadb5f3c48d6017b3b03cf923d65346345e2c5ae5e5609",
+        "mode": 420
+      },
+      {
+        "path": "WORKSPACE.md",
+        "sha256": "4ea25d59def833b045efd5c36bff59ecc6962f295a794f0e71d4a74fa862d8ef",
+        "mode": 420
+      },
+      {
+        "path": "WORKSPACE_ROUTING.md",
+        "sha256": "d53315454bf0a06145c48aa7b7c7e9636260e7bb3650fe3accdd2c6f985af330",
+        "mode": 420
+      },
+      {
+        "path": "docker.tf",
+        "sha256": "068c13ed3c41ebf6e6e9c37b769c7a78923b1ffb7dab216637e8d1b1d049669c",
+        "mode": 420
+      },
+      {
+        "path": "main.tf",
+        "sha256": "93e58617d1286026d1ec92833a597674342ea34b8594dcdf1459bf41b9828cbe",
+        "mode": 420
+      },
+      {
+        "path": "profile.json",
+        "sha256": "ddd0f85a93983d5eddb157da97a1652a30da13c67474c55a097ac08dbfcbf71d",
+        "mode": 420
+      },
+      {
+        "path": "repositories.txt",
+        "sha256": "a9f006556ff21199edb6bd0b3e34c15292291704b0b9937a9ba00cb1e3930ea5",
+        "mode": 420
+      },
+      {
+        "path": "scripts/agent-integrations.sh",
+        "sha256": "f15cbcce218343686ba4cc71798d89dbb9c95eecd52f2b45a211032914524859",
+        "mode": 420
+      },
+      {
+        "path": "scripts/agent-tools.py",
+        "sha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+        "mode": 420
+      },
+      {
+        "path": "scripts/clone-repositories.sh",
+        "sha256": "c718ea22c2b64819af7fd2224be8470c10457b6391a503676ba135ff5d9953ee",
+        "mode": 420
+      },
+      {
+        "path": "scripts/coder-credential-cleanup.py",
+        "sha256": "0cec985766bdfb2d55c6c3b7fc3d2db2e8cd5fbd5a579dad83a97522f6837bde",
+        "mode": 420
+      },
+      {
+        "path": "scripts/codex-sandbox-readiness.py",
+        "sha256": "d6a91c4fdb4aa02aa342d93d6ca52aeadd8ce12fe694866b00dfb2614d822e1b",
+        "mode": 420
+      },
+      {
+        "path": "scripts/docker-engine.json.tftpl",
+        "sha256": "1010ae366a8636dcb60dacf9a2a1a0127ed4562ea7b472c0008b870773e8934c",
+        "mode": 420
+      },
+      {
+        "path": "scripts/docker-engine.sh",
+        "sha256": "4430579db0db71f5d362cb3e6972159f1d5a3dd6dbe2ac4925e9489b5f82d56b",
+        "mode": 420
+      },
+      {
+        "path": "scripts/git-config-retry.sh",
+        "sha256": "9a05e3a620121ffa94aa4b5a978e76e085f30695389f7dbd0de6a41517f87d5f",
+        "mode": 420
+      },
+      {
+        "path": "scripts/github-cli.sh",
+        "sha256": "20048726c1588e66333d4edebb3f9c6c39c5bd12b60d0151b71afba484ca9284",
+        "mode": 420
+      },
+      {
+        "path": "scripts/github-credential.sh",
+        "sha256": "b0c26c7d5e1a060e772e98b58f6fd969b6b9ce53b9a3078c4cc48b3c5db5a714",
+        "mode": 420
+      },
+      {
+        "path": "scripts/init.sh",
+        "sha256": "b795858ac3d9d1be0d2c91cd3736c939607834c549133cadc8ac910c48cdb1fe",
+        "mode": 420
+      },
+      {
+        "path": "scripts/install-neon-skill.py",
+        "sha256": "550dd8c5d8eee63c81a85362bc2e04aa26834f2b3a98370c2d7ebef2b9dfb404",
+        "mode": 420
+      },
+      {
+        "path": "scripts/kasmvnc-loopback.c",
+        "sha256": "6e83588ccae2c2bc29ab711a538f44b7336eeaf22ab9f81af21a3f6da0001546",
+        "mode": 420
+      },
+      {
+        "path": "scripts/prune-turbo-cache.py",
+        "sha256": "c1359badda538d19ef07dead380d5a0cd97d2180e26fc5054dc8b0021e1cadc7",
+        "mode": 420
+      },
+      {
+        "path": "scripts/retire-tmux-snapshots.py",
+        "sha256": "9e788fdd0761faece41b78f7ca22475da6005fa50dcf806781837c4bcdc6ff3a",
+        "mode": 420
+      },
+      {
+        "path": "scripts/specialist-agent-entrypoint.sh",
+        "sha256": "3846a3d333c6d503b2cfcf3cdb2445e6e1a764cc9df3056508e385f98b0622a7",
+        "mode": 420
+      },
+      {
+        "path": "scripts/symlinks.sh",
+        "sha256": "fe40e7252af70a2bb9a9a5cc3c89f947c42fde837081afe87adebb9408b6ab21",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-ai.sh",
+        "sha256": "c13c9166fae630242220a3b157f065cceefe7edb9ef208d163e6f12b1b0a04c7",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-browser.sh",
+        "sha256": "f998994d1120754c627d16ad7c9129642f7be5b56d9dd073d3f61a9036bff861",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-ci.sh",
+        "sha256": "d925fe2738d868de9b62a7d93dd2140ad0ff076cd49cf9a1c10a0037a2c23732",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-desktop.sh",
+        "sha256": "dbe6c3ae18209181fb7d7856d55e67535416edd8b9b66c5d3729f17d0bc5be6d",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-filebrowser.sh",
+        "sha256": "1df29462f5b4ede8d3dc09063cadfbe3b586315c0df20ef8e3b77bd2beceeede",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-node.sh",
+        "sha256": "373a0d284abdb560961316ca15d3db66a369457e86ca85f70f6ec4d31a4d23cb",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-opencode.sh",
+        "sha256": "7ab81335a6ec529cd4b648d86619d83fa2cb5200d04fb0600f27348c2e9de110",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-shell.sh",
+        "sha256": "4ba0923b1c0ef9ba0dcf61557341789b26bb47dc3ed13f7fead33be99fa607ff",
+        "mode": 420
+      },
+      {
+        "path": "scripts/tools-web3.sh",
+        "sha256": "ee073c3561974203da50adddf4a197abbb34bb585ddce7a5a08407d72eaa55c6",
+        "mode": 420
+      },
+      {
+        "path": "scripts/update-official-agents.py",
+        "sha256": "5f213bd18ab574ca6ed549c03c8cf058c88f0f361a5e06159b50ac06646d29ab",
+        "mode": 420
+      },
+      {
+        "path": "scripts/workspace-cache-maintenance.sh",
+        "sha256": "c710c4ce7bfbedfac5171e6be92651e10dd608236fa9a23a57b2eb61d4221f83",
+        "mode": 493
+      },
+      {
+        "path": "scripts/workspace-lifecycle.py",
+        "sha256": "56fcd57e17d6034f8510e84757ed54aaaaa98bacad84b7983f461172b6bb8340",
+        "mode": 420
+      },
+      {
+        "path": "scripts/worktree-lifecycle.py",
+        "sha256": "0cbc40e62496b3dbb39a2a83af45213de0c9a597a47ae768fd7a260c19fcbead",
+        "mode": 420
+      }
+    ]
+  },
+  "logout": {
+    "logoutStatus": 200,
+    "success": true,
+    "postLogoutAppVersionStatus": 401
+  },
+  "historicalFalseStarts": {
+    "firstPost": {
+      "status": 400,
+      "durationMs": 1904,
+      "jobId": null,
+      "errorCategory": "Invalid publication request"
+    },
+    "emptyPostCause": "Pinned Next Node adapter exposes an empty body stream. Original null-only guard rejected it before enqueue. Corrected using bounded actual-zero-byte validation.",
+    "failedAcceptedJobs": [
+      {
+        "id": "79a16a43-7bd4-40fd-8cf3-86c1ad332beb",
+        "request_id": "174313e4-f531-4843-9465-eb82224ca0c6",
+        "name": "electronics",
+        "phase": "failed",
+        "reason": "provider_unavailable",
+        "attempts": 20,
+        "file_id": null,
+        "effect_issued": "false",
+        "archive_digest": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+        "version_id": null,
+        "template_id": "50297c47-f66a-46a5-88d4-06f281d9f519"
+      },
+      {
+        "id": "54383f69-9b2f-4248-b346-716d67e75762",
+        "request_id": "6fdb2a23-8002-4fa1-8e87-46103e657c13",
+        "name": "electronics",
+        "phase": "failed",
+        "reason": "provider_unavailable",
+        "attempts": 20,
+        "file_id": null,
+        "effect_issued": "false",
+        "archive_digest": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+        "version_id": null,
+        "template_id": "50297c47-f66a-46a5-88d4-06f281d9f519"
+      },
+      {
+        "id": "3e5773f2-b4d5-48d5-9134-f78a91257707",
+        "request_id": "a2995c52-4d1f-46ba-8e5e-1718b73bb277",
+        "name": "electronics",
+        "phase": "failed",
+        "reason": "provider_unavailable",
+        "attempts": 20,
+        "file_id": null,
+        "effect_issued": "false",
+        "archive_digest": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+        "version_id": null,
+        "template_id": "50297c47-f66a-46a5-88d4-06f281d9f519"
+      }
+    ],
+    "diagnosticAttemptWithinDeferredUpdate": {
+      "jobId": "54383f69-9b2f-4248-b346-716d67e75762",
+      "httpDeployment": "a70a8218-d100-4942-81d7-9a747fc5df85",
+      "observedDoVersion": "2ed5b249-d7b9-4f55-9b8b-c22745c8dff3",
+      "defaultDeferralSeconds": 300,
+      "reference": "https://developers.cloudflare.com/durable-objects/deployments/durable-objects-code-updates/"
+    },
+    "fixedDiagnosticAfterRollout": {
+      "jobId": "79a16a43-7bd4-40fd-8cf3-86c1ad332beb",
+      "stage": "provider",
+      "errorClass": "TemplatePublicationError",
+      "phase": "queued"
+    },
+    "nativeFetchReceiverProof": {
+      "property": {
+        "errorClass": "TypeError",
+        "illegalInvocation": true
+      },
+      "detached": {
+        "status": 200
+      }
+    },
+    "correction": "Production provider invokes its injected fetcher as a bare local function. Actual production provider code was reproduced failing in workerd before this change and passing after it."
+  },
+  "cumulativeCounts": {
+    "publicationHttpPosts": 5,
+    "uniquePublicationIntents": 4,
+    "acceptedJobs": 4,
+    "failedBeforeProviderEffectAdmission": 3,
+    "successfulJobs": 1,
+    "observedPublishedVersionIds": 1,
+    "normalLoginPosts": 1,
+    "normalLogoutPosts": 1,
+    "modelCalls": 0,
+    "workspaceCreateStartStopDeleteCalls": 0,
+    "directDatabaseMutations": 0
+  },
+  "sourceFixFocusedChecks": {
+    "actualWorkerdProvider": 2,
+    "providerUnit": 11,
+    "routeUnit": 9,
+    "actualLocalPostgres": 22,
+    "total": 44,
+    "nodeTypecheck": true,
+    "cloudflareTypecheck": true
+  },
+  "preservation": {
+    "normalPublishedVersionRetained": true,
+    "otherFourActiveIdsUnchanged": true,
+    "allPriorActiveSourceBytesAndExecutableModesMatch": true,
+    "noWorkspaceLifecycleCalls": true,
+    "noProviderRollback": true,
+    "rawLogsAndCookiesExcludedFromReceipt": true
+  },
+  "limitations": [
+    "Publication used the normal HTTP entrypoint and SSE flow. A visual browser publication click was outside this acceptance.",
+    "Wire-level provider mutation request counts were not collected. The ledger and exact provider-name lookup bind one resulting published version to the successful intent.",
+    "The notice dispatcher completed with zero registered push subscriptions. Device push delivery is outside this acceptance."
+  ],
+  "sourceReceiptSha256": "37b34c62c53f7fad4ff8ddd8d64d00f81f90cbb995f9ac75360fce9fddf693a8"
+}

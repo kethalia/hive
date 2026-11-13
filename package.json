@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit",
     "templates:sync": "node scripts/sync-workspace-profile-templates.mjs",
     "templates:check": "node scripts/sync-workspace-profile-templates.mjs --check",
-    "test:runtime": "node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs",
+    "test:runtime": "node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs && python3 -B scripts/agents/test_terminal_paste_writer.py",
     "verify:standalone": "node scripts/verify-standalone-runtime.mjs",
     "test:templates": "node --test scripts/verify-ai-dev-k8s-template.test.mjs scripts/verify-workspace-profile-templates.test.mjs scripts/verify-desktop-isolation.test.mjs scripts/verify-coder-credential-boundary.test.mjs scripts/verify-tmux-retirement.test.mjs scripts/verify-agent-tools.test.mjs",
     "test": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:cloudflare && pnpm test:templates && pnpm test:runtime && vitest run",
@@ -41,7 +41,7 @@
     "deploy:cloudflare:preview": "node deploy/cloudflare/native/deploy.mjs preview",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare/tsconfig.json",
     "types:cloudflare": "wrangler types deploy/cloudflare/native/env.d.ts --config deploy/cloudflare/native/wrangler.jsonc --env-interface CloudflareBindings --include-runtime false",
-    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test"
+    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

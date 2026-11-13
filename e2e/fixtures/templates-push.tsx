@@ -17,7 +17,7 @@ if (!root) throw new Error("Missing fixture root");
 createRoot(root).render(
   <main className="flex h-[100dvh] min-h-0 w-full flex-1 overflow-hidden">
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <TemplatesClient initialStatuses={statuses} />
+      <TemplatesClient userId="fixture-owner" initialStatuses={statuses} />
     </div>
   </main>,
 );

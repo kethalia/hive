@@ -1,5 +1,15 @@
-import { authServiceHeaders, isLoopbackHostname, verifyTerminalTicket } from "@hive/auth";
+import {
+  authServiceHeaders,
+  isLoopbackHostname,
+  verifyCloneTerminalProof,
+  verifyTerminalTicket,
+} from "@hive/auth";
 import { z } from "zod";
+import type { SiblingDatabaseFactory } from "../../../packages/db/src/request-scope";
+import {
+  createTerminalDiagnostics,
+  type TerminalKeepaliveOutcome,
+} from "../../../src/lib/terminal/diagnostics.server";
 import {
   GENERIC_TERMINAL_AUTHORIZATION_MS,
   GenericTerminalFailure,
@@ -18,6 +28,7 @@ import {
   type GenericTerminalTarget,
   genericTerminalPath,
   openGenericTerminalRelay,
+  parseGenericTerminalTarget,
   TERMINAL_SUBPROTOCOL,
 } from "./generic-terminal-relay";
 
@@ -187,6 +198,8 @@ export function createGenericTerminalDependencies(
     trackCleanup(promise: Promise<void>): void;
     onClosed(): void;
   },
+  protocol = TERMINAL_SUBPROTOCOL,
+  databaseFactory?: SiblingDatabaseFactory,
 ): GenericTerminalDependencies {
   const hiveOrigin = configuredOrigin(env.HIVE_PUBLIC_ORIGIN),
     coderOrigin = configuredOrigin(env.CODER_URL);
@@ -199,7 +212,7 @@ export function createGenericTerminalDependencies(
   const tickets = headers.filter((v) => v.startsWith("hive-ticket."));
   if (
     headers.length !== 2 ||
-    !headers.includes(TERMINAL_SUBPROTOCOL) ||
+    !headers.includes(protocol) ||
     tickets.length !== 1 ||
     request.headers.has("Authorization")
   )
@@ -211,14 +224,55 @@ export function createGenericTerminalDependencies(
     requestTarget: url.pathname + url.search,
   });
   if (!ticket) throw new Error("ticket");
+  const shell = protocol === TERMINAL_SUBPROTOCOL ? parseGenericTerminalTarget(url) : null;
+  const cloneSecret = env.COOKIE_SECRET;
+  const checkCloneProof = () => {
+    if (
+      shell?.clonePath &&
+      !verifyCloneTerminalProof(
+        shell.cloneProof,
+        {
+          workspaceId: shell.workspaceId,
+          agentId: shell.agentId,
+          sessionId: ticket.sessionId,
+          sessionName: shell.sessionName,
+          clonePath: shell.clonePath,
+        },
+        cloneSecret,
+      ).ok
+    )
+      throw new Error("clone proof");
+  };
+  checkCloneProof();
+  let cloneAdmitted = false;
   // Ticket expiry bounds admission only. Every later refresh reauthorizes the
   // captured session/subject independently; it never renews a stale ticket.
   const sessionId = ticket.sessionId;
   const fetcher = transport.fetch ?? fetch;
   const deps: GenericTerminalDependencies = {
     ...transport,
+    ...(databaseFactory && protocol === TERMINAL_SUBPROTOCOL
+      ? {
+          diagnostics(authority: GenericTerminalAuthority, target: GenericTerminalTarget) {
+            return createTerminalDiagnostics(
+              {
+                userId: authority.userId,
+                coderUserId: authority.coderUserId,
+                coderOrigin: authority.coderOrigin,
+                workspaceId: target.workspaceId,
+                buildId: authority.buildId,
+                agentId: target.agentId,
+                sessionName: target.sessionName,
+                sessionKind: target.clonePath ? "git" : "terminal",
+                expiresAt: authority.expiresAt,
+              },
+              databaseFactory,
+            );
+          },
+        }
+      : {}),
     async authorize(_incoming, target, callerSignal) {
-      return authorizeOwnedWorkspacePty(
+      const authority = await authorizeOwnedWorkspacePty(
         sessionId,
         env,
         target.workspaceId,
@@ -226,6 +280,13 @@ export function createGenericTerminalDependencies(
         callerSignal,
         fetcher,
       );
+      if (!cloneAdmitted) {
+        // Match the Node proxy's post-auth admission check. Later refreshes
+        // continue to verify the captured live session and owner independently.
+        checkCloneProof();
+        cloneAdmitted = true;
+      }
+      return authority;
     },
     async upgrade(url, init) {
       const signal = init.signal ?? AbortSignal.timeout(10000);
@@ -249,24 +310,48 @@ export function createGenericTerminalDependencies(
         webSocket: (response as Response & { webSocket?: RelaySocket }).webSocket,
       };
     },
-    async extend(authority: GenericTerminalAuthority, target: GenericTerminalTarget, signal) {
-      const response = await terminalFetch(
-        fetcher(`${coderOrigin}/api/v2/workspaces/${target.workspaceId}/extend`, {
-          method: "PUT",
-          redirect: "manual",
-          credentials: "omit",
+    async extend(
+      authority: GenericTerminalAuthority,
+      target: GenericTerminalTarget,
+      signal,
+    ): Promise<TerminalKeepaliveOutcome> {
+      const startedAt = Date.now();
+      try {
+        const response = await terminalFetch(
+          fetcher(`${coderOrigin}/api/v2/workspaces/${target.workspaceId}/extend`, {
+            method: "PUT",
+            redirect: "manual",
+            credentials: "omit",
+            signal,
+            headers: { "Content-Type": "application/json", "Coder-Session-Token": authority.token },
+            body: JSON.stringify({ deadline: new Date(Date.now() + 3600000).toISOString() }),
+          }),
           signal,
-          headers: {
-            "Content-Type": "application/json",
-            "Coder-Session-Token": authority.token,
-          },
-          body: JSON.stringify({ deadline: new Date(Date.now() + 3600000).toISOString() }),
-        }),
-        signal,
-      );
-      const okay = [200, 304].includes(response.status) && !response.redirected;
-      await cancelTerminalBody(response);
-      if (!okay) throw new Error("keepalive");
+        );
+        const okay = [200, 304].includes(response.status) && !response.redirected;
+        let manual = false;
+        if (response.status === 409 && !response.redirected) {
+          try {
+            const body = new TextDecoder().decode(await terminalBody(response, 4096, signal));
+            manual = /workspace shutdown is manual/i.test(body);
+          } catch {
+            /* An unreadable response remains a failed extension. */
+          }
+        }
+        await cancelTerminalBody(response);
+        return {
+          ok: okay,
+          httpStatus: response.status,
+          durationMs: Date.now() - startedAt,
+          ...(manual ? { category: "manual-shutdown" as const } : {}),
+        };
+      } catch {
+        return {
+          ok: false,
+          category: signal.aborted ? "timeout" : "network",
+          durationMs: Date.now() - startedAt,
+        };
+      }
     },
   };
   return deps;
@@ -277,6 +362,7 @@ export async function genericTerminalRelay(
   env: GenericTerminalEnvironment,
   attachmentExpiresAt: number,
   context: { waitUntil(promise: Promise<unknown>): void },
+  databaseFactory?: SiblingDatabaseFactory,
 ) {
   if (!genericTerminalPath(request) || env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
     return privateError(404);
@@ -290,28 +376,34 @@ export async function genericTerminalRelay(
     }
   };
   try {
-    const deps = createGenericTerminalDependencies(request, env, {
-      pair() {
-        const runtime = globalThis as typeof globalThis & {
-          WebSocketPair: new () => { 0: RelaySocket; 1: RelaySocket };
-        };
-        const pair = new runtime.WebSocketPair();
-        return { client: pair[0], server: pair[1] };
+    const deps = createGenericTerminalDependencies(
+      request,
+      env,
+      {
+        pair() {
+          const runtime = globalThis as typeof globalThis & {
+            WebSocketPair: new () => { 0: RelaySocket; 1: RelaySocket };
+          };
+          const pair = new runtime.WebSocketPair();
+          return { client: pair[0], server: pair[1] };
+        },
+        response(client) {
+          const init: ResponseInit & { webSocket: RelaySocket } = {
+            status: 101,
+            webSocket: client,
+            headers: {
+              "Sec-WebSocket-Protocol": TERMINAL_SUBPROTOCOL,
+              "Cache-Control": "private, no-store",
+            },
+          };
+          return new Response(null, init);
+        },
+        trackCleanup: (work) => context.waitUntil(work),
+        onClosed: release,
       },
-      response(client) {
-        const init: ResponseInit & { webSocket: RelaySocket } = {
-          status: 101,
-          webSocket: client,
-          headers: {
-            "Sec-WebSocket-Protocol": TERMINAL_SUBPROTOCOL,
-            "Cache-Control": "private, no-store",
-          },
-        };
-        return new Response(null, init);
-      },
-      trackCleanup: (work) => context.waitUntil(work),
-      onClosed: release,
-    });
+      TERMINAL_SUBPROTOCOL,
+      databaseFactory,
+    );
     const response = await openGenericTerminalRelay(
       request,
       configuredOrigin(env.HIVE_PUBLIC_ORIGIN),

@@ -1,0 +1,143 @@
+{
+  "database": "hive_foundation_preview",
+  "schema": {
+    "beforeMigrations": 7,
+    "afterMigrations": 11,
+    "applicationTables": 13,
+    "newMigrations": [
+      "20261113010000_agent_notification_events",
+      "20261113020000_terminal_diagnostics",
+      "20261113030000_template_jobs",
+      "20261113040000_legacy_rotation_leases"
+    ],
+    "allMigrationChecksumsMatchSource": true,
+    "originalRowsUnchanged": true,
+    "originalHistoryUnchanged": true
+  },
+  "permissions": {
+    "role": "hive_foundation_runtime",
+    "tables": [
+      {
+        "name": "agent_notification_events",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "agent_notification_rate_windows",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "coder_tokens",
+        "admin": false,
+        "delete": false,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "navigation_favorites",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "notification_sources",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "push_subscriptions",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "sessions",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "template_jobs",
+        "admin": false,
+        "delete": false,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "template_notices",
+        "admin": false,
+        "delete": false,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "terminal_connections",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "terminal_events",
+        "admin": false,
+        "delete": true,
+        "insert": true,
+        "select": true,
+        "update": false
+      },
+      {
+        "name": "users",
+        "admin": false,
+        "delete": false,
+        "insert": true,
+        "select": true,
+        "update": true
+      },
+      {
+        "name": "vapid_keys",
+        "admin": false,
+        "delete": false,
+        "insert": true,
+        "select": true,
+        "update": true
+      }
+    ],
+    "memberships": 0,
+    "schemaCreate": false,
+    "databaseAdmin": false,
+    "sequenceUsage": true,
+    "roleAttributes": {
+      "rolsuper": false,
+      "rolcanlogin": true,
+      "rolcreatedb": false,
+      "rolbypassrls": false,
+      "rolcreaterole": false,
+      "rolreplication": false
+    },
+    "sequenceUpdate": false,
+    "blanketDefaults": 0,
+    "migrationHistoryAccess": false,
+    "oppositeRuntimeTableGrants": 0
+  },
+  "productionMutations": false
+}
