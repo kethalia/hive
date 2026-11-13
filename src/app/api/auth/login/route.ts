@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
+import { AuthServiceError, SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { NextResponse } from "next/server";
 import { getClientIp, loginSchema } from "@/lib/auth/login";
 import { loginRateLimiter } from "@/lib/auth/rate-limit";
@@ -46,7 +46,9 @@ export async function POST(request: Request) {
   try {
     const client = getAuthServiceClient();
     const input = { coderUrl, email, password };
-    const result = cloudflare ? await client.login(input, ip) : await client.login(input);
+    const result = cloudflare
+      ? await client.login(input, ip, request.signal)
+      : await client.login(input);
     const response = NextResponse.json({ success: true as const });
     const coderFrameUrls = coderFrameConfiguredUrls(coderUrl, result.applicationsHost).join("~");
     response.cookies.set(CODER_HOST_COOKIE, coderFrameUrls, {
@@ -66,6 +68,17 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed";
     console.log(`[login] Login failed for ${email}: ${message}`);
+    if (error instanceof AuthServiceError) {
+      return NextResponse.json({ error: message }, { status: error.status });
+    }
+    const timedOut =
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        message === "The operation was aborted due to timeout" ||
+        message === "The operation timed out.");
+    if (timedOut) {
+      return NextResponse.json({ error: "Sign-in timed out. Please try again." }, { status: 503 });
+    }
     return NextResponse.json({ error: message }, { status: 401 });
   }
 }

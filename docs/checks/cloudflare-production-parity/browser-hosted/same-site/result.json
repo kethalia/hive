@@ -1,0 +1,144 @@
+{
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceCommit": "2660fff62ed32881432e7db31b1e393884bfb706",
+  "connectedBuildEventId": "3f21abd0-4a6d-4dc2-abf2-61473f636d0b",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspaceBuildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+  "runId": "17d5c73b9a0a1266",
+  "launch": {
+    "headless": false,
+    "persistentProfile": true,
+    "display": ":1",
+    "arguments": ["--no-sandbox", "--disable-dev-shm-usage"]
+  },
+  "permissions": {
+    "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+    "names": ["local-network-access", "notifications"]
+  },
+  "checks": [
+    {
+      "name": "real same-site UI sign-in",
+      "passed": false
+    }
+  ],
+  "failures": [
+    {
+      "stage": "sign-in",
+      "type": "AssertionError"
+    }
+  ],
+  "http": [
+    {
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/login/page-94746116d41ccfe1.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/css/21bb66de8c3f6517.css",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/main-app-99217abb78d624ff.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/app/login/layout-d0f4b48893bf4886.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/webpack-29de2c78464176d0.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/manifest.webmanifest",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/1258-902a2d6836c6d5c7.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/6133-cd164f475829a1eb.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/544-7be8149f19cf54a8.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/_next/static/chunks/94f83771-2ef8ee5debbf2adb.js",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/fonts/FiraCode-Medium.ttf",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "count": 2
+    },
+    {
+      "method": "GET",
+      "path": "/fonts/FiraCode-Regular.ttf",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/icons/hive-mark.svg",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "GET",
+      "path": "/icons/icon-192.png",
+      "status": 200,
+      "count": 1
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 401,
+      "count": 1
+    }
+  ],
+  "external": [],
+  "screenshots": ["failure-sign-in.png"],
+  "cleanup": {
+    "softwareFixturePending": true,
+    "notificationSubscriptionRemoved": true,
+    "profileRemoved": true,
+    "browserClosed": true
+  },
+  "sessionCreated": false,
+  "accepted": false
+}

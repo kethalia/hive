@@ -47,7 +47,11 @@ The original `workers.dev` build was published by the connected push-triggered
 pipeline and passed hosted terminal, repository, clipboard, agent-inspection,
 diagnostic and mobile checks. File Browser reached Coder login after local-network
 permission was granted, which held iframe acceptance. The same-site Preview is
-being deployed to exercise Coder's existing SameSite cookie policy.
+published through the connected build pipeline. Its first login attempts reached
+the existing ten-second authentication-client deadline. Read-only database checks
+confirmed that the authentication domain created sessions after those callers
+timed out. A Cloudflare-specific bounded login deadline correction is being checked
+before repeating the same-site browser acceptance.
 
 Chrome push registration remains unverified after a browser permission error.
 Authenticated live voice metadata remains unverified because the test workspace's

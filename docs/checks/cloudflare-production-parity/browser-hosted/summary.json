@@ -89,7 +89,8 @@
     "continuation-final.mjs": "bcf276be10d7f456297e2d1fd54a9983f93fc81d889fa59b610f5315de116b76",
     "lna.mjs": "a0f2b0af79ce0c5c31630e6592b2bf65996d2e9d896fe8c9d409362e36bb4823",
     "notifications.mjs": "f076d37539e4af7df6d6e7dfde3c1ddc6b8b469e1456ae09a25192e604d3e804",
-    "notifications-final.mjs": "3dbb4d765dd349803e01c48d2909d762928b1beff0f37bbedc1dc905066d2608"
+    "notifications-final.mjs": "3dbb4d765dd349803e01c48d2909d762928b1beff0f37bbedc1dc905066d2608",
+    "same-site.mjs": "ab1a8293f100b5e7db16dbfb34a27af192b95b0bd8946a278f73c3a6f1c313c6"
   },
   "receipts": [
     "initial/result.json",
@@ -100,6 +101,27 @@
     "lna/result.json",
     "lna/cleanup.json",
     "notifications/result.json",
-    "notifications-final/result.json"
-  ]
+    "notifications-final/result.json",
+    "same-site/result.json",
+    "same-site/cleanup.json"
+  ],
+  "latestSameSiteAttempt": {
+    "sourceCommit": "2660fff62ed32881432e7db31b1e393884bfb706",
+    "connectedBuildEventId": "3f21abd0-4a6d-4dc2-abf2-61473f636d0b",
+    "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+    "status": "held-at-first-login-timeout",
+    "loginPageStatus": 200,
+    "loginPostStatus": 401,
+    "visibleError": "The operation was aborted due to timeout",
+    "browserLaunch": "headed persistent Chrome on existing DISPLAY=:1 succeeded",
+    "appBuildCaptured": false,
+    "softwareFixtureCleanup": {
+      "exactOwnedRepositoryRemoved": true,
+      "ownedSessionClosed": false,
+      "ownedSessionAbsent": true,
+      "unrelatedSessionsPreserved": true,
+      "unrelatedSessionCount": 0
+    },
+    "pendingCodexLoginUntouched": true
+  }
 }
