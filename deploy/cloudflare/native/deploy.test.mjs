@@ -223,6 +223,41 @@ test("old preview GET and HEAD redirect to the exact canonical origin without ap
   assert.equal(calls, 0);
 });
 
+test("generated deployment URLs redirect safe page loads to the branch preview", async () => {
+  const handler = {
+    fetch() {
+      throw Error("Unexpected application dispatch");
+    },
+  };
+  const worker = createNativeWorker({ app: handler, auth: handler });
+  for (const generated of [
+    "https://3656a995.hive-preview.kethalia.com",
+    "https://3656a995-hive.b00ste.workers.dev",
+  ]) {
+    for (const method of ["GET", "HEAD"]) {
+      const response = await worker.fetch(
+        new Request(`${generated}//other.example/workspaces?next=a%2Fb`, { method }),
+        env,
+        context,
+      );
+      assert.equal(response.status, 307);
+      assert.equal(
+        response.headers.get("location"),
+        `${origin}//other.example/workspaces?next=a%2Fb`,
+      );
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(await response.text(), "");
+    }
+    for (const init of [{ method: "POST" }, { headers: { Upgrade: "websocket" } }]) {
+      assert.equal((await worker.fetch(new Request(generated, init), env, context)).status, 403);
+    }
+    assert.equal((await worker.fetch(new Request(generated), productionEnv, context)).status, 403);
+    const unconfigured = { ...env };
+    delete unconfigured.HIVE_PREVIEW_ORIGIN_ALIAS;
+    assert.equal((await worker.fetch(new Request(generated), unconfigured, context)).status, 403);
+  }
+});
+
 test("preview alias denies writes, upgrades, lookalike hosts and production requests", async () => {
   const handler = {
     fetch() {
@@ -239,6 +274,12 @@ test("preview alias denies writes, upgrades, lookalike hosts and production requ
     new Request("http://codex-hive-production-cutover-hive.b00ste.workers.dev/"),
     new Request(`${alias}.evil.example/`),
     new Request("https://other.hive-preview.kethalia.com/"),
+    new Request("https://3656a995.hive-preview.kethalia.com.evil.example/"),
+    new Request("https://3656a995-other.b00ste.workers.dev/"),
+    new Request("https://3656a995.hive-preview.kethalia.com:8443/"),
+    new Request("https://3656a99.hive-preview.kethalia.com/"),
+    new Request("https://3656a9950.hive-preview.kethalia.com/"),
+    new Request("http://3656a995.hive-preview.kethalia.com/"),
   ]) {
     assert.equal((await worker.fetch(request, env, context)).status, 403);
   }

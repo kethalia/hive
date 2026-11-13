@@ -38,6 +38,11 @@ HTTP, scheduled work and background alarms validate this scope before database u
 P01b's Preview is
 `https://codex-hive-production-cutover.hive-preview.kethalia.com`.
 Its original `workers.dev` URL redirects browser navigation to this canonical host.
+New deployment-specific URLs on `hive-preview.kethalia.com` and `workers.dev`
+also redirect GET and HEAD navigation to the stable branch Preview, preserving
+the path and query. This keeps authentication and workspace-app cookies on the
+same-site origin. Historical immutable deployments run their original routing
+code. Use the stable branch URL when sharing the Preview.
 The same-site Preview exercises Coder workspace-app cookies under the production site.
 Configure its existing Workers Builds Preview settings for automatic branch builds.
 The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.

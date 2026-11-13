@@ -83,9 +83,15 @@ export function createNativeWorker({ app, auth }) {
       }
       const url = new URL(request.url);
       if (url.origin !== env.HIVE_PUBLIC_ORIGIN) {
+        const previewAlias =
+          url.origin === env.HIVE_PREVIEW_ORIGIN_ALIAS ||
+          (env.HIVE_PREVIEW_ORIGIN_ALIAS !== undefined &&
+            /^https:\/\/[a-f0-9]{8}(?:\.hive-preview\.kethalia\.com|-hive\.b00ste\.workers\.dev)$/.test(
+              url.origin,
+            ));
         if (
           env.HIVE_NATIVE_MODE === "preview" &&
-          url.origin === env.HIVE_PREVIEW_ORIGIN_ALIAS &&
+          previewAlias &&
           ["GET", "HEAD"].includes(request.method) &&
           !request.headers.has("upgrade")
         ) {
