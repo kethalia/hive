@@ -1,0 +1,26 @@
+[
+  {
+    "deployment": "https://coder.kethalia.com",
+    "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "name": "hive-project-preview",
+    "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+    "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+    "createdAt": "2026-10-30T06:22:11.688933Z",
+    "classification": "reused persistent",
+    "source": "primary inspection before normal start",
+    "cleanup": "retain after normal stop",
+    "task": "P01 Cloudflare foundation"
+  },
+  {
+    "deployment": "https://coder.kethalia.com",
+    "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+    "name": "hive-epic-child",
+    "ownerId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+    "createdAt": "2026-11-05T16:35:36.5537Z",
+    "classification": "reused persistent",
+    "source": "primary inspection before normal start",
+    "cleanup": "retain after normal stop",
+    "task": "P01 Cloudflare foundation"
+  }
+]

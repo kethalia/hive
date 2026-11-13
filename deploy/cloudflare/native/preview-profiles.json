@@ -1,0 +1,8 @@
+{
+  "codex/cloudflare-foundation": {
+    "origin": "https://codex-cloudflare-foundation-hive.b00ste.workers.dev",
+    "databaseName": "hive_foundation_preview",
+    "schemaMigrations": 7,
+    "databaseRole": "hive_foundation_runtime"
+  }
+}

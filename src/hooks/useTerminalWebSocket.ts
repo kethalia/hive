@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TERMINAL_RELAY_CLIENT_TIMEOUT_MS } from "@/lib/terminal/auth-deadlines";
 import {
   encodeResize,
   encodeTerminalPing,
@@ -122,7 +123,10 @@ const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 30000;
 const BACKOFF_FACTOR = 2;
 const JITTER_MS = 500;
-const CONNECTING_STALL_MS = 15000;
+// Cloudflare owner/build authorization may use the bounded 30s relay setup.
+// Keep the existing Node transport's 15s diagnostic deadline.
+const CONNECTING_STALL_MS =
+  process.env.HIVE_RUNTIME_TARGET === "cloudflare" ? TERMINAL_RELAY_CLIENT_TIMEOUT_MS : 15000;
 const HEALTH_INTERVAL_MS = 15000;
 const HEALTH_TIMEOUT_MS = 8000;
 const WORKSPACE_OFFLINE_CODE = 4404;

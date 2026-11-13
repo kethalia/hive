@@ -44,6 +44,20 @@ describe("runtime-config", () => {
     });
   });
 
+  it("uses only the enabled same-origin Cloudflare transport and preserves Node configuration", () => {
+    vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "wss://node.example/terminal");
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    vi.stubEnv("HIVE_TERMINAL_WS_URL", "/");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "false");
+    expect(getServerRuntimeConfig().terminalWsUrl).toBe("");
+    vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+    expect(getServerRuntimeConfig().terminalWsUrl).toBe("/");
+    vi.stubEnv("HIVE_TERMINAL_WS_URL", "wss://foreign.example");
+    expect(getServerRuntimeConfig().terminalWsUrl).toBe("");
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "node");
+    expect(getServerRuntimeConfig().terminalWsUrl).toBe("wss://node.example/terminal");
+  });
+
   describe("getClientRuntimeConfig", () => {
     beforeEach(() => {
       (globalThis as { window?: unknown }).window = {};

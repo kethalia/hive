@@ -1,0 +1,55 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "hive",
+  "account_id": "225177f82b9234ede14e897fe15e0cb5",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": {
+    "directory": "../../../.open-next/assets",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "limits": {
+    "cpu_ms": 100
+  },
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    },
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    },
+    "redact_query_string": true
+  },
+  "triggers": {
+    "crons": []
+  },
+  "vars": {
+    "HIVE_NATIVE_MODE": "bootstrap"
+  },
+  "previews": {
+    "placement": {
+      "region": "aws:us-east-1"
+    },
+    "vars": {
+      "HIVE_NATIVE_MODE": "preview",
+      "HIVE_RUNTIME_TARGET": "cloudflare",
+      "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
+      "HIVE_GENERIC_TERMINAL_ENABLED": "true",
+      "HIVE_TERMINAL_WS_URL": "/",
+      "HIVE_PUBLIC_ORIGIN": "https://codex-cloudflare-foundation-hive.b00ste.workers.dev",
+      "CODER_URL": "https://coder.kethalia.com",
+      "HIVE_DATABASE_NAME": "hive_foundation_preview",
+      "HIVE_DATABASE_ROLE": "hive_foundation_runtime",
+      "ALLOWED_CODER_URLS": "https://coder.kethalia.com"
+    }
+  },
+  "secrets": {
+    "required": ["DATABASE_URL", "ENCRYPTION_KEY", "COOKIE_SECRET", "AUTH_SERVICE_SECRET"]
+  }
+}

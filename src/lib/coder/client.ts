@@ -58,11 +58,17 @@ function parseApplicationsHost(host: string): string {
 export class CoderClient {
   private baseUrl: string;
   private sessionToken: string;
+  private signal?: AbortSignal;
 
   constructor(config: CoderClientConfig) {
     // Strip trailing slash for consistent URL construction
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
     this.sessionToken = config.sessionToken;
+    this.signal = config.signal;
+  }
+
+  private requestSignal(signal?: AbortSignal | null) {
+    return this.signal && signal ? AbortSignal.any([this.signal, signal]) : (signal ?? this.signal);
   }
 
   getSessionToken(): string {
@@ -91,7 +97,7 @@ export class CoderClient {
     const response = await fetchCoderApi(endpoint, {
       headers: { "Coder-Session-Token": this.sessionToken },
       redirect: "manual",
-      signal: AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS),
+      signal: this.requestSignal(AbortSignal.timeout(APPLICATION_AUTH_REDIRECT_TIMEOUT_MS)),
     });
     const location = response.headers.get("location");
     if (response.status < 300 || response.status >= 400 || !location) {
@@ -115,6 +121,7 @@ export class CoderClient {
     const url = `${this.baseUrl}${path}`;
     const res = await fetchCoderApi(url, {
       ...init,
+      signal: this.requestSignal(init?.signal),
       headers: {
         "Content-Type": "application/json",
         "Coder-Session-Token": this.sessionToken,

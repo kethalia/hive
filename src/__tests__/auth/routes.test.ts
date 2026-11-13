@@ -106,6 +106,71 @@ describe("auth route cookies", () => {
     expect(setCookies[3]).toContain("SameSite=Lax");
   });
 
+  it.each([
+    "203.0.113.7",
+    "2001:db8::7",
+  ])("forwards only the Cloudflare ingress address %s through the native auth binding", async (ip) => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "session-native",
+      applicationsHost: "",
+    });
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": ip,
+          "X-Forwarded-For": "198.51.100.10",
+          "X-Real-IP": "198.51.100.11",
+          "X-Hive-Client-IP": "198.51.100.12",
+        },
+        body: JSON.stringify({
+          coderUrl: "https://coder.example.com",
+          email: "test@example.com",
+          password: "fixture",
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(ip);
+    expect(mockServiceClient.login).toHaveBeenCalledWith(
+      { coderUrl: "https://coder.example.com", email: "test@example.com", password: "fixture" },
+      ip,
+    );
+  });
+
+  it.each([
+    null,
+    "invalid",
+    "203.0.113.7, 198.51.100.1",
+  ])("does not substitute browser forwarding headers for missing or malformed Cloudflare address %s", async (ip) => {
+    vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
+    mockServiceClient.login.mockResolvedValue({
+      sessionId: "session-native",
+      applicationsHost: "",
+    });
+    const headers = new Headers({
+      "Content-Type": "application/json",
+      "X-Forwarded-For": "198.51.100.1",
+    });
+    if (ip !== null) headers.set("CF-Connecting-IP", ip);
+    const response = await loginPOST(
+      new Request("https://hive.example.com/api/auth/login", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          coderUrl: "https://coder.example.com",
+          email: "test@example.com",
+          password: "fixture",
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockCheckRateLimit).toHaveBeenCalledWith("unknown");
+    expect(mockServiceClient.login).toHaveBeenCalledWith(expect.anything(), "unknown");
+  });
+
   it("preview login expires old domain cookies while keeping the new cookie host-only", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("COOKIE_DOMAIN", "");

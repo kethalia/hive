@@ -20,7 +20,11 @@ export class UserClientException extends Error {
   }
 }
 
-export async function getCoderClientForUser(userId: string): Promise<CoderClient> {
+export async function getCoderClientForUser(
+  userId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<CoderClient> {
+  options.signal?.throwIfAborted();
   const db = getDb();
 
   const token = await db.coderToken.findFirst({
@@ -28,8 +32,10 @@ export async function getCoderClientForUser(userId: string): Promise<CoderClient
     orderBy: { createdAt: "desc" },
     include: { user: true },
   });
+  options.signal?.throwIfAborted();
   if (!token) {
     const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+    options.signal?.throwIfAborted();
     if (!userExists) {
       console.error(`[user-client] User not found: ${userId}`);
       throw new UserClientException(UserClientError.USER_NOT_FOUND, `User ${userId} not found`);
@@ -83,5 +89,6 @@ export async function getCoderClientForUser(userId: string): Promise<CoderClient
   return new CoderClient({
     baseUrl: user.coderUrl,
     sessionToken: decryptedToken,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 }

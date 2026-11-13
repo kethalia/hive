@@ -1,0 +1,19 @@
+{
+  "runtime": {
+    "database": "hive_foundation_preview",
+    "role": "hive_foundation_runtime",
+    "superuser": false,
+    "createDatabase": false,
+    "createRole": false,
+    "bypassRls": false,
+    "schemaCreate": false,
+    "usersCrud": true,
+    "tokensCrud": true,
+    "migrationUpdate": false,
+    "migrationDelete": false
+  },
+  "schema": {
+    "migrations": 7,
+    "unfinished": 0
+  }
+}
