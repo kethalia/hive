@@ -243,8 +243,14 @@ suite("durable legacy template publication (owned PostgreSQL)", () => {
     const request = () =>
       new Request("https://hive.example/api/templates/ai-dev-k8s/push", {
         method: "POST",
-        headers: { Origin: "https://hive.example" },
-      });
+        headers: { Origin: "https://hive.example", "Content-Length": "0" },
+        body: new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }),
+        duplex: "half",
+      } as RequestInit);
     try {
       expect((await routes.push(request(), f.target.name)).status).toBe(503);
       const [accepted] = await db.templateJob.findMany({ where: { ownerId: f.actor.ownerId } });

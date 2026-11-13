@@ -5,6 +5,7 @@ import { z } from "zod";
 import { authorizeTemplateActor } from "./publication-actor";
 import { type TemplateAssets, templatePublicationArtifact } from "./publication-artifact";
 import { publicationNameSchema, TemplatePublicationError } from "./publication-contracts";
+import { publicationBody } from "./publication-io";
 import { CoderTemplatePublicationProvider } from "./publication-provider";
 import { TemplateJobStore, templateJobTerminal } from "./publication-store";
 import { provisionerTagsDigest } from "./publication-tags";
@@ -22,8 +23,7 @@ export function templatePublicationRoutes(deps: {
       if (
         request.method !== "POST" ||
         !publicationNameSchema.safeParse(name).success ||
-        new URL(request.url).search ||
-        request.body !== null
+        new URL(request.url).search
       )
         return failure(400, "Invalid publication request");
       if (
@@ -31,6 +31,20 @@ export function templatePublicationRoutes(deps: {
         request.headers.get("Sec-Fetch-Site") === "cross-site"
       )
         return failure(403, "Origin rejected");
+      const length = request.headers.get("Content-Length");
+      if (length !== null && !/^0+$/.test(length))
+        return failure(400, "Invalid publication request");
+      if (request.body !== null) {
+        try {
+          await publicationBody(
+            new Response(request.body),
+            0,
+            AbortSignal.any([request.signal, AbortSignal.timeout(5000)]),
+          );
+        } catch {
+          return failure(400, "Invalid publication request");
+        }
+      }
       const requestId = request.headers.get("Idempotency-Key") ?? randomUUID();
       if (!z.string().uuid().safeParse(requestId).success)
         return failure(400, "Invalid publication request");

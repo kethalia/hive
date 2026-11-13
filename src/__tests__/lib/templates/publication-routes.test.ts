@@ -1,5 +1,9 @@
+import { IncomingMessage } from "node:http";
+import { Socket } from "node:net";
 import type { SessionData } from "@hive/auth";
 import type { PrismaClient } from "@hive/db";
+import { NodeNextRequest } from "next/dist/server/base-http/node";
+import { NextRequestAdapter } from "next/dist/server/web/spec-extension/adapters/next-request";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { templatePublicationRoutes } from "@/lib/templates/publication-routes";
 import { type TemplateJob, TemplateJobStore } from "@/lib/templates/publication-store";
@@ -61,6 +65,85 @@ describe("legacy template route boundaries", () => {
       ).status,
     ).toBe(400);
   });
+  it("admits the actual Next Node adapter's empty POST stream", async () => {
+    const incoming = new IncomingMessage(new Socket());
+    incoming.method = "POST";
+    incoming.url = "https://hive.example/api/templates/ai-dev-k8s/push";
+    incoming.headers = { origin: "https://hive.example", "content-length": "0" };
+    incoming.push(null);
+    const request = NextRequestAdapter.fromNodeNextRequest(
+      new NodeNextRequest(incoming),
+      new AbortController().signal,
+    );
+    expect(request.body).not.toBeNull();
+    const authenticate = vi.fn(async () => null);
+    const database = vi.fn();
+    const response = await templatePublicationRoutes({
+      db: database,
+      session: authenticate,
+      assets: { fetch: vi.fn() },
+      kick: vi.fn(),
+    }).push(request, "ai-dev-k8s");
+    expect(response.status).toBe(401);
+    expect(authenticate).toHaveBeenCalledOnce();
+    expect(database).not.toHaveBeenCalled();
+    incoming.destroy();
+  });
+
+  it.each([
+    undefined,
+    "0",
+    "1",
+    "invalid",
+  ])("rejects nonempty input before session or provider work with declared length %s", async (length) => {
+    const authenticate = vi.fn(async () => null);
+    const database = vi.fn();
+    const headers = new Headers({ Origin: "https://hive.example" });
+    if (length !== undefined) headers.set("Content-Length", length);
+    const response = await templatePublicationRoutes({
+      db: database,
+      session: authenticate,
+      assets: { fetch: vi.fn() },
+      kick: vi.fn(),
+    }).push(
+      new Request("https://hive.example/api/templates/ai-dev-k8s/push", {
+        method: "POST",
+        headers,
+        body: "x",
+      }),
+      "ai-dev-k8s",
+    );
+    expect(response.status).toBe(400);
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(database).not.toHaveBeenCalled();
+  });
+
+  it("bounds and cancels an unfinished empty body before any session or provider call", async () => {
+    const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
+    const cancel = vi.fn();
+    const authenticate = vi.fn(async () => null);
+    const database = vi.fn();
+    const request = new Request("https://hive.example/api/templates/ai-dev-k8s/push", {
+      method: "POST",
+      headers: { Origin: "https://hive.example" },
+      body: new ReadableStream({ cancel }),
+      duplex: "half",
+    } as RequestInit);
+    const pending = templatePublicationRoutes({
+      db: database,
+      session: authenticate,
+      assets: { fetch: vi.fn() },
+      kick: vi.fn(),
+    }).push(request, "ai-dev-k8s");
+    deadline.abort();
+    expect((await pending).status).toBe(400);
+    expect(timeout).toHaveBeenCalledWith(5000);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(database).not.toHaveBeenCalled();
+  });
+
   it("stream cancellation drains an already-started DB read without canceling publication", async () => {
     const job = { id, phase: "queued", state: { versionId: null } } as TemplateJob;
     let finish!: () => void, entered!: () => void;

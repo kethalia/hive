@@ -30,8 +30,6 @@ with existing application features ported first. Implementation is on
   reached its 30-second fixture deadline during slow local filesystem I/O.
 - Runtime/download/migration-preflight checks passed 48 cases.
 - Clipboard-writer tests passed nine actual Python cases.
-- Database capture tests passed four cases, including a real concurrent-write,
-  same-snapshot archive restoration and fingerprint comparison.
 - Node and Worker typechecks passed after the workspace database-factory boundary
   correction. Build and hosted acceptance are recorded as separate results below.
 
@@ -77,13 +75,17 @@ proved provider acceptance and visible notification delivery. Hook source
 revocation and exact original file restoration both passed.
 `notification-hook-hosted.json` records the bounded background check.
 
-The serving production application remains in Kubernetes. A fresh production
-capture is blocked by HTTP 401 from the previously supplied Rancher key. The
-production database, domain activation and live Kubernetes retirement are pending.
-An additional Infrastructure-only attempt using the saved application connection
-resolved the production PostgreSQL service but received a TCP connection refusal.
-The new Neon production database is empty.
+The serving production application remains in Kubernetes. On 13 November 2026,
+the owner authorized a fresh production start and waived legacy application data
+transfer. The fresh production database now has all eleven verified migrations, thirteen
+application tables and scoped runtime grants. Its four independent production
+secrets are configured on the existing Worker. `fresh-production-initialization.json`
+records the checks. Domain activation and live Kubernetes retirement remain pending. The
+previous Rancher/source-capture dependency was removed from the cutover gates.
+The owner signs in again and configures preferences and notifications after launch.
 
 The migration procedure is in `docs/cloudflare-production-migrations.md`.
 Owner merges apply through GitHub. Existing repository-connected Cloudflare Builds
-publishes the accepted source. The retirement PR follows production verification.
+publishes the accepted source. At the approved cutover window, the GitOps retirement stops old writers before
+fresh production sign-in. Cloudflare activation and production verification follow,
+then remaining application storage is retired. This sequence uses a maintenance window.

@@ -33,7 +33,7 @@ for each increment.
 | ID | Feature PR | Size | Scope and dependencies | Owner acceptance scenario |
 | --- | --- | --- | --- | --- |
 | P01 | [Cloudflare and Neon deployment foundation](https://github.com/kethalia/hive/pull/449) | Large | Build and serve the existing Hive application through the single `hive` Worker. Include request-scoped database access, required runtime/schema support, authenticated workspace/settings reads, ordinary terminal transport and connected Workers Builds. Establish a reviewed preview configuration for each increment. | Open the preview, authenticate, browse workspaces/settings, reload and use a terminal. Check output, resize, reconnect and clean exit. A branch commit updates the preview to the corresponding source. |
-| P01b | Existing-feature Cloudflare compatibility and application cutover | Large | Build on merged P01 with repository terminals, workspace commands, file helpers and clipboard uploads, native audio and current Codex voice signaling, notifications, credential rotation, template publication and diagnostics. Preserve production data and cryptographic keys, validate the hosted preview, then move `hive.kethalia.com` to the existing Worker and retire the Hive application in `k8s-cluster`. | Test each existing feature through its ordinary UI, verify background work after closing the browser, rehearse data transfer and confirm historical session/key continuity. Verify the production domain and application before the Kubernetes retirement PR is merged. |
+| P01b | Existing-feature Cloudflare compatibility and application cutover | Large | Build on merged P01 with repository terminals, workspace commands, file helpers and clipboard uploads, native audio and current Codex voice signaling, notifications, credential rotation, template publication and diagnostics. Initialize a fresh production database and independent secrets under the owner's approved legacy-data waiver, validate the hosted preview, then move `hive.kethalia.com` to the existing Worker and retire the Hive application in `k8s-cluster`. | Test each existing feature through its ordinary UI, verify background work after closing the browser, verify fresh schema initialization, scoped permissions and production secret isolation. Coordinate the approved maintenance window so Kubernetes writers stop before fresh Cloudflare sign-in, then verify the production domain/application and complete residual storage retirement. |
 | P02 | Coder OAuth login | Medium | Build on P01 with the configured Coder host, browser consent, credential refresh, revocation, disconnect/reconnect and OAuth-aware terminal credentials. | Sign in through `coder.kethalia.com`, return to the existing Hive identity, reload, use a terminal, then disconnect and reconnect. Validate expiry and concurrent refresh. |
 | P03 | Workspace connection bridge and Accounts window | Large | Build on P02 with signed workspace operations, versioned bridge installation, exact workspace/build selection and in-app Codex/Claude connection cards. Separate the account transport from the later managed-task maintenance integration. | Select a workspace, inspect account status, complete each provider's supported sign-in flow and verify saved selection and connection status after reload. |
 | P04 | GitHub repositories as projects | Medium | Build on P03 with authenticated discovery, search, pagination and stable repository identity. Separate repository browsing from managed task execution. | Discover and search repositories through Coder-connected GitHub. Select a repository and inspect its identity. Verify repository browsing preserves the existing checkout inventory. |
@@ -187,10 +187,12 @@ clipboard, diagnostics, File Browser, agent inspection and browser push. The
 installed callback also reached durable processing with the browser closed, and
 native audio passed a hardware-free protocol smoke. The owner subsequently
 reported working microphone and speaker controls. Hosted template publication,
-a fresh production-data rehearsal, production activation and live Kubernetes
-retirement remain pending. The previously supplied Rancher key returned HTTP 401
-for database access. The separate experimental Codex Voice component has no UI
-caller, so its additional sign-in test was removed from the cutover gates.
+production activation and live Kubernetes retirement remain pending. Fresh
+production initialization and independent production secret configuration are
+complete. The owner waived legacy data transfer on 13 November 2026. Fresh
+production initialization replaces the Rancher/source-backup dependency. The
+separate experimental Codex Voice component has no UI caller, so its additional
+sign-in test was removed from the cutover gates.
 
 The existing production application remains the serving target during this work.
 P02–P10 continue in the agreed feature order after P01b acceptance.
