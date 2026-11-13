@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@hive/db";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { sendBoundedPush } from "@/lib/push/bounded-send";
 import * as publicationActor from "@/lib/templates/publication-actor";
 import { templatePublicationArtifact } from "@/lib/templates/publication-artifact";
@@ -437,6 +438,47 @@ suite("durable legacy template publication (owned PostgreSQL)", () => {
     expect((await f.read())?.phase).toBe("held");
     expect(f.provider.upload).not.toHaveBeenCalled();
   });
+  it.each([
+    ["authorize", "Error"],
+    ["provider", "TypeError"],
+    ["current", "ZodError"],
+    ["tags", "Error"],
+    ["load", "TypeError"],
+  ] as const)("logs only fixed diagnostics for a %s failure and preserves pre-effect retry", async (stage, errorClass) => {
+    const f = await fixture();
+    const shape = z.object({ id: z.string() }).safeParse({});
+    const error =
+      errorClass === "ZodError"
+        ? shape.error
+        : errorClass === "TypeError"
+          ? new TypeError("private credential payload")
+          : new Error("private credential payload");
+    if (stage === "authorize") vi.mocked(f.deps.authorize).mockRejectedValue(error);
+    if (stage === "provider") vi.mocked(f.deps.provider).mockRejectedValue(error);
+    if (stage === "current") f.provider.current.mockRejectedValue(error);
+    if (stage === "tags") f.provider.tags.mockRejectedValue(error);
+    if (stage === "load") vi.mocked(f.deps.load).mockRejectedValue(error);
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await f.step();
+      expect(warning).toHaveBeenCalledOnce();
+      expect(JSON.parse(warning.mock.calls[0][0])).toEqual({
+        event: "template_publication_failure",
+        phase: "queued",
+        stage,
+        errorClass,
+      });
+      const saved = await f.read();
+      expect(saved).toMatchObject({ phase: "queued", reason: "provider_unavailable", attempts: 1 });
+      expect(saved?.state).toMatchObject({ effectIssued: false, fileId: null, versionId: null });
+      expect(f.provider.upload).not.toHaveBeenCalled();
+      expect(f.provider.createVersion).not.toHaveBeenCalled();
+      expect(f.provider.activate).not.toHaveBeenCalled();
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it("keeps terminal job identity immutable and wrong owners cannot read it", async () => {
     const f = await fixture();
     for (let i = 0; i < 4; i++) await f.step();

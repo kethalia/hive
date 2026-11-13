@@ -48,11 +48,13 @@ Configure its existing Workers Builds Preview settings for automatic branch buil
 The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.
 
 Provision `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET` and
-`AUTH_SERVICE_SECRET` through Cloudflare runtime settings. During cutover, retain
-the serving application's encryption/session keys and existing database VAPID keys.
-Transfer production data and apply the compatibility migrations before activating
-the production build. Its source configuration binds the Custom Domain directly.
-The Kubernetes retirement PR follows production verification.
+`AUTH_SERVICE_SECRET` through Cloudflare runtime settings. The owner authorized a
+fresh production start on 13 November 2026. Initialize the empty production schema,
+apply scoped runtime grants and configure independent production secrets before
+activating the production build. Its source configuration binds the Custom Domain.
+At the approved maintenance window, stop Kubernetes background writers through
+GitOps before fresh Cloudflare sign-in, deploy the reviewed main source and verify
+production features, then finish residual application storage retirement.
 
 ## Workspace capabilities
 
@@ -92,11 +94,11 @@ binding. The existing paid account's included capacity is the deployment budget.
 - Create, resize, reconnect, rename and close an ordinary terminal.
 - Discover repositories and open a signed repository terminal.
 - Exercise file/path tools, clipboard upload and agent configuration.
-- Test native audio and existing Codex voice controls.
+- Test native microphone and speaker controls.
 - Enable notifications and verify a callback opens the correct workspace.
 - Publish a template, close the browser and return to its durable job/log view.
 - Exercise retries, owner isolation, credential rotation and terminal diagnostics.
-- Rehearse data transfer, compare original rows and verify runtime permissions.
+- Verify fresh production schema initialization, runtime permissions and secret isolation.
 - Verify the deployed source revision and each result through the hosted Preview.
 
 Record pending checks explicitly in the PR evidence. The migration sequence is in

@@ -28,7 +28,7 @@ execution receipt.
 
 Existing owner/runtime URL files are private inputs. Never put URLs, credentials, token ciphertext,
 VAPID private keys, or session IDs in a PR, command transcript, dump listing, or public receipt.
-Use owner credentials for migration/restore/grants and runtime credentials only for application
+Use owner credentials for schema initialization and grants, and runtime credentials for application
 verification. Do not change passwords, memberships, ownership, or privileges in another database.
 
 ## Fresh target and production secrets

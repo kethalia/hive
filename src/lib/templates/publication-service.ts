@@ -72,6 +72,14 @@ export async function processTemplateJob(
     AbortSignal.timeout(Math.min(60000, remaining)),
     ...(callerSignal ? [callerSignal] : []),
   ]);
+  let stage:
+    | "authorize"
+    | "provider"
+    | "verify_artifact"
+    | "current"
+    | "tags"
+    | "load"
+    | "operation" = "authorize";
   try {
     const actor = await deps.authorize(job, signal);
     if (actor.origin !== job.origin) throw new TemplatePublicationError("actor_revoked");
@@ -80,7 +88,9 @@ export async function processTemplateJob(
     actor.sessionExpiresAt = new Date(
       Math.min(actor.sessionExpiresAt.getTime(), job.deadline.getTime()),
     );
+    stage = "provider";
     const provider = await deps.provider(actor, signal);
+    stage = "verify_artifact";
     const expected = templatePublicationArtifact(job.name);
     if (
       Object.keys(expected).length !== Object.keys(job.artifact).length ||
@@ -91,10 +101,12 @@ export async function processTemplateJob(
       throw new TemplatePublicationError("artifact_changed");
     const state = job.state;
     const stableTarget = async () => {
+      stage = "current";
       if (!state.target.templateId) return provider.absent(state.target);
       const current = await provider.current(state.target);
       if (current.activeVersionId !== state.target.activeVersionId)
         throw new TemplatePublicationError("external_drift");
+      stage = "tags";
       if (
         state.tagDigest !==
         provisionerTagsDigest(
@@ -103,9 +115,12 @@ export async function processTemplateJob(
       )
         throw new TemplatePublicationError("provisioner_tags_changed");
     };
+    stage = "operation";
     if (job.phase === "queued" || job.phase === "uploading") {
       await stableTarget();
+      stage = "load";
       const bytes = await deps.load(job.artifact);
+      stage = "operation";
       await store.markEffect(job, "uploading");
       // Coder's file upload is content-addressed; re-uploading these identical
       // verified bytes cannot create a second version or activate a template.
@@ -114,6 +129,7 @@ export async function processTemplateJob(
       await store.save(job, "creating_version", { ...job.state, fileId, effectIssued: false });
     } else if (job.phase === "creating_version") {
       await stableTarget();
+      stage = "operation";
       if (!state.fileId) throw new TemplatePublicationError("provider_identity_mismatch");
       await provider.verifyFile(state.fileId, job.artifact);
       let version = state.target.templateId
@@ -155,6 +171,7 @@ export async function processTemplateJob(
         await store.save(job, "failed", state, "import_failed");
       else if (version.status === "succeeded") {
         await stableTarget();
+        stage = "operation";
         await provider.verifyFile(required(state.fileId), job.artifact);
         await store.save(job, state.target.templateId ? "activating" : "creating_template", {
           ...state,
@@ -174,6 +191,7 @@ export async function processTemplateJob(
           throw new TemplatePublicationError("external_drift");
         if (state.effectIssued) throw new TemplatePublicationError("activation_unknown");
         await stableTarget();
+        stage = "operation";
         await provider.verifyFile(required(state.fileId), job.artifact);
         await store.markEffect(job, "activating");
         await provider.activate(state.target, state.versionId);
@@ -208,6 +226,30 @@ export async function processTemplateJob(
   } catch (error) {
     if (error instanceof TemplatePublicationError && error.code === "lease_lost") return true;
     const reason = error instanceof TemplatePublicationError ? error.code : "provider_unavailable";
+    const errorClass =
+      error instanceof TemplatePublicationError
+        ? "TemplatePublicationError"
+        : error instanceof Error &&
+            [
+              "TemplatePublicationError",
+              "ZodError",
+              "TypeError",
+              "Error",
+              "PrismaClientInitializationError",
+              "PrismaClientKnownRequestError",
+              "PrismaClientUnknownRequestError",
+              "PrismaClientValidationError",
+            ].includes(error.name)
+          ? error.name
+          : "Other";
+    console.warn(
+      JSON.stringify({
+        event: "template_publication_failure",
+        phase: job.phase,
+        stage,
+        errorClass,
+      }),
+    );
     if (
       ["provider_unavailable", "provider_deadline"].includes(reason) &&
       job.attempts < 20 &&
