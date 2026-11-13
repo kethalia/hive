@@ -40,23 +40,35 @@ async function callAuth(auth, request, env, context) {
   }
 }
 
+/** The same exact scope admits HTTP requests, alarms and scheduled repair. */
+export function assertNativeEnvironment(env) {
+  try {
+    if (!["preview", "production"].includes(env.HIVE_NATIVE_MODE))
+      throw new Error("Background deployment unavailable");
+    const production = env.HIVE_NATIVE_MODE === "production";
+    const database = new URL(env.DATABASE_URL);
+    if (
+      decodeURIComponent(database.pathname.slice(1)) !== env.HIVE_DATABASE_NAME ||
+      decodeURIComponent(database.username) !== env.HIVE_DATABASE_ROLE ||
+      env.HIVE_DATABASE_NAME !== (production ? "hive_production" : "hive_foundation_preview") ||
+      env.HIVE_DATABASE_ROLE !==
+        (production ? "hive_production_runtime" : "hive_foundation_runtime") ||
+      (production
+        ? env.HIVE_PUBLIC_ORIGIN !== "https://hive.kethalia.com"
+        : env.HIVE_PUBLIC_ORIGIN === "https://hive.kethalia.com")
+    )
+      throw new Error("Background deployment unavailable");
+  } catch {
+    throw new Error("Deployment environment unavailable");
+  }
+}
+
 // Compose authentication inside the same Worker invocation and environment.
 export function createNativeWorker({ app, auth }) {
   return {
     fetch(request, env, context) {
-      if (env.HIVE_NATIVE_MODE !== "preview")
-        return new Response("deployment_pending", { status: 503 });
-      // A new Preview may inherit Base secrets. Admit this foundation only with
-      // its enrolled database and restricted runtime role.
       try {
-        const database = new URL(env.DATABASE_URL);
-        if (
-          decodeURIComponent(database.pathname.slice(1)) !== env.HIVE_DATABASE_NAME ||
-          decodeURIComponent(database.username) !== env.HIVE_DATABASE_ROLE ||
-          env.HIVE_DATABASE_NAME !== "hive_foundation_preview" ||
-          env.HIVE_DATABASE_ROLE !== "hive_foundation_runtime"
-        )
-          throw new Error();
+        assertNativeEnvironment(env);
       } catch {
         return new Response("deployment_pending", { status: 503 });
       }

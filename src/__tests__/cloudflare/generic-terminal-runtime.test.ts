@@ -1,5 +1,6 @@
-import { createTerminalTicket } from "@hive/auth";
+import { createCloneTerminalProof, createTerminalTicket } from "@hive/auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createCloneSessionKey, createSafeCloneTerminalSessionName } from "@/lib/git/clone-tree";
 import type { RelaySocket } from "@/lib/terminal/relay-types";
 import { parseGenericTerminalTarget } from "../../../deploy/cloudflare/app/generic-terminal-relay";
 import {
@@ -128,6 +129,188 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("fixed private terminal authorization", () => {
+  it("constructs diagnostics only from the injected sibling factory without opening a client", async () => {
+    const f = fixture();
+    const factory = vi.fn(() => {
+      throw new Error("synthetic lazy factory");
+    });
+    expect(f.deps.diagnostics).toBeUndefined();
+    const deps = createGenericTerminalDependencies(
+      f.request,
+      f.env,
+      f.options,
+      "hive-terminal-v1",
+      factory,
+    );
+    const hooks = deps.diagnostics!(await f.authorize(), f.target);
+    expect(factory).not.toHaveBeenCalled();
+    await expect(hooks.open()).rejects.toThrow("synthetic lazy factory");
+    expect(factory).toHaveBeenCalledOnce();
+    expect(factory).toHaveBeenCalledWith({
+      queryTimeoutMillis: 5000,
+      transactionTimeoutMillis: 5000,
+    });
+  });
+
+  it("rejects a clone proof that expires during fresh private authorization", async () => {
+    vi.useFakeTimers();
+    const f = fixture(),
+      clonePath = "projects/owner/repo";
+    const sessionName = createSafeCloneTerminalSessionName(
+      createCloneSessionKey(clonePath.split("/")),
+    );
+    const proof = createCloneTerminalProof(
+      { workspaceId, agentId, sessionId: "fixture-session", sessionName, clonePath, ttlMs: 1 },
+      f.env.COOKIE_SECRET,
+    );
+    const parsed = new URLSearchParams(query);
+    parsed.set("sessionName", sessionName);
+    parsed.set("clonePath", clonePath);
+    parsed.set("cloneProof", proof);
+    const requestTarget = `/ws?${parsed}`;
+    const ticket = createTerminalTicket(
+      { sessionId: "fixture-session", audience: "hive.example", origin, requestTarget },
+      f.env.COOKIE_SECRET,
+      Date.now() + 3600000,
+    );
+    const request = new Request(`${origin}${requestTarget}`, {
+      headers: {
+        Origin: origin,
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": `hive-terminal-v1, hive-ticket.${ticket}`,
+      },
+    });
+    const original = f.auth.getMockImplementation()!;
+    f.auth.mockImplementation(async (input, init) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return original(input, init);
+    });
+    const deps = createGenericTerminalDependencies(request, f.env, f.options);
+    const check = expect(
+      deps.authorize(
+        request,
+        parseGenericTerminalTarget(new URL(request.url))!,
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow("clone proof");
+    await vi.advanceTimersByTimeAsync(10);
+    await check;
+  });
+
+  it.each([
+    "valid",
+    "session",
+    "workspace",
+    "agent",
+    "expired",
+    "signature",
+  ])("validates clone proof %s against the captured ticket session before provider admission", async (kind) => {
+    const f = fixture(),
+      clonePath = "projects/owner/repo";
+    const sessionName = createSafeCloneTerminalSessionName(
+      createCloneSessionKey(clonePath.split("/")),
+    );
+    const proof = createCloneTerminalProof(
+      {
+        workspaceId: kind === "workspace" ? userId : workspaceId,
+        agentId: kind === "agent" ? userId : agentId,
+        sessionId: kind === "session" ? "different-session" : "fixture-session",
+        sessionName,
+        clonePath,
+        ...(kind === "expired" ? { nowMs: Date.now() - 3600000 } : {}),
+      },
+      kind === "signature" ? "different-secret" : f.env.COOKIE_SECRET,
+    );
+    const parsed = new URLSearchParams(query);
+    parsed.set("sessionName", sessionName);
+    parsed.set("clonePath", clonePath);
+    parsed.set("cloneProof", proof);
+    const requestTarget = `/ws?${parsed}`;
+    const ticket = createTerminalTicket(
+      { sessionId: "fixture-session", audience: "hive.example", origin, requestTarget },
+      f.env.COOKIE_SECRET,
+      Date.now() + 3600000,
+    );
+    const request = new Request(`${origin}${requestTarget}`, {
+      headers: {
+        Origin: origin,
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": `hive-terminal-v1, hive-ticket.${ticket}`,
+      },
+    });
+    if (kind !== "valid") {
+      expect(() => createGenericTerminalDependencies(request, f.env, f.options)).toThrow(
+        "clone proof",
+      );
+      expect(f.auth).not.toHaveBeenCalled();
+      expect(f.provider).not.toHaveBeenCalled();
+      return;
+    }
+    const deps = createGenericTerminalDependencies(request, f.env, f.options);
+    const target = parseGenericTerminalTarget(new URL(request.url))!;
+    expect(await deps.authorize(request, target, new AbortController().signal)).toMatchObject({
+      userId,
+      coderUserId: coderId,
+      buildId,
+    });
+  });
+
+  it("observes one real extension outcome including bounded manual-shutdown response", async () => {
+    const f = fixture();
+    const authority = await f.authorize();
+    f.provider.mockImplementation(async (input) => {
+      expect(String(input)).toContain("/extend");
+      return Response.json(
+        { message: "Workspace shutdown is manual", private: "synthetic-secret" },
+        { status: 409 },
+      );
+    });
+    expect(await f.deps.extend(authority, f.target, new AbortController().signal)).toMatchObject({
+      ok: false,
+      httpStatus: 409,
+      category: "manual-shutdown",
+    });
+    expect(
+      f.provider.mock.calls.filter(([input]) => String(input).includes("/extend")),
+    ).toHaveLength(1);
+  });
+
+  it("binds audio subprotocol admission to the signed exact audio target and captured owner", async () => {
+    const f = fixture();
+    const audioTarget = `/ws/audio?${new URLSearchParams({ workspaceId, agentId, sessionName: "shell" })}`;
+    const ticket = createTerminalTicket(
+      {
+        sessionId: "fixture-session",
+        audience: "hive.example",
+        origin,
+        requestTarget: audioTarget,
+      },
+      f.env.COOKIE_SECRET,
+      Date.now() + 3600000,
+    );
+    const request = new Request(`${origin}${audioTarget}`, {
+      headers: {
+        Origin: origin,
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": `hive-audio-v1, hive-ticket.${ticket}`,
+      },
+    });
+    const deps = createGenericTerminalDependencies(request, f.env, f.options, "hive-audio-v1");
+    expect(await deps.authorize(request, f.target, new AbortController().signal)).toMatchObject({
+      userId,
+      coderUserId: coderId,
+      buildId,
+    });
+    expect(() => createGenericTerminalDependencies(request, f.env, f.options)).toThrow("ticket");
+    const substituted = new Request(
+      `${origin}${audioTarget.replace("shell", "different")}`,
+      request,
+    );
+    expect(() =>
+      createGenericTerminalDependencies(substituted, f.env, f.options, "hive-audio-v1"),
+    ).toThrow("ticket");
+  });
+
   it.each([
     [401, 4401],
     [403, 4403],

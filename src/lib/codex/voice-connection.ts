@@ -11,6 +11,10 @@ export async function connectWorkspaceCodex(
   signal: AbortSignal,
   threadId?: string,
 ) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    const { connectCloudflareCodexVoice } = await import("./voice-cloudflare.server");
+    return connectCloudflareCodexVoice(userId, workspaceId, signal, threadId);
+  }
   if (threadId && !/^[0-9a-f-]{36}$/i.test(threadId)) throw new Error("Invalid Codex thread");
   const client = await getCoderClientForUser(userId);
   // Resolve under the requesting user's Coder credentials, including the owner.

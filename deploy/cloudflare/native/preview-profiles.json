@@ -4,5 +4,11 @@
     "databaseName": "hive_foundation_preview",
     "schemaMigrations": 7,
     "databaseRole": "hive_foundation_runtime"
+  },
+  "codex/hive-production-cutover": {
+    "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+    "databaseName": "hive_foundation_preview",
+    "schemaMigrations": 11,
+    "databaseRole": "hive_foundation_runtime"
   }
 }

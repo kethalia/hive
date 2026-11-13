@@ -1,13 +1,13 @@
-# Cloudflare foundation preview
+# Cloudflare application runtime
 
-P01 moves the baseline Hive application to an isolated branch Preview under the
-existing `hive` Worker, using repository-connected Workers Builds. It includes the
-current credential sign-in, authenticated workspace/settings reads, template
-identity reads and ordinary terminal sessions. P02 introduces Coder OAuth.
+Hive uses one `hive` Worker with production settings and isolated branch Previews.
+Repository-connected Workers Builds runs the pinned OpenNext build and Wrangler.
+The P01 foundation was merged through PR449. P01b adds existing application
+features needed for the production move. Coder OAuth remains the next increment.
 
 ## Build and validate
 
-Use the pinned pnpm version and install from the lockfile.
+Use the pinned pnpm version and lockfile.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -15,83 +15,82 @@ pnpm build:cloudflare
 pnpm typecheck
 pnpm typecheck:cloudflare
 pnpm test:cloudflare
+pnpm exec vitest run
 ```
 
-The Node application retains `pnpm build` and its standalone verification. The
-Cloudflare build preserves that output in a separate directory. Build readiness
-checks pin executable sources, the shared terminal protocol, generated Prisma
-client and output assets. The build removes OpenNext's embedded local environment
-module before the artifact becomes deployable.
+The Node application retains `pnpm build` and standalone verification. Cloudflare
+build output lives separately. Build readiness pins executable sources, generated
+Prisma clients, runtime scripts and template archives. The build removes
+OpenNext's embedded local environment module before marking output deployable.
 
-## Preview configuration
+## Deployment settings
 
-The source configuration is `wrangler.jsonc`. `preview-profiles.json` binds the
-reviewed branch, canonical origin, database name, runtime role and schema count.
-The deployment command admits that profile through the existing Workers Builds
-credential and runs the official Wrangler preview command.
+The connected repository uses root `/`, build `pnpm build:cloudflare`, production
+command `node deploy/cloudflare/native/deploy.mjs production` and preview command
+`node deploy/cloudflare/native/deploy.mjs preview`.
 
-Configure the connected repository with root `/`, build `pnpm build:cloudflare`,
-production command `node deploy/cloudflare/native/deploy.mjs production` and
-preview command `node deploy/cloudflare/native/deploy.mjs preview`. The production
-command holds activation for the separately approved P11 cutover package.
+`wrangler.jsonc` defines production. `preview-profiles.json` enrolls each branch,
+canonical origin, database and restricted runtime role. Production requires `main`,
+`hive_production`, `hive_production_runtime` and `https://hive.kethalia.com`.
+Preview requires `hive_foundation_preview` and `hive_foundation_runtime`.
+HTTP, scheduled work and background alarms validate this scope before database use.
 
-The P01 preview URL is
-`https://codex-cloudflare-foundation-hive.b00ste.workers.dev`. It uses the enrolled
-origin for application and terminal authorization. Branch settings and secrets are
-scoped to this Preview. The Worker holds requests until the database URL identifies
-`hive_foundation_preview` and `hive_foundation_runtime`, protecting against inherited
-Preview Base credentials from a different test database.
+P01b's Preview is
+`https://codex-hive-production-cutover-hive.b00ste.workers.dev`.
+Configure its existing Workers Builds Preview settings for automatic branch builds.
+The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.
 
-Required secret names are `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET` and
-`AUTH_SERVICE_SECRET`. Provision their values through the existing Cloudflare
-Preview settings. Keep plaintext values in private local storage during setup.
+Provision `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET` and
+`AUTH_SERVICE_SECRET` through Cloudflare runtime settings. During cutover, retain
+the serving application's encryption/session keys and existing database VAPID keys.
+Transfer production data and apply the compatibility migrations before activating
+the production build. Its source configuration binds the Custom Domain directly.
+The Kubernetes retirement PR follows production verification.
 
-## Database schema and permissions
+## Workspace capabilities
 
-P01 retains main's seven migrations and Prisma schema. Apply them to the isolated
-preview database with the owner connection through `pnpm --filter @hive/db
-migrate:deploy`. Configure the application with its restricted runtime connection.
-The runtime role needs CRUD on the seven application tables, while the migration
-ledger and schema administration belong to the migration owner. Verify the actual
-role's privileges after setup.
+Existing commands execute through Coder's reconnecting PTY API with the requesting
+user's credentials and current workspace/build/agent ownership checks. Fixed
+server-built commands implement inventory, repository sessions and file tools.
+Build-pinned scripts provide agent configuration and notification hook installation.
+Clipboard uploads retain their existing size/type contract through a bounded PTY
+writer. `/ws/audio` carries the existing native audio protocol.
 
-The database lives in the existing Neon Free preview project and uses its current
-compute. No production data is required for these acceptance scenarios.
+Terminal diagnostics persist connection leases and bounded events in Neon. Their
+callbacks own independent database lifetimes, including after an upgraded request
+ends. Clone terminals retain their signed repository proofs and current-session
+binding. Next actions retain build-export admission, authentication, input checks
+and bounded request bodies.
 
-## Terminal inventory and unsupported operations
+## Background processing
 
-Ordinary terminal connections use Coder's reconnecting PTY API. Session inventory
-uses a fixed, bounded `tmux -L web list-sessions` query through that same authorized
-transport. The inline Python wrapper frames its response and waits briefly for
-acknowledgment, allowing short-lived commands to work with Coder's screen backend.
-Owner, build and connected-agent identities are checked around the read. Errors
-remain visible through the existing retry UI.
+`HiveBackground` is a SQLite-backed Durable Object in the same Worker. Each Hive
+user has a separate actor. Its small storage contains the owner and next wake time.
+Notification events, template jobs, claims and credential-rotation state live in
+Neon. Queue producers commit their records before requesting a durable alarm.
 
-The preview admits reviewed Next server-action exports from the actual build
-manifest. Routes and actions requiring later signed workspace helpers or durable
-jobs return an unavailable response. The dependency inventory for subsequent PRs
-includes terminal rename/kill, file/path helpers, agent configuration, voice,
-clipboard assets and template publication. Their capability implementations travel
-with the corresponding later increments in the PR migration plan.
+An alarm runs bounded owner-scoped batches, drains provider operations, then
+schedules the next durable due time. Concurrent wakes preserve the earliest time.
+Failures retain a fallback alarm. The hourly Cron Trigger repairs interrupted
+commit-to-wake handoffs and expires abandoned diagnostic records. Idle queues
+wake Neon when pending work becomes due.
 
-## Owner acceptance checklist
+Cloudflare creates separate Durable Object namespaces for each Preview. Classes
+and SQLite migrations stay at the top level, while each Preview declares its
+binding. The existing paid account's included capacity is the deployment budget.
 
-- Open the Preview and sign in using the current Coder credential flow.
-- Open the workspace list and Settings window, then reload the app.
-- Inspect existing terminal sessions in a running workspace.
-- Create a uniquely named terminal and observe shell output.
-- Resize it, reconnect and confirm the same shell session remains attached.
-- Exit the shell and verify the terminal reports a normal close.
-- Check that the test session disappears from the refreshed terminal inventory.
-- Push a branch commit and verify that Workers Builds updates this Preview.
+## Acceptance before production activation
 
-Record the tested commit, preview deployment, app build, schema count, workspace
-and outcomes in the PR evidence. Source and mocked transport tests complement the
-actual Coder, Neon and Browser Testing checks.
+- Sign in, open workspaces and Settings, then reload.
+- Create, resize, reconnect, rename and close an ordinary terminal.
+- Discover repositories and open a signed repository terminal.
+- Exercise file/path tools, clipboard upload and agent configuration.
+- Test native audio and existing Codex voice controls.
+- Enable notifications and verify a callback opens the correct workspace.
+- Publish a template, close the browser and return to its durable job/log view.
+- Exercise retries, owner isolation, credential rotation and terminal diagnostics.
+- Rehearse data transfer, compare original rows and verify runtime permissions.
+- Verify the deployed source revision and each result through the hosted Preview.
 
-## References
-
-- [Cloudflare Worker Previews](https://developers.cloudflare.com/workers/previews/)
-- [Cloudflare Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/)
-- [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
-- [Neon connection pooling](https://neon.com/docs/connect/connection-pooling)
+Record pending checks explicitly in the PR evidence. The migration sequence is in
+`docs/autonomous-delivery-pr-migration.md`.

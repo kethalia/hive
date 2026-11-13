@@ -1,4 +1,10 @@
-import type { WebSocket } from "ws";
+export interface VoiceSocket {
+  readonly readyState: number;
+  on(event: "message", listener: (raw: { toString(): string }) => void): unknown;
+  on(event: "error" | "close", listener: () => void): unknown;
+  send(data: string, callback?: (error?: Error) => void): void;
+  terminate(): void;
+}
 
 type Notification = { method: string; params?: Record<string, unknown> };
 
@@ -19,7 +25,7 @@ export class VoiceRpc {
   onClose: () => void = () => {};
 
   constructor(
-    private socket: WebSocket,
+    private socket: VoiceSocket,
     private dispose: () => void = () => {},
   ) {
     socket.on("message", (raw) => {

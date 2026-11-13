@@ -85,6 +85,18 @@ describe("getVapidKeys", () => {
     expect(mockDb.vapidKeys.upsert).not.toHaveBeenCalled();
   });
 
+  it("keeps transaction-local keys out of the committed global cache", async () => {
+    mockDb.vapidKeys.findUnique.mockResolvedValue(null);
+    mockGenerateVAPIDKeys.mockReturnValue(FAKE_KEYS);
+    mockDb.vapidKeys.upsert.mockResolvedValue({ id: 1, ...FAKE_KEYS });
+    const transaction = { vapidKeys: mockDb.vapidKeys };
+    expect(await getVapidKeys(transaction)).toEqual(FAKE_KEYS);
+    const committed = { publicKey: "CommittedPublic", privateKey: "CommittedPrivate" };
+    mockDb.vapidKeys.findUnique.mockResolvedValue({ id: 1, ...committed });
+    expect(await getVapidKeys()).toEqual(committed);
+    expect(mockDb.vapidKeys.findUnique).toHaveBeenCalledTimes(2);
+  });
+
   it("does not cache partial state on DB failure during upsert", async () => {
     mockDb.vapidKeys.findUnique.mockResolvedValue(null);
     mockGenerateVAPIDKeys.mockReturnValue(FAKE_KEYS);

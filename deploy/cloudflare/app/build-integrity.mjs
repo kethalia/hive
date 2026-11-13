@@ -12,6 +12,10 @@ const sourcePaths = [
   "src",
   "templates",
   "scripts/build-template-hashes.mjs",
+  "scripts/build-runtime-artifacts.mjs",
+  "scripts/artifact-paths.mjs",
+  "scripts/build-template-artifacts.mjs",
+  "scripts/notifications",
   "scripts/release/provider-build-identity.mjs",
   "packages",
   "public",
@@ -59,14 +63,16 @@ export async function sourceDigests(root = process.cwd()) {
     (path) =>
       path.startsWith("public/") ||
       path.startsWith("templates/") ||
-      ((/\.(ts|tsx|js|mjs|cjs|json|jsonc|css|prisma|yaml)$/.test(path) ||
+      ((/\.(ts|tsx|js|mjs|cjs|json|jsonc|css|prisma|yaml|py)$/.test(path) ||
         path.endsWith(".gitignore")) &&
         path !== "deploy/cloudflare/app/local-evidence.json"),
   );
-  try {
-    sources.push(...(await filesBelow(root, "public/hive-template-artifacts")));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+  for (const directory of ["public/hive-template-artifacts", "public/hive-runtime-artifacts"]) {
+    try {
+      sources.push(...(await filesBelow(root, directory)));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
   }
   // This ignored generated client is an actual input of the custom Worker.
   sources.push(...(await filesBelow(root, "packages/db/src/generated/prisma-workerd")));

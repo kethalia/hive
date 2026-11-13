@@ -8,6 +8,8 @@ import {
   discoveryCacheKey,
   invalidateDiscovery,
 } from "@/lib/discovery/server-cache";
+import { execInWorkspace } from "@/lib/workspace/exec";
+import { readRuntimeArtifact } from "@/lib/workspace/runtime-artifacts.server";
 import { agentToolsSnapshotSchema } from "./types";
 
 const SOURCE_PATH = join(process.cwd(), "templates/ai-dev-k8s/scripts/agent-tools.py");
@@ -34,6 +36,7 @@ async function authorize(user: { id: string; coderUserId: string }, workspaceId:
   return {
     client,
     target,
+    expected: { workspaceId, buildId: workspace.latest_build.id, agentId: agent.id },
     cacheKey: discoveryCacheKey([
       "agent-inventory",
       client.getBaseUrl(),
@@ -90,17 +93,38 @@ export async function inspectWorkspaceAgentTools(
 }
 
 async function execute(
-  { client, target }: Awaited<ReturnType<typeof authorize>>,
+  { client, target, expected }: Awaited<ReturnType<typeof authorize>>,
   operation: Operation,
   key?: string,
 ): Promise<unknown> {
-  const source = await readFile(SOURCE_PATH, "utf8");
+  const source =
+    process.env.HIVE_RUNTIME_TARGET === "cloudflare"
+      ? await readRuntimeArtifact("templates/ai-dev-k8s/scripts/agent-tools.py")
+      : await readFile(SOURCE_PATH, "utf8");
   const command = `python3 -c '${source.replace(/'/g, "'\\''")}'`;
   const payload = {
     operation,
     ...(key ? { key } : {}),
     ...(operation === "install" ? { source } : {}),
   };
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    const result = await execInWorkspace(target, command, {
+      coderUrl: client.getBaseUrl(),
+      sessionToken: client.getSessionToken(),
+      timeoutMs: 30_000,
+      maxBufferBytes: MAX_OUTPUT,
+      expected,
+      stdin: JSON.stringify(payload),
+    });
+    try {
+      if (result.exitCode !== 0) throw new Error();
+      const response = JSON.parse(result.stdout);
+      if (response?.ok !== true) throw new Error();
+      return response.data;
+    } catch {
+      throw new Error("Agent operation failed. Check the workspace configuration and try again.");
+    }
+  }
   return new Promise((resolve, reject) => {
     const child = spawn(
       /* turbopackIgnore: true */ "ssh",

@@ -1,8 +1,10 @@
 # Migration from the delivery epic to feature PRs
 
 Recorded on 9 November 2026. The agreed sequence is documented below.
-P01 extraction is active in [PR449](https://github.com/kethalia/hive/pull/449).
-Owner acceptance is pending. Subsequent increments follow the sequence below.
+P01 was merged through [PR449](https://github.com/kethalia/hive/pull/449).
+On 13 November 2026, the owner requested the Cloudflare production move and Kubernetes
+retirement, then confirmed that existing application features must be ported first.
+P01b below completes that compatibility and cutover slice before P02.
 
 Deliver the autonomous delivery roadmap through successive, testable feature PRs,
 starting with Cloudflare deployment. Each increment gives the owner a working
@@ -19,7 +21,8 @@ reviewed corrections and its evidence as the extraction reference.
 
 The original F01–F10 and D01–D13 requirements continue to define feature scope.
 The sequence below replaces the single final epic merge with owner-reviewed
-increments. Production migration and cutover retain their explicit approval gate.
+increments. The owner's 13 November instruction authorizes the existing-application cutover after
+feature compatibility is validated. Owner GitHub merges remain the release boundary.
 
 P01–P11 identify planned increments. Record each actual GitHub PR URL when created.
 Extraction builds, migration checks and source review establish the final boundary
@@ -30,6 +33,7 @@ for each increment.
 | ID | Feature PR | Size | Scope and dependencies | Owner acceptance scenario |
 | --- | --- | --- | --- | --- |
 | P01 | [Cloudflare and Neon deployment foundation](https://github.com/kethalia/hive/pull/449) | Large | Build and serve the existing Hive application through the single `hive` Worker. Include request-scoped database access, required runtime/schema support, authenticated workspace/settings reads, ordinary terminal transport and connected Workers Builds. Establish a reviewed preview configuration for each increment. | Open the preview, authenticate, browse workspaces/settings, reload and use a terminal. Check output, resize, reconnect and clean exit. A branch commit updates the preview to the corresponding source. |
+| P01b | Existing-feature Cloudflare compatibility and application cutover | Large | Build on merged P01 with repository terminals, workspace commands, file helpers and clipboard uploads, native audio and current Codex voice signaling, notifications, credential rotation, template publication and diagnostics. Preserve production data and cryptographic keys, validate the hosted preview, then move `hive.kethalia.com` to the existing Worker and retire the Hive application in `k8s-cluster`. | Test each existing feature through its ordinary UI, verify background work after closing the browser, rehearse data transfer and confirm historical session/key continuity. Verify the production domain and application before the Kubernetes retirement PR is merged. |
 | P02 | Coder OAuth login | Medium | Build on P01 with the configured Coder host, browser consent, credential refresh, revocation, disconnect/reconnect and OAuth-aware terminal credentials. | Sign in through `coder.kethalia.com`, return to the existing Hive identity, reload, use a terminal, then disconnect and reconnect. Validate expiry and concurrent refresh. |
 | P03 | Workspace connection bridge and Accounts window | Large | Build on P02 with signed workspace operations, versioned bridge installation, exact workspace/build selection and in-app Codex/Claude connection cards. Separate the account transport from the later managed-task maintenance integration. | Select a workspace, inspect account status, complete each provider's supported sign-in flow and verify saved selection and connection status after reload. |
 | P04 | GitHub repositories as projects | Medium | Build on P03 with authenticated discovery, search, pagination and stable repository identity. Separate repository browsing from managed task execution. | Discover and search repositories through Coder-connected GitHub. Select a repository and inspect its identity. Verify repository browsing preserves the existing checkout inventory. |
@@ -39,7 +43,7 @@ for each increment.
 | P08 | Reviewed delivery through GitHub | Large | Build on P07 with current-revision CI/Codex review evidence, policy eligibility, PR/source publication, controlled merge effects, connected deployment identity and observation. Shared evidence primitives required by P05 travel with that earlier core. | Follow an enrolled change through PR creation, review findings/corrections, passing checks and an isolated deployment verification. Changed source or stale evidence holds advancement. |
 | P09 | Epics and coordinated subagents | Large | Build on P08 with decomposition, dependencies, bounded concurrency, writer ownership, integrated source lineage and replanning. | Submit a larger request, inspect concise subtasks and dependencies, observe independent work and validate the integrated result. Exercise a failed dependency and recovery. |
 | P10 | Database migrations and backfills | Large | Build on P09 with controlled database jobs, compatible schema changes, backfill dependencies, integrity checks, interruption recovery and activation/contract gates. | Run a compatible migration in the test target, interrupt/recover a backfill and verify data integrity and mixed-version behavior. |
-| P11 | Production migration and cutover readiness | Large | Build on P10 with the production-data rehearsal, historical session/key continuity, target privileges, final write boundary, R2/backup restoration, recovery runbook and release package. | Review the migration and recovery rehearsal evidence and production smoke/observation checklist. Owner approval authorizes the subsequent cutover and production verification. |
+| P11 | Final autonomous-delivery release readiness | Large | Build on P10 with final managed-delivery migration, backup restoration, recovery drills and release acceptance. The earlier P01b increment owns the existing application's Cloudflare move and Kubernetes retirement. | Validate the full managed-delivery roadmap and its production recovery package. |
 
 P05 is the principal coupled feature. Its guardian, checkout, session and manager
 protocols share authority and persistence. Keep the implementation coherent while
@@ -128,9 +132,9 @@ costs.
    Preserve history through the repository's normal push/merge workflow.
 6. Keep PR402 as the reference during extraction. Retire its main-targeting merge
    proposal once replacement coverage and preserved evidence are accounted for.
-7. After P11 acceptance, present the concrete cutover package for owner approval.
-   Complete production migration, activation, smoke checks and observation under
-   that approved package. Record the post-cutover results against the epic.
+7. Complete the existing-application cutover through P01b under the owner's
+   13 November instruction. Later P11 acceptance covers the completed autonomous
+   delivery system and its recovery package.
 
 Mark an extracted PR draft while its own implementation or validation remains in
 progress. Mark it ready when its increment meets its acceptance gates. Completion
@@ -162,21 +166,28 @@ requirements-to-PR mapping and the accepted baseline as extraction proceeds.
 | F04/F05/F06 shared session and checkout lifecycle | P05, with delivery-bound preservation/cleanup acceptance completed through P08 |
 | D01–D04/D07/D08 runtime, persistence and evidence primitives | P05, with GitHub delivery activation in P08 |
 | D05 progress and reports UI | P06 |
-| D06/F07 notifications and background parity | P07, with transport prerequisites in P01/P03/P05 |
+| D06/F07 notifications and background parity | Existing application parity in P01b, managed delivery notifications in P07 |
 | D09 controlled delivery | P08 |
 | D11 epic coordination | P09 |
 | D10 database changes | P10 |
-| F08 data cutover | P11 |
+| F08 data cutover | Existing application move in P01b, final managed-delivery recovery in P11 |
 | D12 workspace setup | Included with the feature that installs each capability |
 | D13 pilots, failure drills and onboarding | Per-increment acceptance and the final P11 release package |
 
 ## Current planning checkpoint
 
-P01 has an active feature PR and a deployed Cloudflare Preview. Its implementation,
-automated checks and hosted acceptance evidence are tracked in
-[the P01 acceptance record](checks/cloudflare-foundation/README.md). Owner
-acceptance and merge are pending. Historical storage reservation and image-download
-issues are assigned to their later increments.
+P01 is merged at `a8ea4384`. Its hosted acceptance evidence remains in
+[the P01 acceptance record](checks/cloudflare-foundation/README.md).
+
+P01b implementation is in `codex/hive-production-cutover`, based on that merged
+baseline. The Kubernetes retirement source is prepared separately in
+`kethalia/k8s-cluster` on `codex/retire-hive-app`. Feature ports have focused local
+and PostgreSQL checks. Hosted acceptance, a fresh production-data rehearsal,
+production activation and live Kubernetes retirement remain pending. The previously
+supplied Rancher key currently returns HTTP 401 for database access.
+
+The existing production application remains the serving target during this work.
+P02–P10 continue in the agreed feature order after P01b acceptance.
 
 The detailed implementation status and historical evidence remain in the
 [execution ledger](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/checks/autonomous-delivery/progress.md). The
