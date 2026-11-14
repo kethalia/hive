@@ -3,7 +3,11 @@ import { createCloudflareDatabaseRequest } from "@hive/db/cloudflare";
 import { dispatchAgentEvents } from "@/lib/push/agent-events";
 import { sendBoundedPush } from "@/lib/push/bounded-send";
 import { type BackgroundBinding, wakeBackground } from "@/lib/queue/background-wake.server";
-import { dispatchLegacyTokenRotation } from "@/lib/queue/token-rotation-cloudflare.server";
+import {
+  dispatchLegacyTokenRotation,
+  LEGACY_TOKEN_LIFETIME_MS,
+  LEGACY_TOKEN_ROTATION_WINDOW_MS,
+} from "@/lib/queue/token-rotation-cloudflare.server";
 import type { TemplateAssets } from "@/lib/templates/publication-artifact";
 import { dispatchTemplateNotices } from "@/lib/templates/publication-notices";
 import { dispatchTemplateJobs } from "@/lib/templates/publication-service";
@@ -23,6 +27,7 @@ export type BackgroundEnvironment = {
 
 // The next durable due time includes active leases, so a lost invocation can
 // resume after its existing claim expires without continuously polling Neon.
+// Credential wakes respect the rotation window and pending reconciliation.
 export async function nextBackgroundAt(db: PrismaClient, ownerId: string): Promise<number | null> {
   const [row] = await db.$queryRaw<{ at: Date | null }[]>`
     SELECT min(due) AS at FROM (
@@ -32,8 +37,15 @@ export async function nextBackgroundAt(db: PrismaClient, ownerId: string): Promi
         WHERE owner_id=${ownerId}::uuid AND status IN ('pending','processing')
       UNION ALL SELECT next_attempt_at FROM agent_notification_events
         WHERE owner_id=${ownerId}::uuid AND status IN ('pending','processing')
-      UNION ALL SELECT greatest(rotation_next_at,coalesce(rotation_lease_until,rotation_next_at))
-        FROM coder_tokens WHERE user_id=${ownerId}::uuid
+      UNION ALL SELECT greatest(t.rotation_next_at,coalesce(t.rotation_lease_until,t.rotation_next_at),
+        CASE WHEN t.rotation_state->'pending' IS NOT NULL AND t.rotation_state->'pending' IS DISTINCT FROM 'null'::jsonb
+          THEN t.rotation_next_at
+          ELSE coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')
+            -${LEGACY_TOKEN_ROTATION_WINDOW_MS}*interval '1 millisecond' END)
+        FROM coder_tokens t JOIN users u ON u.id=t.user_id
+        WHERE t.user_id=${ownerId}::uuid AND u.coder_url=${process.env.CODER_URL ?? ""}
+          AND (coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
+            OR t.rotation_state->'pending' IS NOT NULL AND t.rotation_state->'pending' IS DISTINCT FROM 'null'::jsonb)
     ) pending`;
   return row?.at?.getTime() ?? null;
 }
@@ -113,7 +125,13 @@ export async function repairBackground(env: BackgroundEnvironment) {
           SELECT owner_id FROM template_jobs WHERE phase NOT IN ('succeeded','failed','held')
           UNION SELECT owner_id FROM template_notices WHERE status IN ('pending','processing')
           UNION SELECT owner_id FROM agent_notification_events WHERE status IN ('pending','processing')
-          UNION SELECT user_id FROM coder_tokens WHERE rotation_next_at<=clock_timestamp()
+          UNION SELECT t.user_id FROM coder_tokens t JOIN users u ON u.id=t.user_id
+            WHERE u.coder_url=${process.env.CODER_URL ?? ""} AND t.rotation_next_at<=clock_timestamp()
+              AND (t.rotation_lease_until IS NULL OR t.rotation_lease_until<=clock_timestamp())
+              AND ((coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
+                AND clock_timestamp()>=coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')
+                  -${LEGACY_TOKEN_ROTATION_WINDOW_MS}*interval '1 millisecond')
+                OR t.rotation_state->'pending' IS NOT NULL AND t.rotation_state->'pending' IS DISTINCT FROM 'null'::jsonb)
         ) pending WHERE (${after}::uuid IS NULL OR owner_id>${after}::uuid)
         ORDER BY owner_id LIMIT 50`;
       if (!owners.length) break;

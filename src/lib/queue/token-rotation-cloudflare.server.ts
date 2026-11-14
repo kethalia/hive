@@ -14,7 +14,9 @@ import { cancelTerminalBody, terminalBody, terminalFetch } from "@/lib/terminal/
 
 type Transaction = Prisma.TransactionClient;
 const hour = 3600000;
-const lifetime = TOKEN_LIFETIME_SECONDS * 1000;
+export const LEGACY_TOKEN_LIFETIME_MS = TOKEN_LIFETIME_SECONDS * 1000;
+export const LEGACY_TOKEN_ROTATION_WINDOW_MS =
+  LEGACY_TOKEN_LIFETIME_MS * (1 - TOKEN_ROTATION_THRESHOLD);
 const hex = z.string().regex(/^[a-f0-9]+$/);
 const keyId = z.string().regex(/^[A-Za-z0-9]{10}$/);
 const name = z.string().regex(/^hive-r-[a-f0-9-]{36}$/);
@@ -136,13 +138,12 @@ function plaintext(row: Pick<Row, "ciphertext" | "iv" | "authTag">, encryptionKe
   return result.plaintext;
 }
 function effectiveExpiry(row: Row) {
-  return row.expiresAt?.getTime() ?? row.createdAt.getTime() + lifetime;
+  return row.expiresAt?.getTime() ?? row.createdAt.getTime() + LEGACY_TOKEN_LIFETIME_MS;
 }
 function due(row: Row) {
   const expires = effectiveExpiry(row);
   return (
-    row.now.getTime() < expires &&
-    row.now.getTime() >= expires - lifetime * (1 - TOKEN_ROTATION_THRESHOLD)
+    row.now.getTime() < expires && row.now.getTime() >= expires - LEGACY_TOKEN_ROTATION_WINDOW_MS
   );
 }
 async function save(tx: Transaction, row: Row, value: State) {
@@ -271,8 +272,8 @@ export async function dispatchLegacyTokenRotation(
         SELECT t.id FROM coder_tokens t JOIN users u ON u.id=t.user_id
         WHERE u.coder_url=${origin} AND (${ownerId}::uuid IS NULL OR u.id=${ownerId}::uuid) AND t.rotation_next_at<=clock_timestamp()
           AND (t.rotation_lease_until IS NULL OR t.rotation_lease_until<=clock_timestamp())
-          AND ((COALESCE(t.expires_at,t.created_at+${lifetime}*interval '1 millisecond')>clock_timestamp()
-            AND clock_timestamp()>=COALESCE(t.expires_at,t.created_at+${lifetime}*interval '1 millisecond')-${lifetime * (1 - TOKEN_ROTATION_THRESHOLD)}*interval '1 millisecond')
+          AND ((COALESCE(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
+            AND clock_timestamp()>=COALESCE(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')-${LEGACY_TOKEN_ROTATION_WINDOW_MS}*interval '1 millisecond')
             OR t.rotation_state->'pending' IS DISTINCT FROM 'null'::jsonb AND t.rotation_state->'pending' IS NOT NULL)
         ORDER BY t.rotation_next_at,t.id FOR UPDATE OF t SKIP LOCKED LIMIT 1
       ) UPDATE coder_tokens t SET rotation_lease_id=${leaseId}::uuid,

@@ -18,7 +18,8 @@ vi.mock("@hive/db/cloudflare", () => ({ createCloudflareDatabaseRequest: mocks.c
 vi.mock("@/lib/templates/publication-service", () => ({ dispatchTemplateJobs: mocks.jobs }));
 vi.mock("@/lib/push/agent-events", () => ({ dispatchAgentEvents: mocks.events }));
 vi.mock("@/lib/templates/publication-notices", () => ({ dispatchTemplateNotices: mocks.notices }));
-vi.mock("@/lib/queue/token-rotation-cloudflare.server", () => ({
+vi.mock("@/lib/queue/token-rotation-cloudflare.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/queue/token-rotation-cloudflare.server")>()),
   dispatchLegacyTokenRotation: mocks.rotation,
 }));
 vi.mock("@/lib/terminal/diagnostics.server", () => ({ cleanupTerminalDiagnostics: mocks.cleanup }));
