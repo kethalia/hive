@@ -198,7 +198,7 @@ production initialization replaces the Rancher/source-backup dependency. The
 separate experimental Codex Voice component has no UI caller, so its additional
 sign-in test was removed from the cutover gates.
 
-P02 is being implemented on `codex/coder-oauth-better-auth` from `d7bd8b10`,
+P02 is implemented and validated on `codex/coder-oauth-better-auth` from `d7bd8b10`,
 using Better Auth as requested on 14 November. Its isolated preview uses
 `hive_coder_oauth_preview` and the existing Neon compute. The
 [P02 acceptance record](checks/coder-oauth-better-auth/README.md) tracks its

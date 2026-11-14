@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "phaseId": "f7e9b5d1-71e8-4763-852d-597cfb192b54",
+  "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+  "buildId": "e146efa4-d0cc-4236-b3f9-40b077edf35c",
+  "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+  "source": "9b1c1f8d44f1490be7e31eb40dcba38ca76ee497",
+  "appBuild": "a33c147d-b102-4dcf-9b3a-f2c0669e54d7",
+  "startedAt": "2026-11-14T21:23:40.102Z",
+  "designation": "reused-persistent",
+  "accepted": true,
+  "stage": "teardown",
+  "events": [
+    {
+      "stage": "chrome_launch",
+      "at": "2026-11-14T21:23:40.102Z"
+    },
+    {
+      "stage": "reconnect",
+      "at": "2026-11-14T21:23:40.354Z"
+    },
+    {
+      "stage": "reconnect_login_visible",
+      "at": "2026-11-14T21:23:44.059Z"
+    },
+    {
+      "stage": "reconnect_hydrated",
+      "at": "2026-11-14T21:23:47.046Z"
+    },
+    {
+      "stage": "reconnect_continue_clicked",
+      "at": "2026-11-14T21:23:47.064Z"
+    },
+    {
+      "stage": "social",
+      "status": 200,
+      "method": "POST",
+      "at": "2026-11-14T21:23:47.908Z"
+    },
+    {
+      "stage": "consent",
+      "status": 303,
+      "method": "GET",
+      "at": "2026-11-14T21:23:47.929Z"
+    },
+    {
+      "stage": "reconnect_provider_login",
+      "at": "2026-11-14T21:23:48.532Z"
+    },
+    {
+      "stage": "providerLogin",
+      "status": 201,
+      "method": "POST",
+      "at": "2026-11-14T21:23:48.610Z"
+    },
+    {
+      "stage": "providerAuthcheck",
+      "status": 200,
+      "method": "POST",
+      "at": "2026-11-14T21:23:48.641Z"
+    },
+    {
+      "stage": "consent",
+      "status": 200,
+      "method": "GET",
+      "at": "2026-11-14T21:23:48.662Z"
+    },
+    {
+      "stage": "reconnect_consent_ready",
+      "at": "2026-11-14T21:23:48.784Z"
+    },
+    {
+      "stage": "reconnect_consent_clicked",
+      "at": "2026-11-14T21:23:48.808Z"
+    },
+    {
+      "stage": "consent",
+      "status": 302,
+      "method": "POST",
+      "at": "2026-11-14T21:23:49.339Z"
+    },
+    {
+      "stage": "callback",
+      "status": 302,
+      "method": "GET",
+      "at": "2026-11-14T21:23:51.369Z"
+    },
+    {
+      "stage": "reconnect_callback_returned",
+      "at": "2026-11-14T21:23:54.596Z"
+    },
+    {
+      "stage": "terminal_create",
+      "at": "2026-11-14T21:24:07.644Z"
+    },
+    {
+      "stage": "terminal_resize",
+      "at": "2026-11-14T21:24:20.590Z"
+    },
+    {
+      "stage": "terminal_reload",
+      "at": "2026-11-14T21:24:21.662Z"
+    },
+    {
+      "stage": "terminal_reconnect",
+      "at": "2026-11-14T21:24:32.346Z"
+    },
+    {
+      "stage": "terminal_exit",
+      "at": "2026-11-14T21:24:36.091Z"
+    },
+    {
+      "stage": "terminal_complete_awaiting_root_refresh",
+      "at": "2026-11-14T21:24:36.772Z"
+    },
+    {
+      "stage": "final_logout",
+      "at": "2026-11-14T21:26:05.803Z"
+    },
+    {
+      "stage": "logout",
+      "status": 200,
+      "method": "POST",
+      "at": "2026-11-14T21:26:06.256Z"
+    },
+    {
+      "stage": "accepted",
+      "at": "2026-11-14T21:26:06.876Z"
+    },
+    {
+      "stage": "teardown",
+      "at": "2026-11-14T21:26:06.877Z"
+    }
+  ],
+  "counts": {
+    "social": 1,
+    "providerLogin": 1,
+    "providerAuthcheck": 2,
+    "consent": 1,
+    "logout": 1,
+    "disconnect": 0,
+    "terminalCreate": 1,
+    "tickets": 6,
+    "reads": 72,
+    "blocked": 1,
+    "pageErrors": 0
+  },
+  "checks": {
+    "exactAppBuild": true,
+    "reconnect": true,
+    "reconnected_settings": true,
+    "terminalOutput": true,
+    "terminalResize": true,
+    "terminalReloadSamePid": true,
+    "terminalReconnectSamePid": true,
+    "terminalNormalClose": true,
+    "terminalWindowClosed": true,
+    "rootRefreshHoldAcknowledged": false,
+    "final_settings": true,
+    "finalLogoutCookieCleared": true,
+    "chromeExited": true
+  },
+  "requestFailures": [
+    {
+      "origin": "https://coder.com",
+      "path": "/api/track-deployment",
+      "status": null,
+      "kind": "ping"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/oauth2/authorize",
+      "status": null,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": null,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": null,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/login",
+      "status": null,
+      "kind": "fetch"
+    }
+  ],
+  "consoleErrors": [
+    {
+      "category": "resource",
+      "netCode": "ERR_FAILED"
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    },
+    {
+      "category": "resource",
+      "netCode": null
+    }
+  ],
+  "documents": [
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/login",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/oauth2/authorize",
+      "status": 303,
+      "kind": "document"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/login",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/api/v2/users/me/appearance",
+      "status": 401,
+      "kind": "xhr"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/api/v2/users/me",
+      "status": 401,
+      "kind": "xhr"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/oauth2/authorize",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/oauth2/authorize",
+      "status": 302,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/api/auth/callback/coder",
+      "status": 302,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/api/discovery/sessions",
+      "status": 503,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/api/discovery/repositories",
+      "status": 503,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/api/discovery/repositories",
+      "status": 503,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/api/discovery/sessions",
+      "status": 503,
+      "kind": "fetch"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": 200,
+      "kind": "document"
+    },
+    {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces",
+      "status": 200,
+      "kind": "document"
+    }
+  ],
+  "loginBeforeHydration": {
+    "readyState": "interactive",
+    "reactAttached": false
+  },
+  "hiveUserIds": ["732652a8-b45a-4c59-817a-41dda812d0fc"],
+  "terminal": {
+    "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+    "buildId": "efef452b-a61c-43a2-b6b4-65e5262bb913",
+    "session": "p02-oauth-f7e9b5d1",
+    "fixtureLifecycle": "start_error_unrelated_plugin_setup",
+    "inputs": 5,
+    "pid": 18947,
+    "size": {
+      "cols": 71,
+      "rows": 34
+    }
+  },
+  "finalLogout": {
+    "cookiePresentBefore": true,
+    "cookieAbsentAfter": true,
+    "unauthenticatedStatus": 307,
+    "redirectsExactlyToLogin": true
+  },
+  "finishedAt": "2026-11-14T21:26:06.985Z"
+}

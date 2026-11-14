@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "accepted": true,
+  "environment": "Cloudflare Preview",
+  "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+  "source": "9b1c1f8d44f1490be7e31eb40dcba38ca76ee497",
+  "version": "2.33.0",
+  "appBuildId": "a33c147d-b102-4dcf-9b3a-f2c0669e54d7",
+  "account": {
+    "hiveUserId": "732652a8-b45a-4c59-817a-41dda812d0fc",
+    "coderUserId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "fixture": "dedicated Codex test account"
+  },
+  "browser": {
+    "workspaceId": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "buildId": "e146efa4-d0cc-4236-b3f9-40b077edf35c",
+    "designation": "reused-persistent",
+    "headed": true,
+    "chromeExecutable": "/usr/bin/google-chrome",
+    "playwrightVersion": "1.61.1",
+    "ownedChromeExited": true
+  },
+  "oauth": {
+    "officialCoderPasswordLogin": true,
+    "officialConsent": true,
+    "callback": true,
+    "reload": true,
+    "settingsControls": true,
+    "localLogout": true,
+    "secondSignIn": true,
+    "disconnect": true,
+    "reconnect": true,
+    "finalCookieAbsent": true,
+    "finalUnauthenticatedStatus": 307,
+    "finalRedirectPath": "/login"
+  },
+  "terminal": {
+    "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+    "buildId": "efef452b-a61c-43a2-b6b4-65e5262bb913",
+    "session": "p02-oauth-f7e9b5d1",
+    "fixtureLifecycle": "start_error_unrelated_plugin_setup",
+    "inputs": 5,
+    "pid": 18947,
+    "size": {
+      "cols": 71,
+      "rows": 34
+    },
+    "samePidAfterReload": true,
+    "samePidAfterUiReconnect": true,
+    "nativeCloseCode": 1000,
+    "nativeCloseWasClean": true,
+    "windowClosed": true,
+    "physicalSessionAbsent": true,
+    "physicalPidAbsent": true,
+    "terminalTicketsIssued": 6
+  },
+  "refresh": {
+    "passed": true,
+    "hiveUserId": "732652a8-b45a-4c59-817a-41dda812d0fc",
+    "coderUserId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "parallelCallers": 3,
+    "providerRefreshPosts": 1,
+    "versionBefore": 4,
+    "versionAfter": 6,
+    "refreshState": "idle",
+    "tokenValuesRecorded": false,
+    "checkedAt": "2026-11-14T21:25:42.936Z"
+  },
+  "refreshHandoff": {
+    "markerObservedByHarness": false,
+    "holdStartedAt": "2026-11-14T21:24:36.772Z",
+    "holdLimitSeconds": 80,
+    "rootRefreshCompletedAt": "2026-11-14T21:25:42.936Z",
+    "postRefreshSettingsUiSucceeded": true,
+    "finalLogoutStartedAt": "2026-11-14T21:26:05.803Z"
+  },
+  "finalPhaseCounts": {
+    "social": 1,
+    "providerLogin": 1,
+    "providerAuthcheck": 2,
+    "consent": 1,
+    "logout": 1,
+    "disconnect": 0,
+    "terminalCreate": 1,
+    "tickets": 6,
+    "reads": 72,
+    "blocked": 1,
+    "pageErrors": 0
+  },
+  "acceptedAcrossPhases": {
+    "partialOAuthSource": "eac11a782c667accffd49f5e9ff33d29ca2a611d",
+    "partialOAuthAppBuildId": "a0e39e0c-3a82-478e-a24e-eb17c25868b0",
+    "finalReconnectTerminalSource": "9b1c1f8d44f1490be7e31eb40dcba38ca76ee497"
+  },
+  "historicalAttemptCounts": {
+    "socialStarts": 5,
+    "providerPasswordSubmissions": 4,
+    "consentSubmissions": 3,
+    "localLogoutSubmissions": 2,
+    "disconnectSubmissions": 1,
+    "terminalCreateActions": 1,
+    "terminalTickets": 6,
+    "fixedShellInputs": 5
+  },
+  "limitations": [
+    "The terminal fixture reported start_error from optional plugin setup, with a running build and connected agent.",
+    "The harness did not observe the root completion marker. The root refresh receipt precedes the final authenticated Settings read and logout.",
+    "Earlier harness and rollout attempts are retained privately with their original outcomes."
+  ],
+  "credentialsRecorded": false,
+  "authQueryValuesRecorded": false,
+  "workspaceLifecycleChangedByBrowserHarness": false,
+  "completedAt": "2026-11-14T21:26:06.985Z"
+}

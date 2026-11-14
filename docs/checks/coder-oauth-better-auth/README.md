@@ -1,127 +1,149 @@
 # P02 Better Auth and Coder OAuth
 
-Implementation branch `codex/coder-oauth-better-auth`, based on merged P01b
-`d7bd8b10`. This increment replaces the Hive password form with Coder browser
-consent through Better Auth 1.7.25.
+[PR452](https://github.com/kethalia/hive/pull/452) implements this increment on
+`codex/coder-oauth-better-auth`, based on merged P01b `d7bd8b10`.
 
-## Connection flow
+## Owner acceptance
 
-1. Open the login page and choose **Continue with Coder**.
-2. Authenticate and approve the Hive application on `coder.kethalia.com`.
-3. Return to Hive, reload and open an ordinary terminal.
-4. Sign out through Settings and sign back in.
-5. Disconnect Coder through Settings and reconnect through browser consent.
+1. Open [the preview](https://codex-coder-oauth-better-auth.hive-preview.kethalia.com)
+   and choose **Continue with Coder**.
+2. Authenticate and approve Hive on `coder.kethalia.com`.
+3. Return to Hive, reload, open Settings and use an ordinary terminal.
+4. Sign out and sign back in. Disconnect Coder and reconnect through consent.
 
-Hive identifies an account by the configured Coder origin and Coder user UUID.
+Hive identifies users by the configured Coder origin and Coder user UUID.
 Existing Hive UUIDs, preferences and references survive migration and reconnect.
-Email does not join accounts. Existing users complete a one-time OAuth sign-in.
-That sign-in replaces their legacy Hive sessions. OAuth mode rejects legacy
-password login and legacy session cookies.
+Email does not join accounts. Users complete a one-time OAuth sign-in that
+replaces their legacy Hive sessions. Production OAuth mode rejects password login
+and legacy session cookies.
 
-Better Auth owns consent state, PKCE, callback handling, encrypted account-token
-storage and signed host-only browser cookies. The existing public session UUID
-continues to identify terminal tickets. The framework secret session token has a
-separate database column and stays in the HttpOnly cookie.
-
-One durable refresh lease serializes rotating provider credentials. Unknown
-provider outcomes or a failed persistence transaction require reconnect. A known
-client-configuration rejection releases the lease for a safe retry. Captured
-grant versions fence concurrent sign-in, revocation and disconnect.
+Better Auth 1.7.25 owns consent state, PKCE, callbacks, encrypted account-token
+storage and signed host-only browser cookies. The public session UUID continues
+to identify terminal tickets. The framework secret session token has a separate
+column and stays in the HttpOnly cookie. A durable PostgreSQL lease serializes
+rotating refreshes. Unknown provider outcomes and persistence rollback require
+reconnect. Grant versions fence concurrent sign-in, revocation and disconnect.
 
 Sign out ends the local session. Disconnect clears the stored grant, ends all
-Hive sessions for that identity and revokes its captured Coder grant. An uncertain
-provider revocation produces an explicit reconnect/revoke notice.
+Hive sessions for that identity and revokes its captured Coder grant. Uncertain
+provider revocation produces an explicit notice with the Coder revocation action.
 
-## Isolated hosted target
+## Hosted deployment and isolation
 
-- Preview `https://codex-coder-oauth-better-auth.hive-preview.kethalia.com`.
-- Existing single Worker `hive`, using repository-connected Workers Builds.
-- Coder preview application `16e90cc4-bb86-414d-80fa-9f7c7f6c8d93`.
-- Callback `/api/auth/callback/coder` on the exact preview origin.
-- Neon project `purple-math-59583745`, existing branch `br-ancient-violet-b7pcun87`.
-- Database `hive_coder_oauth_preview`, PostgreSQL OID `368640`.
-- Runtime role `hive_coder_oauth_runtime`, restricted to this database.
-- Twelve checked migrations, fifteen application tables, independent preview secrets.
-- Existing Free-plan compute retained at 0.25 CU. No additional compute was created.
+| Item | Verified value |
+| --- | --- |
+| Worker | Existing single `hive` Worker with repository-connected Workers Builds |
+| Accepted authentication code | `9b1c1f8d44f1490be7e31eb40dcba38ca76ee497` |
+| Connected build | `802b0a61-2dc2-47ab-aa53-6ca1ba559a90` |
+| Unique preview | `ec9628ff.hive-preview.kethalia.com` |
+| Application build | `a33c147d-b102-4dcf-9b3a-f2c0669e54d7` |
+| Application version | `2.33.0`, with the release changeset included |
+| Preview Coder application | `16e90cc4-bb86-414d-80fa-9f7c7f6c8d93` |
+| Callback | `/api/auth/callback/coder` on the exact preview origin |
+| Neon project and branch | `purple-math-59583745`, `br-ancient-violet-b7pcun87` |
+| Preview database and OID | `hive_coder_oauth_preview`, `368640` |
+| Preview runtime role | `hive_coder_oauth_runtime` |
+| Schema | Twelve migrations and fifteen application tables |
 
-The new additive migration is
-`20261114010000_coder_oauth_better_auth`. All eleven previous migration checksums
-remain unchanged. The migration adds framework fields, Coder OAuth accounts,
-verification records, identity-binding checks and refresh-lease constraints.
+The preview uses independent secrets and the existing Free-plan 0.25 CU compute.
+No additional compute was created. Initial secrets were supplied through the
+official Wrangler preview command. P02 was added to the existing preview build
+configuration and its branch settings use `pnpm build:cloudflare` followed by
+`node deploy/cloudflare/native/deploy.mjs preview`.
 
-Use a direct owner connection for migrations. Runtime requests use the pooled
-connection. The first preview migration used a pooled URL and left an idle
-advisory lock after successfully applying all twelve migrations. Its completed
-checksums were verified, the exact owned idle backend was terminated, and the
-direct endpoint was verified. No other database was changed by that correction.
+## Automated checks
 
-## Automated validation
+- Final full Vitest run passed **2,282 tests**, with 81 optional tests skipped.
+- Fourteen actual PostgreSQL cases cover PKCE, encrypted storage, identity and
+  preference preservation, concurrent refresh, revocation, lost refresh response,
+  client refusal, newer login, persistence rollback, delayed callback, disconnect
+  races, and atomic recovery when OAuth is disabled.
+- Auth service passed 153 tests. The Node terminal suite passed 239 tests and the
+  affected application transport slice passed 558 tests.
+- Deployment/build-integrity/migration preflight passed 42 tests. Native
+  composition/background and local Workerd checks also passed.
+- Application, Cloudflare and Node terminal typechecks pass. Repository formatting
+  passes. Changeset validation passes.
+- Independent final review at `9b1c1f8d` found no remaining confirmed P1/P2 issues.
 
-- Full Vitest suite passed 2,277 tests, with 81 optional tests skipped.
-- Final focused auth, middleware and settings suite passed 166 tests.
-- Fourteen real PostgreSQL Better Auth cases cover PKCE, encrypted storage, stable
-  identity and preferences, concurrent refresh, fresh revocation, a lost refresh
-  response, client misconfiguration, late rejection after newer sign-in,
-  persistence rollback, a delayed callback after uncertain refresh, and disconnect racing refresh.
-- Transport slice passed 558 application tests and 239 Node terminal tests.
-- Native deployment passed 17 plan tests, 16 composition/background tests and
-  six local Workerd tests.
-- Database checks cover fresh install, the eleven-to-twelve upgrade, preserved
-  original rows, identity and lease constraints, and actual runtime privileges.
+Fresh-install and upgrade checks preserve all eleven original migration
+checksums, original rows and actual runtime privileges. The additive twelfth
+migration is `20261114010000_coder_oauth_better_auth`.
 
-Hosted acceptance, final build identity, current-source review and CI results are
-recorded below as they complete.
+## Real browser and provider acceptance
 
-## Production preparation before merge
+The ordinary UI accepted the final authentication code and application build
+listed above. Earlier consent/disconnect checks used reviewed code `eac11a78`.
 
-The production database currently has eleven migrations. Before deploying P02,
-apply the reviewed additive twelfth migration through the direct owner endpoint
-and reapply the production runtime grants. Check exact history, checksums and
-existing-user preservation. Configure `CODER_OAUTH_CLIENT_SECRET` for production
-using the separately registered production Coder application. Its callback is
-`https://hive.kethalia.com/api/auth/callback/coder` and its public client ID is
+- Official Coder sign-in and consent return to Hive. Reload preserves the session
+  and Settings exposes the account controls.
+- Sign out invalidates the session. The final corrected flow removes the
+  framework cookie from the browser.
+- Disconnect returns 200, clears the stored grant and leaves zero Hive sessions.
+  Reconnect returns to the same Hive user UUID.
+- A UI-created terminal accepts input and displays its output marker. Actual
+  `stty` dimensions follow viewport resize.
+- Reload and manual reconnect return to the same shell PID. Exit produces a clean
+  WebSocket close with code 1000, and the test terminal window closes.
+- Three concurrent real credential requests after forced stored expiry make
+  exactly one Coder token refresh request. All receive the same new credential.
+  Authenticated browser data loads after that refresh.
+- Final sign out removes the cookie. An unauthenticated request returns 401 or a
+  307 redirect to the exact login path, according to its entry point.
+
+The [live refresh receipt](live-refresh.json) records identities, grant versions
+and request counts without credential values. Additional browser receipts and
+screenshots in this directory preserve UI acceptance.
+
+## Production preparation and release
+
+The owner approved production preparation on 14 November. Production now has all
+twelve migrations with matching checksums. Original user, session and legacy-token
+rows are preserved. Scoped grants and preview-role isolation pass. The separate
+production Coder OAuth secret is configured on the existing Worker. The secret
+update retained the serving code's recorded ETag. The
+[production preparation receipt](production-preparation.json) records the exact
+database OID, grants hash and Worker version.
+
+The production Coder application's callback is
+`https://hive.kethalia.com/api/auth/callback/coder`, with public client ID
 `0a4e5cd5-cf36-4c56-927c-effe349286c8`.
 
-Complete preview acceptance and obtain owner approval for this production
-preparation before the owner merges. Repository-connected Workers Builds then
-deploys main. Verify production browser consent, reload, terminal and sign out.
+The owner merges the accepted increment. Repository-connected Workers Builds
+then deploys main. Production acceptance covers browser consent, reload, terminal
+and sign out.
 
-For an application rollback, retain the additive schema and original migration
-history, deploy the previously accepted application revision and restore its
-reviewed deployment configuration. Users can sign in through the legacy flow in
-that revision. Preserve OAuth records for a corrected forward deployment.
+For rollback, retain the additive schema and original migration history, deploy
+the previously accepted application revision and restore its reviewed deployment
+configuration. Users can sign in through that revision's legacy flow. Preserve
+OAuth records for a corrected forward deployment. Disabling OAuth on P02 also
+supports atomic password-login recovery, switching credential mode and session
+state in the same transaction.
 
-## Final review corrections
+## Corrected findings and validation limitations
 
-Independent review found two issues, both corrected with regression checks.
-Callback activation now resets the refresh lease atomically with its new token
-write and cannot reopen a later uncertain-refresh fence. A stale OAuth cookie
-no longer shadows a valid legacy session when OAuth is explicitly disabled.
-The enabled OAuth flow continues to reject legacy-only sessions.
+Review corrected delayed callback activation reopening a failed refresh fence,
+stale OAuth cookies shadowing flag-off legacy sessions, and non-atomic legacy
+recovery. Hosted checking exposed a framework-cookie deletion header replaced by
+a later NextResponse cookie write. Each correction has regression checks.
 
-## Preview initialization and build
+The initial preview migration used a pooled connection and left an idle advisory
+lock after applying all twelve migrations. Completed checksums were verified,
+the exact owned idle backend was terminated, and the direct endpoint was verified.
+Production preparation used the direct owner endpoint.
 
-PR [452](https://github.com/kethalia/hive/pull/452) tracks this increment.
-The reviewed implementation is `245a58d6817a42dc64567715f279c7ba69df2b1c`.
-The local Cloudflare build and both application/Cloudflare typechecks pass.
-The first initialized preview deployment is `d2609419`, with application build
-`94856c3f-f53b-4397-9f68-13189fb82165` and version `2.33.0`.
+During a preview rollout, an already-loaded page requested a historical chunk
+that returned 404. A fresh document and its current runtime chunk both return 200.
+A follow-up probe initially targeted the historical chunk and was corrected.
+Browser harness corrections also covered Coder permission checks, redirect timing,
+hydration and unauthenticated redirect semantics.
 
-Cloudflare's existing preview build configuration contained an explicit list of
-the earlier enrolled branches. P02 was added to that existing list so subsequent
-commits run its real build and preview deployment. Initial preview secrets were
-provided through the official Wrangler preview command. All five preview secrets
-are independent from production.
+One 300 ms PTY lifetime fixture failed under an earlier concurrent run. Its
+isolated retry and the final full two-worker run passed.
 
-Browser acceptance reuses persistent Browser Testing workspace
-`5cf78a47-70dc-4781-ac53-b7a3d4b1001f` and software test workspace
-`23023679-3c7b-4a50-ba52-4ca31673148e`. Their identities and task start builds
-were recorded before use. The software agent connects and has tmux available,
-but its startup reports an unrelated missing official Claude TypeScript LSP
-marketplace plugin. That template issue is retained as a test-fixture limitation.
-
-Password-login recovery with OAuth disabled also updates the user's credential
-mode, encrypted legacy token and replacement session atomically, while ending
-old OAuth sessions. Four additional PostgreSQL checks cover connected and
-disconnected users plus token-write and session-write rollback. The auth service
-suite now passes 153 tests.
+Browser Testing reused persistent workspace
+`5cf78a47-70dc-4781-ac53-b7a3d4b1001f`; terminal testing reused software workspace
+`23023679-3c7b-4a50-ba52-4ca31673148e`. Primary records captured their identities
+and task start builds before use. The software agent connects and terminal
+acceptance passes, while startup reports an unrelated unavailable official Claude
+TypeScript LSP marketplace plugin.
