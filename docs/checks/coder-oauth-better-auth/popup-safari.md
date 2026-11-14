@@ -52,8 +52,35 @@ tab. The deployed Coder login response currently has no COOP/COEP header.
 
 The focused callback, popup, completion-page and existing login tests pass 53
 checks. Independent review found no confirmed P1/P2 issue in the new popup flow.
-Live popup acceptance and final CI are recorded as they complete.
+The full suite passes 2,323 tests. Application and Cloudflare typechecks,
+formatting, and CI pass for the popup implementation.
 
 The Browser Testing workspace runs Linux Chrome. Safari and the pinned
 Playwright WebKit executable are unavailable, so native Safari confirmation
 requires the owner's browser.
+
+## Hosted popup acceptance
+
+The [live receipt](popup-live-acceptance.json) accepts source
+`9486af1aa6c933d96f4e39ac7223127bdd98fb54`, application build
+`0f2cd44d-c8af-48ce-9db9-e8b1f0fcbc42`, through connected Workers Build
+`ced352ee-e879-4c78-bdd9-ee791035e545` and unique preview `41396aec`.
+
+- A blocked opening starts zero OAuth requests and restores the retry button.
+- Closing a real popup restores the original window's sign-in button.
+- The real sign-in uses a distinct Chrome window, measured at 560 by 693 pixels.
+  The original window stays on Hive login during Coder password entry and consent.
+- The real callback returns 302 with plaintext UTF-8 and `nosniff`. Its completion
+  document returns HTML with status 200.
+- The popup closes automatically. The original window opens workspaces and its
+  authenticated application-version request succeeds.
+- Chrome records zero downloads. Local sign-out removes the framework cookie.
+  The owned browser process and temporary profile are cleaned up.
+
+The [before-fix callback receipt](popup-before-fix-callback.json) retains the
+observed JSON media type. One private harness launch variable error was corrected
+before the successful test, with its exact owned browser process reconciled.
+
+![Original Hive window during sign-in](popup-original-window.png)
+
+![Coder sign-in in the separate window](popup-coder-login.png)

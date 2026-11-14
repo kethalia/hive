@@ -36,10 +36,10 @@ provider revocation produces an explicit notice with the Coder revocation action
 | Item | Verified value |
 | --- | --- |
 | Worker | Existing single `hive` Worker with repository-connected Workers Builds |
-| Accepted authentication code | `9b1c1f8d44f1490be7e31eb40dcba38ca76ee497` |
-| Connected build | `802b0a61-2dc2-47ab-aa53-6ca1ba559a90` |
-| Unique preview | `ec9628ff.hive-preview.kethalia.com` |
-| Application build | `a33c147d-b102-4dcf-9b3a-f2c0669e54d7` |
+| Accepted popup authentication code | `9486af1aa6c933d96f4e39ac7223127bdd98fb54` |
+| Connected build | `ced352ee-e879-4c78-bdd9-ee791035e545` |
+| Unique preview | `41396aec.hive-preview.kethalia.com` |
+| Application build | `0f2cd44d-c8af-48ce-9db9-e8b1f0fcbc42` |
 | Application version | `2.33.0`, with the release changeset included |
 | Preview Coder application | `16e90cc4-bb86-414d-80fa-9f7c7f6c8d93` |
 | Callback | `/api/auth/callback/coder` on the exact preview origin |
@@ -56,7 +56,7 @@ configuration and its branch settings use `pnpm build:cloudflare` followed by
 
 ## Automated checks
 
-- Final full Vitest run passed **2,282 tests**, with 81 optional tests skipped.
+- Final full Vitest run passed **2,323 tests**, with 81 optional tests skipped.
 - Fourteen actual PostgreSQL cases cover PKCE, encrypted storage, identity and
   preference preservation, concurrent refresh, revocation, lost refresh response,
   client refusal, newer login, persistence rollback, delayed callback, disconnect
@@ -75,8 +75,9 @@ migration is `20261114010000_coder_oauth_better_auth`.
 
 ## Real browser and provider acceptance
 
-The ordinary UI accepted the final authentication code and application build
-listed above. Earlier consent/disconnect checks used reviewed code `eac11a78`.
+The popup UI accepted the authentication code and application build listed
+above. The terminal and refresh phase used `9b1c1f8d`. Earlier consent/disconnect
+checks used reviewed code `eac11a78`. Each receipt retains its exact source.
 
 - Official Coder sign-in and consent return to Hive. Reload preserves the session
   and Settings exposes the account controls.

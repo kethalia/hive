@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "source": "9486af1aa6c933d96f4e39ac7223127bdd98fb54",
+  "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+  "startedAt": "2026-11-14T22:06:04.827Z",
+  "directory": "/tmp/hive-p02-popup-mYwHYg",
+  "stage": "local_signout",
+  "callback": {
+    "status": 302,
+    "contentType": "text/plain; charset=utf-8",
+    "contentDisposition": null,
+    "nosniff": "nosniff",
+    "location": {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/login/complete"
+    },
+    "hadCode": true,
+    "hadState": true
+  },
+  "downloads": [],
+  "events": [
+    {
+      "stage": "launch",
+      "at": "2026-11-14T22:06:04.827Z"
+    },
+    {
+      "stage": "blocked_popup",
+      "at": "2026-11-14T22:06:05.061Z"
+    },
+    {
+      "stage": "cancelled_popup",
+      "at": "2026-11-14T22:06:09.425Z"
+    },
+    {
+      "stage": "real_popup_start",
+      "at": "2026-11-14T22:06:13.499Z"
+    },
+    {
+      "stage": "coder_password_login",
+      "at": "2026-11-14T22:06:20.117Z"
+    },
+    {
+      "stage": "coder_consent",
+      "at": "2026-11-14T22:06:24.507Z"
+    },
+    {
+      "stage": "popup_complete",
+      "at": "2026-11-14T22:06:39.157Z"
+    },
+    {
+      "stage": "local_signout",
+      "at": "2026-11-14T22:06:39.159Z"
+    }
+  ],
+  "accepted": true,
+  "checks": {
+    "blockedPopupNoAuthPost": true,
+    "manualCloseRecoversButton": true,
+    "mainStayedHiveDuringProviderLogin": true,
+    "openerPresentAtCoderLogin": true,
+    "mainStayedHiveDuringConsent": true,
+    "popupAutomaticallyClosed": true,
+    "originalMainNavigated": true
+  },
+  "socialStarts": {
+    "blocked": 0,
+    "cancelled": 1,
+    "real": 1
+  },
+  "chromeIdentity": {
+    "pid": 9663,
+    "startTime": "1109386120",
+    "groupId": 9663,
+    "uid": 1000
+  },
+  "popupWindow": {
+    "separateWindow": true,
+    "bounds": {
+      "left": 5,
+      "top": 56,
+      "width": 560,
+      "height": 693,
+      "windowState": "normal"
+    }
+  },
+  "completion": {
+    "status": 200,
+    "contentType": "text/html; charset=utf-8"
+  },
+  "finalDocument": {
+    "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+    "path": "/workspaces",
+    "type": "text/html"
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "0f2cd44d-c8af-48ce-9db9-e8b1f0fcbc42"
+  },
+  "frameworkCookiePresent": true,
+  "localSignout": true,
+  "frameworkCookieAbsent": true,
+  "chromeExited": true,
+  "profileRemoved": true,
+  "finishedAt": "2026-11-14T22:06:49.268Z",
+  "runtime": "Chrome headed in reused Browser Testing workspace",
+  "webkitInstalled": false,
+  "safariAcceptance": "pending actual Safari validation",
+  "limitations": [
+    "The initial private harness launch failed before navigation or auth. Its exact owned Chrome process was reconciled and closed, then the corrected harness passed.",
+    "Chrome recorded zero downloads before and after the change. The Safari download report was not reproduced in this runtime.",
+    "The source requests 560 by 720. Observed Chrome window bounds were 560 by 693."
+  ]
+}
