@@ -10,6 +10,10 @@ vi.mock("@hive/auth", async (importOriginal) => ({
   tryDecrypt: vi.fn(),
 }));
 
+vi.mock("../../../../services/auth/src/auth/coder-oauth-credentials", () => ({
+  getUsableCoderCredential: vi.fn(),
+}));
+
 vi.mock("@/lib/coder/client", () => ({
   CoderClient: vi.fn(),
 }));
@@ -18,6 +22,7 @@ import { tryDecrypt } from "@hive/auth";
 import { getDb } from "@hive/db";
 import { CoderClient } from "@/lib/coder/client";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { getUsableCoderCredential } from "../../../../services/auth/src/auth/coder-oauth-credentials";
 
 const MOCK_USER_ID = "aaaaaaaa-1111-2222-3333-444444444444";
 const MOCK_CODER_URL = "https://coder.example.com";
@@ -32,6 +37,7 @@ function mockToken(overrides: Record<string, unknown> = {}) {
     version: 1,
     createdAt: new Date("2026-04-18T00:00:00Z"),
     updatedAt: new Date("2026-04-18T00:00:00Z"),
+    expiresAt: new Date("2030-01-01"),
     ...overrides,
   };
 }
@@ -81,6 +87,8 @@ describe("getCoderClientForUser", () => {
     expect(CoderClient).toHaveBeenCalledWith({
       baseUrl: MOCK_CODER_URL,
       sessionToken: "decrypted-session-token",
+      credentialSource: "legacy",
+      credentialExpiresAt: new Date("2030-01-01"),
     });
     expect(tryDecrypt).toHaveBeenCalledWith(
       {
@@ -100,6 +108,8 @@ describe("getCoderClientForUser", () => {
     expect(CoderClient).toHaveBeenLastCalledWith({
       baseUrl: MOCK_CODER_URL,
       sessionToken: "tok",
+      credentialSource: "legacy",
+      credentialExpiresAt: new Date("2030-01-01"),
       signal: controller.signal,
     });
     controller.abort();
@@ -108,6 +118,36 @@ describe("getCoderClientForUser", () => {
       getCoderClientForUser(MOCK_USER_ID, { signal: controller.signal }),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(mockDb.coderToken.findFirst).toHaveBeenCalledTimes(calls);
+  });
+
+  it("resolves OAuth without a legacy key row", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(null);
+    mockDb.user.findUnique.mockResolvedValue(mockUser({ authMode: "oauth" }));
+    vi.mocked(getUsableCoderCredential).mockResolvedValue({
+      token: "oauth-access",
+      coderUrl: MOCK_CODER_URL,
+      credentialSource: "oauth",
+      expiresAt: new Date("2030-01-01"),
+    });
+    vi.mocked(tryDecrypt).mockClear();
+    await getCoderClientForUser(MOCK_USER_ID);
+    expect(CoderClient).toHaveBeenLastCalledWith({
+      baseUrl: MOCK_CODER_URL,
+      sessionToken: "oauth-access",
+      credentialSource: "oauth",
+      credentialExpiresAt: new Date("2030-01-01"),
+    });
+    expect(tryDecrypt).not.toHaveBeenCalled();
+  });
+
+  it("never falls back to a retained legacy key when OAuth needs reconnection", async () => {
+    mockDb.coderToken.findFirst.mockResolvedValue(
+      mockToken({ user: mockUser({ authMode: "oauth" }) }),
+    );
+    vi.mocked(getUsableCoderCredential).mockRejectedValue(new Error("reconnect"));
+    vi.mocked(tryDecrypt).mockClear();
+    await expect(getCoderClientForUser(MOCK_USER_ID)).rejects.toThrow("reconnect");
+    expect(tryDecrypt).not.toHaveBeenCalled();
   });
 
   it("queries for the most recent token", async () => {

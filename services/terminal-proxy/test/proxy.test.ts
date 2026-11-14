@@ -309,6 +309,20 @@ describe("handleUpgrade", () => {
     }
   });
 
+  it("uses OAuth Bearer for the upstream socket and workspace authorization", async () => {
+    mockAuth.mockResolvedValueOnce({
+      ...mockAuthResult,
+      value: { ...mockAuthResult.value, credentialSource: "oauth" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    const [, options] = (WebSocket as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(options.headers).toEqual({ Authorization: "Bearer per-user-token" });
+    expect(verifyWorkspaceAgentAccess).toHaveBeenLastCalledWith(
+      expect.objectContaining({ credentialSource: "oauth" }),
+    );
+  });
+
   it("opens upstream WebSocket with correct URL and per-user auth on valid request", async () => {
     const socket = makeSocket();
     await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));

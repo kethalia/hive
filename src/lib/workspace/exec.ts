@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import type { CoderCredentialSource } from "@hive/auth";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 
 export interface ExecOptions {
@@ -6,6 +8,7 @@ export interface ExecOptions {
   loginShell?: boolean;
   coderUrl?: string;
   sessionToken?: string;
+  credentialSource?: CoderCredentialSource;
   stdin?: string;
   maxBufferBytes?: number;
   signal?: AbortSignal;
@@ -27,7 +30,7 @@ export interface ExecResult {
  * in `bash -l -c` for commands that need nvm/pnpm on PATH.
  * Never throws on non-zero exit — always returns a structured ExecResult.
  */
-export function execInWorkspace(
+export async function execInWorkspace(
   workspaceName: string,
   command: string,
   opts?: ExecOptions,
@@ -44,19 +47,19 @@ export function execInWorkspace(
   console.log(`[exec] workspace=${workspaceName} cmd="${truncatedCmd}" timeout=${timeoutMs}ms`);
 
   const shellCmd = loginShell ? `bash -l -c ${shellQuote(command)}` : command;
-  const env = {
-    ...process.env,
-    ...(opts?.coderUrl ? { CODER_URL: opts.coderUrl } : {}),
-    ...(opts?.sessionToken ? { CODER_SESSION_TOKEN: opts.sessionToken } : {}),
-  };
+  const cli = await prepareCoderCliEnvironment({
+    coderUrl: opts?.coderUrl,
+    token: opts?.sessionToken,
+    credentialSource: opts?.credentialSource,
+  });
 
-  return new Promise((resolve) => {
+  return new Promise<ExecResult>((resolve) => {
     const child = execFile(
       "coder",
       ["ssh", "--wait=no", workspaceName, "--", shellCmd],
       {
         timeout: timeoutMs,
-        env,
+        env: cli.env,
         ...(opts?.maxBufferBytes ? { maxBuffer: opts.maxBufferBytes } : {}),
         ...(opts?.signal ? { signal: opts.signal } : {}),
       },
@@ -101,7 +104,7 @@ export function execInWorkspace(
       child.stdin?.on("error", () => {});
       child.stdin?.end(opts.stdin);
     }
-  });
+  }).finally(cli.cleanup);
 }
 
 function shellQuote(s: string): string {

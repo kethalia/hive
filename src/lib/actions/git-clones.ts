@@ -264,7 +264,11 @@ export const resolveGitCloneNotificationAction = authActionClient
     const existing = await execInWorkspace(
       target,
       `tmux -L web has-session -t ${shellQuote(`=${parsedInput.sessionName}`)}`,
-      { coderUrl: client.getBaseUrl(), sessionToken: client.getSessionToken() },
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
+      },
     );
     if (existing.exitCode !== 0)
       throw new Error("This notification's terminal is no longer available.");
@@ -308,6 +312,7 @@ export const closeGitCloneTerminalAction = authActionClient
       {
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
       },
     );
 
@@ -392,6 +397,7 @@ async function discoverWorkspaceCloneTree(
       {
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
         timeoutMs: WORKSPACE_DISCOVERY_TIMEOUT_MS,
       },
     );

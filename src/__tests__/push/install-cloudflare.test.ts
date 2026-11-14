@@ -17,6 +17,7 @@ const prepared = {
   client: {
     getBaseUrl: () => "https://coder.invalid",
     getSessionToken: () => "scoped-coder-fixture",
+    getCredentialSource: () => "legacy",
   },
   target: "owner/workspace.main",
   workspaceName: "workspace",

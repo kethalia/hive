@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { coderCredentialHeaders } from "@hive/auth";
 import { z } from "zod";
 import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 import type { RelaySocket } from "@/lib/terminal/relay-types";
@@ -333,7 +334,7 @@ export async function execWorkspacePty(
     const match = /^(?:([A-Za-z0-9_-]+)\/)?([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(target);
     if (!match || !command || command.includes("\0")) throw new Error("target");
     const [, owner, workspaceName, agentName] = match;
-    const headers = { "Coder-Session-Token": options.sessionToken };
+    const headers = coderCredentialHeaders(options.sessionToken, options.credentialSource);
     const json = async (path: string) => {
       const response = await terminalFetch(
         fetcher(new URL(path, origin), {

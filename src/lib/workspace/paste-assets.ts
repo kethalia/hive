@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import type { CoderCredentialSource } from "@hive/auth";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { DEFAULT_EXEC_TIMEOUT_MS } from "@/lib/constants";
 import {
   TERMINAL_PASTE_ASSET_MAX_BYTES,
@@ -96,6 +98,7 @@ export async function uploadTerminalPasteAssets({
       agentTarget,
       baseUrl: client.getBaseUrl(),
       sessionToken: client.getSessionToken(),
+      credentialSource: client.getCredentialSource(),
       path: upload.path,
       bytes,
       timeoutMs: Math.max(DEFAULT_EXEC_TIMEOUT_MS, 120_000),
@@ -106,10 +109,11 @@ export async function uploadTerminalPasteAssets({
   return plannedUploads.map((upload) => upload.path);
 }
 
-function writePasteAssetToWorkspace({
+async function writePasteAssetToWorkspace({
   agentTarget,
   baseUrl,
   sessionToken,
+  credentialSource,
   path,
   bytes,
   timeoutMs,
@@ -118,45 +122,47 @@ function writePasteAssetToWorkspace({
   agentTarget: string;
   baseUrl: string;
   sessionToken: string;
+  credentialSource?: CoderCredentialSource;
   path: string;
   bytes: Uint8Array;
   timeoutMs: number;
   signal?: AbortSignal;
 }): Promise<void> {
   signal?.throwIfAborted();
-  const env = {
-    ...process.env,
-    CODER_URL: baseUrl,
-    CODER_SESSION_TOKEN: sessionToken,
-  };
+  const cli = await prepareCoderCliEnvironment({
+    coderUrl: baseUrl,
+    token: sessionToken,
+    credentialSource,
+  });
   const partialPath = `${path}.part`;
   const command = [
     `umask 077 && mkdir -p ${shellQuote(TERMINAL_PASTE_ASSET_TARGET_DIR)} || exit 1`,
     `trap ${shellQuote(`rm -f -- ${shellQuote(partialPath)}`)} EXIT`,
     `cat > ${shellQuote(partialPath)} && test "$(wc -c < ${shellQuote(partialPath)})" -eq ${bytes.byteLength} && mv -- ${shellQuote(partialPath)} ${shellQuote(path)}`,
   ].join("; ");
-  const child = spawn(
-    "ssh",
-    [
-      "-o",
-      "LogLevel=ERROR",
-      "-o",
-      "StrictHostKeyChecking=no",
-      "-o",
-      "UserKnownHostsFile=/dev/null",
-      "-o",
-      "ProxyCommand=coder ssh --stdio %h",
-      agentTarget,
-      `bash -lc ${shellQuote(command)}`,
-    ],
-    {
-      env,
-      stdio: ["pipe", "ignore", "pipe"],
-      detached: process.platform !== "win32",
-    },
-  );
+  return new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted();
+    const child = spawn(
+      "ssh",
+      [
+        "-o",
+        "LogLevel=ERROR",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ProxyCommand=coder ssh --stdio %h",
+        agentTarget,
+        `bash -lc ${shellQuote(command)}`,
+      ],
+      {
+        env: cli.env,
+        stdio: ["pipe", "ignore", "pipe"],
+        detached: process.platform !== "win32",
+      },
+    );
 
-  return new Promise((resolve, reject) => {
     let hasStderr = false;
     let settled = false;
     let failed = false;
@@ -208,5 +214,5 @@ function writePasteAssetToWorkspace({
     } catch {
       fail();
     }
-  });
+  }).finally(cli.cleanup);
 }

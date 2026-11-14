@@ -1,6 +1,7 @@
-import { verifyCookie } from "@hive/auth";
+import { coderAuthCookieValues, verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { validCoderAuthCookie } from "./lib/auth/better-auth-cookie";
 import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
 import {
   buildContentSecurityPolicy,
@@ -21,7 +22,7 @@ function withContentSecurityPolicy(
   return response;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -42,7 +43,12 @@ export function proxy(request: NextRequest) {
   }
 
   const sessionCookieValues = getSessionCookieValuesFromHeader(request.headers.get("cookie"));
-  if (sessionCookieValues.length !== 1 || !sessionCookieValues[0]) {
+  const oauthEnabled = process.env.HIVE_CODER_OAUTH_ENABLED === "true";
+  const hasCoderAuthCookie =
+    oauthEnabled && coderAuthCookieValues(request.headers.get("cookie")).length > 0;
+  if (oauthEnabled && !hasCoderAuthCookie)
+    return withContentSecurityPolicy(NextResponse.redirect(new URL("/login", request.url)));
+  if (!hasCoderAuthCookie && (sessionCookieValues.length !== 1 || !sessionCookieValues[0])) {
     const loginUrl = new URL("/login", request.url);
     return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
@@ -54,7 +60,9 @@ export function proxy(request: NextRequest) {
     return withContentSecurityPolicy(NextResponse.redirect(loginUrl));
   }
 
-  const verifiedSessionCookie = verifyCookie(sessionCookieValues[0], cookieSecret);
+  const verifiedSessionCookie = hasCoderAuthCookie
+    ? await validCoderAuthCookie(request.headers.get("cookie"), cookieSecret)
+    : verifyCookie(sessionCookieValues[0], cookieSecret);
 
   if (verifiedSessionCookie) {
     const coderFrameUrls =

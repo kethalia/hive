@@ -12,7 +12,7 @@ export function getConfiguredCoderUrl() {
 export function isConfiguredCoderUrl(value: string) {
   return value === getConfiguredCoderUrl();
 }
-/** Legacy credential authority is refreshed for every stage, never stored in jobs. */
+/** Current credential authority is refreshed for every stage, never stored in jobs. */
 export async function authorizeTemplateActor(
   db: PrismaClient,
   identity: { ownerId: string; coderUserId: string; sessionId: string },
@@ -35,18 +35,15 @@ export async function authorizeTemplateActor(
   signal.throwIfAborted();
   if (!isConfiguredCoderUrl(client.getBaseUrl()))
     throw new TemplatePublicationError("actor_revoked");
-  const credential = await db.coderToken.findUnique({
-    where: { userId: identity.ownerId },
-    select: { expiresAt: true },
-  });
-  signal.throwIfAborted();
-  if (!credential || (credential.expiresAt && credential.expiresAt.getTime() <= Date.now()))
+  const tokenExpiresAt = client.getCredentialExpiresAt();
+  if (tokenExpiresAt && tokenExpiresAt.getTime() <= Date.now())
     throw new TemplatePublicationError("actor_revoked");
   return {
     ...identity,
     origin: client.getBaseUrl(),
     token: client.getSessionToken(),
     sessionExpiresAt: session.expiresAt,
-    tokenExpiresAt: credential.expiresAt,
+    tokenExpiresAt,
+    credentialSource: client.getCredentialSource(),
   };
 }

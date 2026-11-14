@@ -1,3 +1,5 @@
+import previewProfiles from "./preview-profiles.json" with { type: "json" };
+
 async function callAuth(auth, request, env, context) {
   const signal = request.signal;
   signal.throwIfAborted();
@@ -47,24 +49,24 @@ export function assertNativeEnvironment(env) {
       throw new Error("Background deployment unavailable");
     const production = env.HIVE_NATIVE_MODE === "production";
     const database = new URL(env.DATABASE_URL);
+    const profile = production
+      ? {
+          origin: "https://hive.kethalia.com",
+          databaseName: "hive_production",
+          databaseRole: "hive_production_runtime",
+        }
+      : Object.values(previewProfiles).find(
+          (candidate) => candidate.origin === env.HIVE_PUBLIC_ORIGIN,
+        );
     if (
-      env.HIVE_PREVIEW_ORIGIN_ALIAS !== undefined &&
-      (production ||
-        env.HIVE_PUBLIC_ORIGIN !==
-          "https://codex-hive-production-cutover.hive-preview.kethalia.com" ||
-        env.HIVE_PREVIEW_ORIGIN_ALIAS !==
-          "https://codex-hive-production-cutover-hive.b00ste.workers.dev")
-    )
-      throw new Error("Preview alias unavailable");
-    if (
-      decodeURIComponent(database.pathname.slice(1)) !== env.HIVE_DATABASE_NAME ||
-      decodeURIComponent(database.username) !== env.HIVE_DATABASE_ROLE ||
-      env.HIVE_DATABASE_NAME !== (production ? "hive_production" : "hive_foundation_preview") ||
-      env.HIVE_DATABASE_ROLE !==
-        (production ? "hive_production_runtime" : "hive_foundation_runtime") ||
-      (production
-        ? env.HIVE_PUBLIC_ORIGIN !== "https://hive.kethalia.com"
-        : env.HIVE_PUBLIC_ORIGIN === "https://hive.kethalia.com")
+      !profile ||
+      env.HIVE_DATABASE_NAME !== profile.databaseName ||
+      env.HIVE_DATABASE_ROLE !== profile.databaseRole ||
+      env.HIVE_PUBLIC_ORIGIN !== profile.origin ||
+      decodeURIComponent(database.pathname.slice(1)) !== profile.databaseName ||
+      decodeURIComponent(database.username) !== profile.databaseRole ||
+      (env.HIVE_PREVIEW_ORIGIN_ALIAS !== undefined &&
+        (production || env.HIVE_PREVIEW_ORIGIN_ALIAS !== profile.alias))
     )
       throw new Error("Background deployment unavailable");
   } catch {

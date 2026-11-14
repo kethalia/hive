@@ -12,6 +12,7 @@ const text = z
 export const settingsWindowSchema = z
   .object({
     email: text,
+    coderOAuthEnabled: z.boolean().optional(),
     coderUrl: z
       .string()
       .max(2048)

@@ -32,6 +32,7 @@ function mockToken(overrides: Record<string, unknown> = {}) {
 
 describe("getTokenStatus", () => {
   const mockDb = {
+    user: { findUnique: vi.fn(async () => ({ authMode: "legacy" })) },
     coderToken: { findFirst: vi.fn() },
   };
 

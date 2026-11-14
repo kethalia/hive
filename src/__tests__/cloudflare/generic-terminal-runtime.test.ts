@@ -23,7 +23,7 @@ const query = new URLSearchParams({
   width: "80",
   height: "24",
 }).toString();
-function fixture() {
+function fixture(credentialSource?: "legacy" | "oauth") {
   const url = `${origin}/ws?${query}`;
   const cookieSecret = "synthetic-cookie-secret";
   const ticket = createTerminalTicket(
@@ -52,10 +52,12 @@ function fixture() {
   };
   const credential: {
     token: unknown;
+    credentialSource?: "legacy" | "oauth";
     coderUrl: string;
     expiresAt: string | null;
   } = {
     token: "synthetic-coder-token",
+    credentialSource,
     coderUrl: coder,
     expiresAt: null,
   };
@@ -78,8 +80,12 @@ function fixture() {
     throw new Error("Unexpected private service path");
   });
   const provider = vi.fn<typeof fetch>(async (input, init) => {
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("synthetic-coder-token");
-    expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe(
+      credentialSource === "oauth" ? null : "synthetic-coder-token",
+    );
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
+      credentialSource === "oauth" ? "Bearer synthetic-coder-token" : null,
+    );
     expect(new Headers(init?.headers).has("Cookie")).toBe(false);
     expect(init?.redirect).toBe("manual");
     const path = new URL(String(input)).pathname;
@@ -129,6 +135,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("fixed private terminal authorization", () => {
+  it("authorizes OAuth identity and workspace using only Bearer headers", async () => {
+    const f = fixture("oauth");
+    const authorized = await f.authorize();
+    expect(authorized.credentialSource).toBe("oauth");
+    expect(f.provider).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects unknown credential source before contacting Coder", async () => {
+    const f = fixture();
+    Reflect.set(f.credential, "credentialSource", "unknown");
+    await expect(f.authorize()).rejects.toThrow();
+    expect(f.provider).not.toHaveBeenCalled();
+  });
+
   it("constructs diagnostics only from the injected sibling factory without opening a client", async () => {
     const f = fixture();
     const factory = vi.fn(() => {

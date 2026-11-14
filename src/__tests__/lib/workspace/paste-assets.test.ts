@@ -53,6 +53,7 @@ describe("uploadTerminalPasteAssets", () => {
     mockGetCoderClientForUser.mockResolvedValue({
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-token",
+      getCredentialSource: () => "legacy",
       getWorkspaceAgentName: vi.fn().mockResolvedValue("workspace.agent"),
     });
   });
@@ -185,6 +186,7 @@ describe("paste transfer bounds", () => {
     mockGetCoderClientForUser.mockResolvedValue({
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "fixture-token",
+      getCredentialSource: () => "legacy",
       getWorkspaceAgentName: vi.fn().mockResolvedValue("workspace.agent"),
     });
   });
@@ -327,6 +329,7 @@ it.skipIf(process.platform === "win32")(
     mockGetCoderClientForUser.mockResolvedValue({
       getBaseUrl: () => "https://coder.test",
       getSessionToken: () => "fixture-token",
+      getCredentialSource: () => "legacy",
       getWorkspaceAgentName: async () => "workspace.agent",
     });
     mockSpawn.mockImplementationOnce((_command, _args, options) => {
@@ -381,6 +384,7 @@ it.each([
   mockGetCoderClientForUser.mockResolvedValue({
     getBaseUrl: () => "https://coder.test",
     getSessionToken: () => "fixture-token",
+    getCredentialSource: () => "legacy",
     getWorkspaceAgentName: async () => "workspace.agent",
   });
   mockSpawn.mockImplementationOnce((_command, args, options) => {

@@ -1,10 +1,12 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// The eleven-migration application uses these exact runtime tables.
+// The twelve-migration application uses these exact runtime tables.
 export const runtimeTables = {
   mutable: ["users", "coder_tokens", "vapid_keys", "template_jobs", "template_notices"],
   deletable: [
+    "coder_oauth_accounts",
+    "better_auth_verifications",
     "sessions",
     "push_subscriptions",
     "navigation_favorites",
@@ -28,6 +30,12 @@ const profiles = {
     runtime: "hive_foundation_runtime",
     other: "hive_production_runtime",
   },
+  "oauth-preview": {
+    database: "hive_coder_oauth_preview",
+    owner: "hive_epic_owner",
+    runtime: "hive_coder_oauth_runtime",
+    other: "hive_production_runtime",
+  },
   "local-test": {
     database: "hive_cutover_migrations_20261113",
     owner: "coder",
@@ -47,6 +55,7 @@ export const cutoverMigrationNames = [
   "20261113020000_terminal_diagnostics",
   "20261113030000_template_jobs",
   "20261113040000_legacy_rotation_leases",
+  "20261114010000_coder_oauth_better_auth",
 ];
 const array = (values) => `ARRAY[${values.map((value) => `'${value}'`).join(",")}]`;
 
@@ -60,7 +69,9 @@ export function runtimeGrantsSql(target, databaseOid) {
     databaseOid <= 0 ||
     databaseOid > 4294967295
   )
-    throw Error("Select production, preview or local-test and an exact PostgreSQL database OID");
+    throw Error(
+      "Select production, preview, oauth-preview or local-test and an exact PostgreSQL database OID",
+    );
   const { database, owner, runtime, other } = profile;
   const tables = Object.values(runtimeTables).flat().sort();
   return `BEGIN;
@@ -137,7 +148,7 @@ COMMIT;
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv.length !== 4)
     throw Error(
-      "Usage: node runtime-grants.mjs <production|preview|local-test> <database-oid> (prints SQL only)",
+      "Usage: node runtime-grants.mjs <production|preview|oauth-preview|local-test> <database-oid> (prints SQL only)",
     );
   process.stdout.write(runtimeGrantsSql(process.argv[2], Number(process.argv[3])));
 }

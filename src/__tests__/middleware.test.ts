@@ -15,10 +15,45 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("proxy", () => {
-  it("keeps the marketing homepage public without exposing dashboard routes", () => {
-    const homepageResponse = proxy(new NextRequest("https://hive.local.kethalia.com/"));
-    const dashboardResponse = proxy(new NextRequest("https://hive.local.kethalia.com/workspaces"));
+describe("proxy", async () => {
+  it.each([
+    "__Host-hive-auth=stale",
+    "__Host-hive-auth=one; __Host-hive-auth=two",
+  ])("ignores disabled OAuth cookies while admitting the protected legacy cookie: %s", async (stale) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example.com");
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    mockVerifyCookie.mockReturnValue({ sessionId: "legacy-session", timestamp: Date.now() });
+    const response = await proxy(
+      new NextRequest("https://hive.example.com/workspaces", {
+        headers: { cookie: `${stale}; __Host-hive-session=signed-legacy` },
+      }),
+    );
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
+    expect(mockVerifyCookie).toHaveBeenCalledWith("signed-legacy", "test-secret");
+  });
+
+  it("keeps enabled OAuth authoritative over a valid legacy cookie", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("HIVE_PUBLIC_ORIGIN", "https://hive.example.com");
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+    vi.stubEnv("COOKIE_SECRET", "test-secret");
+    const response = await proxy(
+      new NextRequest("https://hive.example.com/workspaces", {
+        headers: { cookie: "__Host-hive-auth=stale; __Host-hive-session=signed-legacy" },
+      }),
+    );
+    expect(response.headers.get("location")).toBe("https://hive.example.com/login");
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
+
+  it("keeps the marketing homepage public without exposing dashboard routes", async () => {
+    const homepageResponse = await proxy(new NextRequest("https://hive.local.kethalia.com/"));
+    const dashboardResponse = await proxy(
+      new NextRequest("https://hive.local.kethalia.com/workspaces"),
+    );
 
     expect(homepageResponse.headers.get("location")).toBeNull();
     expect(
@@ -27,7 +62,7 @@ describe("proxy", () => {
     expect(dashboardResponse.headers.get("location")).toBe("https://hive.local.kethalia.com/login");
   });
 
-  it("refreshes a valid session cookie onto COOKIE_DOMAIN", () => {
+  it("refreshes a valid session cookie onto COOKIE_DOMAIN", async () => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     vi.stubEnv("COOKIE_DOMAIN", ".hive.local.kethalia.com");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
@@ -38,7 +73,7 @@ describe("proxy", () => {
       },
     });
 
-    const response = proxy(request);
+    const response = await proxy(request);
     const setCookie = response.headers.get("set-cookie");
 
     expect(mockVerifyCookie).toHaveBeenCalledWith("signed-value", "test-secret");
@@ -65,7 +100,7 @@ describe("proxy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("allows workspace applications beneath an apex Coder application host", () => {
+  it("allows workspace applications beneath an apex Coder application host", async () => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
 
@@ -73,25 +108,25 @@ describe("proxy", () => {
       headers: { cookie: "hive-session=signed-value; hive-coder-host=example.com" },
     });
 
-    expect(proxy(request).headers.get("content-security-policy")).toContain(
+    expect((await proxy(request)).headers.get("content-security-policy")).toContain(
       "https://example.com https://*.example.com",
     );
   });
 
-  it("allows workspace applications beneath a suffix-style Coder application host", () => {
+  it("allows workspace applications beneath a suffix-style Coder application host", async () => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
 
     const request = new NextRequest("https://hive.example.com/workspaces", {
       headers: { cookie: "hive-session=signed-value; hive-coder-host=*--suffix.au.example.com" },
     });
-    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+    const policy = (await proxy(request)).headers.get("content-security-policy") ?? "";
 
     expect(policy).toContain("https://*.au.example.com");
     expect(policy).not.toContain("https://*.*--suffix.au.example.com");
   });
 
-  it("preserves HTTP frame sources stored for a non-TLS Coder deployment", () => {
+  it("preserves HTTP frame sources stored for a non-TLS Coder deployment", async () => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     mockVerifyCookie.mockReturnValue({ sessionId: "sess-123", timestamp: Date.now() });
     const frameSources = encodeURIComponent("http://localhost:7080~http://apps.localhost:7080");
@@ -99,7 +134,7 @@ describe("proxy", () => {
       headers: { cookie: `hive-session=signed-value; hive-coder-host=${frameSources}` },
     });
 
-    const policy = proxy(request).headers.get("content-security-policy") ?? "";
+    const policy = (await proxy(request)).headers.get("content-security-policy") ?? "";
     expect(policy).toContain("http://localhost:7080 http://*.localhost:7080");
     expect(policy).toContain("http://apps.localhost:7080 http://*.apps.localhost:7080");
   });
@@ -109,10 +144,10 @@ describe("proxy", () => {
     "hive-session=attacker; hive-session=victim",
     "hive-session=same; hive-session=same",
     "hive-session=; hive-session=victim",
-  ])("rejects ambiguous cookies without selecting by browser order or timestamp: %s", (cookie) => {
+  ])("rejects ambiguous cookies without selecting by browser order or timestamp: %s", async (cookie) => {
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     mockVerifyCookie.mockReturnValue({ sessionId: "attacker", timestamp: Date.now() });
-    const response = proxy(
+    const response = await proxy(
       new NextRequest("https://hive.example.com/workspaces", { headers: { cookie } }),
     );
     expect(response.headers.get("location")).toBe("https://hive.example.com/login");
@@ -120,10 +155,10 @@ describe("proxy", () => {
     expect(mockVerifyCookie).not.toHaveBeenCalled();
   });
 
-  it("requires a fresh production login instead of trusting a legacy domain cookie", () => {
+  it("requires a fresh production login instead of trusting a legacy domain cookie", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("COOKIE_SECRET", "test-secret");
-    const response = proxy(
+    const response = await proxy(
       new NextRequest("https://hive.example.com/workspaces", {
         headers: { cookie: "hive-session=legacy-valid" },
       }),
@@ -132,11 +167,11 @@ describe("proxy", () => {
     expect(mockVerifyCookie).not.toHaveBeenCalled();
   });
 
-  it("uses the protected cookie even alongside attacker-planted legacy cookies", () => {
+  it("uses the protected cookie even alongside attacker-planted legacy cookies", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("COOKIE_SECRET", "test-secret");
     mockVerifyCookie.mockReturnValue({ sessionId: "victim", timestamp: Date.now() });
-    const response = proxy(
+    const response = await proxy(
       new NextRequest("https://hive.example.com/workspaces", {
         headers: {
           cookie: "hive-session=attacker; __Host-hive-session=victim; hive-session=another",
@@ -150,8 +185,8 @@ describe("proxy", () => {
   });
 });
 
-it("lets discovery routes return their own JSON authentication errors instead of login HTML", () => {
-  const response = proxy(new NextRequest("https://hive.example/api/discovery/workspaces"));
+it("lets discovery routes return their own JSON authentication errors instead of login HTML", async () => {
+  const response = await proxy(new NextRequest("https://hive.example/api/discovery/workspaces"));
   expect(response.headers.get("location")).toBeNull();
   expect(response.headers.get("x-middleware-next")).toBe("1");
 });

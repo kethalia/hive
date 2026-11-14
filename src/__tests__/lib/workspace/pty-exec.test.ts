@@ -95,6 +95,7 @@ class PythonSocket implements RelaySocket {
 }
 function fixture(
   settings: {
+    credentialSource?: "oauth";
     changed?: boolean;
     wrongOwner?: boolean;
     duplicate?: boolean;
@@ -111,7 +112,16 @@ function fixture(
     urls.push(url.toString());
     expect(url.origin).toBe(origin);
     expect(init?.redirect).toBe("manual");
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe(options.sessionToken);
+    expect(
+      new Headers(init?.headers).get(
+        settings.credentialSource ? "Authorization" : "Coder-Session-Token",
+      ),
+    ).toBe(settings.credentialSource ? `Bearer ${options.sessionToken}` : options.sessionToken);
+    expect(
+      new Headers(init?.headers).has(
+        settings.credentialSource ? "Coder-Session-Token" : "Authorization",
+      ),
+    ).toBe(false);
     if (url.pathname === "/api/v2/users/me") return Response.json({ id: owner, username: "coder" });
     if (url.pathname === "/api/v2/users/me/workspace/fixture") {
       reads++;
@@ -155,6 +165,17 @@ afterEach(async () => {
 });
 
 describe("trusted workspace exec over Coder PTY", () => {
+  it("carries only OAuth Bearer through fresh ownership checks and command upgrade", async () => {
+    const f = fixture({ credentialSource: "oauth" });
+    const result = await execWorkspacePty(
+      "coder/fixture.main",
+      "printf oauth",
+      { ...options, credentialSource: "oauth" },
+      f.fetcher,
+    );
+    expect(result).toEqual({ stdout: "oauth", stderr: "", exitCode: 0 });
+  });
+
   it("retries only an early close before the first payload, with fresh nonce and authorization", async () => {
     const f = fixture({ earlyCloses: 1 });
     expect(await execWorkspacePty("fixture.main", "printf success", options, f.fetcher)).toEqual({

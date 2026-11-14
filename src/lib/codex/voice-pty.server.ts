@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { deflateSync } from "node:zlib";
+import { coderCredentialHeaders } from "@hive/auth";
 import type { RelaySocket } from "@/lib/terminal/relay-types";
 import { cancelTerminalBody, terminalFetch } from "@/lib/terminal/transport-io";
 import type { authorizeOwnedWorkspacePty } from "../../../deploy/cloudflare/app/generic-terminal-runtime";
@@ -328,7 +329,10 @@ export async function openVoicePty(
       command: voicePtyCommand(nonce, seconds, threadId),
     }).toString();
     const upgrade = (dependencies.fetch ?? fetch)(url, {
-      headers: { Upgrade: "websocket", "Coder-Session-Token": authority.token },
+      headers: {
+        Upgrade: "websocket",
+        ...coderCredentialHeaders(authority.token, authority.credentialSource),
+      },
       redirect: "manual",
       credentials: "omit",
       signal: controller.signal,

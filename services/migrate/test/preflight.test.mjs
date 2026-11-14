@@ -4,9 +4,47 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { executePrisma, migrate, migrationSchema, preflightSql } from "../src/migrate.mjs";
+import { cutoverMigrationNames, runtimeGrantsSql, runtimeTables } from "../src/runtime-grants.mjs";
 
 const databaseUrl = "postgresql://fixture:secret@localhost/hive";
 const success = { code: 0, output: "" };
+
+test("OAuth preview grants select the isolated database, owner, role and current schema", () => {
+  const sql = runtimeGrantsSql("oauth-preview", 12345);
+  assert(sql.includes("current_database()<>'hive_coder_oauth_preview'"));
+  assert(sql.includes("current_user<>'hive_epic_owner'"));
+  assert(sql.includes("oid=12345"));
+  assert(
+    sql.includes(
+      'GRANT CONNECT ON DATABASE "hive_coder_oauth_preview" TO "hive_coder_oauth_runtime"',
+    ),
+  );
+  assert(sql.includes("ARRAY['hive_coder_oauth_runtime','hive_production_runtime']"));
+  assert(sql.includes("'coder_oauth_accounts'"));
+  assert(sql.includes("'better_auth_verifications'"));
+  assert.equal(cutoverMigrationNames.length, 12);
+  assert.equal(Object.values(runtimeTables).flat().length, 15);
+  assert(!sql.includes("hive_foundation_runtime"));
+});
+
+test("the existing foundation preview grant target retains its database and role", () => {
+  const sql = runtimeGrantsSql("preview", 12345);
+  assert(sql.includes("current_database()<>'hive_foundation_preview'"));
+  assert(
+    sql.includes(
+      'GRANT CONNECT ON DATABASE "hive_foundation_preview" TO "hive_foundation_runtime"',
+    ),
+  );
+  assert(sql.includes("ARRAY['hive_foundation_runtime','hive_production_runtime']"));
+  assert(!sql.includes("hive_coder_oauth_runtime"));
+});
+
+test("grant generation rejects unknown profiles and invalid OIDs before emitting SQL", () => {
+  for (const target of ["unknown", "__proto__", "constructor"])
+    assert.throws(() => runtimeGrantsSql(target, 12345), /oauth-preview/);
+  for (const oid of [0, -1, 1.5, Number.NaN, 4294967296])
+    assert.throws(() => runtimeGrantsSql("oauth-preview", oid), /database OID/);
+});
 
 test("defaults to public and honors a custom schema", () => {
   assert.equal(migrationSchema(databaseUrl), "public");

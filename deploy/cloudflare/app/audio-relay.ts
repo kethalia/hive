@@ -1,3 +1,4 @@
+import { coderCredentialHeaders } from "@hive/auth";
 import {
   buildPtyUrl,
   SAFE_IDENTIFIER_RE,
@@ -356,7 +357,7 @@ export async function openAudioRelay(
       signal,
       headers: {
         Upgrade: "websocket",
-        "Coder-Session-Token": authority.token,
+        ...coderCredentialHeaders(authority.token, authority.credentialSource),
       },
     });
     upstream = response.webSocket;

@@ -81,6 +81,7 @@ export interface LoginResponse {
 }
 
 export interface CoderTokenResponse {
+  credentialSource?: "legacy" | "oauth";
   token: string;
   coderUrl: string;
   expiresAt: string | null;

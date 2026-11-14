@@ -16,6 +16,7 @@ const context = { params: Promise.resolve({ workspaceId: "workspace-1" }) };
 const client = () => ({
   getBaseUrl: () => "https://coder.test",
   getSessionToken: () => "fixture-token",
+  getCredentialSource: () => "legacy",
   getWorkspaceAgentName: vi.fn().mockResolvedValue("workspace.agent"),
 });
 function request(signal?: AbortSignal) {

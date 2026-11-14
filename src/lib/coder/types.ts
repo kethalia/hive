@@ -55,6 +55,8 @@ export interface WorkspaceBuildRequest {
 export interface CoderClientConfig {
   baseUrl: string;
   sessionToken: string;
+  credentialSource?: import("@hive/auth").CoderCredentialSource;
+  credentialExpiresAt?: Date | null;
   signal?: AbortSignal;
 }
 

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { coderOAuthEnabled } from "../auth/coder-oauth-config.js";
 import { ErrorCode } from "../auth/constants.js";
 import { performLogin } from "../auth/login.js";
 import { loginRateLimiter } from "../auth/rate-limit.js";
@@ -13,6 +14,10 @@ function getClientIp(req: IncomingMessage): string {
 }
 
 export async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (coderOAuthEnabled()) {
+    sendError(res, 410, "Continue with Coder", "CODER_OAUTH_REQUIRED");
+    return;
+  }
   const body = (await parseBody(req)) as Record<string, unknown> | undefined;
 
   if (!body || typeof body !== "object") {

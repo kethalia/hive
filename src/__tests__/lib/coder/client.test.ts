@@ -50,6 +50,29 @@ describe("CoderClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("uses only Bearer for OAuth API and file requests", async () => {
+    const expiry = new Date("2030-01-01");
+    const client = new CoderClient({
+      baseUrl: BASE_URL,
+      sessionToken: TOKEN,
+      credentialSource: "oauth",
+      credentialExpiresAt: expiry,
+    });
+    fetchSpy.mockResolvedValueOnce(jsonResponse(mockWorkspace()));
+    await client.getWorkspace("ws-123");
+    expect(new Headers(fetchSpy.mock.calls[0][1].headers).get("Authorization")).toBe(
+      `Bearer ${TOKEN}`,
+    );
+    expect(new Headers(fetchSpy.mock.calls[0][1].headers).has("Coder-Session-Token")).toBe(false);
+    expect(client.getCredentialExpiresAt()).toBe(expiry);
+    expect(client.getCredentialSource()).toBe("oauth");
+    fetchSpy.mockResolvedValueOnce(new Response(new Uint8Array([1, 2])));
+    await client.fetchTemplateFiles("file-1");
+    expect(new Headers(fetchSpy.mock.calls[1][1].headers).get("Authorization")).toBe(
+      `Bearer ${TOKEN}`,
+    );
+  });
+
   // ── createWorkspace ────────────────────────────────────────────
 
   it("createWorkspace sends correct URL, method, headers, and body", async () => {

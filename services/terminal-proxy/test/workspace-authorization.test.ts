@@ -33,6 +33,20 @@ describe("verifyWorkspaceAgentAccess", () => {
     );
   });
 
+  it("uses Bearer for OAuth workspace checks", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        latest_build: { resources: [{ agents: [{ id: input.agentId }] }] },
+      }),
+    );
+    await expect(
+      verifyWorkspaceAgentAccess({ ...input, credentialSource: "oauth" }),
+    ).resolves.toEqual({ ok: true });
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get("Authorization")).toBe(`Bearer ${input.token}`);
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+  });
+
   it("rejects an agent from a different workspace", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

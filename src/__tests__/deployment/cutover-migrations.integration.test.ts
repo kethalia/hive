@@ -63,23 +63,45 @@ const seed = `
  INSERT INTO vapid_keys(id,public_key,private_key) VALUES(1,'old-vapid-public','old-vapid-private');
  INSERT INTO notification_sources(id,user_id,workspace_id,workspace_name,token_hash,pending_token_hash,credential_generation) VALUES('${source}','${user}','${coder}','old-workspace',repeat('a',64),repeat('b',64),2);
 `;
-async function snapshot(schema: string, upgraded = false) {
+async function snapshot(schema: string, baseline: 7 | 11 = 7) {
   const result: Record<string, unknown> = {};
-  for (const table of oldTables) {
-    const value =
-      table === "coder_tokens" && upgraded
-        ? "to_jsonb(t)-ARRAY['rotation_next_at','rotation_lease_id','rotation_lease_until','rotation_state','warning_next_at']"
-        : "to_jsonb(t)";
+  const tables =
+    baseline === 7
+      ? oldTables
+      : Object.values(runtimeTables)
+          .flat()
+          .filter(
+            (table) => !["coder_oauth_accounts", "better_auth_verifications"].includes(table),
+          );
+  const additions: Record<string, string[]> = {
+    users: ["email_verified", "image", "auth_mode"],
+    sessions: ["auth_token", "updated_at", "ip_address", "user_agent"],
+    coder_tokens:
+      baseline === 7
+        ? [
+            "rotation_next_at",
+            "rotation_lease_id",
+            "rotation_lease_until",
+            "rotation_state",
+            "warning_next_at",
+          ]
+        : [],
+  };
+  for (const table of tables) {
+    const columns = additions[table] ?? [];
+    const value = columns.length
+      ? `to_jsonb(t)-ARRAY[${columns.map((column) => `'${column}'`).join(",")}]`
+      : "to_jsonb(t)";
     result[table] = JSON.parse(
       await sql(
-        `SELECT coalesce(jsonb_agg(${value} ORDER BY id),'[]'::jsonb) FROM ${schema}.${table} t`,
+        `SELECT coalesce(jsonb_agg(${value} ORDER BY (${value})::text),'[]'::jsonb) FROM ${schema}.${table} t`,
       ),
     );
   }
   return result;
 }
-suite("eleven-migration cutover and runtime permissions", () => {
-  it("fresh + seeded seven-migration upgrade preserve bytes and enforce runtime/constraint boundaries", async () => {
+suite("twelve-migration cutover and runtime permissions", () => {
+  it("fresh + seeded seven/eleven-migration upgrades preserve bytes and enforce runtime/constraint boundaries", async () => {
     const identity = JSON.parse(
       await sql(
         "SELECT json_build_object('database',current_database(),'role',current_user,'oid',(SELECT oid FROM pg_database WHERE datname=current_database()))",
@@ -102,7 +124,7 @@ suite("eleven-migration cutover and runtime permissions", () => {
       const names = (await readdir(resolve(root, "packages/db/prisma/migrations")))
         .filter((name) => name !== "migration_lock.toml")
         .sort();
-      expect(names).toHaveLength(11);
+      expect(names).toHaveLength(12);
       await mkdir(join(temp, "migrations"));
       await cp(schemaPath, join(temp, "schema.prisma"));
       await cp(
@@ -124,20 +146,52 @@ suite("eleven-migration cutover and runtime permissions", () => {
         log: () => {},
       });
       await sql(`SET search_path=upgrade_fixture;${seed}`);
+      const secondUser = "40000000-0000-4000-8000-000000000004";
+      await sql(
+        `INSERT INTO upgrade_fixture.users(id,coder_url,coder_user_id,username,email,updated_at)
+          VALUES('${secondUser}','https://second-coder.fixture.invalid','${coder}','second-user','fixture@example.invalid',now());
+         INSERT INTO upgrade_fixture.sessions(id,session_id,user_id,expires_at)
+          VALUES('${secondUser}','${secondUser}','${secondUser}',now()+interval '1 day');`,
+      );
       const before = await snapshot("upgrade_fixture");
       const historyBefore = JSON.parse(
         await sql(
           "SELECT json_agg(t ORDER BY migration_name) FROM upgrade_fixture._prisma_migrations t",
         ),
       );
+      for (const name of names.slice(7, 11))
+        await cp(
+          resolve(root, "packages/db/prisma/migrations", name),
+          join(temp, "migrations", name),
+          { recursive: true },
+        );
+      await migrate({
+        databaseUrl: upgrade.href,
+        schemaPath: join(temp, "schema.prisma"),
+        log: () => {},
+      });
+      expect(await snapshot("upgrade_fixture")).toEqual(before);
+      await sql(
+        `UPDATE upgrade_fixture.coder_tokens SET rotation_next_at='2026-11-01T00:00:00Z',
+          rotation_lease_id='${source}',rotation_lease_until='2026-11-01T00:01:00Z',
+          rotation_state='{"retained":true}',warning_next_at='2026-11-02T00:00:00Z';`,
+      );
+      const elevenBefore = await snapshot("upgrade_fixture", 11);
+      const elevenHistory = JSON.parse(
+        await sql(
+          "SELECT json_agg(t ORDER BY migration_name) FROM upgrade_fixture._prisma_migrations t",
+        ),
+      );
       await migrate({ databaseUrl: upgrade.href, schemaPath, log: () => {} });
-      expect(await snapshot("upgrade_fixture", true)).toEqual(before);
+      expect(await snapshot("upgrade_fixture")).toEqual(before);
+      expect(await snapshot("upgrade_fixture", 11)).toEqual(elevenBefore);
       const historyAfter = JSON.parse(
         await sql(
           "SELECT json_agg(t ORDER BY migration_name) FROM upgrade_fixture._prisma_migrations t",
         ),
       );
       expect(historyAfter.slice(0, 7)).toEqual(historyBefore);
+      expect(historyAfter.slice(0, 11)).toEqual(elevenHistory);
       for (const schema of ["public", "upgrade_fixture"]) {
         const history = JSON.parse(
           await sql(
@@ -165,11 +219,44 @@ suite("eleven-migration cutover and runtime permissions", () => {
         const token = await client.coderToken.findUniqueOrThrow({ where: { userId: user } });
         expect(Buffer.from(token.ciphertext).toString("hex")).toBe("00ffdeadbeef");
         expect(token.rotationNextAt).toBeInstanceOf(Date);
-        expect(token.rotationState).toBeNull();
-        expect(token.rotationLeaseId).toBeNull();
+        expect(token.rotationState).toEqual({ retained: true });
+        expect(token.rotationLeaseId).toBe(source);
         expect(
           (await client.session.findUniqueOrThrow({ where: { sessionId: coder } })).userId,
         ).toBe(user);
+        const legacySession = await client.session.findUniqueOrThrow({
+          where: { sessionId: coder },
+        });
+        expect(legacySession.authToken).toBeNull();
+        expect(legacySession.ipAddress).toBeNull();
+        expect(legacySession.userAgent).toBeNull();
+        expect(legacySession.updatedAt).toBeInstanceOf(Date);
+        const accounts = await client.coderOAuthAccount.findMany({ orderBy: { userId: "asc" } });
+        expect(accounts).toHaveLength(2);
+        expect(accounts.map((account) => account.userId)).toEqual([user, secondUser]);
+        for (const account of accounts) {
+          const owner = await client.user.findUniqueOrThrow({ where: { id: account.userId } });
+          expect(owner.authMode).toBe("legacy");
+          expect(owner.emailVerified).toBe(false);
+          expect(owner.image).toBeNull();
+          expect(account.accountId).toBe(`${owner.coderUrl}|${owner.coderUserId}`);
+          expect(account.providerId).toBe("coder");
+          expect(account.accessToken).toBeNull();
+          expect(account.refreshToken).toBeNull();
+          expect(account.idToken).toBeNull();
+          expect(account.password).toBeNull();
+          expect(account.version).toBe(1);
+          expect(account.refreshState).toBe("idle");
+          expect(account.refreshHolder).toBeNull();
+          expect(account.refreshUntil).toBeNull();
+        }
+        // The trigger resolves its own schema even when the caller's search
+        // path points elsewhere. The same UUID is deliberately valid in both.
+        await sql(
+          `SET search_path=public;
+           UPDATE upgrade_fixture.coder_oauth_accounts SET scope='fixture-scope'
+             WHERE user_id='${secondUser}';`,
+        );
         expect((await client.vapidKeys.findUniqueOrThrow({ where: { id: 1 } })).privateKey).toBe(
           "old-vapid-private",
         );
@@ -177,7 +264,7 @@ suite("eleven-migration cutover and runtime permissions", () => {
         await client.$disconnect();
       }
       await sql(seed);
-      const freshBefore = await snapshot("public", true);
+      const freshBefore = await snapshot("public");
       // Reproduce current production blanket defaults and opposite-environment grants.
       await sql(
         `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,UPDATE,DELETE ON TABLES TO ${runtime}; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE,SELECT ON SEQUENCES TO ${runtime}; GRANT ALL ON ALL TABLES IN SCHEMA public TO ${runtime},${other}; GRANT USAGE ON SCHEMA public TO ${other};`,
@@ -185,12 +272,12 @@ suite("eleven-migration cutover and runtime permissions", () => {
       await expect(sql(runtimeGrantsSql("local-test", identity.oid + 1))).rejects.toThrow();
       await sql(runtimeGrantsSql("local-test", identity.oid));
       await sql(runtimeGrantsSql("local-test", identity.oid)); // exact reapplication is harmless
-      expect(await snapshot("public", true)).toEqual(freshBefore);
+      expect(await snapshot("public")).toEqual(freshBefore);
       const runUrl = new URL(connection as string);
       runUrl.username = runtime;
       const q = (text: string) => sql(text, runUrl.href);
       const tables = Object.values(runtimeTables).flat();
-      expect(tables).toHaveLength(13);
+      expect(tables).toHaveLength(15);
       for (const table of tables) {
         expect(
           await q(
@@ -220,6 +307,85 @@ suite("eleven-migration cutover and runtime permissions", () => {
       } finally {
         await runtimeClient.$disconnect();
       }
+      // Better Auth adds only scoped storage privileges. Legacy UUID sessions
+      // coexist with nullable OAuth tokens and retain their original IDs.
+      await q(
+        `INSERT INTO coder_oauth_accounts(id,account_id,provider_id,user_id)
+          VALUES('${user}','https://coder.fixture.invalid|${coder}','coder','${user}');
+         INSERT INTO better_auth_verifications(id,identifier,value,expires_at)
+          VALUES('${user}','fixture-state','synthetic-value',now()+interval '5 minutes');
+         UPDATE better_auth_verifications SET value='synthetic-updated' WHERE id='${user}';
+         UPDATE sessions SET auth_token='synthetic-auth-session',ip_address='127.0.0.1',user_agent='fixture' WHERE id='${user}';
+         INSERT INTO sessions(id,session_id,user_id,expires_at)
+          VALUES('${source}','${source}','${user}',now()+interval '1 day');`,
+      );
+      await expect(
+        q(`UPDATE sessions SET auth_token='synthetic-auth-session' WHERE id='${source}'`),
+      ).rejects.toThrow();
+      await expect(q(`UPDATE users SET auth_mode='unknown' WHERE id='${user}'`)).rejects.toThrow();
+      await q(`UPDATE users SET auth_mode='oauth' WHERE id='${user}'`);
+      await q(
+        `UPDATE coder_oauth_accounts SET access_token='synthetic-encrypted-access',
+          refresh_token='synthetic-encrypted-refresh' WHERE id='${user}';
+         UPDATE coder_oauth_accounts SET refresh_state='refreshing',refresh_holder='${coder}',
+          refresh_until=now()+interval '1 minute' WHERE id='${user}';`,
+      );
+      expect(await q(`SELECT version FROM coder_oauth_accounts WHERE id='${user}'`)).toBe("2");
+      for (const assignment of [
+        "provider_id='other'",
+        `user_id='${coder}'`,
+        `id='${coder}'`,
+        "account_id='other-account'",
+        "version=version-1",
+        "version=version+2",
+        "refresh_state='unknown'",
+        "refresh_state='idle'",
+        "refresh_until=NULL",
+      ])
+        await expect(
+          q(`UPDATE coder_oauth_accounts SET ${assignment} WHERE id='${user}'`),
+        ).rejects.toThrow();
+      await q(
+        `UPDATE coder_oauth_accounts SET refresh_state='reconnect',refresh_holder=NULL,
+          refresh_until=NULL,access_token=NULL,refresh_token=NULL WHERE id='${user}';`,
+      );
+      expect(await q(`SELECT version FROM coder_oauth_accounts WHERE id='${user}'`)).toBe("3");
+      await q(
+        `UPDATE coder_oauth_accounts SET access_token_expires_at='2026-11-20T00:00:00Z'
+          WHERE id='${user}';`,
+      );
+      expect(await q(`SELECT version FROM coder_oauth_accounts WHERE id='${user}'`)).toBe("4");
+      await q(`UPDATE coder_oauth_accounts SET refresh_state='idle' WHERE id='${user}'`);
+      expect(await q(`SELECT version FROM coder_oauth_accounts WHERE id='${user}'`)).toBe("4");
+      await expect(
+        q(
+          `INSERT INTO coder_oauth_accounts(id,account_id,provider_id,user_id)
+           VALUES('${coder}','https://coder.fixture.invalid|${coder}','other','${user}')`,
+        ),
+      ).rejects.toThrow();
+      await expect(
+        q(
+          `INSERT INTO coder_oauth_accounts(id,account_id,provider_id,user_id)
+           VALUES('${coder}','mismatched-account','coder','${user}')`,
+        ),
+      ).rejects.toThrow();
+      await expect(
+        q(
+          `INSERT INTO coder_oauth_accounts(id,account_id,provider_id,user_id)
+           VALUES('${coder}','https://coder.fixture.invalid|${coder}','coder','${user}')`,
+        ),
+      ).rejects.toThrow();
+      await q(
+        `INSERT INTO users(id,coder_url,coder_user_id,username,email,updated_at)
+          VALUES('${secondUser}','https://second-coder.fixture.invalid','${coder}','cascade-fixture','same-email@example.invalid',now());
+         INSERT INTO coder_oauth_accounts(id,account_id,provider_id,user_id)
+          VALUES('${secondUser}','https://second-coder.fixture.invalid|${coder}','coder','${secondUser}');`,
+      );
+      await sql(`DELETE FROM users WHERE id='${secondUser}'`);
+      expect(
+        await q(`SELECT count(*) FROM coder_oauth_accounts WHERE user_id='${secondUser}'`),
+      ).toBe("0");
+      await q("DELETE FROM coder_oauth_accounts; DELETE FROM better_auth_verifications;");
       expect(
         await sql(
           `SELECT count(*) FROM pg_database d CROSS JOIN LATERAL aclexplode(coalesce(d.datacl,acldefault('d',d.datdba))) a WHERE a.grantee=(SELECT oid FROM pg_roles WHERE rolname='${runtime}') AND d.datname<>current_database()`,
@@ -276,6 +442,8 @@ suite("eleven-migration cutover and runtime permissions", () => {
         "ALTER TABLE users ADD COLUMN unauthorized int",
         "ALTER ROLE hive_cutover_fixture_runtime_20261113 CREATEDB",
         "DELETE FROM template_jobs",
+        "DELETE FROM users",
+        "SELECT hive_coder_oauth_account_guard()",
         "UPDATE terminal_events SET type='changed'",
         "SELECT setval('terminal_events_id_seq',100)",
       ])

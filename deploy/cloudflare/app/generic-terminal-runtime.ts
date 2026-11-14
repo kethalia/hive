@@ -1,5 +1,6 @@
 import {
   authServiceHeaders,
+  coderCredentialHeaders,
   isLoopbackHostname,
   verifyCloneTerminalProof,
   verifyTerminalTicket,
@@ -50,6 +51,7 @@ const tokenSchema = z
       .regex(/^[!-~]+$/),
     coderUrl: z.string(),
     expiresAt: z.string().nullable(),
+    credentialSource: z.enum(["legacy", "oauth"]).optional(),
   })
   .strict();
 
@@ -111,13 +113,18 @@ export async function authorizeOwnedWorkspacePty(
     (agentId !== undefined && !uuid.safeParse(agentId).success)
   )
     throw new Error("workspace");
-  async function json(path: string, token: string, signal: AbortSignal) {
+  async function json(
+    path: string,
+    token: string,
+    signal: AbortSignal,
+    source?: "legacy" | "oauth",
+  ) {
     const response = await terminalFetch(
       fetcher(`${coderOrigin}${path}`, {
         redirect: "manual",
         credentials: "omit",
         signal,
-        headers: { "Coder-Session-Token": token, Accept: "application/json" },
+        headers: { ...coderCredentialHeaders(token, source), Accept: "application/json" },
       }),
       signal,
     );
@@ -156,8 +163,13 @@ export async function authorizeOwnedWorkspacePty(
   )
     throw new GenericTerminalFailure(4401);
   const [user, workspace] = await settledPair(
-    json("/api/v2/users/me", credential.token, signal),
-    json(`/api/v2/workspaces/${workspaceId}`, credential.token, signal),
+    json("/api/v2/users/me", credential.token, signal, credential.credentialSource),
+    json(
+      `/api/v2/workspaces/${workspaceId}`,
+      credential.token,
+      signal,
+      credential.credentialSource,
+    ),
   );
   const current = workspaceSchema.parse(workspace);
   const agents = current.latest_build.resources
@@ -184,6 +196,7 @@ export async function authorizeOwnedWorkspacePty(
     coderOrigin,
     buildId: current.latest_build.id,
     token: credential.token,
+    ...(credential.credentialSource ? { credentialSource: credential.credentialSource } : {}),
     expiresAt: Math.min(sessionExpiry, tokenExpiry),
   };
 }
@@ -323,7 +336,10 @@ export function createGenericTerminalDependencies(
             redirect: "manual",
             credentials: "omit",
             signal,
-            headers: { "Content-Type": "application/json", "Coder-Session-Token": authority.token },
+            headers: {
+              "Content-Type": "application/json",
+              ...coderCredentialHeaders(authority.token, authority.credentialSource),
+            },
             body: JSON.stringify({ deadline: new Date(Date.now() + 3600000).toISOString() }),
           }),
           signal,

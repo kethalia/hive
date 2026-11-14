@@ -1,7 +1,9 @@
+import { type CoderCredentialSource, coderCredentialHeaders } from "@hive/auth";
 import { fetchCoderApi } from "./coder-fetch.js";
 
 export interface ConnectionMeta {
   token: string;
+  credentialSource?: CoderCredentialSource;
   coderUrl: string;
 }
 
@@ -481,7 +483,7 @@ export class KeepAliveManager {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Coder-Session-Token": meta.token,
+            ...coderCredentialHeaders(meta.token, meta.credentialSource),
           },
           body: JSON.stringify({ deadline }),
           signal: controller.signal,

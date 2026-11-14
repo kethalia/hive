@@ -28,6 +28,7 @@ export function getTokenRotationQueue(): Queue<TokenRotationJobData> {
 }
 
 export async function processTokenRotation(_job: Job<TokenRotationJobData>): Promise<void> {
+  if (process.env.HIVE_CODER_OAUTH_ENABLED === "true") return;
   const db = getDb();
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {

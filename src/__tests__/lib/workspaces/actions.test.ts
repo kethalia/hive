@@ -92,6 +92,7 @@ describe("workspace server actions", () => {
       waitForBuild: mockWaitForBuild,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
+      getCredentialSource: () => "legacy",
       getApplicationsHost: mockGetApplicationsHost.mockResolvedValue("*.coder.example.com"),
       getApplicationAuthRedirect: mockGetApplicationAuthRedirect,
     } as never);
@@ -501,6 +502,7 @@ describe("workspace server actions", () => {
         timeoutMs: 8_000,
         coderUrl: "https://coder.example.com",
         sessionToken: "coder-session-token",
+        credentialSource: "legacy",
       },
     );
     expect(result?.data).toEqual([
@@ -902,6 +904,7 @@ describe("workspace server actions", () => {
       {
         coderUrl: "https://coder.example.com",
         sessionToken: "coder-session-token",
+        credentialSource: "legacy",
         timeoutMs: 5_000,
       },
     );

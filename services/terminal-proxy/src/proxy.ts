@@ -2,7 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import path from "node:path";
 import type { Duplex } from "node:stream";
-import { verifyCloneTerminalProof } from "@hive/auth";
+import {
+  type CoderCredentialSource,
+  coderCredentialHeaders,
+  verifyCloneTerminalProof,
+} from "@hive/auth";
 import { WebSocket, WebSocketServer } from "ws";
 import { authenticateUpgrade } from "./auth.js";
 import { getCoderCaCertificates } from "./coder-fetch.js";
@@ -395,7 +399,7 @@ export async function handleUpgrade(
     return;
   }
 
-  const { token, coderUrl: authCoderUrl, sessionId } = authResult.value;
+  const { token, credentialSource, coderUrl: authCoderUrl, sessionId } = authResult.value;
 
   if (sessionName.startsWith(CLONE_TERMINAL_SESSION_PREFIX)) {
     if (!sessionId) {
@@ -432,6 +436,7 @@ export async function handleUpgrade(
     const workspaceAgentAccess = await verifyWorkspaceAgentAccess({
       coderUrl,
       token,
+      credentialSource,
       workspaceId,
       agentId,
     });
@@ -487,6 +492,7 @@ export async function handleUpgrade(
     if (workspaceId) {
       connectionRegistry.addConnection(workspaceId, connectionId, {
         token,
+        credentialSource,
         coderUrl,
       });
       browserWs.on("close", () => {
@@ -494,7 +500,7 @@ export async function handleUpgrade(
       });
     }
 
-    connectUpstream(browserWs, upstreamUrl, token, connectionContext, eventStore);
+    connectUpstream(browserWs, upstreamUrl, token, connectionContext, eventStore, credentialSource);
   });
 }
 
@@ -504,13 +510,14 @@ function connectUpstream(
   token: string,
   context: TerminalConnectionContext | null,
   eventStore: TerminalSessionEventStore,
+  credentialSource?: CoderCredentialSource,
 ): void {
   logProxyEvent("log", "upstream_connecting", { category: "upstream_connecting" });
   if (context) recordProxyEvent(eventStore, context, "upstream_connecting");
   const ca = getCoderCaCertificates();
 
   const upstream = new WebSocket(upstreamUrl, {
-    headers: { "Coder-Session-Token": token },
+    headers: coderCredentialHeaders(token, credentialSource),
     handshakeTimeout: UPSTREAM_CONNECT_TIMEOUT_MS,
     ...(ca ? { ca } : {}),
   });

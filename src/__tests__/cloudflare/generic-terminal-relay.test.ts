@@ -42,7 +42,7 @@ const target = {
 const request = (query = new URLSearchParams(target).toString()) =>
   new Request(`${origin}/ws?${query}`, { headers: { Upgrade: "websocket", Origin: origin } });
 let closers: Array<() => void> = [];
-function fixture() {
+function fixture(credentialSource?: "oauth") {
   const server = new Socket(),
     client = new Socket(),
     upstream = new Socket();
@@ -52,6 +52,7 @@ function fixture() {
     coderUserId: "coder-owner",
     coderOrigin: "https://coder.example",
     token: "synthetic-credential",
+    ...(credentialSource ? { credentialSource } : {}),
     buildId: "build-1",
     expiresAt: Date.now() + 3600000,
   };
@@ -89,6 +90,14 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("generic reconnecting PTY relay", () => {
+  it("uses only OAuth Bearer for the authorized PTY upgrade", async () => {
+    const f = fixture("oauth");
+    await f.open();
+    const headers = new Headers(f.deps.upgrade.mock.calls[0][1].headers);
+    expect(headers.get("Authorization")).toBe("Bearer synthetic-credential");
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+  });
+
   it("preserves canonical clone session/path and the existing quoted PTY cwd", async () => {
     const f = fixture(),
       clonePath = "projects/owner/repo with spaces";

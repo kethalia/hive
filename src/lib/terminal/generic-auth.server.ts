@@ -1,6 +1,7 @@
 import {
   AuthServiceClient,
   authServiceHeaders,
+  coderAuthCookieValues,
   sessionCookieValues,
   verifyCookie,
 } from "@hive/auth";
@@ -68,6 +69,22 @@ export async function genericTerminalIssuerSession(
   request: Request,
   env: GenericTerminalAuthEnvironment,
 ) {
+  const browserCookie = request.headers.get("Cookie");
+  const oauthEnabled = process.env.HIVE_CODER_OAUTH_ENABLED === "true";
+  if (oauthEnabled && coderAuthCookieValues(browserCookie).length) {
+    const signal = AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(GENERIC_TERMINAL_AUTHORIZATION_MS),
+    ]);
+    const session = genericTerminalSessionSchema.parse(
+      await genericTerminalAuthClient(env, signal).getBrowserSession(browserCookie ?? ""),
+    );
+    const expiry = Date.parse(session.expiresAt);
+    if (session.coderUrl !== env.CODER_URL || !Number.isFinite(expiry) || expiry <= Date.now())
+      return null;
+    return { session: { sessionId: session.sessionId, expiresAt: new Date(expiry) } };
+  }
+  if (oauthEnabled) return null;
   const values = sessionCookieValues(request.headers.get("Cookie") ?? undefined);
   if (values.length !== 1 || !env.COOKIE_SECRET) return null;
   const cookie = verifyCookie(values[0], env.COOKIE_SECRET);

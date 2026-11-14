@@ -38,7 +38,7 @@ const env: BackgroundEnvironment = {
   HIVE_DATABASE_NAME: "hive_foundation_preview",
   HIVE_DATABASE_ROLE: "hive_foundation_runtime",
   DATABASE_URL: "postgresql://hive_foundation_runtime:fixture@localhost/hive_foundation_preview",
-  HIVE_PUBLIC_ORIGIN: "https://fixture.workers.dev",
+  HIVE_PUBLIC_ORIGIN: "https://codex-hive-production-cutover.hive-preview.kethalia.com",
   ASSETS: { fetch: vi.fn() },
   BACKGROUND: { getByName: vi.fn() },
 };

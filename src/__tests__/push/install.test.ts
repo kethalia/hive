@@ -13,7 +13,11 @@ const { spawn: realSpawn } =
   await vi.importActual<typeof import("node:child_process")>("node:child_process");
 
 const prepared = {
-  client: { getBaseUrl: () => "https://coder.test", getSessionToken: () => "coder-secret" },
+  client: {
+    getBaseUrl: () => "https://coder.test",
+    getSessionToken: () => "coder-secret",
+    getCredentialSource: () => "legacy",
+  },
   target: "owner/workspace.main",
   workspaceName: "workspace",
 } as Awaited<ReturnType<typeof import("@/lib/push/install").prepareNotificationWorkspace>>;

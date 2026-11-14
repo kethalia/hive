@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import type { Socket } from "node:net";
 import { Duplex } from "node:stream";
 import { WebSocket } from "ws";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { VoiceRpc } from "./voice-rpc";
 
@@ -30,34 +31,42 @@ export async function connectWorkspaceCodex(
   signal.throwIfAborted();
   // Codex's control socket speaks WebSocket, not JSONL. SSH carries its HTTP
   // upgrade and frames; no public Codex listener or workspace image change.
-  const child = spawn(
-    "ssh",
-    [
-      "-T",
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "LogLevel=ERROR",
-      "-o",
-      "StrictHostKeyChecking=no",
-      "-o",
-      "UserKnownHostsFile=/dev/null",
-      "-o",
-      "ProxyCommand=coder ssh --stdio %h",
-      target,
-      threadId
-        ? `bash -lc 'umask 077; mkdir -p "\${CODEX_HOME:-$HOME/.codex}/hive-voice" && exec flock -n "\${CODEX_HOME:-$HOME/.codex}/hive-voice/${threadId}.lock" codex app-server proxy'`
-        : "bash -lc 'exec codex app-server proxy'",
-    ],
-    {
-      env: {
-        ...process.env,
-        CODER_URL: client.getBaseUrl(),
-        CODER_SESSION_TOKEN: client.getSessionToken(),
+  const cli = await prepareCoderCliEnvironment({
+    coderUrl: client.getBaseUrl(),
+    token: client.getSessionToken(),
+    credentialSource: client.getCredentialSource(),
+  });
+  let child: ChildProcessWithoutNullStreams;
+  try {
+    signal.throwIfAborted();
+    child = spawn(
+      "ssh",
+      [
+        "-T",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "LogLevel=ERROR",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "ProxyCommand=coder ssh --stdio %h",
+        target,
+        threadId
+          ? `bash -lc 'umask 077; mkdir -p "\${CODEX_HOME:-$HOME/.codex}/hive-voice" && exec flock -n "\${CODEX_HOME:-$HOME/.codex}/hive-voice/${threadId}.lock" codex app-server proxy'`
+          : "bash -lc 'exec codex app-server proxy'",
+      ],
+      {
+        env: cli.env,
+        stdio: ["pipe", "pipe", "pipe"],
       },
-      stdio: ["pipe", "pipe", "pipe"],
-    },
-  );
+    );
+  } catch (error) {
+    await cli.cleanup();
+    throw error;
+  }
   child.stderr.resume(); // Drain without logging workspace output or credentials.
   const transport = Duplex.from({ readable: child.stdout, writable: child.stdin });
   const socket = new WebSocket("ws://localhost/", {
@@ -70,8 +79,14 @@ export async function connectWorkspaceCodex(
     transport.destroy();
   };
   const rpc = new VoiceRpc(socket, dispose);
-  child.on("error", () => rpc.close());
-  child.on("exit", () => rpc.close());
+  child.on("error", () => {
+    void cli.cleanup().catch(() => {});
+    rpc.close();
+  });
+  child.on("exit", () => {
+    void cli.cleanup().catch(() => {});
+    rpc.close();
+  });
   const abort = () => rpc.close();
   signal.addEventListener("abort", abort, { once: true });
   socket.once("close", () => signal.removeEventListener("abort", abort));

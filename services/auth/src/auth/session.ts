@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { getDb } from "@hive/db";
+import { coderOAuthEnabled } from "./coder-oauth-config";
+import { getUsableCoderCredential } from "./coder-oauth-credentials";
 
 export type { SessionData };
 
@@ -30,11 +32,20 @@ export async function getSessionById(sessionId: string): Promise<SessionData | n
     console.log(`[auth-service] Session not found for sessionId=${sessionId.slice(0, 8)}…`);
     return null;
   }
+  if (coderOAuthEnabled() && !session.authToken) return null;
 
   if (session.expiresAt < new Date()) {
     console.log(`[auth-service] Session expired for user=${session.userId}, cleaning up`);
     await getDb().session.delete({ where: { sessionId } });
     return null;
+  }
+
+  if (session.user.authMode === "oauth") {
+    try {
+      await getUsableCoderCredential(session.userId);
+    } catch {
+      return null;
+    }
   }
 
   return {

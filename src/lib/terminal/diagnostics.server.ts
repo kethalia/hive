@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { verifyTerminalTicket } from "@hive/auth";
+import { coderCredentialHeaders, verifyTerminalTicket } from "@hive/auth";
 import { captureRequestDatabaseFactory, getDb, type Prisma, type PrismaClient } from "@hive/db";
 import { z } from "zod";
 import type { GenericTerminalEnvironment } from "../../../deploy/cloudflare/app/generic-terminal-runtime";
@@ -568,6 +568,7 @@ export async function terminalDiagnosticsRuntime(
           .regex(/^[!-~]+$/),
         coderUrl: z.string(),
         expiresAt: z.string().nullable(),
+        credentialSource: z.enum(["legacy", "oauth"]).optional(),
       })
       .strict()
       .parse(replies[1].value);
@@ -596,7 +597,10 @@ export async function terminalDiagnosticsRuntime(
           redirect: "manual",
           credentials: "omit",
           signal: authoritySignal,
-          headers: { "Coder-Session-Token": credential.token, Accept: "application/json" },
+          headers: {
+            ...coderCredentialHeaders(credential.token, credential.credentialSource),
+            Accept: "application/json",
+          },
         }),
         authoritySignal,
       );

@@ -11,17 +11,27 @@ import { Button } from "@/components/ui/button";
 export function SettingsContent({
   email,
   coderUrl,
+  coderOAuthEnabled = false,
   ...props
-}: Omit<NotificationSettingsProps, "embedded"> & { email?: string; coderUrl?: string }) {
+}: Omit<NotificationSettingsProps, "embedded"> & {
+  email?: string;
+  coderUrl?: string;
+  coderOAuthEnabled?: boolean;
+}) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
   const [accountError, setAccountError] = useState("");
-  async function signOut() {
+  async function signOut(disconnect = false) {
     setSigningOut(true);
     setAccountError("");
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
-      if (!response.ok) throw new Error("Could not sign out. Try again.");
+      const response = await fetch(disconnect ? "/api/auth/coder/disconnect" : "/api/auth/logout", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? "Could not sign out. Try again.");
+      }
       window.dispatchEvent(new Event("hive:discovery-clear"));
       router.push("/login");
       router.refresh();
@@ -51,7 +61,17 @@ export function SettingsContent({
               <Button variant="outline" disabled={signingOut} onClick={() => void signOut()}>
                 Sign out
               </Button>
+              {coderOAuthEnabled && (
+                <Button variant="outline" disabled={signingOut} onClick={() => void signOut(true)}>
+                  Disconnect Coder
+                </Button>
+              )}
             </div>
+            {coderOAuthEnabled && (
+              <p className="text-sm text-muted-foreground">
+                Disconnecting revokes Hive’s Coder connection and ends this account’s Hive sessions.
+              </p>
+            )}
             {accountError ? <p role="alert">{accountError}</p> : null}
           </section>
           <section aria-labelledby="app-updates-heading" className="space-y-4 pb-8">

@@ -85,7 +85,7 @@ class FixtureSocket implements RelaySocket {
   }
 }
 
-function fixture(additional: FixtureSocket[] = []) {
+function fixture(additional: FixtureSocket[] = [], source?: "oauth") {
   const socket = new FixtureSocket();
   const sockets = [socket];
   let upgrades = 0;
@@ -99,7 +99,12 @@ function fixture(additional: FixtureSocket[] = []) {
     current.prefix = `HIVE_INVENTORY_${nonce}`;
     expect(url.origin).toBe(session.user.coderUrl);
     expect(url.pathname).toBe(`/api/v2/workspaceagents/${agentId}/pty`);
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("synthetic-fixture-token");
+    expect(new Headers(init?.headers).get(source ? "Authorization" : "Coder-Session-Token")).toBe(
+      source ? "Bearer synthetic-fixture-token" : "synthetic-fixture-token",
+    );
+    expect(new Headers(init?.headers).has(source ? "Coder-Session-Token" : "Authorization")).toBe(
+      false,
+    );
     expect(init?.redirect).toBe("manual");
     expect(init?.credentials).toBe("omit");
     return { status: 101, redirected: false, webSocket: current } as unknown as Response;
@@ -120,6 +125,14 @@ afterEach(() => {
 });
 
 describe("fixed Coder PTY session inventory", () => {
+  it("uses Bearer for OAuth inventory upgrades", async () => {
+    authorize.mockImplementation(async () => ({ ...authority(), credentialSource: "oauth" }));
+    const f = fixture([], "oauth");
+    await expect(
+      readWorkspaceSessionInventory(session, workspaceId, f.options),
+    ).resolves.toHaveLength(1);
+  });
+
   it("lists existing web sessions without starting/attaching tmux sessions or audio", async () => {
     const f = fixture();
     expect(await readWorkspaceSessionInventory(session, workspaceId, f.options)).toEqual([

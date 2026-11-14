@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { callbackTokenHash } from "./source-credentials";
 
@@ -59,6 +60,7 @@ export async function installNotificationHooks(
       {
         coderUrl: prepared.client.getBaseUrl(),
         sessionToken: prepared.client.getSessionToken(),
+        credentialSource: prepared.client.getCredentialSource(),
         timeoutMs: 20000,
         maxBufferBytes: 4096,
         stdin: JSON.stringify({ hook, token, url, ...version, portable: true }),
@@ -111,6 +113,11 @@ export async function installNotificationHooks(
     readFile(join(process.cwd(), "scripts/notifications/agent-hook.py"), "utf8"),
   ]);
   const command = `python3 -c '${installer.replace(/'/g, "'\\''")}'`;
+  const cli = await prepareCoderCliEnvironment({
+    coderUrl: client.getBaseUrl(),
+    token: client.getSessionToken(),
+    credentialSource: client.getCredentialSource(),
+  });
   await new Promise<void>((resolve, reject) => {
     // Use an SSH exec channel without a PTY. The pinned Coder CLI's interactive
     // stdin forwarding can echo the credential and leave json.load waiting for EOF.
@@ -133,11 +140,7 @@ export async function installNotificationHooks(
         command,
       ],
       {
-        env: {
-          ...process.env,
-          CODER_URL: client.getBaseUrl(),
-          CODER_SESSION_TOKEN: client.getSessionToken(),
-        },
+        env: cli.env,
         stdio: ["pipe", "ignore", "pipe"],
       },
     );
@@ -160,6 +163,6 @@ export async function installNotificationHooks(
     child.stdin.on("error", () => {});
     // Keep the scoped callback credential out of commands, logs, and URLs.
     child.stdin.end(JSON.stringify({ hook, token, url, ...version }));
-  });
+  }).finally(cli.cleanup);
   return prepared.workspaceName;
 }

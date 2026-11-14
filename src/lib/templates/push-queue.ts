@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { type Job, Queue, Worker } from "bullmq";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { sendPushToUser } from "@/lib/push/send";
 import { getRedisConnection } from "@/lib/queue/connection";
@@ -136,16 +137,17 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
         throw err;
       }
 
+      const cli = await prepareCoderCliEnvironment({
+        coderUrl: client.getBaseUrl(),
+        token: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
+      });
       await new Promise<void>((resolve, reject) => {
         const child = spawn(
           coderBin,
           ["templates", "push", templateName, "--directory", `templates/${templateName}`, "--yes"],
           {
-            env: {
-              ...process.env,
-              CODER_URL: client.getBaseUrl(),
-              CODER_SESSION_TOKEN: client.getSessionToken(),
-            },
+            env: cli.env,
           },
         );
 
@@ -176,7 +178,7 @@ export function createTemplatePushWorker(): Worker<TemplatePushJobData> {
           });
           reject(err);
         });
-      });
+      }).finally(cli.cleanup);
     },
     {
       // @ts-expect-error — ioredis dual-install type mismatch (see KNOWLEDGE.md)

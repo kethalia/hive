@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { type CoderCredentialSource, coderCredentialHeaders } from "@hive/auth";
 import {
   buildPtyUrl,
   SAFE_IDENTIFIER_RE,
@@ -43,6 +44,7 @@ export type GenericTerminalAuthority = {
   coderOrigin: string;
   buildId: string;
   token: string;
+  credentialSource?: CoderCredentialSource;
   expiresAt: number;
 };
 export interface GenericTerminalDependencies {
@@ -216,7 +218,7 @@ export async function openGenericTerminalRelay(
       signal: handshake.signal,
       headers: {
         Upgrade: "websocket",
-        "Coder-Session-Token": authority.token,
+        ...coderCredentialHeaders(authority.token, authority.credentialSource),
       },
     });
     upstream = response.webSocket;
