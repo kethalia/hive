@@ -45,8 +45,6 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ success: true as const });
-  for (const value of authResponse?.headers.getSetCookie() ?? [])
-    response.headers.append("Set-Cookie", value);
   response.cookies.set(CODER_HOST_COOKIE, "", {
     httpOnly: true,
     maxAge: 0,
@@ -54,6 +52,8 @@ export async function POST(request: Request) {
     secure: usesSecureSessionCookies(),
     path: "/",
   });
+  for (const value of authResponse?.headers.getSetCookie() ?? [])
+    response.headers.append("Set-Cookie", value);
   appendClearSessionCookieHeaders(response.headers, new URL(request.url).hostname);
   return response;
 }
