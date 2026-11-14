@@ -21,7 +21,7 @@ export default function LoginLayout({ children }: { children: React.ReactNode })
             <h1 className="mt-3 text-3xl font-medium tracking-[-0.04em]">Connect your Coder</h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {process.env.HIVE_CODER_OAUTH_ENABLED === "true"
-                ? "Sign in and approve access on Coder. You’ll return to Hive to open your workspaces."
+                ? "Sign in and approve access in the Coder window to open your Hive workspaces."
                 : "Credentials establish a short-lived Hive session and are not stored in this browser."}
             </p>
           </div>

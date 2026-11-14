@@ -7,9 +7,12 @@
 
 1. Open [the preview](https://codex-coder-oauth-better-auth.hive-preview.kethalia.com)
    and choose **Continue with Coder**.
-2. Authenticate and approve Hive on `coder.kethalia.com`.
+2. Authenticate and approve Hive on `coder.kethalia.com` in the separate sign-in window.
 3. Return to Hive, reload, open Settings and use an ordinary terminal.
 4. Sign out and sign back in. Disconnect Coder and reconnect through consent.
+
+The [popup and Safari follow-up](popup-safari.md) compares the reported download
+prompt with the epic correction and records the separate-window implementation.
 
 Hive identifies users by the configured Coder origin and Coder user UUID.
 Existing Hive UUIDs, preferences and references survive migration and reconnect.
