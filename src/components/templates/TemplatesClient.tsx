@@ -215,6 +215,11 @@ export function TemplatesClient({
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({ error: "Unknown error" }));
+          if (res.status === 409 && body.error === "request_conflict") {
+            completeTemplatePush(userId, name, requestId);
+            body.error =
+              "Saved publication request is outdated. Push again to start a new request.";
+          }
           writeLine(name, `[error] ${body.error ?? "Failed to start push"}`);
           finish(false);
           return;

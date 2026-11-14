@@ -64,7 +64,7 @@ export async function processTemplateJob(
   const job = await store.claim(ownerId);
   if (!job) return false;
   const remaining = job.deadline.getTime() - Date.now();
-  if (remaining <= 0 || job.attempts >= 128) {
+  if (remaining <= 0) {
     await store.save(job, job.state.effectIssued ? "held" : "failed", job.state, "import_timeout");
     return true;
   }

@@ -245,6 +245,36 @@ describe("TemplateDetailClient", () => {
       expect(screen.getByText("Push failed")).toBeInTheDocument();
     });
   });
+  it.each([
+    [409, "request_conflict", true],
+    [409, "publication_busy", false],
+    [503, "publication_unavailable", false],
+    [409, "malformed", false],
+    [0, "network", false],
+  ] as const)("recovers the detail request after %s/%s with identity reset=%s", async (status, error, reset) => {
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        if (error === "network") throw new Error("Lost ACK");
+        return error === "malformed"
+          ? new Response("invalid JSON", { status })
+          : Response.json({ error }, { status });
+      })
+      .mockResolvedValue(Response.json({ jobId: "retry-job" }));
+    global.fetch = fetch;
+    global.EventSource = mockEventSourceConstructor();
+    render(<TemplateDetailClient userId="fixture-owner" status={makeStatus()} />);
+    fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
+    await waitFor(() => expect(screen.getByText("Push failed")).toBeInTheDocument());
+    const firstId = fetch.mock.calls[0][1].headers["Idempotency-Key"];
+    fireEvent.click(screen.getByText("Push"));
+    fireEvent.click(screen.getByText("Confirm push"));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    const retryId = fetch.mock.calls[1][1].headers["Idempotency-Key"];
+    expect(retryId === firstId).toBe(!reset);
+    await waitFor(() => expect(vi.mocked(global.EventSource)).toHaveBeenCalledOnce());
+  });
 
   it("shows error message on fetch network error", async () => {
     const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));

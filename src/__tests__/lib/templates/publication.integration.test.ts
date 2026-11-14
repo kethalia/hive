@@ -428,6 +428,51 @@ suite("durable legacy template publication (owned PostgreSQL)", () => {
     }
     expect(f.provider.activate).not.toHaveBeenCalled();
   });
+  it("allows a healthy import to finish after the claim counter saturates", async () => {
+    const f = await fixture();
+    await f.step();
+    await f.step();
+    const version = await f.provider.versionById();
+    f.setVersion({ ...version, status: "running" });
+    for (let i = 0; i < 130; i++) await f.step();
+    expect(await f.read()).toMatchObject({
+      phase: "importing",
+      attempts: 128,
+      state: { providerFailures: 0 },
+    });
+    f.setVersion(version);
+    await f.step();
+    await f.step();
+    expect(await f.read()).toMatchObject({ phase: "succeeded", attempts: 128 });
+    expect(f.provider.createVersion).toHaveBeenCalledOnce();
+    expect(f.provider.activate).toHaveBeenCalledOnce();
+  });
+  it.each([
+    false,
+    true,
+  ])("enforces the absolute deadline with effectIssued=%s", async (effectIssued) => {
+    const f = await fixture();
+    if (effectIssued) {
+      const job = await f.store.claim();
+      if (!job) throw new Error("Missing fixture claim");
+      await f.store.markEffect(job, "uploading");
+      await f.store.save(job, job.phase, job.state);
+    }
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(f.job.deadline.getTime() + 1);
+      await f.step();
+      expect(await f.read()).toMatchObject({
+        phase: effectIssued ? "held" : "failed",
+        reason: "import_timeout",
+      });
+      expect(f.deps.authorize).not.toHaveBeenCalled();
+      expect(f.provider.upload).not.toHaveBeenCalled();
+      expect(f.provider.activate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("recovers a lost version ACK from exact deterministic version identity without another POST", async () => {
     const f = await fixture();
     await f.step();

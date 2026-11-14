@@ -133,6 +133,36 @@ afterEach(() => {
 });
 
 describe("templates mobile list", () => {
+  it.each([
+    [409, "request_conflict", true],
+    [409, "publication_busy", false],
+    [503, "publication_unavailable", false],
+    [409, "malformed", false],
+    [0, "network", false],
+  ] as const)("recovers the list request after %s/%s with identity reset=%s", async (status, error, reset) => {
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        if (error === "network") throw new Error("Lost ACK");
+        return error === "malformed"
+          ? new Response("invalid JSON", { status })
+          : Response.json({ error }, { status });
+      })
+      .mockResolvedValue(Response.json({ jobId: "retry-job" }));
+    globalThis.fetch = fetch;
+    render(<TemplatesClient userId="fixture-owner" initialStatuses={[makeStatus()]} />);
+    const card = screen.getByTestId("template-mobile-card");
+    fireEvent.click(within(card).getByRole("button", { name: /Push/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm push" }));
+    await waitFor(() => expect(within(card).getByLabelText("Push failed")).toBeInTheDocument());
+    const firstId = fetch.mock.calls[0][1].headers["Idempotency-Key"];
+    fireEvent.click(within(card).getByRole("button", { name: /Push/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm push" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    const retryId = fetch.mock.calls[1][1].headers["Idempotency-Key"];
+    expect(retryId === firstId).toBe(!reset);
+    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+  });
   it("keeps controls disabled while reconnecting an enqueued job", async () => {
     vi.useFakeTimers();
     const statuses = [makeStatus()];
