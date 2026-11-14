@@ -1,0 +1,73 @@
+{
+  "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+  "sourceCommit": "be7509212f8fbf190a1f83f80d3d57430b340e8c",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "workspaceBuildId": "60244174-8b3d-4476-a4b2-e1e478f5a9a6",
+  "runId": "6834d5d30f0d6afb",
+  "defaultDeniedEvidence": "../final/result.json",
+  "permission": {
+    "name": "local-network-access",
+    "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+    "granted": true,
+    "state": "granted"
+  },
+  "documents": [
+    {
+      "origin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+      "status": 303,
+      "frameOptionsPresent": false,
+      "frameAncestorsPresent": false,
+      "cspIncludesPreview": false,
+      "cspIncludesProduction": false
+    },
+    {
+      "origin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+      "status": 303,
+      "frameOptionsPresent": false,
+      "frameAncestorsPresent": false,
+      "cspIncludesPreview": false,
+      "cspIncludesProduction": false
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "status": 303,
+      "frameOptionsPresent": false,
+      "frameAncestorsPresent": false,
+      "cspIncludesPreview": false,
+      "cspIncludesProduction": false
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "status": 200,
+      "frameOptionsPresent": false,
+      "frameAncestorsPresent": true,
+      "cspIncludesPreview": false,
+      "cspIncludesProduction": false
+    }
+  ],
+  "failures": [
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/login",
+      "error": "net::ERR_BLOCKED_BY_RESPONSE"
+    },
+    {
+      "origin": "https://coder.kethalia.com",
+      "path": "/api/v2/csp/reports",
+      "error": "net::ERR_BLOCKED_BY_ORB"
+    }
+  ],
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "47eb3c0a-677c-4f15-bbad-2325f309b029"
+  },
+  "discoveryStatus": 200,
+  "frameOrigin": "https://filebrowser--main--hive-epic-child--codex.kethalia.com",
+  "framePath": "/files/hive-parity-6834d5d30f0d6afb",
+  "accepted": false,
+  "failure": {
+    "stage": "readme-listing",
+    "type": "TimeoutError",
+    "unsupportedPermission": false
+  }
+}

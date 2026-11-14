@@ -1,0 +1,145 @@
+{
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "sourceCommit": "dcb0b435e42284060e589a9cf078dd167a1e6057",
+  "expectedBuildId": "10261da8-1b50-4869-8777-51086c6ca2ae",
+  "browserBuildId": "98a51ebe-6524-4520-96c2-10f6e14ca131",
+  "templateName": "electronics",
+  "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+  "runId": "654165a467550771",
+  "jobIds": ["f8be454e-f0da-4010-b484-3665177446ae", "f8be454e-f0da-4010-b484-3665177446ae"],
+  "requestIds": ["58b8ed77-dba1-4f4f-8489-9a9dfd9ba167", "58b8ed77-dba1-4f4f-8489-9a9dfd9ba167"],
+  "checks": [
+    {
+      "name": "normal credential UI login",
+      "passed": true
+    },
+    {
+      "name": "exact deployed app build",
+      "passed": true
+    },
+    {
+      "name": "active version rendered before publication",
+      "passed": true
+    },
+    {
+      "name": "no invented pending browser intent",
+      "passed": true
+    },
+    {
+      "name": "normal UI publish accepted",
+      "passed": true
+    },
+    {
+      "name": "UI stored one request identity before enqueue",
+      "passed": true
+    },
+    {
+      "name": "UI shows in-progress state",
+      "passed": true
+    },
+    {
+      "name": "pending intent survives normal window close",
+      "passed": true
+    },
+    {
+      "name": "same pending intent present on reopened window",
+      "passed": true
+    },
+    {
+      "name": "normal UI publish accepted",
+      "passed": true
+    },
+    {
+      "name": "reopened normal UI reuses original job",
+      "passed": true
+    },
+    {
+      "name": "one logical request identity",
+      "passed": true
+    },
+    {
+      "name": "success rendered in normal template UI",
+      "passed": true
+    },
+    {
+      "name": "actual logs reached UI stream",
+      "passed": true
+    },
+    {
+      "name": "push output panel rendered",
+      "passed": true
+    },
+    {
+      "name": "terminal success clears pending request",
+      "passed": true
+    },
+    {
+      "name": "output close leaves success visible",
+      "passed": true
+    },
+    {
+      "name": "normal template status refresh",
+      "passed": true
+    },
+    {
+      "name": "new active version exposed by status",
+      "passed": true
+    },
+    {
+      "name": "build unchanged across operation",
+      "passed": true
+    },
+    {
+      "name": "owned Hive login closed",
+      "passed": true
+    }
+  ],
+  "http": [
+    {
+      "operation": "publish",
+      "status": 200
+    },
+    {
+      "operation": "publish",
+      "status": 200
+    }
+  ],
+  "stream": {
+    "connections": 3,
+    "logMessages": 136,
+    "statusEvents": [
+      {
+        "success": true
+      }
+    ]
+  },
+  "screenshots": [
+    "electronics-before.png",
+    "confirmation-0.png",
+    "publication-progress.png",
+    "confirmation-1.png",
+    "publication-success.png",
+    "success-output-closed.png"
+  ],
+  "cleanup": {
+    "logoutStatus": 200,
+    "ownedBrowserClosed": true,
+    "ownedProfileRemoved": true
+  },
+  "newLogicalPublicationLimit": 1,
+  "login": {
+    "status": 200,
+    "elapsedMs": 3097
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "10261da8-1b50-4869-8777-51086c6ca2ae"
+  },
+  "afterStatus": {
+    "name": "electronics",
+    "activeVersionId": "ebb21edf-53f9-4570-a0e4-c927700cc121",
+    "stale": false
+  },
+  "accepted": true,
+  "terminalOutcomeObserved": true
+}

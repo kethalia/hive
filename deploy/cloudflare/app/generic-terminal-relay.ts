@@ -1,8 +1,19 @@
+import { posix } from "node:path";
 import {
   buildPtyUrl,
   SAFE_IDENTIFIER_RE,
   UUID_RE,
 } from "../../../services/terminal-proxy/src/protocol";
+import { resolveConfiguredProjectsRoot } from "../../../src/lib/git/clone-actions-contract";
+import {
+  createCloneSessionKey,
+  createSafeCloneTerminalSessionName,
+} from "../../../src/lib/git/clone-tree";
+import type {
+  createTerminalDiagnostics,
+  TerminalDiagnosticEvent,
+  TerminalKeepaliveOutcome,
+} from "../../../src/lib/terminal/diagnostics.server";
 import {
   GENERIC_TERMINAL_AUTHORIZATION_MS,
   GENERIC_TERMINAL_HANDSHAKE_MS,
@@ -22,6 +33,8 @@ export type GenericTerminalTarget = {
   sessionName: string;
   width: number;
   height: number;
+  clonePath?: string;
+  cloneProof?: string;
 };
 export type GenericTerminalAuthority = {
   sessionId: string;
@@ -43,7 +56,11 @@ export interface GenericTerminalDependencies {
     authority: GenericTerminalAuthority,
     target: GenericTerminalTarget,
     signal: AbortSignal,
-  ): Promise<void>;
+  ): Promise<TerminalKeepaliveOutcome> | Promise<void>;
+  diagnostics?(
+    authority: GenericTerminalAuthority,
+    target: GenericTerminalTarget,
+  ): ReturnType<typeof createTerminalDiagnostics>;
   pair(): { client: RelaySocket; server: RelaySocket };
   response(client: RelaySocket): Response;
   trackCleanup(promise: Promise<void>): void;
@@ -54,11 +71,13 @@ export function genericTerminalPath(request: Request) {
   return new URL(request.url).pathname === "/ws";
 }
 export function parseGenericTerminalTarget(url: URL): GenericTerminalTarget | null {
-  if (url.pathname !== "/ws" || url.hash || url.search.length > 2048) return null;
+  if (url.pathname !== "/ws" || url.hash || url.search.length > 3000) return null;
   const fields = ["workspaceId", "agentId", "reconnectId", "sessionName", "width", "height"];
+  const cloneFields = ["clonePath", "cloneProof"];
   if (
-    [...url.searchParams.keys()].some((key) => !fields.includes(key)) ||
-    fields.some((key) => url.searchParams.getAll(key).length !== 1)
+    [...url.searchParams.keys()].some((key) => ![...fields, ...cloneFields].includes(key)) ||
+    fields.some((key) => url.searchParams.getAll(key).length !== 1) ||
+    cloneFields.some((key) => url.searchParams.getAll(key).length > 1)
   )
     return null;
   const workspaceId = url.searchParams.get("workspaceId") ?? "",
@@ -68,10 +87,30 @@ export function parseGenericTerminalTarget(url: URL): GenericTerminalTarget | nu
   if (
     ![workspaceId, agentId, reconnectId].every((id) => UUID_RE.test(id)) ||
     !SAFE_IDENTIFIER_RE.test(sessionName) ||
-    sessionName.length > 200 ||
-    sessionName.startsWith("git-clone-")
+    sessionName.length > 200
   )
     return null;
+  const clonePath = url.searchParams.get("clonePath"),
+    cloneProof = url.searchParams.get("cloneProof");
+  const clone = sessionName.startsWith("git-clone-");
+  if (clone) {
+    if (
+      !/^git-clone-[a-f0-9]{32}$/.test(sessionName) ||
+      !clonePath ||
+      !cloneProof ||
+      clonePath.includes("\\") ||
+      clonePath.includes("\0") ||
+      posix.isAbsolute(clonePath)
+    )
+      return null;
+    const segments = clonePath.split("/");
+    if (
+      segments.some((segment) => !segment || segment === "." || segment === "..") ||
+      createSafeCloneTerminalSessionName(createCloneSessionKey(segments)) !== sessionName ||
+      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(cloneProof)
+    )
+      return null;
+  } else if (clonePath !== null || cloneProof !== null) return null;
   const dimensions = ["width", "height"].map((key) => url.searchParams.get(key) ?? "");
   if (dimensions.some((v) => !/^[1-9][0-9]{0,4}$/.test(v) || Number(v) > 65535)) return null;
   return {
@@ -81,6 +120,7 @@ export function parseGenericTerminalTarget(url: URL): GenericTerminalTarget | nu
     sessionName,
     width: Number(dimensions[0]),
     height: Number(dimensions[1]),
+    ...(clonePath && cloneProof ? { clonePath, cloneProof } : {}),
   };
 }
 const closeSocket = (socket: RelaySocket | undefined, code: number, reason: string) => {
@@ -125,6 +165,17 @@ export async function openGenericTerminalRelay(
     request.headers.get("Sec-Fetch-Site") === "cross-site"
   )
     return denied(403);
+  let diagnostics: ReturnType<typeof createTerminalDiagnostics> | undefined;
+  let diagnosticClose: Promise<void> | undefined;
+  const closeDiagnostics = (code: number, reason: TerminalDiagnosticEvent) => {
+    diagnosticClose ??= Promise.resolve()
+      .then(() => diagnostics?.close(code, reason))
+      .then(
+        () => {},
+        () => {},
+      );
+    return diagnosticClose;
+  };
   let upstream: RelaySocket | undefined;
   let cleanup: (() => void) | undefined;
   const handshake = new AbortController();
@@ -138,7 +189,24 @@ export async function openGenericTerminalRelay(
       attachmentExpiresAt,
     );
     if (deadline <= now() || request.signal.aborted) return denied(401);
-    const pty = buildPtyUrl(authority.coderOrigin, target.agentId, target)
+    diagnostics = deps.diagnostics?.(authority, target);
+    if (diagnostics) {
+      if (!(await diagnostics.open())) throw new Error("Terminal diagnostics unavailable");
+      await diagnostics.event("upstream_connecting");
+      handshake.signal.throwIfAborted();
+      if (request.signal.aborted || deadline <= now()) throw new Error("expired");
+    }
+    const projectsRoot = target.clonePath ? resolveConfiguredProjectsRoot() : undefined;
+    const cwd =
+      projectsRoot && target.clonePath
+        ? posix.resolve(projectsRoot, ...target.clonePath.split("/"))
+        : undefined;
+    if (cwd && projectsRoot && !cwd.startsWith(projectsRoot === "/" ? "/" : `${projectsRoot}/`))
+      throw new Error("clone path rejected");
+    const pty = buildPtyUrl(authority.coderOrigin, target.agentId, {
+      ...target,
+      ...(cwd ? { cwd } : {}),
+    })
       .replace(/^wss:/, "https:")
       .replace(/^ws:/, "http:");
     const response = await deps.upgrade(pty, {
@@ -155,12 +223,15 @@ export async function openGenericTerminalRelay(
     if (response.status !== 101 || !upstream) {
       closeSocket(upstream, 1011, "Terminal upgrade unavailable");
       void response.body?.cancel().catch(() => {});
+      if (diagnostics) deps.trackCleanup(closeDiagnostics(1011, "upstream_error"));
       return denied([401, 403].includes(response.status) ? response.status : 502);
     }
     if (handshake.signal.aborted || request.signal.aborted || deadline <= now()) {
       closeSocket(upstream, 1008, "Terminal authorization expired");
+      if (diagnostics) deps.trackCleanup(closeDiagnostics(1008, "upstream_connect_timeout"));
       return denied(401);
     }
+    if (diagnostics) await diagnostics.event("upstream_connected");
     const { client, server } = deps.pair();
     let stopped = false,
       pending: Promise<void> | undefined,
@@ -173,7 +244,11 @@ export async function openGenericTerminalRelay(
       messages = 0;
     const totals = { input: 0, output: 0 };
     const listeners: Array<{ socket: RelaySocket; event: string; listener: unknown }> = [];
-    const finish = (code: number, reason: string) => {
+    const finish = (
+      code: number,
+      reason: string,
+      diagnosticReason: TerminalDiagnosticEvent = "browser_disconnected",
+    ) => {
       if (stopped) return;
       stopped = true;
       clearTimeout(refreshTimer);
@@ -183,8 +258,13 @@ export async function openGenericTerminalRelay(
       request.signal.removeEventListener("abort", abort);
       closeSocket(server, code, reason);
       closeSocket(upstream, code, reason);
-      if (pending) deps.trackCleanup(pending.then(deps.onClosed, deps.onClosed));
-      else deps.onClosed();
+      if (diagnostics || pending) {
+        const drain = Promise.allSettled([
+          ...(pending ? [pending] : []),
+          ...(diagnostics ? [closeDiagnostics(code, diagnosticReason)] : []),
+        ]);
+        deps.trackCleanup(drain.then(() => deps.onClosed()));
+      } else deps.onClosed();
     };
     const abort = () => finish(1001, "Terminal connection closed");
     cleanup = () => finish(1011, "Terminal transport unavailable");
@@ -210,10 +290,17 @@ export async function openGenericTerminalRelay(
           () => finish(1013, "Terminal attachment renewal"),
           deadline - now(),
         );
+        await diagnostics?.heartbeat(fresh.expiresAt).catch(() => {});
+        if (stopped) return;
         if (now() >= nextExtendAt) {
           // An unavailable extension is not a renewed authorization or an auth
           // failure. The next refresh still independently verifies the owner.
-          await deps.extend(authorized, target, controller.signal).catch(() => {});
+          const outcome = await deps.extend(authorized, target, controller.signal).catch(() => ({
+            ok: false,
+            category: controller.signal.aborted ? ("timeout" as const) : ("network" as const),
+            durationMs: 0,
+          }));
+          if (outcome) await diagnostics?.keepalive(outcome).catch(() => {});
           nextExtendAt = now() + 55000;
         }
       })()
@@ -296,6 +383,7 @@ export async function openGenericTerminalRelay(
           )
         )
           throw new Error("input");
+        diagnostics?.activity("browser_input", size(event.data));
         upstream?.send(new TextEncoder().encode(event.data));
       } catch {
         finish(1008, "Terminal input rejected");
@@ -304,6 +392,7 @@ export async function openGenericTerminalRelay(
     listen(upstream, "message", (event) => {
       if (stopped || !admit(event.data, "output")) return;
       try {
+        diagnostics?.activity("upstream_output", size(event.data));
         server.send(
           typeof event.data === "string"
             ? new TextEncoder().encode(event.data)
@@ -320,9 +409,16 @@ export async function openGenericTerminalRelay(
         finish(
           normalExit ? 1000 : 1013,
           normalExit ? "Terminal session closed" : "Terminal peer closed",
+          socket === upstream ? "upstream_closed" : "browser_disconnected",
         );
       });
-      listen(socket, "error", () => finish(1011, "Terminal transport unavailable"));
+      listen(socket, "error", () =>
+        finish(
+          1011,
+          "Terminal transport unavailable",
+          socket === upstream ? "upstream_error" : "browser_error",
+        ),
+      );
     }
     server.binaryType = "arraybuffer";
     upstream.binaryType = "arraybuffer";
@@ -334,11 +430,17 @@ export async function openGenericTerminalRelay(
       return deps.response(client);
     }
     lifetimeTimer = setTimeout(() => finish(1013, "Terminal attachment renewal"), deadline - now());
+    if (deadline <= now() || handshake.signal.aborted) {
+      finish(1008, "Terminal authorization expired");
+      return deps.response(client);
+    }
     server.send(TERMINAL_READY);
     refresh();
     return deps.response(client);
   } catch {
     cleanup?.();
+    if (diagnostics && !diagnosticClose)
+      deps.trackCleanup(closeDiagnostics(1011, "upstream_error"));
     closeSocket(upstream, 1011, "Terminal transport unavailable");
     return denied(401);
   } finally {

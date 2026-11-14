@@ -1,0 +1,40 @@
+{
+  "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+  "sourceCommit": "be7509212f8fbf190a1f83f80d3d57430b340e8c",
+  "permission": {
+    "name": "notifications",
+    "origin": "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
+    "granted": true,
+    "state": "granted"
+  },
+  "checks": [
+    {
+      "name": "same published build",
+      "passed": true
+    },
+    {
+      "name": "fresh context has no subscription",
+      "passed": true
+    },
+    {
+      "name": "browser subscription persisted through UI",
+      "passed": false
+    }
+  ],
+  "http": [],
+  "cleanup": {
+    "subscriptionRemoved": true,
+    "reason": "no subscription created"
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "47eb3c0a-677c-4f15-bbad-2325f309b029"
+  },
+  "subscriptionPresent": false,
+  "accepted": false,
+  "failure": {
+    "stage": "enable-notifications",
+    "type": "AssertionError"
+  },
+  "alertCategory": "other-visible-error"
+}

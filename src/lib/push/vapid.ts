@@ -1,20 +1,23 @@
-import { getDb } from "@hive/db";
+import { getDb, type PrismaClient } from "@hive/db";
 import webpush from "web-push";
 
 let cachedKeys: { publicKey: string; privateKey: string } | null = null;
 
-export async function getVapidKeys(): Promise<{
+export async function getVapidKeys(database?: {
+  vapidKeys: Pick<PrismaClient["vapidKeys"], "findUnique" | "upsert">;
+}): Promise<{
   publicKey: string;
   privateKey: string;
 }> {
-  if (cachedKeys) return cachedKeys;
+  if (!database && cachedKeys) return cachedKeys;
 
-  const db = getDb();
+  const db = database ?? getDb();
 
   const existing = await db.vapidKeys.findUnique({ where: { id: 1 } });
   if (existing) {
-    cachedKeys = { publicKey: existing.publicKey, privateKey: existing.privateKey };
-    return cachedKeys;
+    const keys = { publicKey: existing.publicKey, privateKey: existing.privateKey };
+    if (!database) cachedKeys = keys;
+    return keys;
   }
 
   const generated = webpush.generateVAPIDKeys();
@@ -28,8 +31,9 @@ export async function getVapidKeys(): Promise<{
     },
   });
 
-  cachedKeys = { publicKey: row.publicKey, privateKey: row.privateKey };
-  return cachedKeys;
+  const keys = { publicKey: row.publicKey, privateKey: row.privateKey };
+  if (!database) cachedKeys = keys;
+  return keys;
 }
 
 export async function getVapidPublicKey(): Promise<string> {

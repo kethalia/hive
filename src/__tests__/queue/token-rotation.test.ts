@@ -59,7 +59,7 @@ function makeToken(overrides: Record<string, unknown> = {}) {
 
 describe("processTokenRotation", () => {
   const mockDb = {
-    coderToken: { findMany: vi.fn() },
+    coderToken: { findMany: vi.fn(), findUnique: vi.fn() },
     $executeRaw: vi.fn(),
   };
 
@@ -67,6 +67,7 @@ describe("processTokenRotation", () => {
     vi.mocked(getDb).mockReturnValue(mockDb as never);
     process.env.ENCRYPTION_KEY = "a".repeat(64);
     mockDb.coderToken.findMany.mockResolvedValue([]);
+    mockDb.coderToken.findUnique.mockResolvedValue(null);
     mockDb.$executeRaw.mockResolvedValue(1);
     vi.mocked(CoderClient.createApiKey).mockResolvedValue("new-api-key-123");
     vi.mocked(CoderClient.listApiKeys).mockResolvedValue([]);
@@ -138,7 +139,7 @@ describe("processTokenRotation", () => {
     expect(mockDb.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it("handles version conflict gracefully — skips, attempts cleanup", async () => {
+  it("handles version conflict without enumerating or deleting unproven account keys", async () => {
     const elapsed = LIFETIME_MS * TOKEN_ROTATION_THRESHOLD;
     const token = makeToken({
       createdAt: new Date(Date.now() - elapsed),
@@ -154,7 +155,8 @@ describe("processTokenRotation", () => {
 
     await processTokenRotation(makeJob());
 
-    expect(CoderClient.listApiKeys).toHaveBeenCalled();
+    expect(CoderClient.listApiKeys).not.toHaveBeenCalled();
+    expect(CoderClient.deleteApiKey).not.toHaveBeenCalled();
   });
 
   it("skips token with key_mismatch", async () => {
@@ -204,53 +206,97 @@ describe("processTokenRotation", () => {
     expect(CoderClient.createApiKey).toHaveBeenCalled();
   });
 
-  it("attempts to delete old keys after successful update", async () => {
-    const elapsed = LIFETIME_MS * TOKEN_ROTATION_THRESHOLD;
+  it("retains unproven legacy, interactive and other application keys after success", async () => {
+    const token = makeToken({ expiresAt: new Date(Date.now() + LIFETIME_MS / 4) });
+    mockDb.coderToken.findMany.mockResolvedValue([token]);
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "old-legacy-session" });
+    vi.mocked(CoderClient.listApiKeys).mockResolvedValue([
+      { id: "interactive" },
+      { id: "other-app" },
+    ] as never);
+    await processTokenRotation(makeJob());
+    expect(CoderClient.listApiKeys).not.toHaveBeenCalled();
+    expect(CoderClient.deleteApiKey).not.toHaveBeenCalled();
+  });
+
+  it("deletes only an old key with matching recorded Hive provenance after successful CAS", async () => {
+    const oldKey = `OOOOOOOOOO-${"O".repeat(22)}`;
     const token = makeToken({
-      createdAt: new Date(Date.now() - elapsed),
-      expiresAt: new Date(Date.now() + LIFETIME_MS - elapsed),
+      expiresAt: new Date(Date.now() + LIFETIME_MS / 4),
+      rotationState: {
+        schemaVersion: 1,
+        managed: {
+          id: "OOOOOOOOOO",
+          name: "hive-r-11111111-1111-4111-8111-111111111111",
+          version: 1,
+        },
+        pending: null,
+      },
     });
     mockDb.coderToken.findMany.mockResolvedValue([token]);
-    vi.mocked(tryDecrypt).mockReturnValue({
-      ok: true,
-      plaintext: "session-tok",
-    });
-    mockDb.$executeRaw.mockResolvedValue(1);
-    vi.mocked(CoderClient.listApiKeys).mockResolvedValue([
-      { id: "old-key-id" } as never,
-      { id: "another-old" } as never,
-    ]);
-
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: oldKey });
     await processTokenRotation(makeJob());
-
-    expect(CoderClient.listApiKeys).toHaveBeenCalledWith(
+    expect(CoderClient.deleteApiKey).toHaveBeenCalledExactlyOnceWith(
       "https://coder.example.com",
       "new-api-key-123",
       "coder-uid-1",
+      "OOOOOOOOOO",
     );
-    expect(CoderClient.deleteApiKey).toHaveBeenCalled();
+    expect(CoderClient.listApiKeys).not.toHaveBeenCalled();
   });
 
-  it("logs warning but does not throw when deleteApiKey fails", async () => {
-    const elapsed = LIFETIME_MS * TOKEN_ROTATION_THRESHOLD;
+  it("deletes only this losing attempt's key when the stored credential is a different current key", async () => {
+    const newKey = `NNNNNNNNNN-${"N".repeat(22)}`;
+    const token = makeToken({ expiresAt: new Date(Date.now() + LIFETIME_MS / 4) });
+    mockDb.coderToken.findMany.mockResolvedValue([token]);
+    mockDb.coderToken.findUnique.mockResolvedValue({ ...token, version: 2 });
+    mockDb.$executeRaw.mockResolvedValue(0);
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: "different-current-key" });
+    vi.mocked(CoderClient.createApiKey).mockResolvedValue(newKey);
+    await processTokenRotation(makeJob());
+    expect(CoderClient.deleteApiKey).toHaveBeenCalledExactlyOnceWith(
+      "https://coder.example.com",
+      newKey,
+      "coder-uid-1",
+      "NNNNNNNNNN",
+    );
+    expect(CoderClient.listApiKeys).not.toHaveBeenCalled();
+  });
+
+  it("retains a losing attempt's key if it is now the active stored credential", async () => {
+    const newKey = `NNNNNNNNNN-${"N".repeat(22)}`;
+    const token = makeToken({ expiresAt: new Date(Date.now() + LIFETIME_MS / 4) });
+    mockDb.coderToken.findMany.mockResolvedValue([token]);
+    mockDb.coderToken.findUnique.mockResolvedValue({ ...token, version: 2 });
+    mockDb.$executeRaw.mockResolvedValue(0);
+    vi.mocked(tryDecrypt)
+      .mockReturnValueOnce({ ok: true, plaintext: "old-current-key" })
+      .mockReturnValueOnce({ ok: true, plaintext: newKey });
+    vi.mocked(CoderClient.createApiKey).mockResolvedValue(newKey);
+    await processTokenRotation(makeJob());
+    expect(CoderClient.deleteApiKey).not.toHaveBeenCalled();
+  });
+
+  it("holds best-effort deletion failure without touching unrelated keys", async () => {
     const token = makeToken({
-      createdAt: new Date(Date.now() - elapsed),
-      expiresAt: new Date(Date.now() + LIFETIME_MS - elapsed),
+      expiresAt: new Date(Date.now() + LIFETIME_MS / 4),
+      rotationState: {
+        schemaVersion: 1,
+        managed: {
+          id: "OOOOOOOOOO",
+          name: "hive-r-11111111-1111-4111-8111-111111111111",
+          version: 1,
+        },
+        pending: null,
+      },
     });
     mockDb.coderToken.findMany.mockResolvedValue([token]);
-    vi.mocked(tryDecrypt).mockReturnValue({
-      ok: true,
-      plaintext: "session-tok",
-    });
-    mockDb.$executeRaw.mockResolvedValue(1);
-    vi.mocked(CoderClient.listApiKeys).mockRejectedValue(new Error("network failure"));
-
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(tryDecrypt).mockReturnValue({ ok: true, plaintext: `OOOOOOOOOO-${"O".repeat(22)}` });
+    vi.mocked(CoderClient.deleteApiKey).mockRejectedValue(Error("provider detail"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await processTokenRotation(makeJob());
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[token-rotation] Old key cleanup failed"),
-    );
-    warnSpy.mockRestore();
+    expect(warn).toHaveBeenCalledExactlyOnceWith("[token-rotation] Old key cleanup failed");
+    expect(CoderClient.listApiKeys).not.toHaveBeenCalled();
   });
 
   it("does not rotate token at 74.9% lifetime", async () => {

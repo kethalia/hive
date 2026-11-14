@@ -172,7 +172,7 @@ export function HiveWorkspacePane({
             embedded
           />
         ) : pane.tool === "templates" ? (
-          <TemplatesWindow template={pane.template} />
+          <TemplatesWindow userId={userId} template={pane.template} />
         ) : pane.tool === "logs" ? (
           <div className="p-4">
             <Logs

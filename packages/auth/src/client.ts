@@ -9,9 +9,20 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export class AuthServiceError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "AuthServiceError";
+  }
+}
+
 export interface AuthServiceTransport {
   fetch?: typeof fetch;
   serviceSecret?: string;
+  loginTimeoutMs?: number;
 }
 
 export class AuthServiceClient {
@@ -29,13 +40,18 @@ export class AuthServiceClient {
     this.transport = transport;
   }
 
-  private async request(path: string, init: RequestInit): Promise<Response> {
+  private async request(
+    path: string,
+    init: RequestInit,
+    signal = AbortSignal.any([
+      AbortSignal.timeout(this.timeoutMs),
+      ...(init.signal ? [init.signal] : []),
+    ]),
+  ): Promise<Response> {
+    signal.throwIfAborted();
     const response = await (this.transport.fetch ?? fetch)(`${this.baseUrl}${path}`, {
       ...init,
-      signal: AbortSignal.any([
-        AbortSignal.timeout(this.timeoutMs),
-        ...(init.signal ? [init.signal] : []),
-      ]),
+      signal,
       // Workers does not implement redirect:"error". Manual also prevents the
       // service credential/password from being forwarded to a redirect target.
       redirect: "manual",
@@ -47,25 +63,72 @@ export class AuthServiceClient {
     return response;
   }
 
-  async login(req: LoginRequest, clientIp?: string): Promise<LoginResponse> {
-    const res = await this.request("/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authServiceHeaders(this.transport.serviceSecret),
-        ...(clientIp ? { "X-Hive-Client-IP": clientIp } : {}),
+  async login(
+    req: LoginRequest,
+    clientIp?: string,
+    callerSignal?: AbortSignal,
+  ): Promise<LoginResponse> {
+    const signal = AbortSignal.any([
+      AbortSignal.timeout(this.transport.loginTimeoutMs ?? this.timeoutMs),
+      ...(callerSignal ? [callerSignal] : []),
+    ]);
+    const res = await this.request(
+      "/login",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authServiceHeaders(this.transport.serviceSecret),
+          ...(clientIp ? { "X-Hive-Client-IP": clientIp } : {}),
+        },
+        body: JSON.stringify(req),
       },
-      body: JSON.stringify(req),
-    });
+      signal,
+    );
 
+    let body: unknown;
+    try {
+      body = await this.readLoginBody(res, signal);
+    } catch (error) {
+      signal.throwIfAborted();
+      if (res.ok) throw error;
+      body = {};
+    }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(
-        (body as Record<string, string>).error ?? `Login failed with status ${res.status}`,
+      const message = (body as Record<string, unknown>)?.error;
+      throw new AuthServiceError(
+        typeof message === "string" ? message : `Login failed with status ${res.status}`,
+        res.status,
       );
     }
+    return body as LoginResponse;
+  }
 
-    return (await res.json()) as LoginResponse;
+  private async readLoginBody(response: Response, signal: AbortSignal): Promise<unknown> {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      signal.throwIfAborted();
+      return response.json();
+    }
+    const abort = () => {
+      void reader.cancel().catch(() => {});
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    const decoder = new TextDecoder();
+    let text = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        signal.throwIfAborted();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      return JSON.parse(text + decoder.decode());
+    } finally {
+      signal.removeEventListener("abort", abort);
+      reader.releaseLock();
+    }
   }
 
   async logout(sessionId: string): Promise<void> {

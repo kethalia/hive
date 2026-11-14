@@ -22,6 +22,7 @@ export function getAuthServiceClient(): AuthServiceClient {
     return new AuthServiceClient("https://hive-auth.internal", undefined, {
       fetch: env.AUTH_SERVICE.fetch.bind(env.AUTH_SERVICE),
       serviceSecret: env.AUTH_SERVICE_SECRET,
+      loginTimeoutMs: 30_000,
     });
   }
   if (!client) {

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useDiscovery } from "@/lib/discovery/queries";
 
-export function TemplatesWindow({ template }: { template?: string }) {
+export function TemplatesWindow({ userId, template }: { userId: string; template?: string }) {
   const query = useDiscovery("templates");
   const [selected, setSelected] = useState(template ?? "");
   const selectorRef = useRef<HTMLButtonElement>(null);
@@ -75,9 +75,19 @@ export function TemplatesWindow({ template }: { template?: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col pb-4">
       {status ? (
-        <TemplateDetailClient key={status.name} status={status} headerControls={selector} />
+        <TemplateDetailClient
+          userId={userId}
+          key={status.name}
+          status={status}
+          headerControls={selector}
+        />
       ) : (
-        <TemplatesClient initialStatuses={query.data} embedded headerControls={selector} />
+        <TemplatesClient
+          userId={userId}
+          initialStatuses={query.data}
+          embedded
+          headerControls={selector}
+        />
       )}
     </div>
   );

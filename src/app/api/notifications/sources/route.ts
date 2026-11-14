@@ -2,14 +2,16 @@ import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
 import { installNotificationHooks, prepareNotificationWorkspace } from "@/lib/push/install";
-
 import {
   confirmNotificationCredential,
   stageNotificationCredential,
 } from "@/lib/push/source-credentials";
+import { cloudflareNotificationSourcesRoute } from "@/lib/push/sources.server";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare")
+    return cloudflareNotificationSourcesRoute(request);
   const origin = new URL(process.env.HIVE_PUBLIC_ORIGIN || request.url).origin;
   if (request.headers.get("origin") !== origin) return new Response(null, { status: 403 });
   const session = await getRequestSession();
@@ -46,6 +48,8 @@ export async function POST(request: Request) {
   }
 }
 export async function DELETE(request: Request) {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare")
+    return cloudflareNotificationSourcesRoute(request);
   const origin = new URL(process.env.HIVE_PUBLIC_ORIGIN || request.url).origin;
   if (request.headers.get("origin") !== origin) return new Response(null, { status: 403 });
   const session = await getRequestSession();

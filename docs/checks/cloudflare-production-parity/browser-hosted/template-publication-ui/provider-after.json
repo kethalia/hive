@@ -1,0 +1,41 @@
+{
+  "phase": "after",
+  "observedAt": "2026-11-13T22:38:50.700938+00:00",
+  "actorId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "fiveTemplates": [
+    {
+      "name": "ai-dev-k8s",
+      "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+      "activeVersionId": "8e86f61b-3c8e-4d6a-8d1f-c87696d42bfa"
+    },
+    {
+      "name": "browser-testing",
+      "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+      "activeVersionId": "0967c728-9931-448a-9e19-27fa4f995d6d"
+    },
+    {
+      "name": "game-dev",
+      "templateId": "696e7eca-937c-451c-b70d-e611ccb46f13",
+      "activeVersionId": "5a563463-1e1c-43f1-a7b3-b955eb737031"
+    },
+    {
+      "name": "electronics",
+      "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+      "activeVersionId": "ebb21edf-53f9-4570-a0e4-c927700cc121"
+    },
+    {
+      "name": "infrastructure",
+      "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+      "activeVersionId": "68b0eb0a-5cf5-4352-a065-0e87fd4acd1f"
+    }
+  ],
+  "versionId": "ebb21edf-53f9-4570-a0e4-c927700cc121",
+  "versionName": "hive-f8be454e-f0da-4010-b484-3665177446ae",
+  "fileId": "b432c0b5-3af2-4af9-85ba-441099e9b7fa",
+  "archiveSha256": "8a3ec1b152dc433a2553351b34a1e00b8722ee0e876bdf430663f3ee24084a5f",
+  "archiveBytes": 244736,
+  "sourceFiles": 39,
+  "allSourceBytesAndModesMatch": true,
+  "otherFourUnchanged": true,
+  "providerMutationsByAudit": 0
+}

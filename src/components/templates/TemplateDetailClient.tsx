@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { templateCatalogEntry, workspaceSurfaceLabel } from "@/lib/templates/catalog";
+import { completeTemplatePush, pendingTemplatePush } from "@/lib/templates/push-request";
 import { followTemplatePush } from "@/lib/templates/push-stream";
 import type { TemplateStatus } from "@/lib/templates/staleness";
 import { workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
@@ -46,11 +47,16 @@ function formatDate(iso: string | null): string {
 }
 
 interface TemplateDetailClientProps {
+  userId: string;
   status: TemplateStatus;
   headerControls?: ReactNode;
 }
 
-export function TemplateDetailClient({ status, headerControls }: TemplateDetailClientProps) {
+export function TemplateDetailClient({
+  userId,
+  status,
+  headerControls,
+}: TemplateDetailClientProps) {
   const definition = templateCatalogEntry(status.name);
   const profile = workspaceProfileForTemplate(status.name);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -95,10 +101,19 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
     setPushState({ jobId: null, inProgress: true, result: null, terminalOpen: true });
 
     let jobId: string;
+    let requestId: string;
     try {
-      const res = await fetch(`/api/templates/${status.name}/push`, { method: "POST" });
+      requestId = pendingTemplatePush(userId, status.name);
+      const res = await fetch(`/api/templates/${status.name}/push`, {
+        method: "POST",
+        headers: { "Idempotency-Key": requestId },
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        if (res.status === 409 && body.error === "request_conflict") {
+          completeTemplatePush(userId, status.name, requestId);
+          body.error = "Saved publication request is outdated. Push again to start a new request.";
+        }
         writeLine(`[error] ${body.error ?? "Failed to start push"}`);
         setPushState((prev) => ({ ...prev, inProgress: false, result: false }));
         return;
@@ -118,6 +133,7 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
       onLine: writeLine,
       onReconnect: () => writeLine("[stream] Connection interrupted; reconnecting to this push…"),
       onStatus: ({ success, error }) => {
+        completeTemplatePush(userId, status.name, requestId);
         if (success) {
           writeLine("\r\n\x1b[32m\u2713 Push succeeded\x1b[0m");
         } else {
@@ -127,7 +143,7 @@ export function TemplateDetailClient({ status, headerControls }: TemplateDetailC
         setPushState((prev) => ({ ...prev, inProgress: false, result: success }));
       },
     });
-  }, [status.name, writeLine]);
+  }, [status.name, writeLine, userId]);
 
   const handleCloseTerminal = useCallback(() => {
     setPushState((prev) => ({ ...prev, terminalOpen: false }));

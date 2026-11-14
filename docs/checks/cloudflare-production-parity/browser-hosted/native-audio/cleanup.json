@@ -1,0 +1,13 @@
+{
+  "initialOwnedDirectoryAbsent": true,
+  "brokerCountBefore": 1,
+  "method": "exact argv/session/hash/starttime verified pidfd SIGTERM",
+  "tmuxCreated": false,
+  "ownedProcessCountBefore": 5,
+  "ownedHelperRelayProcessesAfter": 0,
+  "ownedTmuxAbsent": true,
+  "bridgeAndPulseSocketsUnlinked": true,
+  "ownedDirectoryRemoved": true,
+  "ownedChildrenAfter": 0,
+  "ownedZombieProcessesAfter": 0
+}

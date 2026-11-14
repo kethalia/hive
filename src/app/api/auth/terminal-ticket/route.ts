@@ -1,13 +1,15 @@
-import { createTerminalTicket, isLoopbackHostname } from "@hive/auth";
+import { createTerminalTicket, isLoopbackHostname, verifyCloneTerminalProof } from "@hive/auth";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getRequestSession } from "@/lib/auth/session";
 import { resolveTerminalWsUrl, serverTerminalWsUrl } from "@/lib/runtime-config";
 import { TERMINAL_AUTH_SERVER_TIMEOUT_MS } from "@/lib/terminal/auth-deadlines";
+import { parseTerminalDiagnosticsTarget } from "@/lib/terminal/diagnostics.server";
 import {
   type GenericTerminalAuthEnvironment,
   genericTerminalIssuerSession,
 } from "@/lib/terminal/generic-auth.server";
 import { terminalBody } from "@/lib/terminal/transport-io";
+import { parseAudioTarget } from "../../../../../deploy/cloudflare/app/audio-relay";
 import { parseGenericTerminalTarget } from "../../../../../deploy/cloudflare/app/generic-terminal-relay";
 
 const ENDPOINTS = new Set(["/ws", "/ws/audio", "/keepalive/status", "/session-events"]);
@@ -56,7 +58,15 @@ export async function POST(request: Request): Promise<Response> {
     if (typeof requestedUrl !== "string" || requestedUrl.length > 3000)
       return response(400, { error: "Invalid terminal request" });
     const target = httpUrl(requestedUrl);
-    if (cloudflare && (target.origin !== origin || !parseGenericTerminalTarget(target)))
+    if (
+      cloudflare &&
+      (target.origin !== origin ||
+        !(
+          parseGenericTerminalTarget(target) ||
+          parseAudioTarget(target) ||
+          parseTerminalDiagnosticsTarget(target)
+        ))
+    )
       return response(400, { error: "Invalid terminal request" });
     const basePath = base.pathname.replace(/\/$/, "");
     const endpoint = target.pathname.slice(basePath.length);
@@ -78,6 +88,22 @@ export async function POST(request: Request): Promise<Response> {
       : await getRequestSession();
     signal.throwIfAborted();
     if (!session) return response(401, { error: "Sign in required" });
+    const shell = cloudflare ? parseGenericTerminalTarget(target) : null;
+    if (
+      shell?.clonePath &&
+      !verifyCloneTerminalProof(
+        shell.cloneProof,
+        {
+          workspaceId: shell.workspaceId,
+          agentId: shell.agentId,
+          sessionId: session.session.sessionId,
+          sessionName: shell.sessionName,
+          clonePath: shell.clonePath,
+        },
+        process.env.COOKIE_SECRET || "",
+      ).ok
+    )
+      return response(400, { error: "Invalid clone terminal request" });
     const ticket = createTerminalTicket(
       {
         sessionId: session.session.sessionId,

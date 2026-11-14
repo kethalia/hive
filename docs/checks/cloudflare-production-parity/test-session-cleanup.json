@@ -1,0 +1,15 @@
+{
+  "origin": "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  "results": [
+    {
+      "sessionFile": "preview-hive-session-cookie.json",
+      "logoutStatus": 200,
+      "subsequentDiscoveryStatus": 401
+    },
+    {
+      "sessionFile": "preview-same-site-hive-session-cookie.json",
+      "logoutStatus": 200,
+      "subsequentDiscoveryStatus": 401
+    }
+  ]
+}

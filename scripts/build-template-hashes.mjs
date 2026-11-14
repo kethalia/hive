@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { assertArtifactPath } from "./artifact-paths.mjs";
 
 async function files(directory, prefix = "") {
   const result = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.name === ".terraform") continue;
+    if (entry.name === ".terraform" && entry.isDirectory()) continue;
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) result.push(...(await files(join(directory, entry.name), relative)));
     else if (entry.isFile()) result.push(relative);
@@ -24,6 +25,7 @@ export async function buildTemplateHashes(root = process.cwd()) {
     "infrastructure",
   ]) {
     const directory = join(root, "templates", name);
+    await assertArtifactPath(directory, { directory: true });
     const hash = createHash("sha256");
     for (const file of await files(directory)) {
       hash.update(file);
@@ -31,10 +33,9 @@ export async function buildTemplateHashes(root = process.cwd()) {
     }
     hashes[name] = hash.digest("hex");
   }
-  await writeFile(
-    join(root, "src/lib/templates/cloudflare-template-hashes.json"),
-    `${JSON.stringify(hashes, null, 2)}\n`,
-  );
+  const destination = join(root, "src/lib/templates/cloudflare-template-hashes.json");
+  await assertArtifactPath(destination, { allowMissing: true });
+  await writeFile(destination, `${JSON.stringify(hashes, null, 2)}\n`);
   return hashes;
 }
 

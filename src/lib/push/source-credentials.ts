@@ -61,11 +61,27 @@ export async function confirmNotificationCredential(
   generation: number,
   token: string,
   workspaceName: string,
+  signal?: AbortSignal,
 ) {
   const hash = callbackTokenHash(token);
+  if (signal) {
+    return getDb().$transaction(
+      async (tx) => {
+        signal.throwIfAborted();
+        const updated = await tx.notificationSource.updateMany({
+          where: { id: sourceId, credentialGeneration: generation, pendingTokenHash: hash },
+          data: { tokenHash: hash, pendingTokenHash: null, workspaceName },
+        });
+        signal.throwIfAborted();
+        return updated.count === 1;
+      },
+      { timeout: 10000, maxWait: 10000 },
+    );
+  }
   // A late completion cannot replace a more recent rotation or resurrect a revoked source.
-  await getDb().notificationSource.updateMany({
+  const updated = await getDb().notificationSource.updateMany({
     where: { id: sourceId, credentialGeneration: generation, pendingTokenHash: hash },
     data: { tokenHash: hash, pendingTokenHash: null, workspaceName },
   });
+  return updated.count === 1;
 }

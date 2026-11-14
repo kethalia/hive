@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { classifyTerminalClose } from "@/hooks/useTerminalWebSocket";
+import { createCloneSessionKey, createSafeCloneTerminalSessionName } from "@/lib/git/clone-tree";
 import { GenericTerminalFailure } from "@/lib/terminal/generic-auth.server";
 import type { RelaySocket } from "@/lib/terminal/relay-types";
 import {
@@ -88,6 +89,132 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe("generic reconnecting PTY relay", () => {
+  it("preserves canonical clone session/path and the existing quoted PTY cwd", async () => {
+    const f = fixture(),
+      clonePath = "projects/owner/repo with spaces";
+    const sessionName = createSafeCloneTerminalSessionName(
+      createCloneSessionKey(clonePath.split("/")),
+    );
+    const params = new URLSearchParams({
+      ...target,
+      sessionName,
+      clonePath,
+      cloneProof: `${"a".repeat(80)}.${"b".repeat(43)}`,
+    });
+    expect(parseGenericTerminalTarget(new URL(request(params.toString()).url))).toMatchObject({
+      sessionName,
+      clonePath,
+    });
+    expect((await f.open(request(params.toString()))).status).toBe(101);
+    const command = new URL(f.deps.upgrade.mock.calls[0][0]).searchParams.get("command");
+    expect(command).toContain(`-s ${sessionName}`);
+    expect(command).toContain("-c '/home/coder/projects/owner/repo with spaces'");
+  });
+  it.each([
+    "../repo",
+    "projects//repo",
+    "/absolute/repo",
+    "projects/./repo",
+    "projects\\repo",
+  ])("rejects clone traversal or noncanonical path %s", (clonePath) => {
+    const sessionName = createSafeCloneTerminalSessionName(
+      createCloneSessionKey(clonePath.split("/")),
+    );
+    const params = new URLSearchParams({
+      ...target,
+      sessionName,
+      clonePath,
+      cloneProof: `${"a".repeat(80)}.${"b".repeat(43)}`,
+    });
+    expect(parseGenericTerminalTarget(new URL(request(params.toString()).url))).toBeNull();
+  });
+
+  it("registers diagnostics before READY and drains close in the callback lifetime", async () => {
+    const f = fixture();
+    let open!: (value: boolean) => void, close!: () => void;
+    const diagnostics = {
+      connectionId: "10000000-0000-4000-8000-000000000001" as const,
+      open: vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            open = resolve;
+          }),
+      ),
+      heartbeat: vi.fn(async () => true),
+      activity: vi.fn(),
+      event: vi.fn(async (_type: string) => {}),
+      keepalive: vi.fn(async () => {}),
+      close: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            close = resolve;
+          }),
+      ),
+    };
+    const deps = {
+      ...f.deps,
+      diagnostics: vi.fn(() => diagnostics),
+      extend: vi.fn(async () => ({
+        ok: false,
+        httpStatus: 409,
+        category: "manual-shutdown" as const,
+        durationMs: 12,
+      })),
+    };
+    const opening = openGenericTerminalRelay(request(), origin, Date.now() + 3600000, deps);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.server.send).not.toHaveBeenCalled();
+    expect(f.deps.upgrade).not.toHaveBeenCalled();
+    open(true);
+    expect((await opening).status).toBe(101);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(diagnostics.event.mock.calls.map(([type]) => type)).toEqual([
+      "upstream_connecting",
+      "upstream_connected",
+    ]);
+    expect(f.server.send).toHaveBeenCalledWith('{"type":"hive:ready"}');
+    f.server.emit("message", { data: '{"data":"echo safe"}' });
+    f.upstream.emit("message", { data: new Uint8Array([1, 2, 3]).buffer });
+    expect(diagnostics.activity).toHaveBeenCalledWith("browser_input", 20);
+    expect(diagnostics.activity).toHaveBeenCalledWith("upstream_output", 3);
+    expect(diagnostics.heartbeat).toHaveBeenCalledOnce();
+    expect(diagnostics.keepalive).toHaveBeenCalledWith({
+      ok: false,
+      httpStatus: 409,
+      category: "manual-shutdown",
+      durationMs: 12,
+    });
+    expect(deps.extend).toHaveBeenCalledOnce();
+    f.server.emit("close", { code: 1000 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(diagnostics.close).toHaveBeenCalledWith(1013, "browser_disconnected");
+    expect(f.deps.onClosed).not.toHaveBeenCalled();
+    close();
+    await Promise.all(f.deps.trackCleanup.mock.calls.map(([work]) => work));
+    expect(f.deps.onClosed).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("never emits READY if diagnostic registration fails", async () => {
+    const f = fixture();
+    const diagnostics = {
+      connectionId: "10000000-0000-4000-8000-000000000001" as const,
+      open: vi.fn(async () => false),
+      activity: vi.fn(),
+      heartbeat: vi.fn(async () => true),
+      event: vi.fn(async (_type: string) => {}),
+      keepalive: vi.fn(async () => {}),
+      close: vi.fn(async () => {}),
+    };
+    const deps = { ...f.deps, diagnostics: () => diagnostics };
+    expect(
+      (await openGenericTerminalRelay(request(), origin, Date.now() + 3600000, deps)).status,
+    ).toBe(401);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.server.send).not.toHaveBeenCalled();
+    expect(f.deps.upgrade).not.toHaveBeenCalled();
+    expect(diagnostics.close).toHaveBeenCalledWith(1011, "upstream_error");
+  });
+
   it("preserves a normal upstream exit as a final close for the actual hook classifier", async () => {
     const f = fixture();
     await f.open();

@@ -16,7 +16,6 @@ export function isPortableServerAction(request: Request, manifest: PortableActio
   const limit = manifest.actions[id].maxBodyBytes;
   return (
     bodyLimits.has(limit) &&
-    !request.url.includes("?") &&
     !url.hash &&
     !url.pathname.includes("%") &&
     manifest.actions[id].paths.includes(url.pathname) &&
@@ -117,6 +116,7 @@ export async function boundPortableActionBody(
 
 const discoveryPaths = new Set([
   "/api/discovery/workspaces",
+  "/api/discovery/repositories",
   "/api/discovery/sessions",
   "/api/discovery/template-options",
   "/api/discovery/agent",

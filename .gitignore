@@ -116,3 +116,6 @@ lpt[1-9].*
 .next-cloudflare/
 .artifacts/
 .wrangler/
+/public/hive-runtime-artifacts/
+
+/public/hive-template-artifacts/

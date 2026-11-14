@@ -6,6 +6,10 @@ export interface ExecOptions {
   loginShell?: boolean;
   coderUrl?: string;
   sessionToken?: string;
+  stdin?: string;
+  maxBufferBytes?: number;
+  signal?: AbortSignal;
+  expected?: { workspaceId: string; buildId: string; agentId: string };
 }
 
 export interface ExecResult {
@@ -28,6 +32,11 @@ export function execInWorkspace(
   command: string,
   opts?: ExecOptions,
 ): Promise<ExecResult> {
+  if (process.env.HIVE_RUNTIME_TARGET === "cloudflare") {
+    return import("./pty-exec.server").then(({ execWorkspacePty }) =>
+      execWorkspacePty(workspaceName, command, opts),
+    );
+  }
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_EXEC_TIMEOUT_MS;
   const loginShell = opts?.loginShell ?? false;
   const truncatedCmd = command.length > 100 ? `${command.slice(0, 100)}…` : command;
@@ -42,10 +51,15 @@ export function execInWorkspace(
   };
 
   return new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       "coder",
       ["ssh", "--wait=no", workspaceName, "--", shellCmd],
-      { timeout: timeoutMs, env },
+      {
+        timeout: timeoutMs,
+        env,
+        ...(opts?.maxBufferBytes ? { maxBuffer: opts.maxBufferBytes } : {}),
+        ...(opts?.signal ? { signal: opts.signal } : {}),
+      },
       (error, stdout, stderr) => {
         if (error) {
           if (
@@ -83,6 +97,10 @@ export function execInWorkspace(
         resolve({ stdout: stdout ?? "", stderr: stderr ?? "", exitCode: 0 });
       },
     );
+    if (opts?.stdin !== undefined) {
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(opts.stdin);
+    }
   });
 }
 

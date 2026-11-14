@@ -1,0 +1,14 @@
+{
+  "scripts/notifications/install.py": {
+    "bytes": 4165,
+    "sha256": "c263a46a3f301ec03016fe8230372cf24a313dbfe6fb1e9af27ce9061dd2b13e"
+  },
+  "scripts/notifications/agent-hook.py": {
+    "bytes": 3603,
+    "sha256": "51d1f5b9908956d74f2e272130b3311cc0b929e6a3489eef09818c7945898b59"
+  },
+  "templates/ai-dev-k8s/scripts/agent-tools.py": {
+    "bytes": 21473,
+    "sha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+  }
+}

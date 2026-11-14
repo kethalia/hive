@@ -1,0 +1,79 @@
+{
+  "scope": "Legacy application Cloudflare parity migrations and explicit runtime grants",
+  "schema": {
+    "migrations": 11,
+    "applicationTables": 13,
+    "sequences": ["terminal_events_id_seq"],
+    "originalSevenByteIdenticalToMain": "a8ea4384ed84c94f2813c8d8f9ecee1846c2870c"
+  },
+  "localFixture": {
+    "database": "hive_cutover_migrations_20261113",
+    "databaseOid": 239303,
+    "host": "127.0.0.1",
+    "port": 55439,
+    "owner": "coder",
+    "runtimeRole": "hive_cutover_fixture_runtime_20261113",
+    "otherRole": "hive_cutover_fixture_other_20261113",
+    "schemas": ["public", "upgrade_fixture"],
+    "otherFixtureDataModified": false
+  },
+  "test": {
+    "command": "HIVE_CUTOVER_MIGRATIONS_TEST_DATABASE_URL=postgresql://coder@127.0.0.1:55439/hive_cutover_migrations_20261113 pnpm exec vitest run src/__tests__/deployment/cutover-migrations.integration.test.ts",
+    "passed": 1,
+    "failed": 0,
+    "durationMs": 6715,
+    "coverage": [
+      "actual Prisma fresh eleven migrations",
+      "actual Prisma seeded seven-to-eleven upgrade",
+      "all seven original table snapshots and existing migration history unchanged",
+      "token ciphertext/IV/auth tag/version, sessions, VAPID bytes, subscriptions, sources and favorites retained",
+      "current generated Node client reads added fields on old rows",
+      "actual restricted runtime-role generated client reads",
+      "exact thirteen-table SELECT/INSERT/UPDATE/DELETE matrix and no TRUNCATE/REFERENCES/TRIGGER",
+      "real notification/template identity and terminal-state guards",
+      "diagnostic sequence use and bounds; token rotation lease-pair constraint",
+      "wrong database OID rejects grants; same grant application replay succeeds",
+      "runtime migration history, schema/admin, sequence setval, ungranted future table and other-schema access denied",
+      "no explicit fixture-role grants in other databases"
+    ]
+  },
+  "productionObservation": {
+    "mode": "read-only transaction metadata",
+    "database": "hive_production",
+    "databaseOid": 344064,
+    "owner": "hive_epic_owner",
+    "runtimeRole": "hive_production_runtime",
+    "runtimeElevatedAttributes": false,
+    "runtimeMemberships": [],
+    "publicTables": [],
+    "findings": [
+      "owner blanket table defaults expose migration history unless removed",
+      "appended source grants can include the opposite environment runtime role; scoped grant script revokes it in target database"
+    ],
+    "writes": false
+  },
+  "artifacts": {
+    "services/migrate/src/runtime-grants.mjs": "86f66b11495e2ab57855c1baabceb0d4c6ac4f4a2fd23e897e770ea283af5fd6",
+    "src/__tests__/deployment/cutover-migrations.integration.test.ts": "a8333c3f9c498be109bd3ab7c41f5a30355859d3a3fcdbe1826c1041cdf289f2",
+    "docs/cloudflare-production-migrations.md": "eec31b75d55559bfa73e71a29238867a1e331ae044fc94d6c7acf88ef654eea6"
+  },
+  "migrationSha256": {
+    "0_init": "2b4e3de10de83ac6feee91c24525c3ce0baada380d21e3cbbfbb6b48902e400c",
+    "20260602000000_add_navigation_favorites": "40389bab3a00b8bb95ef3a2cedfde8c04b44d95c1c9c97f3d959c83c35c076a2",
+    "20260603000000_add_terminal_controls_beyond_mobile": "a10ffffbb49343d2edce2600ca67552d9c8757b0bd4334b37caa0f1f32f033a4",
+    "20260714000000_add_navigation_favorite_position": "b79e9106b617f501d7c17822b0f0917cd2b464396a43d71f101d0c150166c409",
+    "20260814000000_remove_legacy_tasks": "1cfb9af7ba4cdc59306f1a25b9e8bbd7c340dd175b955fd3d1f74a72ae10b7a7",
+    "20261016000000_add_agent_notifications": "323c85eefc64c75c5dfc5240e8aa93805889d86895ef274566893276e36a7d0f",
+    "20261016010000_stage_notification_credentials": "96cb5165cb50d64c24489cad45f1f53efd0547d73dc91fbc29c5e1548b223b5b",
+    "20261113010000_agent_notification_events": "eefa1580102595b486e0c9ef70d6481f289c1d5385571313ddaec9eea8e220eb",
+    "20261113020000_terminal_diagnostics": "4356e5d7a6b3fe6e4a6756dc85a22d055dbea7bc23072e0d2498bbb71761f9c5",
+    "20261113030000_template_jobs": "57e0e0510ff8a858ac709a439b8fb268f2572fa81a978572324f2eb95b1f4023",
+    "20261113040000_legacy_rotation_leases": "1e1713f2598bb6d5b8293890475e3b9bdccb813bf1cf3073c5d598e1a5473bf4"
+  },
+  "limitations": [
+    "No production schema migration, restore, grant change or application cutover executed.",
+    "Local tests use the owned PostgreSQL server and synthetic fixture data; production inspection is metadata only.",
+    "Existing public CONNECT policy in unrelated databases is unchanged; the script grants no rights there.",
+    "Template job/notice retention currently has no cleanup sweep; completed identities remain stored."
+  ]
+}

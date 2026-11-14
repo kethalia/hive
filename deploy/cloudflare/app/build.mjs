@@ -2,6 +2,8 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, open, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildRuntimeArtifacts } from "../../../scripts/build-runtime-artifacts.mjs";
+import { buildTemplateArtifacts } from "../../../scripts/build-template-artifacts.mjs";
 import { buildTemplateHashes } from "../../../scripts/build-template-hashes.mjs";
 import { readProviderBuildIdentity } from "../../../scripts/release/provider-build-identity.mjs";
 import {
@@ -31,6 +33,8 @@ try {
     if (error.code !== "ENOENT") throw error;
   });
   await buildTemplateHashes();
+  await buildRuntimeArtifacts();
+  await buildTemplateArtifacts(process.cwd(), "assets");
   const inputs = await sourceDigests();
   if (await exists(".next/lock")) throw new Error("A Next process currently owns .next");
   if (await exists(".next")) {
