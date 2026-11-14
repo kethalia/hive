@@ -57,7 +57,7 @@ direct endpoint was verified. No other database was changed by that correction.
 
 ## Automated validation
 
-- Full Vitest suite passed 2,265 tests, with 81 optional tests skipped.
+- Full Vitest suite passed 2,277 tests, with 81 optional tests skipped.
 - Final focused auth, middleware and settings suite passed 166 tests.
 - Ten real PostgreSQL Better Auth cases cover PKCE, encrypted storage, stable
   identity and preferences, concurrent refresh, fresh revocation, a lost refresh
@@ -98,3 +98,24 @@ Callback activation now resets the refresh lease atomically with its new token
 write and cannot reopen a later uncertain-refresh fence. A stale OAuth cookie
 no longer shadows a valid legacy session when OAuth is explicitly disabled.
 The enabled OAuth flow continues to reject legacy-only sessions.
+
+## Preview initialization and build
+
+PR [452](https://github.com/kethalia/hive/pull/452) tracks this increment.
+The reviewed implementation is `245a58d6817a42dc64567715f279c7ba69df2b1c`.
+The local Cloudflare build and both application/Cloudflare typechecks pass.
+The first initialized preview deployment is `d2609419`, with application build
+`94856c3f-f53b-4397-9f68-13189fb82165` and version `2.33.0`.
+
+Cloudflare's existing preview build configuration contained an explicit list of
+the earlier enrolled branches. P02 was added to that existing list so subsequent
+commits run its real build and preview deployment. Initial preview secrets were
+provided through the official Wrangler preview command. All five preview secrets
+are independent from production.
+
+Browser acceptance reuses persistent Browser Testing workspace
+`5cf78a47-70dc-4781-ac53-b7a3d4b1001f` and software test workspace
+`23023679-3c7b-4a50-ba52-4ca31673148e`. Their identities and task start builds
+were recorded before use. The software agent connects and has tmux available,
+but its startup reports an unrelated missing official Claude TypeScript LSP
+marketplace plugin. That template issue is retained as a test-fixture limitation.
