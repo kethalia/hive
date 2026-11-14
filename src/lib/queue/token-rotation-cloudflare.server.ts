@@ -450,9 +450,9 @@ export async function dispatchLegacyTokenRotation(
         const pending = value.pending;
         if (!pending || pending.phase !== "minted" || !pending.candidate) return;
         if (!sameOwner(row, pending)) throw Error("rotation_owner_changed");
-        const current = plaintext(row, encryptionKey);
-        await verifyUser(row, current);
         if (!sameCredential(row, pending)) {
+          const current = plaintext(row, encryptionKey);
+          await verifyUser(row, current);
           const orphan = await metadata(row, current, pending);
           if (orphan && (orphan.id !== pending.candidate.id || current.startsWith(`${orphan.id}-`)))
             throw Error("cleanup_provenance_mismatch");

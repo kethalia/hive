@@ -27,6 +27,7 @@ export const jobStateSchema = z
     versionId: uuid.nullable(),
     importJobId: uuid.nullable(),
     effectIssued: z.boolean(),
+    providerFailures: z.number().int().min(0).max(20).default(0),
   })
   .strict();
 export type JobState = z.infer<typeof jobStateSchema>;

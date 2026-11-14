@@ -388,6 +388,46 @@ suite("durable legacy template publication (owned PostgreSQL)", () => {
     expect((await f.read())?.phase).toBe("failed");
     expect(f.provider.activate).not.toHaveBeenCalled();
   });
+  it("retries a provider failure after more than twenty successful import polls", async () => {
+    const f = await fixture();
+    await f.step();
+    await f.step();
+    const version = await f.provider.versionById();
+    f.setVersion({ ...version, status: "running" });
+    // Simulate a job persisted before failure accounting was introduced.
+    await db.$executeRaw`UPDATE template_jobs SET state=state-'providerFailures' WHERE id=${f.job.id}::uuid`;
+    for (let i = 0; i < 21; i++) await f.step();
+    f.provider.versionById.mockRejectedValueOnce(
+      new TemplatePublicationError("provider_unavailable"),
+    );
+    await f.step();
+    expect(await f.read()).toMatchObject({ phase: "importing", state: { providerFailures: 1 } });
+    f.setVersion(version);
+    await f.step();
+    await f.step();
+    expect(await f.read()).toMatchObject({ phase: "succeeded", state: { providerFailures: 1 } });
+    expect(f.provider.createVersion).toHaveBeenCalledOnce();
+    expect(f.provider.activate).toHaveBeenCalledOnce();
+  });
+  it("persists the provider failure budget across successful pending-import polls", async () => {
+    const f = await fixture();
+    await f.step();
+    await f.step();
+    const version = await f.provider.versionById();
+    f.setVersion({ ...version, status: "running" });
+    for (let i = 1; i <= 20; i++) {
+      f.provider.versionById.mockRejectedValueOnce(
+        new TemplatePublicationError("provider_deadline"),
+      );
+      await f.step();
+      expect(await f.read()).toMatchObject({
+        phase: i === 20 ? "failed" : "importing",
+        state: { providerFailures: i },
+      });
+      if (i < 20) await f.step();
+    }
+    expect(f.provider.activate).not.toHaveBeenCalled();
+  });
   it("recovers a lost version ACK from exact deterministic version identity without another POST", async () => {
     const f = await fixture();
     await f.step();

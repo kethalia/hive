@@ -250,11 +250,9 @@ export async function processTemplateJob(
         errorClass,
       }),
     );
-    if (
-      ["provider_unavailable", "provider_deadline"].includes(reason) &&
-      job.attempts < 20 &&
-      job.deadline.getTime() > Date.now()
-    ) {
+    const providerFailure = ["provider_unavailable", "provider_deadline"].includes(reason);
+    if (providerFailure) job.state.providerFailures++;
+    if (providerFailure && job.state.providerFailures < 20 && job.deadline.getTime() > Date.now()) {
       // Preserve any pre-effect marker. The next stage observes/reconciles it.
       await store.save(job, job.phase, job.state, reason, 2000);
     } else

@@ -34,10 +34,9 @@ export async function sendBoundedPush(
   do {
     checkDeadline();
     const subscriptions = await db.pushSubscription.findMany({
-      where: { userId: ownerId },
+      where: { userId: ownerId, ...(cursor ? { id: { gt: cursor } } : {}) },
       orderBy: { id: "asc" },
       take: 20,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     checkDeadline();
     const enabled = subscriptions.filter(

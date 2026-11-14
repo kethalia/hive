@@ -368,7 +368,10 @@ describe.skipIf(!url)("Cloudflare legacy token rotation / actual PostgreSQL", ()
     expect(f.posts()).toBe(0);
     expect(f.deleted).toEqual([]);
   });
-  it("rolls back a failed CAS and adopts the same encrypted candidate on retry", async () => {
+  it.each([
+    "live",
+    "expired",
+  ])("rolls back a failed CAS and adopts the saved candidate when the original token is %s", async (originalStatus) => {
     const f = await fixture();
     await db.$executeRawUnsafe(
       `CREATE FUNCTION rotation_fixture_reject() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.id='${f.credential.id}'::uuid AND NEW.version>OLD.version THEN RAISE EXCEPTION 'fixture CAS rollback'; END IF; RETURN NEW; END $$`,
@@ -386,9 +389,29 @@ describe.skipIf(!url)("Cloudflare legacy token rotation / actual PostgreSQL", ()
       await db.$executeRawUnsafe("DROP TRIGGER rotation_fixture_reject ON coder_tokens");
       await db.$executeRawUnsafe("DROP FUNCTION rotation_fixture_reject()");
     }
+    if (originalStatus === "expired") {
+      f.keys.delete("AAAAAAAAAA");
+      await db.coderToken.update({
+        where: { id: f.credential.id },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+    }
+    f.fetcher.mockClear();
     await f.due();
     expect((await f.run()).rotated).toBe(1);
     expect(f.posts()).toBe(1);
+    const row = await f.read();
+    expect(row.version).toBe(2);
+    expect(row.rotationState).toMatchObject({ pending: null });
+    expect(decrypt(row)).not.toBe(oldToken);
+    expect(f.deleted).toEqual([]);
+    if (originalStatus === "expired") {
+      expect(
+        f.fetcher.mock.calls.every(
+          ([, init]) => new Headers(init?.headers).get("Coder-Session-Token") !== oldToken,
+        ),
+      ).toBe(true);
+    }
   });
   it("losing rotation preserves a newer login and deletes only that losing attempt's minted key", async () => {
     const f = await fixture();

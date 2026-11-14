@@ -17,17 +17,30 @@ const payload = {
 };
 function fixture(preferences: Record<string, boolean>[]) {
   const rows = preferences.map((value, i) => ({
-    id: String(i),
+    id: String(i).padStart(3, "0"),
     endpoint: `https://push.fixture.invalid/${i}`,
     preferences: value,
     p256dh: "synthetic",
     auth: "synthetic",
   }));
-  const findMany = vi.fn(async (query: { cursor?: { id: string } }) => {
-      const offset = query.cursor ? rows.findIndex((row) => row.id === query.cursor!.id) + 1 : 0;
-      return rows.slice(offset, offset + 20);
-    }),
-    deleteMany = vi.fn(async () => ({ count: 1 }));
+  const findMany = vi.fn(
+      async (query: {
+        where: { userId: string; id?: { gt: string } };
+        cursor?: { id: string };
+      }) => {
+        if (query.cursor && !rows.some((row) => row.id === query.cursor!.id)) return [];
+        const offset = query.cursor ? rows.findIndex((row) => row.id === query.cursor!.id) + 1 : 0;
+        return rows
+          .filter((row) => !query.where.id || row.id > query.where.id.gt)
+          .slice(offset, offset + 20);
+      },
+    ),
+    deleteMany = vi.fn(async (query: { where: { id: string } }) => {
+      const index = rows.findIndex((row) => row.id === query.where.id);
+      if (index < 0) return { count: 0 };
+      rows.splice(index, 1);
+      return { count: 1 };
+    });
   return {
     db: { pushSubscription: { findMany, deleteMany } } as unknown as PrismaClient,
     findMany,
@@ -81,7 +94,21 @@ describe("shared bounded agent push transport", () => {
       "delivered",
     );
     expect(f.deleteMany).toHaveBeenCalledWith({
-      where: { id: "0", userId: owner, endpoint: "https://push.fixture.invalid/0" },
+      where: { id: "000", userId: owner, endpoint: "https://push.fixture.invalid/0" },
+    });
+  });
+  it.each([
+    404, 410,
+  ])("continues after the last endpoint in a page is deleted with %s", async (statusCode) => {
+    const f = fixture(Array.from({ length: 23 }, () => ({})));
+    mocked.send.mockImplementation(async (subscription) => {
+      if (subscription.endpoint === "https://push.fixture.invalid/19") throw { statusCode };
+    });
+    expect(await sendBoundedPush(f.db, owner, payload, "https://hive.invalid")).toBe("delivered");
+    expect(f.deleteMany).toHaveBeenCalledOnce();
+    expect(mocked.send).toHaveBeenCalledTimes(23);
+    expect(f.findMany.mock.calls[1][0]).toMatchObject({
+      where: { userId: owner, id: { gt: "019" } },
     });
   });
   it("checks the absolute deadline before network admission even when signing delays timers", async () => {
