@@ -17,7 +17,7 @@ describe("LoginPage session routing", () => {
   it("redirects authenticated visitors to the workspace home", async () => {
     mocks.getRequestSession.mockResolvedValue({ user: { id: "user-1" } });
 
-    await LoginPage();
+    await LoginPage({});
 
     expect(mocks.redirect).toHaveBeenCalledWith("/workspaces");
   });
@@ -25,7 +25,7 @@ describe("LoginPage session routing", () => {
   it("renders the login form when no session exists", async () => {
     mocks.getRequestSession.mockResolvedValue(null);
 
-    const page = await LoginPage();
+    const page = await LoginPage({});
 
     expect(page.type).toBe(LoginForm);
     expect(mocks.redirect).not.toHaveBeenCalled();

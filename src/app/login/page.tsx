@@ -7,7 +7,7 @@ export default async function LoginPage({
   searchParams,
 }: {
   searchParams?: Promise<{ error?: string }>;
-} = {}) {
+}) {
   const session = await getRequestSession();
   if (session) redirect("/workspaces");
   if (process.env.HIVE_CODER_OAUTH_ENABLED === "true")

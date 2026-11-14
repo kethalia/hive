@@ -291,9 +291,7 @@ describe.skipIf(!url)("Better Auth Coder OAuth / actual PostgreSQL", () => {
     const after = createCoderAuth(db, { send: f.send }).options.databaseHooks?.account?.update
       ?.after;
     expect(after).toBeTypeOf("function");
-    await expect(after!(captured as never, null as never)).rejects.toThrow(
-      "coder_oauth_grant_changed",
-    );
+    await expect(after!(captured as never)).rejects.toThrow("coder_oauth_grant_changed");
     await expect(
       getUsableCoderCredential(session.user.id, { db, send: f.send }),
     ).rejects.toHaveProperty("code", "coder_oauth_reconnect");
