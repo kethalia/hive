@@ -59,7 +59,7 @@ direct endpoint was verified. No other database was changed by that correction.
 
 - Full Vitest suite passed 2,277 tests, with 81 optional tests skipped.
 - Final focused auth, middleware and settings suite passed 166 tests.
-- Ten real PostgreSQL Better Auth cases cover PKCE, encrypted storage, stable
+- Fourteen real PostgreSQL Better Auth cases cover PKCE, encrypted storage, stable
   identity and preferences, concurrent refresh, fresh revocation, a lost refresh
   response, client misconfiguration, late rejection after newer sign-in,
   persistence rollback, a delayed callback after uncertain refresh, and disconnect racing refresh.
@@ -119,3 +119,9 @@ Browser acceptance reuses persistent Browser Testing workspace
 were recorded before use. The software agent connects and has tmux available,
 but its startup reports an unrelated missing official Claude TypeScript LSP
 marketplace plugin. That template issue is retained as a test-fixture limitation.
+
+Password-login recovery with OAuth disabled also updates the user's credential
+mode, encrypted legacy token and replacement session atomically, while ending
+old OAuth sessions. Four additional PostgreSQL checks cover connected and
+disconnected users plus token-write and session-write rollback. The auth service
+suite now passes 153 tests.

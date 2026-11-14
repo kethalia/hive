@@ -1,9 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
+import { encrypt } from "@hive/auth";
 import { PrismaClient } from "@hive/db";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { createDatabaseRequest } from "../../../packages/db/src/request-scope";
 import { createCoderAuth } from "../../../services/auth/src/auth/better-auth";
 import { getUsableCoderCredential } from "../../../services/auth/src/auth/coder-oauth-credentials";
 import { disconnectCoderOAuth } from "../../../services/auth/src/auth/coder-oauth-disconnect";
+import { performLogin } from "../../../services/auth/src/auth/login";
+import { getSessionById } from "../../../services/auth/src/auth/session";
+import {
+  getDecryptedCoderToken,
+  getTokenStatus,
+} from "../../../services/auth/src/auth/token-status";
 
 const url = process.env.HIVE_BETTER_AUTH_TEST_DATABASE_URL;
 if (
@@ -25,10 +34,15 @@ beforeAll(() => {
   vi.stubEnv("CODER_OAUTH_CLIENT_ID", "fixture-client");
   vi.stubEnv("CODER_OAUTH_CLIENT_SECRET", "fixture-client-secret");
   vi.stubEnv("COOKIE_SECRET", "fixture-secret-".repeat(4));
+  vi.stubEnv("ENCRYPTION_KEY", "a".repeat(64));
+  vi.stubEnv("CODER_CA_CERT", "");
+  vi.stubEnv("ALLOWED_CODER_URLS", coderOrigin);
 });
 beforeEach(async () => {
+  vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
   if (url) await db.$executeRawUnsafe("TRUNCATE users,better_auth_verifications CASCADE");
 });
+afterEach(() => vi.unstubAllGlobals());
 afterAll(async () => {
   await db.$disconnect();
   vi.unstubAllEnvs();
@@ -157,7 +171,133 @@ function fixture() {
   };
 }
 
+function passwordProvider(coderUserId: string) {
+  const send = vi.fn<typeof fetch>(async (input, init) => {
+    const target = new URL(String(input));
+    expect(target.origin).toBe(coderOrigin);
+    if (target.pathname === "/api/v2/buildinfo") return Response.json({ version: "2.38.4" });
+    if (target.pathname === "/api/v2/users/login")
+      return Response.json({ session_token: "fixture-password-session" });
+    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe("fixture-password-session");
+    if (target.pathname === "/api/v2/users/me")
+      return Response.json({ id: coderUserId, username: "password-fixture" });
+    if (target.pathname === "/api/v2/applications/host")
+      return Response.json({ host: "*.apps.fixture.invalid" });
+    if (target.pathname === `/api/v2/users/${coderUserId}/keys`)
+      return Response.json({ key: "fixture-legacy-key" });
+    throw Error("Unexpected legacy provider path");
+  });
+  vi.stubGlobal("fetch", send);
+  return send;
+}
+
 describe.skipIf(!url)("Better Auth Coder OAuth / actual PostgreSQL", () => {
+  it.each([
+    false,
+    true,
+  ])("atomically selects legacy credentials after flag-off password login for disconnected=%s", async (disconnected) => {
+    const f = fixture();
+    const original = await f.signIn();
+    if (disconnected) {
+      f.revoke();
+      await expect(
+        getUsableCoderCredential(original.session.user.id, { db, send: f.send }),
+      ).rejects.toHaveProperty("code", "coder_oauth_reconnect");
+    }
+    const accountBefore = await db.coderOAuthAccount.findFirstOrThrow({
+      where: { userId: original.session.user.id },
+    });
+    const oauthCalls = f.send.mock.calls.length;
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
+    const provider = passwordProvider(f.coderUserId);
+    const requestDb = createDatabaseRequest(() => db);
+    const login = await requestDb.run(async () => {
+      const result = await performLogin(
+        coderOrigin,
+        "oauth-fixture@example.invalid",
+        "fixture-password",
+      );
+      expect(result.user.id).toBe(original.session.user.id);
+      expect((await getSessionById(result.sessionId))?.user.id).toBe(result.user.id);
+      expect(await getTokenStatus(result.user.id)).toMatchObject({ status: "valid" });
+      expect(await getDecryptedCoderToken(result.user.id)).toMatchObject({
+        token: "fixture-legacy-key",
+      });
+      const client = await getCoderClientForUser(result.user.id);
+      expect(client.getCredentialSource()).toBe("legacy");
+      expect(client.getSessionToken()).toBe("fixture-legacy-key");
+      return result;
+    });
+    expect((await db.user.findUniqueOrThrow({ where: { id: login.user.id } })).authMode).toBe(
+      "legacy",
+    );
+    expect(
+      await db.session.count({ where: { userId: login.user.id, authToken: { not: null } } }),
+    ).toBe(0);
+    expect(
+      await db.coderOAuthAccount.findUniqueOrThrow({ where: { id: accountBefore.id } }),
+    ).toEqual(accountBefore);
+    expect(f.send.mock.calls.length).toBe(oauthCalls);
+    expect(provider).toHaveBeenCalledTimes(5);
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+    expect(await requestDb.run(() => getSessionById(login.sessionId))).toBeNull();
+    expect(
+      await createCoderAuth(db, { send: f.send }).api.getSession({
+        headers: new Headers({ Cookie: original.browserCookie }),
+      }),
+    ).toBeNull();
+  });
+
+  it.each([
+    "coder_tokens",
+    "sessions",
+  ])("retains the previous mode, token and sessions when legacy login fails writing %s", async (table) => {
+    const f = fixture();
+    const original = await f.signIn();
+    const encrypted = encrypt("retained-legacy-key", "a".repeat(64));
+    await db.coderToken.create({
+      data: {
+        userId: original.session.user.id,
+        ciphertext: new Uint8Array(encrypted.ciphertext),
+        iv: new Uint8Array(encrypted.iv),
+        authTag: new Uint8Array(encrypted.authTag),
+        expiresAt: new Date(Date.now() + 60000),
+      },
+    });
+    const userBefore = await db.user.findUniqueOrThrow({ where: { id: original.session.user.id } });
+    const tokenBefore = await db.coderToken.findUniqueOrThrow({ where: { userId: userBefore.id } });
+    const sessionsBefore = await db.session.findMany({
+      where: { userId: userBefore.id },
+      orderBy: { id: "asc" },
+    });
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
+    passwordProvider(f.coderUserId);
+    await db.$executeRawUnsafe(
+      "CREATE FUNCTION oauth_legacy_login_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture legacy login rollback'; END $$",
+    );
+    try {
+      await db.$executeRawUnsafe(
+        `CREATE TRIGGER oauth_legacy_login_failure BEFORE INSERT OR UPDATE ON ${table} FOR EACH ROW EXECUTE FUNCTION oauth_legacy_login_failure()`,
+      );
+      const requestDb = createDatabaseRequest(() => db);
+      await expect(
+        requestDb.run(() =>
+          performLogin(coderOrigin, "oauth-fixture@example.invalid", "fixture-password"),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS oauth_legacy_login_failure ON ${table}`);
+      await db.$executeRawUnsafe("DROP FUNCTION oauth_legacy_login_failure()");
+    }
+    expect(await db.user.findUniqueOrThrow({ where: { id: userBefore.id } })).toEqual(userBefore);
+    expect(await db.coderToken.findUniqueOrThrow({ where: { userId: userBefore.id } })).toEqual(
+      tokenBefore,
+    );
+    expect(
+      await db.session.findMany({ where: { userId: userBefore.id }, orderBy: { id: "asc" } }),
+    ).toEqual(sessionsBefore);
+  });
+
   it("completes the framework's PKCE callback and persists encrypted OAuth credentials with a public UUID session", async () => {
     const f = fixture();
     const { session, browserCookie } = await f.signIn();

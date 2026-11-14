@@ -1,17 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
-import { getDb } from "@hive/db";
+import { getDb, type PrismaClient } from "@hive/db";
 import { coderOAuthEnabled } from "./coder-oauth-config";
 import { getUsableCoderCredential } from "./coder-oauth-credentials";
 
 export type { SessionData };
 
-export async function createSession(userId: string): Promise<string> {
+export async function createSession(
+  userId: string,
+  db: Pick<PrismaClient, "session"> = getDb(),
+): Promise<string> {
   const sessionId = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
 
-  await getDb().session.create({
+  await db.session.create({
     data: {
       sessionId,
       userId,
