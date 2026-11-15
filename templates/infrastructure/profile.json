@@ -2,7 +2,7 @@
   "id": "infrastructure",
   "label": "Infrastructure",
   "description": "Cluster, Terraform, deployment, runner, and platform repository work.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:7215c860e9aeadc21e1aa1c8dad5d39b1ba6f4a1047c3a30c1bd4195f34de207",
+  "image": "ghcr.io/kethalia/hive-base@sha256:d87dd8d10938003726a3eb841b66402b4f77d5e1c9f09d79ee34e43d78761852",
   "image_variant": "infrastructure",
   "capabilities": {
     "browser": false,

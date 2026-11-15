@@ -9,7 +9,7 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Require the selected build before every account operation.
 - [x] Package the standalone bridge, pinned Codex runtime installer and native identity helper.
 - [x] Initialize the isolated preview database with the existing twelve migrations.
-- [ ] Publish and validate matching workspace images through the existing workflow.
+- [x] Publish and validate matching workspace images through the existing workflow.
 - [ ] Validate real installed bridge and official provider flows.
 - [ ] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
@@ -57,6 +57,12 @@ Workspace image previews use the existing public package and standard GitHub-hos
 runners for this public repository. [Runner billing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
 [Container registry billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
 
+All five workspace profiles pin images built from `78a4401e`. Their publication
+receipt records successful CI smoke checks and independent public OCI verification
+of the manifest, configuration, native helper and packaged bootstrap bytes.
+The isolated test template uses the same CLI image with 4 GiB memory, 10 GiB storage
+and an empty repository seed for account validation.
+
 ## Validation record
 
 Focused UI, transport, package, native identity and installer checks pass. The
@@ -73,3 +79,8 @@ During local Go compilation, task-created cache data filled the primary home
 volume. Those task-created cache entries moved to temporary storage, and the
 optional local binary build stopped. Go unit tests completed successfully. Image
 CI provides the production-flags helper build.
+
+A search of an older diagnostic JSON file exposed the primary workspace's Coder
+session credential in tool output. The session was replaced through Coder's API,
+the replacement was verified and stored privately, and the exposed credential was
+revoked. A subsequent request using the exposed credential returned 401.

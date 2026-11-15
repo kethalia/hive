@@ -479,7 +479,7 @@ test("Accounts preview enforces its dedicated bridge configuration and current p
   assert.equal(accounts.schemaMigrations, 12);
   assert.equal(accounts.databaseName, "hive_workspace_accounts_preview");
   assert.ok(config.secrets.required.includes("HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"));
-  assert.deepEqual(config.previews.secrets.required, config.secrets.required);
+  assert.equal(config.previews.secrets, undefined);
   for (const [key, value] of [
     ["HIVE_CODEX_ACCOUNTS_ENABLED", "false"],
     ["HIVE_CLAUDE_ACCOUNTS_ENABLED", "false"],

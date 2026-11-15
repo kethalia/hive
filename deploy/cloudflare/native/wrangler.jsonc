@@ -87,16 +87,6 @@
           "class_name": "HiveBackground"
         }
       ]
-    },
-    "secrets": {
-      "required": [
-        "DATABASE_URL",
-        "ENCRYPTION_KEY",
-        "COOKIE_SECRET",
-        "AUTH_SERVICE_SECRET",
-        "CODER_OAUTH_CLIENT_SECRET",
-        "HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"
-      ]
     }
   },
   "secrets": {
