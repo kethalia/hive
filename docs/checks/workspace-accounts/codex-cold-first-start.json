@@ -48,8 +48,16 @@
     "registeredVendorSourceMatch": true,
     "isolatedColdAndExistingCliReproduction": "passed",
     "profileAndFixtureSourceChecks": "passed",
-    "terraformMockPlanExecution": "pending provisioner or infrastructure validation",
-    "realRebuild": "pending primary validation",
+    "terraformMockPlanExecution": "Not run locally because Terraform is absent. Real Coder Terraform template import and workspace rebuild succeeded.",
+    "realRebuild": {
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+      "templateVersion": "a5dff1e2-8426-423f-ab6d-3a3d4608710e",
+      "status": "running",
+      "healthy": true,
+      "agentReady": true,
+      "successfulScripts": 14,
+      "failedScripts": 0
+    },
     "publishedImageAndBridgeInputs": "matched image source 194122f167e4ff58ad186945125d0795972e180c and current publication receipt"
   },
   "templateArtifacts": {

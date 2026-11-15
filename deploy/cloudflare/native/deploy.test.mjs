@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { createNativeWorker } from "./composition.mjs";
@@ -21,6 +22,27 @@ const env = {
   ...previewConfig.previews.vars,
   DATABASE_URL: "postgresql://hive_foundation_runtime:fixture@localhost/hive_foundation_preview",
 };
+
+test("connected automation branches receive an explicit skip before deployment", () => {
+  const run = (target, ci) =>
+    spawnSync(process.execPath, [new URL("./deploy.mjs", import.meta.url).pathname, target], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WORKERS_CI: ci,
+        WORKERS_CI_BRANCH: "changeset-release/main",
+      },
+    });
+  const preview = run("preview", "1");
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.deepEqual(JSON.parse(preview.stdout), {
+    branch: "changeset-release/main",
+    status: "skipped",
+    reason: "preview_profile_missing",
+  });
+  assert.notEqual(run("preview", "0").status, 0);
+  assert.notEqual(run("production", "1").status, 0);
+});
 
 test("connected preview deployment admits its reviewed profile", () => {
   assert.equal(deploymentPlan("preview", branch, previewConfig, profiles).origin, origin);

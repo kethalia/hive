@@ -7,7 +7,10 @@
   "previewId": "942ca3b3c9e94e5ebd8a15ce7d4fceb2",
   "branch": "codex/workspace-accounts-p03",
   "finding": "Copied remote build/deploy commands contained an earlier branch allowlist and skipped P03 while reporting success.",
-  "settingsAppliedTo": ["Previews Base build configuration", "P03 copied build configuration"],
+  "settingsAppliedTo": [
+    "Previews Base build configuration",
+    "P03 copied build configuration"
+  ],
   "buildCommand": "pnpm build:cloudflare",
   "deployCommand": "node deploy/cloudflare/native/deploy.mjs preview",
   "rootDirectory": "/",
@@ -24,5 +27,14 @@
   "databaseName": "hive_workspace_accounts_preview",
   "databaseRole": "hive_accounts_runtime",
   "repositoryProfileChecks": "deploy/cloudflare/native/deploy.mjs",
-  "firstAccessibleDeployment": "pending connected build"
+  "firstAccessibleDeployment": {
+    "deploymentId": "352b7e66-a175-4c2b-a85f-0351238e7b09",
+    "connectedBuildId": "f886d6d1-abb0-4b71-b8cd-4c5bbc4b110f",
+    "sourceSha": "b70ad69bdec3fe25a4e1c94e9936f49d4f4dda7d",
+    "appBuildId": "5e2105e2-6c48-4bc6-99c6-2ad9ba2a02bd",
+    "origin": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+    "loginStatus": 200,
+    "authenticatedAppVersionStatus": 200
+  },
+  "runtimeNamedPreviewSecretInstaller": "Official Wrangler preview secret bulk for codex/workspace-accounts-p03"
 }

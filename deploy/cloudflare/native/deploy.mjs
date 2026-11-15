@@ -128,13 +128,18 @@ async function main() {
   const branch =
     process.env.WORKERS_CI_BRANCH ??
     execFileSync("git", ["branch", "--show-current"], { cwd: root, encoding: "utf8" }).trim();
+  const profiles = JSON.parse(
+    readFileSync(resolve(root, "deploy/cloudflare/native/preview-profiles.json"), "utf8"),
+  );
+  if (target === "preview" && process.env.WORKERS_CI === "1" && !Object.hasOwn(profiles, branch)) {
+    console.log(JSON.stringify({ branch, status: "skipped", reason: "preview_profile_missing" }));
+    return;
+  }
   const plan = deploymentPlan(
     target,
     branch,
     JSON.parse(readFileSync(configPath, "utf8")),
-    JSON.parse(
-      readFileSync(resolve(root, "deploy/cloudflare/native/preview-profiles.json"), "utf8"),
-    ),
+    profiles,
   );
   await assertBuildReady(root);
   if (flags.includes("--check")) {

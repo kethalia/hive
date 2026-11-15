@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "coderOrigin": "https://coder.kethalia.com",
+  "production": {
+    "templateVariables": {
+      "hive_control_origin": "https://hive.kethalia.com",
+      "hive_issuer_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAnnM1UjkRmeoSCq7YVwR/tA2LBfj0k/yNMq5iQY/Y0aM=\n-----END PUBLIC KEY-----\n",
+      "hive_issuer_key_id": "hive-accounts-v1",
+      "hive_coder_app_domain": "kethalia.com"
+    },
+    "admittedTemplates": [
+      {
+        "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
+        "profile": "software",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      },
+      {
+        "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+        "profile": "browser",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      },
+      {
+        "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
+        "profile": "infrastructure",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      },
+      {
+        "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
+        "profile": "electronics",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      },
+      {
+        "templateId": "696e7eca-937c-451c-b70d-e611ccb46f13",
+        "profile": "game",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      }
+    ],
+    "workspaceParameters": {
+      "enable_hive_agent_tools": "true"
+    }
+  },
+  "preview": {
+    "templateVariables": {
+      "hive_control_origin": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+      "hive_issuer_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAaPz9u9wb+LyZtEKMDLTYSn+6eiR/yiFasUQLR1zrMpg=\n-----END PUBLIC KEY-----\n",
+      "hive_issuer_key_id": "p03-preview-v1",
+      "hive_coder_app_domain": "kethalia.com"
+    },
+    "admittedTemplates": [
+      {
+        "templateId": "8f4640b6-f027-4b9d-8f72-9eba10f7034d",
+        "profile": "software",
+        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
+      }
+    ],
+    "workspaceParameters": {
+      "enable_hive_agent_tools": "true"
+    }
+  }
+}

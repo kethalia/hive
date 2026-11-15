@@ -12,6 +12,9 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Publish and validate matching workspace images through the existing workflow.
 - [x] Rebuild the five workspace images for Claude 2.1.325 admission.
 - [x] Validate the installed bridge, official sign-in prompts and cancellation for both providers.
+- [x] Deploy the isolated P03 preview through the existing Workers Builds connection.
+- [x] Verify normal hosted Coder OAuth and persisted credential readback.
+- [x] Prepare the production bridge issuer secret and public enrollment settings.
 - [ ] Complete provider consent and verify signed-in persistence, reconnect and disconnect.
 - [ ] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
@@ -49,6 +52,10 @@ twelve migrations. The new route composition queries the existing user identity.
 Enable the workspace's Hive bridge parameter using a template with the matching
 image and package. Template variables carry the deployment origin, public issuer
 key and key ID. The private issuer key belongs in the application secret binding.
+The public template variables and workspace parameter are recorded in
+[workspace-enrollment.json](workspace-enrollment.json). After the owner merges
+P03, publish the matching template with its production variables, enable Hive
+agent tools for the selected workspace and rebuild it.
 
 ## Deployment and isolation
 
@@ -69,6 +76,12 @@ of the manifest, configuration, native helper and packaged bootstrap bytes.
 [earlier 78a4401 publication receipt](image-publications-78a4401.json).
 The isolated test template uses the same CLI image with 4 GiB memory, 10 GiB storage
 and an empty repository seed for account validation.
+The existing remote Builds configuration had a branch allowlist that skipped P03
+while reporting success. Its preview commands now use the repository profile
+configuration. CI branches without a profile receive an explicit skip. Manual
+preview deployment still requires a reviewed profile. The enrollment receipt
+records the connected build and accessible deployment.
+[Preview enrollment receipt](preview-build-enrollment.json)
 
 ## Cold first-use startup
 
@@ -79,7 +92,10 @@ Codex module gives CLI installation to Hive's existing startup script and uses
 the explicit native launcher. The removal also ends the vendor module's startup
 login from an ambient `OPENAI_API_KEY` and its shell-profile PATH additions.
 The finding receipt records the source comparison and isolated cold/existing-CLI
-reproduction. [Cold first-start receipt](codex-cold-first-start.json)
+reproduction. The real Coder rebuild is healthy and ready, with all fourteen
+startup scripts passing. Local Terraform mock-plan execution remains unrun
+because this profile lacks Terraform.
+[Cold first-start receipt](codex-cold-first-start.json)
 
 ## Validation record
 
@@ -92,8 +108,13 @@ checks, including the previous build, previous lifetime and stale-generation
 rejections, official sign-in prompts, cancellation and signed-out readback.
 Both credential locks were free and account CLI processes had exited afterward.
 This acceptance used a test Hive principal and a real dedicated Coder session.
-Hosted Hive authentication, browser UI and completed provider consent remain
-separate acceptance steps.
+Normal hosted Hive authentication completed with an HTML callback, automatic
+popup closure and an authenticated app-version readback. The persisted grant
+passed the actual credential resolver and Coder identity check. Earlier hosted
+callback/status failures remain unexplained. Local single-connection probes
+passed, and no authentication source edits followed from those hypotheses.
+Browser UI and completed provider consent remain active acceptance steps.
+[OAuth observations and limitations](oauth-diagnosis.json)
 
 Production P02 acceptance completed all functional checks. Its harness initially
 queried an unavailable standard Better Auth endpoint, then used the application's
@@ -110,3 +131,12 @@ A search of an older diagnostic JSON file exposed the primary workspace's Coder
 session credential in tool output. The session was replaced through Coder's API,
 the replacement was verified and stored privately, and the exposed credential was
 revoked. A subsequent request using the exposed credential returned 401.
+
+The latest serial full-suite run passed 2,446 tests with 81 optional skips.
+A preceding parallel run failed the existing 300 ms PTY deadline assertion.
+Its focused retry passed all thirteen cases, followed by the full serial pass.
+
+The production Worker now has the bridge issuer private-key binding prepared.
+The recorded production app build continued serving P02 after preparation.
+Template publication and workspace enrollment follow the owner-controlled P03
+release. [Production issuer preparation](production-issuer-preparation.json)
