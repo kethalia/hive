@@ -58,7 +58,7 @@
   },
   "driverSha256": "ad22d342a6b3a113c4ce16ee58aa84c60d2ae7c039a1d4c82bce33c7df837ec6",
   "verificationScope": "Signed official manifest verified with the previously pinned vendor key. Current workspace executable matched the official size and SHA256 and passed the actual Node admission function. The unchanged private PTY driver ran official auth status, login and cancel commands with temporary HOME/config, recognized the supported prompt and official destination, and reaped its login child.",
-  "imageRebuildRequired": true,
+  "imageRebuildRequired": false,
   "agentPackage": {
     "archiveSha256": "b83b44c893d780213d109704f55a924fb58211167e442642a030ff45e9afbd41",
     "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
@@ -97,5 +97,7 @@
       "archiveBytes": 322048,
       "fileCount": 49
     }
-  }
+  },
+  "imagePublicationReceipt": "image-publications.json",
+  "imageRebuildCompletedAt": "2026-11-15T15:50:21Z"
 }

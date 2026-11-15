@@ -10,8 +10,9 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Package the standalone bridge, pinned Codex runtime installer and native identity helper.
 - [x] Initialize the isolated preview database with the existing twelve migrations.
 - [x] Publish and validate matching workspace images through the existing workflow.
-- [ ] Rebuild the five workspace images for Claude 2.1.325 admission.
-- [ ] Validate real installed bridge and official provider flows.
+- [x] Rebuild the five workspace images for Claude 2.1.325 admission.
+- [x] Validate the installed bridge, official sign-in prompts and cancellation for both providers.
+- [ ] Complete provider consent and verify signed-in persistence, reconnect and disconnect.
 - [ ] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
 
@@ -61,9 +62,11 @@ Workspace image previews use the existing public package and standard GitHub-hos
 runners for this public repository. [Runner billing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
 [Container registry billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
 
-All five workspace profiles pin images built from `78a4401e`. Their publication
+All five workspace profiles pin images built from `194122f1`. Their publication
 receipt records successful CI smoke checks and independent public OCI verification
 of the manifest, configuration, native helper and packaged bootstrap bytes.
+[Current publication receipt](image-publications.json),
+[earlier 78a4401 publication receipt](image-publications-78a4401.json).
 The isolated test template uses the same CLI image with 4 GiB memory, 10 GiB storage
 and an empty repository seed for account validation.
 
@@ -72,6 +75,14 @@ and an empty repository seed for account validation.
 Focused UI, transport, package, native identity and installer checks pass. The
 native installer fixture supplies identity/runtime shims. Actual image, installed
 vendor CLI and provider acceptance are tracked in the progress checklist.
+
+The installed `194122f1` package passed both providers' real signed transport
+checks, including the previous build, previous lifetime and stale-generation
+rejections, official sign-in prompts, cancellation and signed-out readback.
+Both credential locks were free and account CLI processes had exited afterward.
+This acceptance used a test Hive principal and a real dedicated Coder session.
+Hosted Hive authentication, browser UI and completed provider consent remain
+separate acceptance steps.
 
 Production P02 acceptance completed all functional checks. Its harness initially
 queried an unavailable standard Better Auth endpoint, then used the application's
