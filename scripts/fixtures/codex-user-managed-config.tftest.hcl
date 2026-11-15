@@ -10,6 +10,7 @@ mock_provider "coder" {
   }
 }
 mock_provider "kubernetes" {}
+mock_provider "external" {}
 override_resource {
   target          = coder_agent.main
   override_during = plan
@@ -19,8 +20,8 @@ override_resource {
 run "running_workspace" {
   command = plan
   assert {
-    condition     = length(module.codex) == 1 && length(module.codex[0].scripts) == 1
-    error_message = "A running workspace must provision the Codex validation script."
+    condition     = coder_script.tools_ai.run_on_start && coder_script.tools_ai.start_blocks_login && coder_script.tools_ai.script == file("${path.module}/scripts/tools-ai.sh")
+    error_message = "Hive's AI Tools startup script must install and refresh the ordinary CLI."
   }
   assert {
     condition     = coder_app.codex_cli.command == "cd /home/coder && exec codex" && coder_app.codex_cli.slug == "codex-cli"
@@ -35,7 +36,11 @@ run "stopped_workspace" {
     values = { id = "11111111-1111-4111-8111-111111111111", name = "fixture", start_count = 0, access_url = "https://coder.example.test" }
   }
   assert {
-    condition     = length(module.codex) == 0
-    error_message = "Do not provision Codex scripts for a stopped workspace."
+    condition     = length(kubernetes_deployment_v1.workspace) == 0
+    error_message = "A stopped workspace must have no running deployment."
+  }
+  assert {
+    condition     = coder_app.codex_cli.command == "cd /home/coder && exec codex" && coder_app.codex_cli.slug == "codex-cli"
+    error_message = "The native Codex launcher must retain its ordinary CLI entry point."
   }
 }

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-15T16:13:58.456249+00:00",
+  "accountId": "225177f82b9234ede14e897fe15e0cb5",
+  "worker": "hive",
+  "workerTag": "4d36354d2c86462e971b32a875e8b549",
+  "previewId": "942ca3b3c9e94e5ebd8a15ce7d4fceb2",
+  "branch": "codex/workspace-accounts-p03",
+  "finding": "Copied remote build/deploy commands contained an earlier branch allowlist and skipped P03 while reporting success.",
+  "settingsAppliedTo": ["Previews Base build configuration", "P03 copied build configuration"],
+  "buildCommand": "pnpm build:cloudflare",
+  "deployCommand": "node deploy/cloudflare/native/deploy.mjs preview",
+  "rootDirectory": "/",
+  "autoBuild": true,
+  "runtimePreviewBaseSecretNames": [
+    "DATABASE_URL",
+    "ENCRYPTION_KEY",
+    "COOKIE_SECRET",
+    "AUTH_SERVICE_SECRET",
+    "CODER_OAUTH_CLIENT_SECRET",
+    "HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"
+  ],
+  "runtimePreviewBaseSecretInstaller": "Official Wrangler preview base-config secret bulk",
+  "databaseName": "hive_workspace_accounts_preview",
+  "databaseRole": "hive_accounts_runtime",
+  "repositoryProfileChecks": "deploy/cloudflare/native/deploy.mjs",
+  "firstAccessibleDeployment": "pending connected build"
+}

@@ -1,0 +1,105 @@
+{
+  "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+  "firstBuildId": "213ae46b-ae5f-427b-b3dc-f1ad0321cc88",
+  "rebuildId": "85b76f07-2d3d-4aa8-a005-2194ff220066",
+  "vendorModuleVersion": "5.5.0",
+  "vendorSourceCommit": "8a5055017b7fd463f52a512bab516f20e0e580e6",
+  "vendorMainTfBlob": "6c1c2ed286d8fd24d4088a8146ba4c320957cc48",
+  "vendorInstallTemplateBlob": "bfd5bfd9e0fd2d48ddb5576df2678c0cf3da2cc0",
+  "registeredRenderedInstallSha256": "b892f22d54b4ac53d108034fbd449cafc63d73a398be6a3225542afdb06e201c",
+  "renderedSourceMatchesRegisteredScript": true,
+  "firstStartTimings": {
+    "Codex: Install Script": {
+      "display_name": "Codex: Install Script",
+      "status": "exit_failure",
+      "exit_code": 1,
+      "stage": "start",
+      "started_at": "2026-11-15T15:27:47.886816Z",
+      "ended_at": "2026-11-15T15:27:48.194449Z"
+    },
+    "AI Tools": {
+      "display_name": "AI Tools",
+      "status": "ok",
+      "exit_code": 0,
+      "stage": "start",
+      "started_at": "2026-11-15T15:27:47.87804Z",
+      "ended_at": "2026-11-15T15:28:07.440895Z"
+    }
+  },
+  "secondsBetweenModuleExitAndAiToolsCompletion": 19.246446,
+  "isolatedReproduction": [
+    {
+      "case": "fresh_home_without_cli",
+      "exitCode": 1,
+      "missingExecutableError": true,
+      "userConfigAndCredentialSentinelsPreserved": true
+    },
+    {
+      "case": "existing_cli",
+      "exitCode": 0,
+      "userConfigAndCredentialSentinelsPreserved": true,
+      "shellProfileModified": true
+    }
+  ],
+  "schemaVersion": 1,
+  "resolution": "Removed the redundant Codex vendor module from the canonical template and profile mirrors. Hive AI Tools installs and refreshes the ordinary CLI, and the explicit native Codex launcher selects it through the existing shell PATH.",
+  "authenticationBehavior": "The removed vendor module could perform startup login from an ambient OPENAI_API_KEY. Hive startup now leaves that login to the user.",
+  "validation": {
+    "registeredVendorSourceMatch": true,
+    "isolatedColdAndExistingCliReproduction": "passed",
+    "profileAndFixtureSourceChecks": "passed",
+    "terraformMockPlanExecution": "pending provisioner or infrastructure validation",
+    "realRebuild": "pending primary validation",
+    "publishedImageAndBridgeInputs": "matched image source 194122f167e4ff58ad186945125d0795972e180c and current publication receipt"
+  },
+  "templateArtifacts": {
+    "ai-dev-k8s": {
+      "contentHash": "d6ef23376ec73f3f19e78790dda3f55b40cdbae3f68c5b45f9063870ee9948ca",
+      "archiveDigest": "a0e16fd76e008b2a2174099243b172c61f22a2718bb3febf5a8a267640c3573b",
+      "archiveBytes": 325632,
+      "fileCount": 49
+    },
+    "browser-testing": {
+      "contentHash": "84d34ade874e4a52a726d3ce5bd1664dec42f3bafcf0aca7097ee9b9c15b5768",
+      "archiveDigest": "ceaab00f8a7db0c0c5ad866cf784bf9b8a7b901102147e3f0e96f4420e6a6275",
+      "archiveBytes": 321024,
+      "fileCount": 49
+    },
+    "game-dev": {
+      "contentHash": "13bc175ebbaeb8e4f83770292ac8750ffc31df001f61202a5413643af1208662",
+      "archiveDigest": "389f039caa4a6fe564c7fa460ed16fcb8ee133e5eea0d28084a44ff8b11db552",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    },
+    "electronics": {
+      "contentHash": "c88074865e692d9f1133986f54f986d026cc052948d535a0aa9f4952ae995766",
+      "archiveDigest": "4a9f7f9aaf2607df873d0ac29e908a0626f10657a64f599479ddc401ef93b03e",
+      "archiveBytes": 321536,
+      "fileCount": 49
+    },
+    "infrastructure": {
+      "contentHash": "963922d0bc45e686d8f4eac6d094a866d78cb0cd3aae5f3beab112a3617036aa",
+      "archiveDigest": "45c43588737d2ed0f29f953b7b13b66314aa29dca74ee1b0c63dc0b99fcbda18",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    }
+  },
+  "moduleEffectsBeforeRemoval": {
+    "startupInstallScript": 1,
+    "cliInstallation": false,
+    "configManagement": false,
+    "explicitProviderKey": false,
+    "gateway": false,
+    "workdir": false,
+    "customHooks": false,
+    "appOrTaskResources": false,
+    "remainingEffects": [
+      "immediate CLI existence/version check",
+      "shell profile PATH additions",
+      "optional module-bin symlink",
+      "authentication if an ambient OPENAI_API_KEY exists"
+    ]
+  },
+  "vendorModuleSourceUrl": "https://github.com/coder/registry/blob/8a5055017b7fd463f52a512bab516f20e0e580e6/registry/coder-labs/modules/codex/main.tf",
+  "vendorInstallSourceUrl": "https://github.com/coder/registry/blob/8a5055017b7fd463f52a512bab516f20e0e580e6/registry/coder-labs/modules/codex/scripts/install.sh.tftpl"
+}

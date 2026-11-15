@@ -70,6 +70,17 @@ of the manifest, configuration, native helper and packaged bootstrap bytes.
 The isolated test template uses the same CLI image with 4 GiB memory, 10 GiB storage
 and an empty repository seed for account validation.
 
+## Cold first-use startup
+
+The first workspace build ran the vendor Codex validation script before Hive's
+AI Tools startup had installed the ordinary CLI. The vendor check failed while
+AI Tools completed successfully 19.246 seconds later. Removing the redundant
+Codex module gives CLI installation to Hive's existing startup script and uses
+the explicit native launcher. The removal also ends the vendor module's startup
+login from an ambient `OPENAI_API_KEY` and its shell-profile PATH additions.
+The finding receipt records the source comparison and isolated cold/existing-CLI
+reproduction. [Cold first-start receipt](codex-cold-first-start.json)
+
 ## Validation record
 
 Focused UI, transport, package, native identity and installer checks pass. The
