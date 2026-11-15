@@ -16,7 +16,7 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Verify normal hosted Coder OAuth and persisted credential readback.
 - [x] Prepare the production bridge issuer secret and public enrollment settings.
 - [ ] Complete provider consent and verify signed-in persistence, reconnect and disconnect.
-- [ ] Validate desktop/mobile Accounts navigation, reload and build changes.
+- [x] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
 
 ## Visible flow
@@ -113,7 +113,13 @@ popup closure and an authenticated app-version readback. The persisted grant
 passed the actual credential resolver and Coder identity check. Earlier hosted
 callback/status failures remain unexplained. Local single-connection probes
 passed, and no authentication source edits followed from those hypotheses.
-Browser UI and completed provider consent remain active acceptance steps.
+Hosted browser acceptance passed status, one Connect/Cancel per provider, official
+links and prompt controls, mobile card geometry and both providers' status after
+reload. Earlier attempts cover the actual stale-build deep link and explicit
+current-build selection. The mobile geometry check preceded reload, which
+interrupted two read-only status requests. Both fresh reload status requests
+returned 200 and signed out. Genuine provider consent remains pending.
+[Hosted Accounts acceptance](hosted-accounts-acceptance.json)
 [OAuth observations and limitations](oauth-diagnosis.json)
 
 Production P02 acceptance completed all functional checks. Its harness initially
