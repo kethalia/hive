@@ -7,10 +7,7 @@
   "previewId": "942ca3b3c9e94e5ebd8a15ce7d4fceb2",
   "branch": "codex/workspace-accounts-p03",
   "finding": "Copied remote build/deploy commands contained an earlier branch allowlist and skipped P03 while reporting success.",
-  "settingsAppliedTo": [
-    "Previews Base build configuration",
-    "P03 copied build configuration"
-  ],
+  "settingsAppliedTo": ["Previews Base build configuration", "P03 copied build configuration"],
   "buildCommand": "pnpm build:cloudflare",
   "deployCommand": "node deploy/cloudflare/native/deploy.mjs preview",
   "rootDirectory": "/",

@@ -71,11 +71,7 @@
     },
     "generatedWorkerdPrismaNeonNodeRelay": {
       "passedCallbacks": 3,
-      "durationsMs": [
-        85,
-        61,
-        61
-      ]
+      "durationsMs": [85, 61, 61]
     },
     "limitations": [
       "Local relay probes ran in Node and exclude Cloudflare scheduling and live Neon networking.",
