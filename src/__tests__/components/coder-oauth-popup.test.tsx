@@ -146,6 +146,28 @@ describe("Coder OAuth popup", () => {
     expect(popup.close).not.toHaveBeenCalled();
   });
 
+  it("keeps a loading state after the popup closes until workspace navigation unmounts login", async () => {
+    vi.useFakeTimers();
+    const view = await openSignIn();
+    readSession.mockResolvedValueOnce(Response.json({ session: newSession }));
+    await act(async () => message());
+    expect(popup.close).toHaveBeenCalledOnce();
+    expect(router.replace).toHaveBeenCalledWith("/workspaces");
+    expect(screen.getByRole("button", { name: "Opening your workspace…" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Sign-in complete. Loading your workspace.",
+    );
+    expect(screen.queryByRole("button", { name: "Continue with Coder" })).not.toBeInTheDocument();
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    fireEvent.click(screen.getByRole("button", { name: "Opening your workspace…" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your workspace");
+    expect(startSocial).toHaveBeenCalledOnce();
+    expect(readSession).toHaveBeenCalledTimes(2);
+    expect(window.open).toHaveBeenCalledOnce();
+    view.unmount();
+  });
+
   it("recovers a dropped completion message through the serialized session poll", async () => {
     vi.useFakeTimers();
     await openSignIn();
@@ -155,6 +177,7 @@ describe("Coder OAuth popup", () => {
     expect(router.refresh).toHaveBeenCalledOnce();
     expect(popup.close).toHaveBeenCalled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Opening your workspace…" })).toBeDisabled();
   });
 
   it("checks the server after a manual popup close and accepts an already committed session", async () => {
@@ -166,6 +189,7 @@ describe("Coder OAuth popup", () => {
     expect(readSession).toHaveBeenCalledTimes(2);
     expect(router.replace).toHaveBeenCalledWith("/workspaces");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Opening your workspace…" })).toBeDisabled();
   });
 
   it("requires a new session even after a matching success message", async () => {

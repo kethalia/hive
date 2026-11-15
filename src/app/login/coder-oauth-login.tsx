@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,7 +30,8 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
   const requestRef = useRef<AbortController | null>(null);
   const initialSessionRef = useRef<string | null | undefined>(undefined);
   const [attempt, setAttempt] = useState<string | null>(null);
-  const pending = attempt !== null;
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
+  const pending = attempt !== null || openingWorkspace;
   const [error, setError] = useState(
     initialError ? "Coder sign-in was interrupted. Please try again." : "",
   );
@@ -56,6 +58,7 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
       const current = await verification;
       if (settled || !current || current === initial) return false;
       settled = true;
+      setOpeningWorkspace(true);
       setAttempt(null);
       router.replace("/workspaces");
       router.refresh();
@@ -157,11 +160,20 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
         </Alert>
       )}
       <Button className="min-h-11 w-full" onClick={() => void signIn()} disabled={pending}>
-        {pending ? "Connecting…" : "Continue with Coder"}
+        {pending && (
+          <Loader2 aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
+        )}
+        {openingWorkspace
+          ? "Opening your workspace…"
+          : pending
+            ? "Connecting…"
+            : "Continue with Coder"}
       </Button>
       {pending && (
         <p role="status" className="text-sm text-muted-foreground">
-          Complete sign-in in the Coder window.
+          {openingWorkspace
+            ? "Sign-in complete. Loading your workspace."
+            : "Complete sign-in in the Coder window."}
         </p>
       )}
     </div>
