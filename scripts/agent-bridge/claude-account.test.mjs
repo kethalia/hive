@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { verifyClaudeExecutable } from "./claude-account.mjs";
+import { CLAUDE_RELEASES, verifyClaudeExecutable } from "./claude-account.mjs";
 import { createAccountManager, validClaudeLoginUrl } from "./codex-account.mjs";
 
 test("Claude reuses account generation fences; a submitted code is never retained or replayed", async () => {
@@ -111,6 +111,30 @@ test("only the pinned CLI and official emitted login destination are accepted", 
   } finally {
     await rm(home, { recursive: true, force: true });
   }
+});
+
+test("Claude 2.1.325 admission matches the verified vendor and installed executable receipt", async () => {
+  const receipt = JSON.parse(
+    await readFile(
+      new URL(
+        "../../docs/checks/workspace-accounts/claude-2.1.325-admission.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(receipt.version, "2.1.325");
+  assert.equal(receipt.manifest.gpgValidSignature, true);
+  assert.deepEqual(CLAUDE_RELEASES[receipt.version], {
+    size: receipt.manifest.release.size,
+    sha256: receipt.manifest.release.checksum,
+  });
+  assert.equal(receipt.installedExecutable.sha256, receipt.manifest.release.checksum);
+  assert.equal(receipt.installedExecutable.bytes, receipt.manifest.release.size);
+  assert.equal(receipt.admission.actualFilesystemAndHashChecks, true);
+  assert.equal(receipt.protocol.cancelStatus, "canceled");
+  assert.equal(receipt.protocol.loginChildExited, true);
+  assert.equal(receipt.protocol.authorizationCodeSubmitted, false);
 });
 
 test("real private PTY driver bounds official commands, one-use input and child cancellation", () => {

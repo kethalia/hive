@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-15T15:33:59.216884+00:00",
+  "version": "2.1.325",
+  "platform": "linux-x64",
+  "binaryUrl": "https://downloads.claude.ai/claude-code-releases/2.1.325/linux-x64/claude",
+  "manifestUrl": "https://downloads.claude.ai/claude-code-releases/2.1.325/manifest.json",
+  "manifestSignatureUrl": "https://downloads.claude.ai/claude-code-releases/2.1.325/manifest.json.sig",
+  "vendorKeyUrl": "https://downloads.claude.ai/keys/claude-code.asc",
+  "manifest": {
+    "version": "2.1.325",
+    "platform": "linux-x64",
+    "release": {
+      "binary": "claude",
+      "checksum": "0dc4f4a9a165fc60746d7ae8489712e5fc352f1e7ad4eb22e7141bd0812eb0cf",
+      "size": 365842960
+    },
+    "hashes": {
+      "manifest.json": "919cc577ed98b12e00154f8bd925df23bbf2eb2b56ec29a09c78ee85f65725f3",
+      "manifest.json.sig": "243101055b110c936952af78e18e059a0890b0148bdfd7c0ba15b911ff91c946",
+      "claude-code.asc": "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6"
+    },
+    "verifiedFingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+    "gpgValidSignature": true
+  },
+  "installedExecutable": {
+    "version": "2.1.325 (Claude Code)",
+    "bytes": 365842960,
+    "sha256": "0dc4f4a9a165fc60746d7ae8489712e5fc352f1e7ad4eb22e7141bd0812eb0cf",
+    "uid": 1000,
+    "mode": "0o755",
+    "nlink": 1
+  },
+  "workspace": {
+    "name": "codex/hive-p03-accounts",
+    "id": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+    "buildId": "213ae46b-ae5f-427b-b3dc-f1ad0321cc88"
+  },
+  "admission": {
+    "version": "2.1.325",
+    "admitted": true,
+    "actualFilesystemAndHashChecks": true
+  },
+  "protocol": {
+    "version": "2.1.325",
+    "protocol": "hive-claude-cli-auth-v1",
+    "statusBefore": "signed-out",
+    "officialLoginDestination": true,
+    "codePromptRecognized": true,
+    "loginCommandVerified": true,
+    "cancelStatus": "canceled",
+    "loginChildExited": true,
+    "statusAfter": "signed-out",
+    "driverExited": true,
+    "isolatedHomeAndConfig": true,
+    "authorizationCodeSubmitted": false,
+    "modelCalls": 0
+  },
+  "driverSha256": "ad22d342a6b3a113c4ce16ee58aa84c60d2ae7c039a1d4c82bce33c7df837ec6",
+  "verificationScope": "Signed official manifest verified with the previously pinned vendor key. Current workspace executable matched the official size and SHA256 and passed the actual Node admission function. The unchanged private PTY driver ran official auth status, login and cancel commands with temporary HOME/config, recognized the supported prompt and official destination, and reaped its login child.",
+  "imageRebuildRequired": true,
+  "agentPackage": {
+    "archiveSha256": "b83b44c893d780213d109704f55a924fb58211167e442642a030ff45e9afbd41",
+    "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+    "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+    "compressedSha256": "0bec2912e3c01e9f08d988b86179806f3ce32be91a30dbf3d7f54486a097fe25",
+    "compressedBytes": 24832
+  },
+  "templateArtifacts": {
+    "ai-dev-k8s": {
+      "contentHash": "7166e32beaeb9b1ff2636cff7a48407c5488d9ebb9885a88905f3bdb6a2b008f",
+      "archiveDigest": "c7cd711a37bef0f1d5a558f20616850d9c6fceaa7337caf0e4efad2202c11aa5",
+      "archiveBytes": 325632,
+      "fileCount": 49
+    },
+    "browser-testing": {
+      "contentHash": "c0e284ae9e6227afe4a8c9161c3abb10a94a813c7c52e411487eed438746d4f4",
+      "archiveDigest": "aa20f1023a454f84762e701ed029cb29c5860fa0a28861f6596ed2d14099638a",
+      "archiveBytes": 321024,
+      "fileCount": 49
+    },
+    "game-dev": {
+      "contentHash": "5dabfa78d71e0eafa7edd0eddbfd71933535137dc560be5ca510bf71ff4fc8a0",
+      "archiveDigest": "56f4afb66fbe0a82477d67cec8546f9394109a427039849392ca0a5c0e5a5190",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    },
+    "electronics": {
+      "contentHash": "6cb6bd640e850a7d85d82f9f1ba37d6ab47acc08d86a7fa708922d8b64dd8b27",
+      "archiveDigest": "93819e58c5a1cf4afb102d30a8d6fe75855514ffdfeeaea853455fc20f2bf96e",
+      "archiveBytes": 321536,
+      "fileCount": 49
+    },
+    "infrastructure": {
+      "contentHash": "099dd578db079b8564f2193214fa53c75dd1414b95e70d830cd1765f9483b456",
+      "archiveDigest": "ac7aacc054ad82851515a2a7eb6290b525ba946950cf638be874764c533ec715",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    }
+  }
+}

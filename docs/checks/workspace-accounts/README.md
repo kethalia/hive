@@ -10,6 +10,7 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Package the standalone bridge, pinned Codex runtime installer and native identity helper.
 - [x] Initialize the isolated preview database with the existing twelve migrations.
 - [x] Publish and validate matching workspace images through the existing workflow.
+- [ ] Rebuild the five workspace images for Claude 2.1.325 admission.
 - [ ] Validate real installed bridge and official provider flows.
 - [ ] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
@@ -26,8 +27,11 @@ The device-code flow opens the official provider page. Credential storage and
 refresh follow the official CLI. [Codex authentication](https://learn.chatgpt.com/docs/auth)
 
 Claude uses the workspace's admitted official CLI. Its browser flow supports a
-one-time code entered in the Accounts window. CLI releases 2.1.312 and 2.1.319
-have validated executable identities. [Claude authentication](https://code.claude.com/docs/en/authentication),
+one-time code entered in the Accounts window. CLI releases 2.1.312, 2.1.319 and
+2.1.325 have validated executable identities. The installed 2.1.325 release passed
+status, login-prompt and cancellation checks using temporary HOME/config directories.
+The signed-manifest, executable and protocol evidence is recorded in
+[the 2.1.325 admission receipt](claude-2.1.325-admission.json). [Claude authentication](https://code.claude.com/docs/en/authentication),
 [CLI reference](https://code.claude.com/docs/en/cli-reference)
 
 ## Installed authority
