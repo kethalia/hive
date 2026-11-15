@@ -6,10 +6,28 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CODER_OAUTH_POPUP_MESSAGE } from "@/lib/auth/coder-oauth-popup";
 
+async function readCoderSession(signal: AbortSignal): Promise<string | null> {
+  const response = await fetch("/api/auth/coder/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+    redirect: "error",
+    signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
+  });
+  if (!response.ok) throw Error("coder_session_unavailable");
+  const body = await response.json();
+  if (
+    body.session !== null &&
+    !(typeof body.session === "string" && /^[a-f0-9]{64}$/.test(body.session))
+  )
+    throw Error("coder_session_invalid");
+  return body.session;
+}
+
 export function CoderOAuthLogin({ error: initialError = false }: { error?: boolean }) {
   const router = useRouter();
   const popupRef = useRef<Window | null>(null);
   const requestRef = useRef<AbortController | null>(null);
+  const initialSessionRef = useRef<string | null | undefined>(undefined);
   const [attempt, setAttempt] = useState<string | null>(null);
   const pending = attempt !== null;
   const [error, setError] = useState(
@@ -19,6 +37,30 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
     if (!attempt) return;
     const popup = popupRef.current;
     const controller = requestRef.current;
+    if (!popup || !controller) return;
+    let settled = false;
+    let checkingClosure = false;
+    let verification: Promise<string | null> | null = null;
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      setError(message);
+      setAttempt(null);
+    };
+    const verifySession = async () => {
+      const initial = initialSessionRef.current;
+      if (initial === undefined || settled) return false;
+      verification ??= readCoderSession(controller.signal).finally(() => {
+        verification = null;
+      });
+      const current = await verification;
+      if (settled || !current || current === initial) return false;
+      settled = true;
+      setAttempt(null);
+      router.replace("/workspaces");
+      router.refresh();
+      return true;
+    };
     const completed = (event: MessageEvent) => {
       if (
         event.origin !== window.location.origin ||
@@ -28,26 +70,44 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
         typeof event.data.success !== "boolean"
       )
         return;
-      setAttempt(null);
-      if (event.data.success) {
-        router.replace("/workspaces");
-        router.refresh();
-      } else setError("Coder sign-in did not complete. Please try again.");
+      const successfulResult = event.data.success;
+      void verifySession()
+        .then((authenticated) => {
+          if (!authenticated && !successfulResult)
+            fail("Coder sign-in did not complete. Please try again.");
+        })
+        .catch(() => {
+          if (!successfulResult) fail("Could not verify Coder sign-in. Please try again.");
+        });
     };
     window.addEventListener("message", completed);
-    const closed = window.setInterval(() => {
-      if (popup?.closed) {
-        setError("The sign-in window was closed. Please try again.");
-        setAttempt(null);
+    const verifyClosedSession = async () => {
+      const pendingVerification = verification;
+      if (pendingVerification) {
+        // A pre-close request may have read cookies before the callback committed them.
+        await pendingVerification.catch(() => {});
+        if (settled) return;
       }
+      if (!(await verifySession())) fail("The sign-in window was closed. Please try again.");
+    };
+    const closed = window.setInterval(() => {
+      if (!popup.closed || checkingClosure || settled) return;
+      checkingClosure = true;
+      void verifyClosedSession().catch(() =>
+        fail("Could not verify Coder sign-in. Refresh Hive or try again."),
+      );
     }, 500);
+    const sessionCheck = window.setInterval(() => {
+      void verifySession().catch(() => {});
+    }, 2_000);
     const expired = window.setTimeout(() => {
-      setError("Coder sign-in expired. Please try again.");
-      setAttempt(null);
+      fail("Coder sign-in expired. Please try again.");
     }, 600_000);
     return () => {
+      settled = true;
       window.removeEventListener("message", completed);
       window.clearInterval(closed);
+      window.clearInterval(sessionCheck);
       window.clearTimeout(expired);
       controller?.abort();
       if (popup && !popup.closed) popup.close();
@@ -66,10 +126,14 @@ export function CoderOAuthLogin({ error: initialError = false }: { error?: boole
     popup.document.title = "Connecting to Coder";
     if (popup.document.body) popup.document.body.textContent = "Connecting to Coder…";
     const controller = new AbortController();
+    initialSessionRef.current = undefined;
     popupRef.current = popup;
     requestRef.current = controller;
     setAttempt(id);
     try {
+      const initial = await readCoderSession(controller.signal);
+      if (controller.signal.aborted || popup.closed) return;
+      initialSessionRef.current = initial;
       const response = await fetch("/api/auth/sign-in/social", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

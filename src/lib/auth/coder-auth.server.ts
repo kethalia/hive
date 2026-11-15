@@ -1,6 +1,9 @@
 import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { getDb } from "@hive/db";
-import { validCoderOAuthPopupAttempt } from "@/lib/auth/coder-oauth-popup";
+import {
+  CODER_OAUTH_POPUP_MESSAGE,
+  validCoderOAuthPopupAttempt,
+} from "@/lib/auth/coder-oauth-popup";
 import {
   CODER_HOST_COOKIE,
   coderFrameConfiguredUrls,
@@ -22,6 +25,42 @@ const allowed = new Map([
   ["/api/auth/callback/coder", "GET"],
   ["/api/auth/sign-out", "POST"],
 ]);
+
+function popupCompletionHtml(attempt: string, origin: string, success: boolean): string {
+  const message = JSON.stringify({ type: CODER_OAUTH_POPUP_MESSAGE, attempt, success }).replace(
+    /</g,
+    "\\u003c",
+  );
+  const targetOrigin = JSON.stringify(origin).replace(/</g, "\\u003c");
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Coder sign-in · Hive</title>
+    <style>
+      body { margin: 0; background: #080f0b; color: #c5e4cc; font-family: ui-monospace, monospace; }
+      main { max-width: 28rem; margin: 12vh auto; padding: 2rem; }
+      h1 { font-size: 1.4rem; line-height: 1.4; }
+      p { line-height: 1.6; }
+      a { color: #8dff9d; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${success ? "Finishing sign-in to Hive…" : "Coder sign-in did not complete."}</h1>
+      <p>Return to your original Hive window to continue.</p>
+      <p><a href="/workspaces">Open Hive</a></p>
+    </main>
+    <script>
+      if (window.opener) {
+        window.opener.postMessage(${message}, ${targetOrigin});
+      }
+    </script>
+  </body>
+</html>`;
+}
 
 /** Public auth exposes the Coder sign-in flow and local sign-out only. */
 export async function handleCoderAuth(request: Request) {
@@ -97,13 +136,18 @@ export async function handleCoderAuth(request: Request) {
   const location = headers.get("Location");
   const destination =
     callback && redirect && location ? new URL(location, config.publicOrigin) : null;
+  const candidateAttempt =
+    destination?.origin === config.publicOrigin &&
+    destination.pathname === "/login/complete" &&
+    destination.searchParams.getAll("attempt").length === 1
+      ? destination.searchParams.get("attempt")
+      : null;
+  const popupAttempt = validCoderOAuthPopupAttempt(candidateAttempt) ? candidateAttempt : null;
   const successfulCallback =
     destination?.origin === config.publicOrigin &&
     (destination.pathname === "/workspaces" ||
-      (destination.pathname === "/login/complete" &&
-        destination.searchParams.getAll("attempt").length === 1 &&
-        validCoderOAuthPopupAttempt(destination.searchParams.get("attempt")) &&
-        !destination.searchParams.has("error")));
+      (popupAttempt !== null && !destination.searchParams.has("error")));
+  let verifiedSession = false;
   if (successfulCallback) {
     appendClearSessionCookieHeaders(headers, url.hostname);
     let host = "";
@@ -116,6 +160,7 @@ export async function handleCoderAuth(request: Request) {
         headers: new Headers({ Cookie: browserCookies }),
       });
       if (active) {
+        verifiedSession = true;
         const credential = await getUsableCoderCredential(active.user.id, { signal });
         host = await coderOAuthApplicationsHost(config, credential.token, fetchCoderApi, signal);
       }
@@ -126,6 +171,17 @@ export async function handleCoderAuth(request: Request) {
     headers.append(
       "Set-Cookie",
       `${CODER_HOST_COOKIE}=${encodeURIComponent(sources)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}${config.publicOrigin.startsWith("https://") ? "; Secure" : ""}`,
+    );
+  }
+  if (popupAttempt !== null) {
+    headers.delete("Location");
+    headers.delete("Content-Length");
+    headers.delete("Content-Encoding");
+    headers.set("Content-Type", "text/html; charset=utf-8");
+    await response.body?.cancel().catch(() => {});
+    return new Response(
+      popupCompletionHtml(popupAttempt, config.publicOrigin, successfulCallback && verifiedSession),
+      { status: 200, headers },
     );
   }
   let body: BodyInit | null = response.body;
