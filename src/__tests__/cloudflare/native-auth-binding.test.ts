@@ -8,7 +8,7 @@ type Binding = { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
 const secret = "a".repeat(64);
 const env = {
   HIVE_NATIVE_MODE: "preview",
-  HIVE_PUBLIC_ORIGIN: "https://foundation.example",
+  HIVE_PUBLIC_ORIGIN: "https://codex-hive-production-cutover.hive-preview.kethalia.com",
   DATABASE_URL:
     "postgresql://hive_foundation_runtime:fixture@database.invalid/hive_foundation_preview",
   HIVE_DATABASE_NAME: "hive_foundation_preview",

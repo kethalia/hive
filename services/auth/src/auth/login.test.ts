@@ -7,6 +7,8 @@ const mockPrisma = vi.hoisted(() => ({
   coderToken: {
     upsert: vi.fn(),
   },
+  session: { deleteMany: vi.fn() },
+  $transaction: vi.fn(),
 }));
 
 vi.mock("@hive/db", () => ({
@@ -44,6 +46,8 @@ describe("performLogin", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((operation) => operation(mockPrisma));
+    mockPrisma.session.deleteMany.mockResolvedValue({ count: 0 });
     process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
 
     mockEncrypt.mockReturnValue({
@@ -91,7 +95,12 @@ describe("performLogin", () => {
     expect(mockEncrypt).toHaveBeenCalledWith("api-key-xyz", TEST_ENCRYPTION_KEY);
     expect(mockPrisma.user.upsert).toHaveBeenCalled();
     expect(mockPrisma.coderToken.upsert).toHaveBeenCalled();
-    expect(mockCreateSession).toHaveBeenCalledWith("db-user-id");
+    expect(mockCreateSession).toHaveBeenCalledWith("db-user-id", mockPrisma);
+    expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+    expect(mockPrisma.user.upsert.mock.calls[0][0].update.authMode).toBe("legacy");
+    expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({
+      where: { userId: "db-user-id", authToken: { not: null } },
+    });
   });
 
   it("falls back to session token when API key creation fails all 3 retries", async () => {

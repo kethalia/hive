@@ -1,3 +1,4 @@
+export { coderAuthCookieName, coderAuthCookieValues } from "./better-auth-cookie";
 export { AuthServiceClient, AuthServiceError, type AuthServiceTransport } from "./client";
 export type {
   CloneTerminalProofClaims,
@@ -11,6 +12,7 @@ export {
   createCloneTerminalProof,
   verifyCloneTerminalProof,
 } from "./clone-terminal-proof";
+export { type CoderCredentialSource, coderCredentialHeaders } from "./coder-credential";
 export {
   ENCRYPTION_ALGORITHM,
   HEX_64_RE,

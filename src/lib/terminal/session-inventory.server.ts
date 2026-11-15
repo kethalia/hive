@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SessionData } from "@hive/auth";
+import { coderCredentialHeaders } from "@hive/auth";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { z } from "zod";
 import { filterGenericTmuxSessions, parseTmuxSessions } from "@/lib/workspaces/sessions";
@@ -276,7 +277,10 @@ export async function readWorkspaceSessionInventory(
         redirect: "manual",
         credentials: "omit",
         signal: attemptSignal,
-        headers: { Upgrade: "websocket", "Coder-Session-Token": authority.token },
+        headers: {
+          Upgrade: "websocket",
+          ...coderCredentialHeaders(authority.token, authority.credentialSource),
+        },
       });
       void work.then(
         (late) => {

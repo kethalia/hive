@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
+import { coderCredentialHeaders } from "@hive/auth";
 import { WebSocket, WebSocketServer } from "ws";
 import { authenticateUpgrade } from "./auth.js";
 import { getCoderCaCertificates } from "./coder-fetch.js";
@@ -281,13 +282,19 @@ export async function handleAudioUpgrade(req: IncomingMessage, socket: Duplex, h
     reject(auth.value.status === 401 ? "401 Unauthorized" : "502 Bad Gateway");
     return;
   }
-  const { token, coderUrl: authCoderUrl } = auth.value;
+  const { token, credentialSource, coderUrl: authCoderUrl } = auth.value;
   const coderUrl = authCoderUrl || process.env.CODER_URL || process.env.CODER_AGENT_URL || "";
   if (!coderUrl) {
     reject("502 Bad Gateway");
     return;
   }
-  const access = await verifyWorkspaceAgentAccess({ token, coderUrl, workspaceId, agentId });
+  const access = await verifyWorkspaceAgentAccess({
+    token,
+    credentialSource,
+    coderUrl,
+    workspaceId,
+    agentId,
+  });
   if (!access.ok) {
     reject(access.status === 403 ? "403 Forbidden" : "502 Bad Gateway");
     return;
@@ -307,7 +314,7 @@ export async function handleAudioUpgrade(req: IncomingMessage, socket: Duplex, h
         audioRelay: true,
       }),
       {
-        headers: { "Coder-Session-Token": token },
+        headers: coderCredentialHeaders(token, credentialSource),
         handshakeTimeout: 10_000,
         maxPayload: MAX_QUEUE,
         ...(ca ? { ca } : {}),

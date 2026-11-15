@@ -44,6 +44,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("HIVE_RUNTIME_TARGET", "cloudflare");
   vi.stubEnv("HIVE_GENERIC_TERMINAL_ENABLED", "true");
+  vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
   vi.stubEnv("HIVE_PUBLIC_ORIGIN", origin);
   vi.stubEnv("NEXT_PUBLIC_TERMINAL_WS_URL", "");
   vi.stubEnv("HIVE_TERMINAL_WS_URL", "/");
@@ -62,6 +63,44 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Cloudflare generic terminal ticket issuer", () => {
+  it.each([
+    "__Host-hive-auth=stale",
+    "__Host-hive-auth=one; __Host-hive-auth=two",
+  ])("ignores disabled OAuth cookies when issuing a legacy session ticket: %s", async (stale) => {
+    const original = request();
+    const headers = new Headers(original.headers);
+    headers.set("Cookie", `${stale}; ${headers.get("Cookie")}`);
+    const result = await POST(new Request(original, { headers }));
+    expect(result.status).toBe(200);
+    expect(
+      verifyTerminalTicket((await result.json()).ticket, secret, {
+        audience: "hive.example",
+        origin,
+        requestTarget: target,
+      }),
+    ).toMatchObject({ sessionId: session.sessionId });
+    expect(auth).toHaveBeenCalledOnce();
+  });
+
+  it("does not issue a legacy-only ticket when OAuth is enabled", async () => {
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+    expect((await POST(request())).status).toBe(401);
+    expect(auth).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a legacy ticket after enabled OAuth cookie rejection", async () => {
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+    auth.mockImplementation(async (input) => {
+      expect(new URL(String(input)).pathname).toBe("/browser-session");
+      return new Response(null, { status: 404 });
+    });
+    const original = request();
+    const headers = new Headers(original.headers);
+    headers.set("Cookie", `__Host-hive-auth=stale; ${headers.get("Cookie")}`);
+    expect((await POST(new Request(original, { headers }))).status).toBe(400);
+    expect(auth).toHaveBeenCalledOnce();
+  });
+
   it("binds clone terminal ticket issuance to the existing proof and current browser session", async () => {
     const clonePath = "projects/owner/repo",
       sessionName = createSafeCloneTerminalSessionName(createCloneSessionKey(clonePath.split("/")));

@@ -58,6 +58,7 @@ function makeCoderClient() {
   return {
     getBaseUrl: vi.fn(() => "https://coder.example.com"),
     getSessionToken: vi.fn(() => "coder-token"),
+    getCredentialSource: () => "legacy",
     listWorkspaces: vi.fn().mockResolvedValue({
       workspaces: [
         {

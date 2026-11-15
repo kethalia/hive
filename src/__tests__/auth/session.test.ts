@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockServiceClient = vi.hoisted(() => ({
   getSession: vi.fn(),
+  getBrowserSession: vi.fn(),
   logout: vi.fn(),
 }));
 
@@ -29,10 +30,51 @@ describe("session management", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     vi.clearAllMocks();
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "false");
     process.env.COOKIE_SECRET = "test-secret";
   });
 
   describe("getSession", () => {
+    it.each([
+      "hive-auth=stale",
+      "hive-auth=one; hive-auth=two",
+    ])("ignores disabled OAuth cookies while resolving the valid legacy session: %s", async (stale) => {
+      mockVerifyCookie.mockReturnValue({ sessionId: "legacy-session" });
+      mockServiceClient.getSession.mockResolvedValue({
+        userId: "legacy-user",
+        coderUserId: "coder-user",
+        username: "fixture",
+        email: "fixture@example.invalid",
+        coderUrl: "https://coder.example",
+        sessionId: "legacy-session",
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      });
+      const result = await getSession({ get: vi.fn() }, `${stale}; hive-session=signed-legacy`);
+      expect(result?.session.sessionId).toBe("legacy-session");
+      expect(mockVerifyCookie).toHaveBeenCalledWith("signed-legacy", "test-secret");
+      expect(mockServiceClient.getBrowserSession).not.toHaveBeenCalled();
+    });
+
+    it("rejects legacy-only authentication while OAuth is enabled", async () => {
+      vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+      expect(await getSession({ get: vi.fn() }, "hive-session=signed-legacy")).toBeNull();
+      expect(mockVerifyCookie).not.toHaveBeenCalled();
+      expect(mockServiceClient.getSession).not.toHaveBeenCalled();
+    });
+
+    it("keeps enabled OAuth authoritative when its cookie is invalid", async () => {
+      vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+      mockServiceClient.getBrowserSession.mockResolvedValue(null);
+      expect(
+        await getSession({ get: vi.fn() }, "hive-auth=stale; hive-session=signed-legacy"),
+      ).toBeNull();
+      expect(mockServiceClient.getBrowserSession).toHaveBeenCalledWith(
+        "hive-auth=stale; hive-session=signed-legacy",
+      );
+      expect(mockVerifyCookie).not.toHaveBeenCalled();
+      expect(mockServiceClient.getSession).not.toHaveBeenCalled();
+    });
+
     it("returns null when no cookie present", async () => {
       const cookieStore = { get: vi.fn().mockReturnValue(undefined) };
       const result = await getSession(cookieStore);

@@ -285,16 +285,18 @@ async function getSessionCurrentDirectory({
   coderUrl,
   sessionName,
   sessionToken,
+  credentialSource,
 }: {
   agentTarget: string;
   coderUrl: string;
   sessionName: string;
   sessionToken: string;
+  credentialSource?: import("@hive/auth").CoderCredentialSource;
 }): Promise<string | null> {
   const result = await execInWorkspace(
     agentTarget,
     `tmux -L web display-message -p -t ${sessionName}: '#{pane_current_path}'`,
-    { coderUrl, sessionToken, timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS },
+    { coderUrl, sessionToken, credentialSource, timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS },
   );
   return result.exitCode === 0 ? normalizeWorkspaceDirectory(result.stdout) : null;
 }
@@ -333,6 +335,7 @@ export const getWorkspaceSessionsAction = authActionClient
         timeoutMs: 8_000,
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
       },
     );
 
@@ -381,6 +384,7 @@ export const getExistingTerminalPathsAction = authActionClient
       agentTarget,
       coderUrl: client.getBaseUrl(),
       sessionToken: client.getSessionToken(),
+      credentialSource: client.getCredentialSource(),
       sessionName: parsedInput.sessionName,
     });
     const currentPath =
@@ -410,6 +414,7 @@ export const getExistingTerminalPathsAction = authActionClient
       {
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
         timeoutMs: WORKSPACE_TOOL_DIRECTORY_TIMEOUT_MS,
       },
     );
@@ -441,6 +446,7 @@ export const getWorkspaceSessionToolsAction = authActionClient
       coderUrl: client.getBaseUrl(),
       sessionName: parsedInput.sessionName,
       sessionToken: client.getSessionToken(),
+      credentialSource: client.getCredentialSource(),
     });
     const currentPath =
       currentDirectory ?? resolveWorkspaceFallbackDirectory(parsedInput.fallbackPath) ?? undefined;
@@ -615,6 +621,7 @@ export const renameSessionAction = authActionClient
       {
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
       },
     );
 
@@ -649,6 +656,7 @@ export const killSessionAction = authActionClient
       {
         coderUrl: client.getBaseUrl(),
         sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
       },
     );
 

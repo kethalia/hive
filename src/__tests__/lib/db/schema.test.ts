@@ -36,6 +36,42 @@ describe("Prisma schema", () => {
     );
   });
 
+  it("adds optional OAuth session storage while retaining legacy UUID session identity", () => {
+    expect(schema).toContain('authToken String?  @unique @map("auth_token")');
+    expect(schema).toContain(
+      'sessionId String   @unique @default(uuid()) @map("session_id") @db.Uuid',
+    );
+    expect(schema).toContain(
+      'emailVerified                Boolean  @default(false) @map("email_verified")',
+    );
+    expect(schema).toContain(
+      'authMode                     String   @default("legacy") @map("auth_mode")',
+    );
+    expect(schema).toContain("model CoderOAuthAccount {");
+    expect(schema).toContain("@@unique([providerId, accountId])");
+    expect(schema).toContain("@@unique([userId, providerId])");
+    expect(schema).toContain("model BAVerification {");
+    expect(schema).toContain("@@index([identifier])");
+  });
+
+  it("seeds scoped Coder account links and guards identity, refresh leases and token versions", () => {
+    const migration = fs.readFileSync(
+      path.resolve(
+        __dirname,
+        "../../../../packages/db/prisma/migrations/20261114010000_coder_oauth_better_auth/migration.sql",
+      ),
+      "utf-8",
+    );
+    expect(migration).toContain("coder_url || '|' || coder_user_id::text, 'coder', id");
+    expect(migration).toContain("auth_mode IN ('legacy', 'oauth')");
+    expect(migration).toContain("refresh_state IN ('idle', 'refreshing', 'reconnect')");
+    expect(migration).toContain("HIVE_OAUTH_ACCOUNT_IDENTITY_IMMUTABLE");
+    expect(migration).toContain("NEW.version := OLD.version + 1");
+    expect(migration).toContain("NEW.access_token, NEW.refresh_token, NEW.access_token_expires_at");
+    expect(migration).toContain("TG_TABLE_SCHEMA");
+    expect(migration).toContain('REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE');
+  });
+
   it("defines user-owned navigation favorites with composite scoping", () => {
     expect(schema).toContain("enum NavigationFavoriteKind {");
     expect(schema).toContain("terminal");

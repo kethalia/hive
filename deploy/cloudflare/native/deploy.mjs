@@ -27,6 +27,7 @@ export function deploymentPlan(target, branch, config, profiles) {
     "ENCRYPTION_KEY",
     "COOKIE_SECRET",
     "AUTH_SERVICE_SECRET",
+    "CODER_OAUTH_CLIENT_SECRET",
   ]);
   let profile;
   let vars;
@@ -36,6 +37,7 @@ export function deploymentPlan(target, branch, config, profiles) {
       origin: "https://hive.kethalia.com",
       databaseName: "hive_production",
       databaseRole: "hive_production_runtime",
+      coderOAuthEnabled: true,
     };
     vars = config.vars;
     assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
@@ -46,22 +48,20 @@ export function deploymentPlan(target, branch, config, profiles) {
     );
     profile = profiles[branch];
     assert.notEqual(profile.origin, "https://hive.kethalia.com");
-    assert.equal(profile.databaseName, "hive_foundation_preview");
-    assert.equal(profile.databaseRole, "hive_foundation_runtime");
+    assert.ok(Number.isInteger(profile.schemaMigrations) && profile.schemaMigrations >= 7);
+    assert.notEqual(profile.databaseName, "hive_production");
+    assert.notEqual(profile.databaseRole, "hive_production_runtime");
     vars = config.previews.vars;
-    if (branch === "codex/hive-production-cutover") {
-      assert.equal(
-        profile.origin,
-        "https://codex-hive-production-cutover.hive-preview.kethalia.com",
-      );
-      assert.equal(
-        vars.HIVE_PREVIEW_ORIGIN_ALIAS,
-        "https://codex-hive-production-cutover-hive.b00ste.workers.dev",
-      );
-    } else {
-      assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
-    }
+    assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, profile.alias);
   }
+  for (const origin of [profile.origin, profile.alias].filter((value) => value !== undefined)) {
+    const url = new URL(origin);
+    assert.equal(url.protocol, "https:");
+    assert.equal(url.origin, origin);
+    assert.equal(url.username, "");
+    assert.equal(url.password, "");
+  }
+  if (profile.coderOAuthEnabled) assert.equal(vars.HIVE_CODER_OAUTH_ENABLED, "true");
   assert.equal(vars.HIVE_NATIVE_MODE, target);
   assert.equal(vars.HIVE_PUBLIC_ORIGIN, profile.origin);
   assert.equal(vars.HIVE_DATABASE_NAME, profile.databaseName);

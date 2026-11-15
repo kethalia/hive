@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { prepareCoderCliEnvironment } from "@/lib/coder/cli-auth.server";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 
 import {
@@ -111,6 +112,7 @@ async function execute(
     const result = await execInWorkspace(target, command, {
       coderUrl: client.getBaseUrl(),
       sessionToken: client.getSessionToken(),
+      credentialSource: client.getCredentialSource(),
       timeoutMs: 30_000,
       maxBufferBytes: MAX_OUTPUT,
       expected,
@@ -125,6 +127,11 @@ async function execute(
       throw new Error("Agent operation failed. Check the workspace configuration and try again.");
     }
   }
+  const cli = await prepareCoderCliEnvironment({
+    coderUrl: client.getBaseUrl(),
+    token: client.getSessionToken(),
+    credentialSource: client.getCredentialSource(),
+  });
   return new Promise((resolve, reject) => {
     const child = spawn(
       /* turbopackIgnore: true */ "ssh",
@@ -144,11 +151,7 @@ async function execute(
         command,
       ],
       {
-        env: {
-          ...process.env,
-          CODER_URL: client.getBaseUrl(),
-          CODER_SESSION_TOKEN: client.getSessionToken(),
-        },
+        env: cli.env,
         stdio: ["pipe", "pipe", "pipe"],
       },
     );
@@ -186,5 +189,5 @@ async function execute(
       }
     });
     child.stdin.end(JSON.stringify(payload));
-  });
+  }).finally(cli.cleanup);
 }

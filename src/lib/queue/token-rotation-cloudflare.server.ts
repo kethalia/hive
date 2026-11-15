@@ -270,7 +270,7 @@ export async function dispatchLegacyTokenRotation(
     const [claimed] = await db.$queryRaw<Row[]>`
       WITH candidate AS (
         SELECT t.id FROM coder_tokens t JOIN users u ON u.id=t.user_id
-        WHERE u.coder_url=${origin} AND (${ownerId}::uuid IS NULL OR u.id=${ownerId}::uuid) AND t.rotation_next_at<=clock_timestamp()
+        WHERE u.auth_mode='legacy' AND u.coder_url=${origin} AND (${ownerId}::uuid IS NULL OR u.id=${ownerId}::uuid) AND t.rotation_next_at<=clock_timestamp()
           AND (t.rotation_lease_until IS NULL OR t.rotation_lease_until<=clock_timestamp())
           AND ((COALESCE(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
             AND clock_timestamp()>=COALESCE(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')-${LEGACY_TOKEN_ROTATION_WINDOW_MS}*interval '1 millisecond')
@@ -291,7 +291,7 @@ export async function dispatchLegacyTokenRotation(
           // Lock both the credential and its principal before each remote effect.
           await tx.$queryRaw`SELECT t.id FROM coder_tokens t JOIN users u ON u.id=t.user_id WHERE t.id=${claimed.id}::uuid FOR UPDATE OF t,u`;
           const [row] = await tx.$queryRawUnsafe<Row[]>(
-            `SELECT ${rowProjection} FROM coder_tokens t JOIN users u ON u.id=t.user_id WHERE t.id=$1::uuid AND t.rotation_lease_id=$2::uuid`,
+            `SELECT ${rowProjection} FROM coder_tokens t JOIN users u ON u.id=t.user_id WHERE t.id=$1::uuid AND t.rotation_lease_id=$2::uuid AND u.auth_mode='legacy'`,
             claimed.id,
             leaseId,
           );

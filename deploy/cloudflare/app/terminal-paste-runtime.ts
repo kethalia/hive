@@ -153,6 +153,7 @@ export async function terminalPasteRuntime(
       origin: initial.coderOrigin,
       agentId: initial.agentId,
       token: authorized.token,
+      credentialSource: authorized.credentialSource,
       files: uploads,
       signal,
       authorize,

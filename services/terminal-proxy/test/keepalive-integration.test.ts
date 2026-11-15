@@ -145,6 +145,47 @@ describe("KeepAliveManager integration", () => {
     expect(requestLog[0].headers["coder-session-token"]).toBe("integration-test-token");
   });
 
+  it("uses refreshed OAuth credentials across real HTTP keepalives on one attachment", async () => {
+    let accessToken = "first-refreshed-access-token";
+    const authRequests: string[] = [];
+    const auth = await createMockCoderApi((req, res) => {
+      authRequests.push(req.url ?? "");
+      if (req.headers.authorization !== `Bearer ${"a".repeat(64)}`) {
+        res.writeHead(401);
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ token: accessToken, credentialSource: "oauth", coderUrl: mockUrl }));
+    });
+    vi.stubEnv("AUTH_SERVICE_URL", auth.url);
+    vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
+    try {
+      registry.addConnection("ws-oauth", "conn-a", {
+        token: "expired-attachment-token",
+        credentialSource: "oauth",
+        coderUrl: mockUrl,
+        sessionId: "session-123",
+      });
+      await manager.ping("ws-oauth");
+      accessToken = "second-refreshed-access-token";
+      await manager.ping("ws-oauth");
+      expect(authRequests).toEqual(["/sessions/session-123/token", "/sessions/session-123/token"]);
+      expect(requestLog.map((request) => request.headers.authorization)).toEqual([
+        "Bearer first-refreshed-access-token",
+        "Bearer second-refreshed-access-token",
+      ]);
+      expect(
+        requestLog.every((request) => request.headers["coder-session-token"] === undefined),
+      ).toBe(true);
+      expect(registry.getConnectionCount("ws-oauth")).toBe(1);
+      expect(manager.getHealth()["ws-oauth"].status).toBe("healthy");
+    } finally {
+      vi.unstubAllEnvs();
+      await closeServer(auth.server);
+    }
+  });
+
   it("sends a valid deadline in the request body", async () => {
     let capturedBody = "";
     await closeServer(server);

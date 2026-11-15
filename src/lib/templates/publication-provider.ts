@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { coderCredentialHeaders } from "@hive/auth";
 import { z } from "zod";
 import { getConfiguredCoderUrl, isConfiguredCoderUrl } from "./publication-actor";
 import {
@@ -132,7 +133,7 @@ export class CoderTemplatePublicationProvider implements TemplatePublicationProv
           redirect: "manual",
           credentials: "omit",
           headers: {
-            "Coder-Session-Token": this.actor.token,
+            ...coderCredentialHeaders(this.actor.token, this.actor.credentialSource),
             "Content-Type": contentType,
             "Accept-Encoding": "identity",
           },

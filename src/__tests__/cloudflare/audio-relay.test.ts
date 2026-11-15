@@ -38,7 +38,7 @@ const target = {
 const request = (query = new URLSearchParams(target).toString()) =>
   new Request(`${origin}/ws/audio?${query}`, { headers: { Upgrade: "websocket", Origin: origin } });
 let closers: Array<() => void> = [];
-function fixture() {
+function fixture(credentialSource?: "oauth") {
   const server = new Socket(),
     client = new Socket(),
     upstream = new Socket();
@@ -48,6 +48,7 @@ function fixture() {
     coderUserId: "coder-owner",
     coderOrigin: "https://coder.example",
     token: "synthetic-credential",
+    ...(credentialSource ? { credentialSource } : {}),
     buildId: "build-1",
     expiresAt: Date.now() + 3600000,
   };
@@ -90,6 +91,14 @@ const browserFrame = (socket: Socket, value: unknown) =>
 const hostFrame = (socket: Socket, value: unknown) =>
   socket.emit("message", { data: new TextEncoder().encode(`${JSON.stringify(value)}\n`).buffer });
 describe("native audio Cloudflare relay", () => {
+  it("uses only OAuth Bearer for the authorized PTY upgrade", async () => {
+    const f = fixture("oauth");
+    await f.open();
+    const headers = new Headers(f.deps.upgrade.mock.calls[0][1].headers);
+    expect(headers.get("Authorization")).toBe("Bearer synthetic-credential");
+    expect(headers.has("Coder-Session-Token")).toBe(false);
+  });
+
   it("admits only the fixed target and server-generated reconnect", () => {
     const url = new URL(request().url);
     const parsed = parseAudioTarget(url)!;

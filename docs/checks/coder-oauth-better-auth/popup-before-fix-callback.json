@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "source": "109224ae2f6b41db8f226d907f0c601e2a57fc41",
+  "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+  "startedAt": "2026-11-14T21:51:42.876Z",
+  "directory": "/tmp/hive-p02-callback-before-oJohY1",
+  "stage": "local_signout",
+  "callback": {
+    "status": 302,
+    "contentType": "application/json",
+    "contentDisposition": null,
+    "nosniff": "nosniff",
+    "location": {
+      "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+      "path": "/workspaces"
+    },
+    "hadCode": true,
+    "hadState": true,
+    "bodyByteCount": null,
+    "bodyMeasurement": "redirect_body_unavailable"
+  },
+  "downloads": [],
+  "events": [
+    {
+      "stage": "launch",
+      "at": "2026-11-14T21:51:42.876Z"
+    },
+    {
+      "stage": "hive_login",
+      "at": "2026-11-14T21:51:43.236Z"
+    },
+    {
+      "stage": "coder_password_login",
+      "at": "2026-11-14T21:51:46.625Z"
+    },
+    {
+      "stage": "coder_consent",
+      "at": "2026-11-14T21:51:46.784Z"
+    },
+    {
+      "stage": "callback_complete",
+      "at": "2026-11-14T21:51:52.619Z"
+    },
+    {
+      "stage": "local_signout",
+      "at": "2026-11-14T21:51:52.622Z"
+    }
+  ],
+  "accepted": true,
+  "chromeIdentity": {
+    "pid": 2990,
+    "startTime": "1109299925",
+    "groupId": 2990,
+    "uid": 1000
+  },
+  "finalDocument": {
+    "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+    "path": "/workspaces",
+    "type": "text/html"
+  },
+  "appVersion": {
+    "version": "2.33.0",
+    "buildId": "c878aceb-b950-4988-8dc6-fbe43d39e834"
+  },
+  "frameworkCookiePresent": true,
+  "localSignout": true,
+  "frameworkCookieAbsent": true,
+  "chromeExited": true,
+  "profileRemoved": true,
+  "finishedAt": "2026-11-14T21:52:03.470Z",
+  "scope": "one actual pre-fix same-tab Chrome OAuth flow, callback wire metadata, local signout",
+  "credentialValuesRecorded": false,
+  "oauthQueryValuesRecorded": false,
+  "limitations": [
+    "Chrome completed this flow with zero downloads. Safari download behavior was not reproduced by this browser.",
+    "Playwright cannot expose the redirect response body here and no Content-Length was present. Its body byte count remains unknown."
+  ]
+}

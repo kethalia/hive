@@ -20,6 +20,7 @@ const client = {
   getWorkspaceResources: vi.fn(),
   getBaseUrl: () => "https://coder.example.com",
   getSessionToken: () => "private-token",
+  getCredentialSource: () => "legacy",
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -98,6 +99,7 @@ describe("Cloudflare agent tools through authorized workspace PTY", () => {
     expect(options).toMatchObject({
       coderUrl: "https://coder.example.com",
       sessionToken: "private-token",
+      credentialSource: "legacy",
       expected: { workspaceId: "workspace", buildId: "build", agentId: "agent" },
       timeoutMs: 30000,
       maxBufferBytes: 8 * 1024 * 1024,

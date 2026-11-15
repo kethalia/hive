@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "hiveUserId": "732652a8-b45a-4c59-817a-41dda812d0fc",
+  "coderUserId": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+  "parallelCallers": 3,
+  "providerRefreshPosts": 1,
+  "versionBefore": 4,
+  "versionAfter": 6,
+  "refreshState": "idle",
+  "tokenValuesRecorded": false,
+  "checkedAt": "2026-11-14T21:25:42.936Z"
+}

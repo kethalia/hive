@@ -29,6 +29,21 @@ describe("session management", () => {
   });
 
   describe("createSession", () => {
+    it("uses a supplied transaction session delegate instead of the ambient database", async () => {
+      const transaction = { session: { create: vi.fn().mockResolvedValue({}) } };
+      expect(await createSession("transaction-user", transaction as never)).toBe(
+        "test-session-uuid-1234",
+      );
+      expect(transaction.session.create).toHaveBeenCalledWith({
+        data: {
+          sessionId: "test-session-uuid-1234",
+          userId: "transaction-user",
+          expiresAt: expect.any(Date),
+        },
+      });
+      expect(mockPrisma.session.create).not.toHaveBeenCalled();
+    });
+
     it("generates UUID and inserts row with 30-day expiry", async () => {
       mockPrisma.session.create.mockResolvedValue({
         id: "db-id",

@@ -78,7 +78,7 @@ vi.mock("ws", () => {
 
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
-import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
+import { connectionRegistry, handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 import { terminalSessionEventStore } from "../src/session-events.js";
 import { verifyWorkspaceAgentAccess } from "../src/workspace-authorization.js";
 
@@ -307,6 +307,26 @@ describe("handleUpgrade", () => {
       const opts = WsCtor.mock.calls[0][1] as { headers: Record<string, string> };
       expect(opts.headers["Coder-Session-Token"]).toBe("per-user-token");
     }
+  });
+
+  it("uses OAuth Bearer for the upstream socket and workspace authorization", async () => {
+    mockAuth.mockResolvedValueOnce({
+      ...mockAuthResult,
+      value: { ...mockAuthResult.value, credentialSource: "oauth" },
+    });
+    const socket = makeSocket();
+    await handleUpgrade(makeReq(validParams), socket, Buffer.alloc(0));
+    const [, options] = (WebSocket as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(options.headers).toEqual({ Authorization: "Bearer per-user-token" });
+    expect(verifyWorkspaceAgentAccess).toHaveBeenLastCalledWith(
+      expect.objectContaining({ credentialSource: "oauth" }),
+    );
+    expect(connectionRegistry.getWorkspaceMetas(validParams.workspaceId)).toContainEqual({
+      token: mockAuthResult.value.token,
+      coderUrl: mockAuthResult.value.coderUrl,
+      credentialSource: "oauth",
+      sessionId: mockAuthResult.value.sessionId,
+    });
   });
 
   it("opens upstream WebSocket with correct URL and per-user auth on valid request", async () => {

@@ -25,6 +25,7 @@ describe("authenticateUpgrade", () => {
       COOKIE_SECRET: "test-secret",
       AUTH_SERVICE_URL: "http://localhost:4400",
       AUTH_SERVICE_SECRET: "a".repeat(64),
+      HIVE_CODER_OAUTH_ENABLED: "false",
     };
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -34,6 +35,64 @@ describe("authenticateUpgrade", () => {
   afterEach(() => {
     process.env = originalEnv;
     vi.unstubAllGlobals();
+  });
+
+  it("resolves Better Auth cookie through the internal service and carries OAuth source", async () => {
+    process.env.HIVE_CODER_OAUTH_ENABLED = "true";
+    process.env.HIVE_PUBLIC_ORIGIN = "https://hive.example.com";
+    fetchMock.mockImplementation(async (input) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/browser-session") return Response.json({ sessionId: "public-uuid" });
+      if (path.endsWith("/token"))
+        return Response.json({
+          token: "oauth-access",
+          coderUrl: "https://coder.test",
+          credentialSource: "oauth",
+        });
+      return Response.json({ username: "tester" });
+    });
+    const result = await authenticateUpgrade(
+      makeReq({ cookie: "__Host-hive-auth=private-session" }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      value: { sessionId: "public-uuid", token: "oauth-access", credentialSource: "oauth" },
+    });
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][1].headers.Cookie).toBe("__Host-hive-auth=private-session");
+    expect(fetchMock.mock.calls[1][0]).toContain("/sessions/public-uuid/");
+  });
+
+  it("rejects ambiguous Better Auth cookies before transport", async () => {
+    process.env.HIVE_CODER_OAUTH_ENABLED = "true";
+    process.env.HIVE_PUBLIC_ORIGIN = "https://hive.example.com";
+    expect(
+      await authenticateUpgrade(makeReq({ cookie: "__Host-hive-auth=one; __Host-hive-auth=two" })),
+    ).toMatchObject({ ok: false, value: { reason: "ambiguous_cookie" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "__Host-hive-auth=stale",
+    "__Host-hive-auth=one; __Host-hive-auth=two",
+  ])("ignores disabled OAuth cookies when authenticating a legacy upgrade: %s", async (stale) => {
+    process.env.HIVE_PUBLIC_ORIGIN = "https://hive.example.com";
+    mockVerifyCookie.mockReturnValue({ sessionId: "legacy-session" });
+    fetchMock.mockImplementation(async (input) => {
+      const path = new URL(String(input)).pathname;
+      expect(path).toContain("/sessions/legacy-session");
+      return path.endsWith("/token")
+        ? Response.json({ token: "legacy-token", coderUrl: "https://coder.test" })
+        : Response.json({ username: "fixture" });
+    });
+    expect(
+      await authenticateUpgrade(makeReq({ cookie: `${stale}; hive-session=signed-legacy` })),
+    ).toMatchObject({
+      ok: true,
+      value: { sessionId: "legacy-session", token: "legacy-token" },
+    });
+    expect(mockVerifyCookie).toHaveBeenCalledWith("signed-legacy", "test-secret");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns 502 when COOKIE_SECRET is not configured", async () => {

@@ -24,6 +24,7 @@ const client = {
   getWorkspaceAgentName: vi.fn(async () => "dev.main"),
   getBaseUrl: () => "https://coder.example.test",
   getSessionToken: () => "secret",
+  getCredentialSource: () => "legacy",
 };
 beforeEach(() => {
   vi.resetAllMocks();

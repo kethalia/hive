@@ -26,6 +26,7 @@ vi.mock("@/lib/coder/user-client", () => ({
   getCoderClientForUser: vi.fn().mockResolvedValue({
     getBaseUrl: () => MOCK_BASE_URL,
     getSessionToken: () => MOCK_SESSION_TOKEN,
+    getCredentialSource: () => "legacy",
   }),
   UserClientException: class UserClientException extends Error {
     constructor(

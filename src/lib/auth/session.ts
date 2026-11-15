@@ -1,4 +1,10 @@
-import { sessionCookieName, signCookie, verifyCookie } from "@hive/auth";
+import {
+  coderAuthCookieName,
+  coderAuthCookieValues,
+  sessionCookieName,
+  signCookie,
+  verifyCookie,
+} from "@hive/auth";
 import { cookies, headers } from "next/headers";
 import { getAuthServiceClient } from "./service-client";
 import {
@@ -24,6 +30,37 @@ export async function getSession(
   cookieStore: SessionCookieReader,
   cookieHeader?: string | null,
 ): Promise<SessionData | null> {
+  const oauthEnabled = process.env.HIVE_CODER_OAUTH_ENABLED === "true";
+  const browserHeader =
+    cookieHeader ??
+    (() => {
+      const name = coderAuthCookieName();
+      const values = cookieStore.getAll?.(name) ?? [];
+      return values.map((cookie) => `${name}=${cookie.value}`).join("; ");
+    })();
+  if (oauthEnabled && coderAuthCookieValues(browserHeader).length) {
+    try {
+      const payload = await getAuthServiceClient().getBrowserSession(browserHeader);
+      if (!payload) return null;
+      return {
+        user: {
+          id: payload.userId,
+          coderUrl: payload.coderUrl,
+          coderUserId: payload.coderUserId,
+          username: payload.username,
+          email: payload.email,
+        },
+        session: {
+          id: payload.sessionId,
+          sessionId: payload.sessionId,
+          expiresAt: new Date(payload.expiresAt),
+        },
+      };
+    } catch {
+      return null;
+    }
+  }
+  if (oauthEnabled) return null;
   const cookieValues = getSessionCookieValues(cookieStore, cookieHeader);
   if (cookieValues.length !== 1 || !cookieValues[0]) {
     return null;

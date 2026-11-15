@@ -42,6 +42,7 @@ export async function readSettingsWindow(user: SessionData["user"], callerSignal
     }
     return settingsWindowSchema.parse({
       email: user.email,
+      ...(process.env.HIVE_CODER_OAUTH_ENABLED === "true" ? { coderOAuthEnabled: true } : {}),
       coderUrl: user.coderUrl,
       connectedWorkspaceIds: sources.map((source) => source.workspaceId),
       pendingWorkspaceIds: sources

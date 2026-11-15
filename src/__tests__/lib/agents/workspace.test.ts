@@ -16,6 +16,7 @@ const client = {
   getWorkspaceResources: vi.fn(),
   getBaseUrl: () => "https://coder.example.com",
   getSessionToken: () => "private-token",
+  getCredentialSource: () => "legacy",
 };
 
 function child(reply: unknown, code = 0, chunkSize = 16 * 1024) {

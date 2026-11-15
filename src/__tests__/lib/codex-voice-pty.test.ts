@@ -104,7 +104,13 @@ class PythonPty implements RelaySocket {
   }
 }
 async function fixture(
-  options: { reject?: boolean; badHandshake?: boolean; changed?: boolean; expiresMs?: number } = {},
+  options: {
+    credentialSource?: "oauth";
+    reject?: boolean;
+    badHandshake?: boolean;
+    changed?: boolean;
+    expiresMs?: number;
+  } = {},
 ) {
   const home = await mkdtemp(join(tmpdir(), "hive-voice-pty-"));
   const record = join(home, "proxy.jsonl");
@@ -122,6 +128,7 @@ async function fixture(
     buildId: randomUUID(),
     agentId: randomUUID(),
     token: "synthetic-scoped-coder-token",
+    ...(options.credentialSource ? { credentialSource: options.credentialSource } : {}),
     expiresAt: Date.now() + (options.expiresMs ?? 60000),
   };
   const sockets: PythonPty[] = [];
@@ -135,7 +142,16 @@ async function fixture(
     const url = new URL(String(input));
     expect(url.origin).toBe(authority.coderOrigin);
     expect(url.pathname).toBe(`/api/v2/workspaceagents/${authority.agentId}/pty`);
-    expect(new Headers(init?.headers).get("Coder-Session-Token")).toBe(authority.token);
+    expect(
+      new Headers(init?.headers).get(
+        options.credentialSource ? "Authorization" : "Coder-Session-Token",
+      ),
+    ).toBe(options.credentialSource ? `Bearer ${authority.token}` : authority.token);
+    expect(
+      new Headers(init?.headers).has(
+        options.credentialSource ? "Coder-Session-Token" : "Authorization",
+      ),
+    ).toBe(false);
     expect(init?.redirect).toBe("manual");
     const command = url.searchParams.get("command")!;
     expect(command.length).toBeLessThan(8192);
@@ -176,6 +192,13 @@ async function fixture(
   return { connect, authorize, fetch, records, tracked, sockets, authority };
 }
 describe("Codex voice over actual Python PTY and synthetic WebSocket proxy", () => {
+  it("upgrades the existing voice proxy with OAuth Bearer", async () => {
+    const f = await fixture({ credentialSource: "oauth" });
+    const rpc = await f.connect();
+    rpc.close();
+    expect(f.fetch).toHaveBeenCalledOnce();
+  });
+
   it("embeds only the fixed reviewed program in a bounded command", () => {
     const nonce = randomUUID();
     const command = voicePtyCommand(nonce, 30, threadId);

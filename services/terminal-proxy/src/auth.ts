@@ -1,7 +1,9 @@
 import type { IncomingMessage } from "node:http";
 import type { CoderTokenResponse } from "@hive/auth";
 import {
+  AuthServiceClient,
   authServiceHeaders,
+  coderAuthCookieValues,
   isLoopbackHostname,
   sessionCookieValues,
   verifyCookie,
@@ -12,6 +14,7 @@ const AUTH_SERVICE_TIMEOUT_MS = 5_000;
 
 export interface AuthSuccess {
   token: string;
+  credentialSource?: CoderTokenResponse["credentialSource"];
   coderUrl: string;
   sessionId: string;
   username: string;
@@ -36,7 +39,11 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
   }
 
   const values = sessionCookieValues(req.headers.cookie);
-  if (values.length > 1)
+  const browserCookies =
+    process.env.HIVE_CODER_OAUTH_ENABLED === "true"
+      ? coderAuthCookieValues(req.headers.cookie)
+      : [];
+  if (values.length > 1 || browserCookies.length > 1)
     return {
       ok: false,
       value: { error: "Ambiguous session cookie", status: 401, reason: "ambiguous_cookie" },
@@ -83,6 +90,29 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
         value: { error: "Invalid terminal ticket", status: 401, reason: "invalid_terminal_ticket" },
       };
     sessionId = claims.sessionId;
+  } else if (browserCookies.length === 1) {
+    try {
+      const auth = new AuthServiceClient(
+        process.env.AUTH_SERVICE_URL || "http://localhost:4400",
+        AUTH_SERVICE_TIMEOUT_MS,
+      );
+      const session = await auth.getBrowserSession(req.headers.cookie || "");
+      if (!session)
+        return {
+          ok: false,
+          value: { error: "Session not found", status: 401, reason: "session_not_found" },
+        };
+      sessionId = session.sessionId;
+    } catch {
+      return {
+        ok: false,
+        value: {
+          error: "Auth service unavailable",
+          status: 502,
+          reason: "auth_service_unreachable",
+        },
+      };
+    }
   } else {
     if (values.length !== 1 || !values[0])
       return {
@@ -192,7 +222,12 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     };
   }
 
-  if (!tokenBody.token) {
+  if (
+    !tokenBody.token ||
+    (tokenBody.credentialSource !== undefined &&
+      tokenBody.credentialSource !== "legacy" &&
+      tokenBody.credentialSource !== "oauth")
+  ) {
     console.error(
       `[terminal-proxy] auth: token_unavailable session=${truncatedId}… incomplete_response → 502`,
     );
@@ -217,6 +252,7 @@ export async function authenticateUpgrade(req: IncomingMessage): Promise<AuthRes
     ok: true,
     value: {
       token: tokenBody.token,
+      credentialSource: tokenBody.credentialSource,
       coderUrl: tokenBody.coderUrl,
       sessionId,
       username,

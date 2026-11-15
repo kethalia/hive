@@ -17,6 +17,24 @@ describe("execInWorkspace", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
+  it("passes isolated OAuth headers to the CLI and removes its config after completion", async () => {
+    let environment: NodeJS.ProcessEnv | undefined;
+    mockExecFile.mockImplementation((_cmd, _args, options, callback) => {
+      environment = (options as { env: NodeJS.ProcessEnv }).env;
+      (callback as Function)(null, "", "");
+      return undefined as never;
+    });
+    await execInWorkspace("workspace", "fixed-read", {
+      coderUrl: "https://coder.example.com",
+      sessionToken: "oauth-access",
+      credentialSource: "oauth",
+    });
+    expect(environment?.CODER_HEADER).toBe("Authorization=Bearer oauth-access");
+    expect(environment?.CODER_SESSION_TOKEN).toBeUndefined();
+    const { stat } = await import("node:fs/promises");
+    await expect(stat(environment!.CODER_CONFIG_DIR!)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("returns stdout and exitCode 0 on success", async () => {
     mockExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
       (callback as Function)(null, "hello world\n", "");

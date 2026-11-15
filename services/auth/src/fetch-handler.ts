@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { authServiceHeaders, type SessionPayload } from "@hive/auth";
+import { coderOAuthEnabled } from "./auth/coder-oauth-config";
 import { ErrorCode } from "./auth/constants.js";
 import * as domain from "./auth/domain.js";
 import { loginRateLimiter } from "./auth/rate-limit.js";
@@ -8,7 +9,8 @@ const MAX_BODY_BYTES = 1024 * 1024;
 type Operations = Pick<
   typeof domain,
   "performLogin" | "deleteSession" | "getSessionById" | "getTokenStatus" | "getDecryptedCoderToken"
->;
+> &
+  Partial<Pick<typeof domain, "getBrowserSession">>;
 
 class BodyError extends Error {
   constructor(
@@ -90,7 +92,12 @@ export function createFetchAuthHandler(
     }
     try {
       request.signal.throwIfAborted();
+      if (request.method === "GET" && pathname === "/browser-session") {
+        const session = await operations.getBrowserSession?.(request.headers.get("Cookie") ?? "");
+        return session ? json(session) : error(404, "Session not found", ErrorCode.NOT_FOUND);
+      }
       if (request.method === "POST" && pathname === "/login") {
+        if (coderOAuthEnabled()) return error(410, "Continue with Coder", "CODER_OAUTH_REQUIRED");
         const input = await body(request);
         if (!input) return error(400, "Request body is required", ErrorCode.BAD_REQUEST);
         const { coderUrl, email, password } = input;
@@ -161,6 +168,7 @@ export function createFetchAuthHandler(
             token: token.token,
             coderUrl: session.user.coderUrl,
             expiresAt: token.expiresAt?.toISOString() ?? null,
+            ...(token.credentialSource ? { credentialSource: token.credentialSource } : {}),
           });
         } catch (failure) {
           const message = failure instanceof Error ? failure.message : "";

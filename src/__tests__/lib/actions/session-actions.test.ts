@@ -61,6 +61,7 @@ describe("session server actions", () => {
       getWorkspaceAgentName: mockGetWorkspaceAgentName,
       getBaseUrl: () => "https://coder.example.com",
       getSessionToken: () => "coder-session-token",
+      getCredentialSource: () => "legacy",
     } as never);
   });
 
@@ -135,6 +136,7 @@ describe("session server actions", () => {
         {
           coderUrl: "https://coder.example.com",
           sessionToken: "coder-session-token",
+          credentialSource: "legacy",
         },
       );
       expect(result?.data).toEqual({ oldName: "old-name", newName: "new-name" });
@@ -247,6 +249,7 @@ describe("session server actions", () => {
         {
           coderUrl: "https://coder.example.com",
           sessionToken: "coder-session-token",
+          credentialSource: "legacy",
         },
       );
       expect(result?.data).toEqual({ name: "my-session" });

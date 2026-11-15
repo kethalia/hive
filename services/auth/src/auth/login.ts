@@ -112,44 +112,49 @@ export async function performLogin(
     authTag: new Uint8Array(raw.authTag),
   };
 
-  const user = await getDb().user.upsert({
-    where: {
-      coderUrl_coderUserId: {
+  const { user, sessionId } = await getDb().$transaction(async (tx) => {
+    const user = await tx.user.upsert({
+      where: {
+        coderUrl_coderUserId: {
+          coderUrl: coderUrl.replace(/\/+$/, ""),
+          coderUserId: loginResult.userId,
+        },
+      },
+      update: {
+        username: loginResult.username,
+        email,
+        authMode: "legacy",
+      },
+      create: {
         coderUrl: coderUrl.replace(/\/+$/, ""),
         coderUserId: loginResult.userId,
+        username: loginResult.username,
+        email,
+        authMode: "legacy",
       },
-    },
-    update: {
-      username: loginResult.username,
-      email,
-    },
-    create: {
-      coderUrl: coderUrl.replace(/\/+$/, ""),
-      coderUserId: loginResult.userId,
-      username: loginResult.username,
-      email,
-    },
-  });
+    });
 
-  await getDb().coderToken.upsert({
-    where: { userId: user.id },
-    update: {
-      ciphertext: encrypted.ciphertext,
-      iv: encrypted.iv,
-      authTag: encrypted.authTag,
-      expiresAt,
-      version: { increment: 1 },
-    },
-    create: {
-      userId: user.id,
-      ciphertext: encrypted.ciphertext,
-      iv: encrypted.iv,
-      authTag: encrypted.authTag,
-      expiresAt,
-    },
+    await tx.coderToken.upsert({
+      where: { userId: user.id },
+      update: {
+        ciphertext: encrypted.ciphertext,
+        iv: encrypted.iv,
+        authTag: encrypted.authTag,
+        expiresAt,
+        version: { increment: 1 },
+      },
+      create: {
+        userId: user.id,
+        ciphertext: encrypted.ciphertext,
+        iv: encrypted.iv,
+        authTag: encrypted.authTag,
+        expiresAt,
+      },
+    });
+    // Require fresh consent when OAuth is re-enabled after this legacy login.
+    await tx.session.deleteMany({ where: { userId: user.id, authToken: { not: null } } });
+    return { user, sessionId: await createSession(user.id, tx) };
   });
-
-  const sessionId = await createSession(user.id);
   console.log(`[auth-service] Session created for user ${user.id}`);
 
   return {

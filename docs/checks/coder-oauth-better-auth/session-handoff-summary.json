@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "source": "c5c665512a155a5f18372001d8dd462f78d8bee6",
+  "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+  "accepted": true,
+  "engines": ["Playwright1.61.1 LinuxWebKit26.5", "systemGoogleChrome"],
+  "nativeSafari": false,
+  "flowCount": 4,
+  "socialPostCount": 4,
+  "directCallback200HtmlNosniff": true,
+  "allParentWorkspacesAndApi200": true,
+  "recoveryCases": [
+    {
+      "engine": "webkit",
+      "droppedMessages": 1,
+      "cookiePresentBeforeManualClose": true,
+      "parentPathBeforeManualClose": "/login",
+      "manuallyClosedAfterCookie": true,
+      "authenticatedAfterClose": true
+    },
+    {
+      "engine": "chrome",
+      "droppedMessages": 1,
+      "cookiePresentBeforeManualClose": true,
+      "parentPathBeforeManualClose": "/login",
+      "manuallyClosedAfterCookie": true,
+      "authenticatedAfterClose": true
+    }
+  ],
+  "downloads": 0,
+  "allLogout200CookieAbsent": true,
+  "browsersClosed": true,
+  "sshClosed": true,
+  "sourceEdits": false,
+  "files": {
+    "result.json": "12d84a2f10cba20acd21fdaed7261af3e5fa84e74ff410b159f291552a41d9ef",
+    "webkit-normal.png": "9457e963e459bf831dfe2d5279745f86afe5cbabc64d4b1449a32fe0665b9050",
+    "webkit-recovery.png": "9457e963e459bf831dfe2d5279745f86afe5cbabc64d4b1449a32fe0665b9050",
+    "chrome-normal.png": "baa52854c37bdf52da9c96c351b077fdeaac527b094cee5f77e55e287648acae",
+    "chrome-recovery.png": "baa52854c37bdf52da9c96c351b077fdeaac527b094cee5f77e55e287648acae"
+  },
+  "recordedAt": "2026-11-15T09:48:31.256250+00:00"
+}

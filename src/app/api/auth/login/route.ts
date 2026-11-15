@@ -12,6 +12,8 @@ import {
 } from "@/lib/security/content-security-policy";
 
 export async function POST(request: Request) {
+  if (process.env.HIVE_CODER_OAUTH_ENABLED === "true")
+    return NextResponse.json({ error: "Continue with Coder" }, { status: 410 });
   let body: unknown;
   try {
     body = await request.json();

@@ -26,6 +26,20 @@ function actor() {
   };
 }
 describe("template publisher bounded provider", () => {
+  it("uses OAuth Bearer for provider authorization without a legacy key", async () => {
+    vi.stubEnv("CODER_URL", origin);
+    const a = { ...actor(), credentialSource: "oauth" as const };
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toBe(`Bearer ${a.token}`);
+      expect(headers.has("Coder-Session-Token")).toBe(false);
+      if (String(input).endsWith("/users/me")) return Response.json({ id: a.coderUserId });
+      return Response.json({ id: randomUUID(), name: "default" });
+    });
+    await CoderTemplatePublicationProvider.create(a, fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("first-create scope omits template UUID and metadata/variables choices; server-created identity is verified", async () => {
     vi.stubEnv("CODER_URL", origin);
     const a = actor(),

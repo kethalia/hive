@@ -7,6 +7,7 @@ export enum UserClientError {
   DECRYPT_FAILED = "DECRYPT_FAILED",
   KEY_MISMATCH = "KEY_MISMATCH",
   USER_NOT_FOUND = "USER_NOT_FOUND",
+  OAUTH_RECONNECT = "OAUTH_RECONNECT",
 }
 
 export class UserClientException extends Error {
@@ -33,21 +34,44 @@ export async function getCoderClientForUser(
     include: { user: true },
   });
   options.signal?.throwIfAborted();
-  if (!token) {
-    const userExists = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  const user = token?.user ?? (await db.user.findUnique({ where: { id: userId } }));
+  options.signal?.throwIfAborted();
+  if (!user) {
+    console.error(`[user-client] User not found: ${userId}`);
+    throw new UserClientException(UserClientError.USER_NOT_FOUND, `User ${userId} not found`);
+  }
+  if (user.authMode === "oauth") {
+    const { getUsableCoderCredential } = await import(
+      "../../../services/auth/src/auth/coder-oauth-credentials"
+    );
+    const credential = await getUsableCoderCredential(userId, { db, signal: options.signal });
     options.signal?.throwIfAborted();
-    if (!userExists) {
-      console.error(`[user-client] User not found: ${userId}`);
-      throw new UserClientException(UserClientError.USER_NOT_FOUND, `User ${userId} not found`);
-    }
+    if (
+      credential.credentialSource !== "oauth" ||
+      credential.coderUrl !== user.coderUrl ||
+      !credential.expiresAt ||
+      !Number.isFinite(credential.expiresAt.getTime()) ||
+      credential.expiresAt.getTime() <= Date.now()
+    )
+      throw new UserClientException(
+        UserClientError.OAUTH_RECONNECT,
+        "Coder sign-in requires reconnection",
+      );
+    return new CoderClient({
+      baseUrl: credential.coderUrl,
+      sessionToken: credential.token,
+      credentialSource: "oauth",
+      credentialExpiresAt: credential.expiresAt,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+  }
+  if (!token) {
     console.error(`[user-client] No CoderToken for user: ${userId}`);
     throw new UserClientException(
       UserClientError.NO_TOKEN,
       `No Coder API token stored for user ${userId}`,
     );
   }
-
-  const user = token.user;
 
   const encryptionKey = process.env.ENCRYPTION_KEY;
   if (!encryptionKey) {
@@ -89,6 +113,8 @@ export async function getCoderClientForUser(
   return new CoderClient({
     baseUrl: user.coderUrl,
     sessionToken: decryptedToken,
+    credentialSource: "legacy",
+    credentialExpiresAt: token.expiresAt,
     ...(options.signal ? { signal: options.signal } : {}),
   });
 }

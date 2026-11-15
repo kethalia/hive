@@ -24,7 +24,12 @@ export const cloneProjectAction = authActionClient
     const result = await execInWorkspace(
       target,
       cloneProjectCommand(root, organization, repository),
-      { coderUrl: client.getBaseUrl(), sessionToken: client.getSessionToken(), timeoutMs: 110_000 },
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
+        timeoutMs: 110_000,
+      },
     );
     if (result.exitCode !== 0) {
       if (result.stdout.trim() === "already-exists")

@@ -1,0 +1,14 @@
+{
+  "sessionAbsent": true,
+  "tmuxExitCode": 1,
+  "shellPidAbsent": true,
+  "workspaceProfile": "software",
+  "scope": "exact_owned_terminal_only",
+  "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+  "buildId": "efef452b-a61c-43a2-b6b4-65e5262bb913",
+  "fourIdentityFieldsMatch": true,
+  "session": "p02-oauth-f7e9b5d1",
+  "shellPid": 18947,
+  "shellSignaled": false,
+  "workspaceLifecycleChanged": false
+}

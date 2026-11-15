@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { getBrowserSession } from "./auth/browser-session.js";
 import { DEFAULT_PORT } from "./auth/constants.js";
 import { handleGetCredentials } from "./handlers/credentials.js";
 import { handleLogin } from "./handlers/login.js";
@@ -16,6 +17,11 @@ addRoute("GET", "/health", async (_req, res) => {
 
 addRoute("POST", "/login", async (req, res) => {
   await handleLogin(req, res);
+});
+
+addRoute("GET", "/browser-session", async (req, res) => {
+  const session = await getBrowserSession(req.headers.cookie ?? "");
+  sendJson(res, session ? 200 : 404, session ?? { error: "Session not found" });
 });
 
 addRoute("POST", "/logout", async (req, res) => {

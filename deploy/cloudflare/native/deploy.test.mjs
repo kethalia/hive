@@ -7,18 +7,26 @@ import { deploymentArguments, deploymentPlan } from "./deploy.mjs";
 const config = JSON.parse(await readFile(new URL("./wrangler.jsonc", import.meta.url)));
 const profiles = JSON.parse(await readFile(new URL("./preview-profiles.json", import.meta.url)));
 const branch = "codex/hive-production-cutover";
-const origin = profiles[branch].origin;
+const profile = profiles[branch];
+const origin = profile.origin;
+const previewConfig = structuredClone(config);
+Object.assign(previewConfig.previews.vars, {
+  HIVE_PUBLIC_ORIGIN: origin,
+  HIVE_DATABASE_NAME: profile.databaseName,
+  HIVE_DATABASE_ROLE: profile.databaseRole,
+  HIVE_PREVIEW_ORIGIN_ALIAS: profile.alias,
+});
 const context = { waitUntil() {}, passThroughOnException() {} };
 const env = {
-  ...config.previews.vars,
+  ...previewConfig.previews.vars,
   DATABASE_URL: "postgresql://hive_foundation_runtime:fixture@localhost/hive_foundation_preview",
 };
 
 test("connected preview deployment admits its reviewed profile", () => {
-  assert.equal(deploymentPlan("preview", branch, config, profiles).origin, origin);
+  assert.equal(deploymentPlan("preview", branch, previewConfig, profiles).origin, origin);
   assert.throws(() => deploymentPlan("preview", "main", config, profiles));
   assert.throws(() => deploymentPlan("preview", "unreviewed", config, profiles));
-  const changed = structuredClone(config);
+  const changed = structuredClone(previewConfig);
   changed.previews.vars.HIVE_DATABASE_NAME = "hive_native_preview";
   assert.throws(() => deploymentPlan("preview", branch, changed, profiles));
 });
@@ -99,7 +107,7 @@ test("production deploys main through Wrangler deploy and Preview uses its named
     "--config",
     "config.jsonc",
   ]);
-  const preview = deploymentPlan("preview", branch, config, profiles);
+  const preview = deploymentPlan("preview", branch, previewConfig, profiles);
   assert.deepEqual(deploymentArguments("preview", preview, "config.jsonc"), [
     "exec",
     "wrangler",
@@ -122,7 +130,7 @@ test("production plan enforces the domain, database, role, existing secrets and 
     ["HIVE_RUNTIME_TARGET", "node"],
     ["CODER_URL", "https://other.example"],
   ]) {
-    const changed = structuredClone(config);
+    const changed = structuredClone(previewConfig);
     changed.vars[key] = value;
     assert.throws(() => deploymentPlan("production", "main", changed, profiles), key);
   }
@@ -140,7 +148,7 @@ test("production plan enforces the domain, database, role, existing secrets and 
       c.services = [{ binding: "AUTH_SERVICE", service: "another" }];
     },
   ]) {
-    const changed = structuredClone(config);
+    const changed = structuredClone(previewConfig);
     change(changed);
     assert.throws(() => deploymentPlan("production", "main", changed, profiles));
   }
@@ -299,7 +307,7 @@ test("alias configuration is exact, HTTPS and preview-only at source and runtime
     `${alias}/`,
     alias.replace("https:", "http:"),
   ]) {
-    const changed = structuredClone(config);
+    const changed = structuredClone(previewConfig);
     changed.previews.vars.HIVE_PREVIEW_ORIGIN_ALIAS = value;
     assert.throws(() => deploymentPlan("preview", branch, changed, profiles));
     if (value !== undefined) {
@@ -315,7 +323,7 @@ test("alias configuration is exact, HTTPS and preview-only at source and runtime
       );
     }
   }
-  const changed = structuredClone(config);
+  const changed = structuredClone(previewConfig);
   changed.vars.HIVE_PREVIEW_ORIGIN_ALIAS = alias;
   assert.throws(() => deploymentPlan("production", "main", changed, profiles));
   assert.equal(
@@ -329,8 +337,130 @@ test("alias configuration is exact, HTTPS and preview-only at source and runtime
     503,
   );
   for (const field of ["enabled", "previews_enabled"]) {
-    const changed = structuredClone(config);
+    const changed = structuredClone(previewConfig);
     changed.routes[1][field] = !changed.routes[1][field];
     assert.throws(() => deploymentPlan("preview", branch, changed, profiles));
   }
+});
+
+const oauthBranch = "codex/coder-oauth-better-auth";
+const oauthProfile = profiles[oauthBranch];
+const oauthEnv = {
+  ...config.previews.vars,
+  DATABASE_URL: "postgresql://hive_coder_oauth_runtime:fixture@localhost/hive_coder_oauth_preview",
+};
+
+test("OAuth preview has an isolated reviewed profile and schema12", () => {
+  assert.deepEqual(oauthProfile, {
+    origin: "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+    alias: "https://codex-coder-oauth-better-auth-hive.b00ste.workers.dev",
+    databaseName: "hive_coder_oauth_preview",
+    databaseRole: "hive_coder_oauth_runtime",
+    schemaMigrations: 12,
+    coderOAuthEnabled: true,
+  });
+  assert.equal(
+    deploymentPlan("preview", oauthBranch, config, profiles).origin,
+    oauthProfile.origin,
+  );
+  assert.throws(() => deploymentPlan("preview", branch, config, profiles));
+  assert.equal(deploymentPlan("preview", branch, previewConfig, profiles).origin, origin);
+  assert.equal(config.vars.HIVE_CODER_OAUTH_ENABLED, "true");
+  assert.equal(config.previews.vars.HIVE_CODER_OAUTH_ENABLED, "true");
+  assert.ok(config.secrets.required.includes("CODER_OAUTH_CLIENT_SECRET"));
+  assert.equal(config.vars.CODER_OAUTH_CLIENT_SECRET, undefined);
+  assert.equal(config.previews.vars.CODER_OAUTH_CLIENT_SECRET, undefined);
+});
+
+test("historical foundation profile retains its exact database and origin when selected", () => {
+  const foundation = profiles["codex/cloudflare-foundation"];
+  const historical = structuredClone(config);
+  Object.assign(historical.previews.vars, {
+    HIVE_PUBLIC_ORIGIN: foundation.origin,
+    HIVE_DATABASE_NAME: foundation.databaseName,
+    HIVE_DATABASE_ROLE: foundation.databaseRole,
+  });
+  delete historical.previews.vars.HIVE_PREVIEW_ORIGIN_ALIAS;
+  assert.equal(
+    deploymentPlan("preview", "codex/cloudflare-foundation", historical, profiles).origin,
+    foundation.origin,
+  );
+});
+
+test("OAuth deployment holds mismatched or disabled profile settings", () => {
+  for (const [key, value] of [
+    ["HIVE_PUBLIC_ORIGIN", origin],
+    ["HIVE_DATABASE_NAME", "hive_foundation_preview"],
+    ["HIVE_DATABASE_ROLE", "hive_foundation_runtime"],
+    ["HIVE_PREVIEW_ORIGIN_ALIAS", alias],
+    ["HIVE_CODER_OAUTH_ENABLED", "false"],
+  ]) {
+    const changed = structuredClone(config);
+    changed.previews.vars[key] = value;
+    assert.throws(() => deploymentPlan("preview", oauthBranch, changed, profiles), key);
+  }
+});
+
+test("OAuth HTTP and auth bindings share only their exact reviewed database scope", async () => {
+  let calls = 0;
+  const worker = createNativeWorker({
+    app: {
+      fetch(_request, local) {
+        calls++;
+        return local.AUTH_SERVICE.fetch("https://auth.internal/health");
+      },
+    },
+    auth: {
+      fetch(_request, local) {
+        calls++;
+        return new Response(local.HIVE_DATABASE_NAME);
+      },
+    },
+  });
+  const accepted = await worker.fetch(new Request(oauthProfile.origin), oauthEnv, context);
+  assert.equal(await accepted.text(), "hive_coder_oauth_preview");
+  assert.equal(calls, 2);
+  for (const changed of [
+    { ...oauthEnv, DATABASE_URL: env.DATABASE_URL },
+    { ...env, DATABASE_URL: oauthEnv.DATABASE_URL },
+    { ...oauthEnv, DATABASE_URL: productionEnv.DATABASE_URL },
+    { ...oauthEnv, HIVE_DATABASE_NAME: "hive_foundation_preview" },
+    { ...oauthEnv, HIVE_DATABASE_ROLE: "hive_foundation_runtime" },
+    { ...oauthEnv, HIVE_PUBLIC_ORIGIN: "https://unreviewed.example" },
+    { ...oauthEnv, HIVE_PREVIEW_ORIGIN_ALIAS: alias },
+  ])
+    assert.equal(
+      (await worker.fetch(new Request(changed.HIVE_PUBLIC_ORIGIN), changed, context)).status,
+      503,
+    );
+  assert.equal(calls, 2);
+});
+
+test("OAuth preview redirects only safe alias loads to its exact canonical origin", async () => {
+  const handler = {
+    fetch() {
+      throw Error("Unexpected application dispatch");
+    },
+  };
+  const worker = createNativeWorker({ app: handler, auth: handler });
+  for (const method of ["GET", "HEAD"]) {
+    const response = await worker.fetch(
+      new Request(`${oauthProfile.alias}/login?returnTo=%2F`, { method }),
+      oauthEnv,
+      context,
+    );
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get("location"), `${oauthProfile.origin}/login?returnTo=%2F`);
+  }
+  for (const init of [{ method: "POST" }, { headers: { Upgrade: "websocket" } }])
+    assert.equal(
+      (await worker.fetch(new Request(oauthProfile.alias, init), oauthEnv, context)).status,
+      403,
+    );
+  for (const foreign of [alias, origin, `${oauthProfile.alias}.evil.example`])
+    assert.equal((await worker.fetch(new Request(foreign), oauthEnv, context)).status, 403);
+  assert.equal(
+    (await worker.fetch(new Request(oauthProfile.alias), productionEnv, context)).status,
+    403,
+  );
 });

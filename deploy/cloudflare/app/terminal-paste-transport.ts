@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { type CoderCredentialSource, coderCredentialHeaders } from "@hive/auth";
 import type { RelaySocket } from "../../../src/lib/terminal/relay-types";
 import { terminalFetch } from "../../../src/lib/terminal/transport-io";
 import { terminalPasteWriterCommand } from "../../../src/lib/workspace/paste-writer";
@@ -15,6 +16,7 @@ export async function transferTerminalPaste(input: {
   origin: string;
   agentId: string;
   token: string;
+  credentialSource?: CoderCredentialSource;
   files: PasteFile[];
   signal: AbortSignal;
   authorize(): Promise<void>;
@@ -37,7 +39,7 @@ export async function transferTerminalPaste(input: {
     signal: handshakeSignal,
     headers: {
       Upgrade: "websocket",
-      "Coder-Session-Token": input.token,
+      ...coderCredentialHeaders(input.token, input.credentialSource),
     },
   });
   void fetching.then(

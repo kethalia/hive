@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "observedSource": "65f9ddd4bb0475c2a81836aa7932aeefeea2f495",
+  "appBuild": "ba34a64b-9758-4252-85f2-b0c8f0f8c4a1",
+  "engine": "Playwright1.61.1 Linux WebKit26.5",
+  "nativeSafari": false,
+  "rawResultSha256": "b1e1276bbd935243b66b48ac6674f487b7a4074e8a1899b52c87794d9e8cb689",
+  "mainUrlSampleBeforeAuthProbe": {
+    "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+    "path": "/login"
+  },
+  "mainAuthProbeStatus": 200,
+  "frameworkCookiePresent": true,
+  "popupAutoClosed": true,
+  "completionStatus": 200,
+  "downloads": 0,
+  "screenshotAfterAuthProbeShowsWorkspaceUi": true,
+  "finalUrlAfterScreenshotNotSampled": true,
+  "inference": "Successful authenticated workspace rendering after an earlier login-path sample. Linux WebKit does not reproduce persistent Safari login failure.",
+  "callbackHeaderVisibility": "WebKit response event exposed no content-type/nosniff/Set-Cookie entries on redirect. Browser cookie metadata proves framework cookie was received.",
+  "logoutStatus": 200,
+  "frameworkCookieAbsentAfterLogout": true,
+  "browserClosed": true,
+  "sshClosed": true,
+  "recordedAt": "2026-11-15T09:40:50.243546+00:00"
+}

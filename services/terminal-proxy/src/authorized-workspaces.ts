@@ -1,3 +1,4 @@
+import { coderCredentialHeaders } from "@hive/auth";
 import type { AuthSuccess } from "./auth.js";
 import { fetchCoderApi } from "./coder-fetch.js";
 
@@ -35,7 +36,7 @@ export async function resolveAuthorizedWorkspaceIds(auth: AuthSuccess): Promise<
       {
         headers: {
           "Content-Type": "application/json",
-          "Coder-Session-Token": auth.token,
+          ...coderCredentialHeaders(auth.token, auth.credentialSource),
         },
         signal: controller.signal,
       },

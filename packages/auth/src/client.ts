@@ -30,6 +30,25 @@ export class AuthServiceClient {
   private timeoutMs: number;
   private transport: AuthServiceTransport;
 
+  async getBrowserSession(cookieHeader: string): Promise<SessionPayload | null> {
+    const response = await this.request("/browser-session", {
+      method: "GET",
+      headers: {
+        ...authServiceHeaders(this.transport.serviceSecret),
+        Cookie: cookieHeader,
+      },
+    });
+    if (response.status === 401 || response.status === 404) {
+      await response.body?.cancel();
+      return null;
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error("Browser session unavailable");
+    }
+    return response.json();
+  }
+
   constructor(
     baseUrl: string,
     timeoutMs = DEFAULT_TIMEOUT_MS,

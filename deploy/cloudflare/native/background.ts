@@ -43,7 +43,7 @@ export async function nextBackgroundAt(db: PrismaClient, ownerId: string): Promi
           ELSE coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')
             -${LEGACY_TOKEN_ROTATION_WINDOW_MS}*interval '1 millisecond' END)
         FROM coder_tokens t JOIN users u ON u.id=t.user_id
-        WHERE t.user_id=${ownerId}::uuid AND u.coder_url=${process.env.CODER_URL ?? ""}
+        WHERE t.user_id=${ownerId}::uuid AND u.auth_mode='legacy' AND u.coder_url=${process.env.CODER_URL ?? ""}
           AND (coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
             OR t.rotation_state->'pending' IS NOT NULL AND t.rotation_state->'pending' IS DISTINCT FROM 'null'::jsonb)
     ) pending`;
@@ -126,7 +126,7 @@ export async function repairBackground(env: BackgroundEnvironment) {
           UNION SELECT owner_id FROM template_notices WHERE status IN ('pending','processing')
           UNION SELECT owner_id FROM agent_notification_events WHERE status IN ('pending','processing')
           UNION SELECT t.user_id FROM coder_tokens t JOIN users u ON u.id=t.user_id
-            WHERE u.coder_url=${process.env.CODER_URL ?? ""} AND t.rotation_next_at<=clock_timestamp()
+            WHERE u.auth_mode='legacy' AND u.coder_url=${process.env.CODER_URL ?? ""} AND t.rotation_next_at<=clock_timestamp()
               AND (t.rotation_lease_until IS NULL OR t.rotation_lease_until<=clock_timestamp())
               AND ((coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')>clock_timestamp()
                 AND clock_timestamp()>=coalesce(t.expires_at,t.created_at+${LEGACY_TOKEN_LIFETIME_MS}*interval '1 millisecond')
