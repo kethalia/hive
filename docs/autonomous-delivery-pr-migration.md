@@ -198,12 +198,16 @@ production initialization replaces the Rancher/source-backup dependency. The
 separate experimental Codex Voice component has no UI caller, so its additional
 sign-in test was removed from the cutover gates.
 
-P02 is implemented and validated on `codex/coder-oauth-better-auth` from `d7bd8b10`,
-using Better Auth as requested on 14 November. Its isolated preview uses
-`hive_coder_oauth_preview` and the existing Neon compute. The
-[P02 acceptance record](checks/coder-oauth-better-auth/README.md) tracks its
-checks and production prerequisites. P03–P10 continue in the agreed feature order.
+P02 merged through [PR452](https://github.com/kethalia/hive/pull/452) at
+`37c55299`. Production acceptance passed OAuth sign-in, reload persistence,
+Settings, ordinary terminal input/output and clean exit, disconnect/reconnect with
+stable Hive identity, and final sign-out. The
+[production receipt](checks/workspace-accounts/p02-production-acceptance.json)
+records the exact application build and browser instrumentation limitations.
 
-The detailed implementation status and historical evidence remain in the
-[execution ledger](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/checks/autonomous-delivery/progress.md). The
-[epic roadmap](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/autonomous-delivery-epic.md) retains the full outcome requirements.
+P03 is in progress on `codex/workspace-accounts-p03` from this accepted baseline.
+It adds the independent workspace bridge and native Accounts window. Account
+requests carry the selected workspace build and reject replacement builds before
+submission. Its [acceptance record](checks/workspace-accounts/README.md) tracks
+installed package/image identity and real provider/browser validation.
+P04–P11 continue in the agreed feature order.

@@ -17,6 +17,7 @@ import { fetchSettingsWindow } from "@/lib/settings/window-client";
 import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
+const AccountsPanel = dynamic(() => import("./AccountsPanel").then((m) => m.AccountsPanel));
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -67,7 +68,7 @@ interface Props {
   onActivate: () => void;
   onClose: () => void;
   onCycleWidth?: () => void;
-  onWorkspaceChange: (workspaceId: string) => void;
+  onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
 
@@ -86,10 +87,13 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const selectedWorkspace = workspaces.find((w) => w.id === pane.workspaceId);
   const workspace =
-    workspaces.find((w) => w.id === pane.workspaceId) ??
-    workspaces.find((w) => w.latest_build.status === "running") ??
-    workspaces[0];
+    pane.tool === "accounts" && pane.workspaceId
+      ? selectedWorkspace
+      : (selectedWorkspace ??
+        workspaces.find((w) => w.latest_build.status === "running") ??
+        workspaces[0]);
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -117,7 +121,7 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" ? (
+        {pane.tool === "agents" || pane.tool === "accounts" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">
@@ -126,7 +130,13 @@ export function HiveWorkspacePane({
               <Select
                 value={workspace?.id ?? null}
                 onValueChange={(value) => {
-                  if (value) onWorkspaceChange(value);
+                  if (value)
+                    onWorkspaceChange(
+                      value,
+                      pane.tool === "accounts"
+                        ? workspaces.find((w) => w.id === value)?.latest_build.id
+                        : undefined,
+                    );
                 }}
                 disabled={!workspaces.length}
                 items={workspaces.map((w) => ({
@@ -136,7 +146,7 @@ export function HiveWorkspacePane({
               >
                 <SelectTrigger
                   id={workspaceSelectId}
-                  aria-label="Agent workspace"
+                  aria-label={pane.tool === "accounts" ? "Account workspace" : "Agent workspace"}
                   className="w-full"
                 >
                   <SelectValue placeholder="No workspaces available" />
@@ -151,16 +161,39 @@ export function HiveWorkspacePane({
               </Select>
             </div>
             {workspace?.latest_build.status === "running" ? (
-              <AgentToolsPanel
-                key={`${workspace.id}:${workspace.latest_build.id}`}
-                workspaceId={workspace.id}
-                buildId={workspace.latest_build.id}
-                open={visible}
-                onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
-              />
+              pane.tool === "accounts" ? (
+                !pane.buildId || pane.buildId !== workspace.latest_build.id ? (
+                  <div className="space-y-3">
+                    <p role="status">Select this workspace’s current build to manage accounts.</p>
+                    <Button
+                      onClick={() => onWorkspaceChange(workspace.id, workspace.latest_build.id)}
+                    >
+                      Use current build
+                    </Button>
+                  </div>
+                ) : visible ? (
+                  <AccountsPanel
+                    key={`${userId}/${workspace.id}/${pane.buildId}`}
+                    workspaceId={workspace.id}
+                    buildId={pane.buildId}
+                  />
+                ) : null
+              ) : (
+                <AgentToolsPanel
+                  key={`${workspace.id}:${workspace.latest_build.id}`}
+                  workspaceId={workspace.id}
+                  buildId={workspace.latest_build.id}
+                  open={visible}
+                  onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
+                />
+              )
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Start a Coder workspace to view its agent conversations.
+              <p role="status" className="text-sm text-muted-foreground">
+                {pane.tool === "accounts"
+                  ? pane.workspaceId && !workspace
+                    ? "The selected workspace is unavailable. Choose an account workspace."
+                    : "Start a Coder workspace to manage its accounts."
+                  : "Start a Coder workspace to view its agent conversations."}
               </p>
             )}
           </div>

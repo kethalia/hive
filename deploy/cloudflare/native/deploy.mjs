@@ -28,6 +28,7 @@ export function deploymentPlan(target, branch, config, profiles) {
     "COOKIE_SECRET",
     "AUTH_SERVICE_SECRET",
     "CODER_OAUTH_CLIENT_SECRET",
+    "HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY",
   ]);
   let profile;
   let vars;
@@ -38,6 +39,7 @@ export function deploymentPlan(target, branch, config, profiles) {
       databaseName: "hive_production",
       databaseRole: "hive_production_runtime",
       coderOAuthEnabled: true,
+      workspaceAccounts: true,
     };
     vars = config.vars;
     assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
@@ -62,6 +64,31 @@ export function deploymentPlan(target, branch, config, profiles) {
     assert.equal(url.password, "");
   }
   if (profile.coderOAuthEnabled) assert.equal(vars.HIVE_CODER_OAUTH_ENABLED, "true");
+  if (profile.workspaceAccounts) {
+    assert.equal(vars.HIVE_CODEX_ACCOUNTS_ENABLED, "true");
+    assert.equal(vars.HIVE_CLAUDE_ACCOUNTS_ENABLED, "true");
+    assert.equal(vars.HIVE_AGENT_TOOLS_TRANSPORT, "workspace-app");
+    assert.equal(vars.HIVE_WORKSPACE_ISSUER_MODE, "dedicated");
+    assert.equal(vars.HIVE_AGENT_TOOLS_HIVE_ORIGIN, profile.origin);
+    assert.match(vars.HIVE_AGENT_TOOLS_ISSUER_KEY_ID, /^[A-Za-z0-9._-]{1,64}$/);
+    assert.equal(vars.HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY, undefined);
+    const pins = JSON.parse(vars.HIVE_AGENT_TOOLS_PINS_JSON);
+    assert.ok(Array.isArray(pins) && pins.length > 0 && pins.length <= 32);
+    assert.equal(new Set(pins.map((pin) => pin.templateId)).size, pins.length);
+    const asset = (name) =>
+      readFileSync(
+        resolve(root, `templates/ai-dev-k8s/assets/agent-bridge.${name}.sha256`),
+        "utf8",
+      ).trim();
+    for (const pin of pins) {
+      assert.match(pin.templateId, /^[0-9a-f-]{36}$/);
+      assert.ok(
+        ["software", "browser", "game", "electronics", "infrastructure"].includes(pin.profile),
+      );
+      assert.equal(pin.manifestSha256, asset("manifest"));
+      assert.equal(pin.helperSha256, asset("helper"));
+    }
+  }
   assert.equal(vars.HIVE_NATIVE_MODE, target);
   assert.equal(vars.HIVE_PUBLIC_ORIGIN, profile.origin);
   assert.equal(vars.HIVE_DATABASE_NAME, profile.databaseName);

@@ -1,4 +1,26 @@
+# syntax=docker/dockerfile:1
+# Official SDK/toolchain build lives outside all five runtime image variants.
+# The named source context is explicit in build-base-image.yml.
+FROM debian:trixie AS workspace-identity-build
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates curl python3 \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+        https://go.dev/dl/go1.26.10.linux-amd64.tar.gz -o /tmp/go.tar.gz \
+    && echo 'ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5  /tmp/go.tar.gz' | sha256sum --check --status \
+    && mkdir /opt/go \
+    && tar -xzf /tmp/go.tar.gz --strip-components=1 -C /opt/go \
+    && rm /tmp/go.tar.gz
+WORKDIR /src
+COPY --from=workspace-identity . /src/
+RUN python3 /src/build-image.py
+
 FROM debian:trixie
+COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
+COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
+COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
+COPY --from=template-runtime --chmod=0444 assets/agent-bridge.tar.gz scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
+RUN chmod 0555 /usr/local/libexec/hive-template-runtime
 
 ARG WORKSPACE_VARIANT=cli
 
@@ -322,11 +344,11 @@ WORKDIR /home/coder
 # the profile startup script so updates do not require rebuilding every variant.
 # Verify the native binary before installing it into the standard native layout.
 # Version upgrades must update the SHA-256 from Anthropic's signed manifest.
-ENV CLAUDE_CODE_VERSION=2.1.296
+ENV CLAUDE_CODE_VERSION=2.1.319
 RUN curl -fsSLo /tmp/claude \
         https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude \
     && printf '%s  %s\n' \
-        '24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de' \
+        'dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed' \
         '/tmp/claude' | sha256sum --check --status \
     && install -d -m 0755 /home/coder/.local/bin /home/coder/.local/share/claude/versions \
     && install -m 0755 /tmp/claude /home/coder/.local/share/claude/versions/${CLAUDE_CODE_VERSION} \

@@ -55,6 +55,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("agent tools panel", () => {
+  it("opens Accounts for the displayed workspace build", async () => {
+    const listener = vi.fn();
+    window.addEventListener("hive:window-open", listener);
+    try {
+      render(
+        <AgentToolsPanel workspaceId={id} buildId="selected-build" open onOpenSession={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Open Accounts" }));
+      expect(listener).toHaveBeenCalledOnce();
+      expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        tool: "accounts",
+        workspaceId: id,
+        buildId: "selected-build",
+      });
+    } finally {
+      window.removeEventListener("hive:window-open", listener);
+    }
+  });
   it("does not scan or mutate when closed", () => {
     render(<AgentToolsPanel workspaceId={id} open={false} onOpenSession={vi.fn()} />);
     expect(inspectAgentToolsAction).not.toHaveBeenCalled();

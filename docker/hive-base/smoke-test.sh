@@ -48,6 +48,7 @@ claude_version=$(run sh -lc 'printf %s "$CLAUDE_CODE_VERSION"')
 expect_output "$claude_version (Claude Code)" claude --version
 expect_output 'notesmd-cli version v0.3.4' notesmd-cli --version
 expect_output 'act version 0.2.74' act --version
+docker run --rm -i "$image" python3 -I -B - < "$(dirname "$0")/test-workspace-identity.py"
 expect_command node
 expect_command npx
 expect_command hive-audio

@@ -27,6 +27,13 @@ vi.mock("@/components/workspaces/AgentToolsPanel", async () => {
     AgentToolsPanel: () => <p>Loaded agent controls</p>,
   };
 });
+vi.mock("@/components/workspaces/AccountsPanel", () => ({
+  AccountsPanel: ({ workspaceId, buildId }: { workspaceId: string; buildId: string }) => (
+    <p>
+      Loaded accounts for {workspaceId}/{buildId}
+    </p>
+  ),
+}));
 vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
   return { WorkspaceListContent: () => <p>Loaded workspace controls</p> };
@@ -52,9 +59,12 @@ vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: vi.fn(),
   startWorkspaceAction: vi.fn(),
 }));
+const navigation = vi.hoisted(() => ({
+  search: new URLSearchParams(),
+  router: { replace: vi.fn() },
+}));
 vi.mock("next/navigation", () => {
-  const search = new URLSearchParams();
-  const router = { replace: vi.fn() };
+  const { search, router } = navigation;
   return { useRouter: () => router, useSearchParams: () => search };
 });
 vi.mock("@/components/workspaces/WorkspaceHeaderButton", async (importOriginal) => ({
@@ -90,6 +100,7 @@ const workspaces = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const key of [...navigation.search.keys()]) navigation.search.delete(key);
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -365,7 +376,7 @@ describe("workspace tool windows", () => {
     const view = render(tree);
     const terminal = await screen.findByLabelText("Terminal input");
     fireEvent.change(terminal, { target: { value: "unsent" } });
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"] as const) {
+    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"] as const) {
       act(() => requestHiveWindow({ tool }));
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -379,11 +390,61 @@ describe("workspace tool windows", () => {
     act(() => requestHiveWindow({ tool: "settings" }));
     await waitFor(() => expect(saved().activeBoardKey).toBe("board-1"));
     expect(screen.getAllByTestId("hive-window-settings")).toHaveLength(1);
-    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(5));
+    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(6));
     view.unmount();
     render(tree);
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"])
+    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"])
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
+  });
+  it("consumes an exact Accounts deep link, persists its build hold, and reuses the window for current scope", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "old-build");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(await screen.findByTestId("hive-window-accounts")).toBeVisible();
+    expect(screen.getByText(/Select this workspace’s current build/)).toBeVisible();
+    expect(screen.queryByText("Loaded accounts for software/build-1")).not.toBeInTheDocument();
+    const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        tool: "accounts",
+        workspaceId: "software",
+        buildId: "old-build",
+      }),
+    );
+    expect(navigation.router.replace).toHaveBeenCalledWith("/workspaces", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Use current build" }));
+    expect(await screen.findByText("Loaded accounts for software/build-1")).toBeVisible();
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        workspaceId: "software",
+        buildId: "build-1",
+      }),
+    );
+    act(() => requestHiveWindow({ tool: "accounts" }));
+    expect(screen.getAllByTestId("hive-window-accounts")).toHaveLength(1);
+    expect(saved().boards[0].windows[1]).toMatchObject({
+      workspaceId: "software",
+      buildId: "build-1",
+    });
+  });
+  it("does not drop a malformed explicit build scope and open unscoped Accounts instead", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(
+      await screen.findByText("The Accounts workspace or build selection is invalid."),
+    ).toBeVisible();
+    expect(screen.queryByTestId("hive-window-accounts")).not.toBeInTheDocument();
   });
 });
 

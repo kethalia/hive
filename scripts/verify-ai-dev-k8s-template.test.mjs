@@ -621,11 +621,11 @@ function verifyBaseImageRollout() {
   assert.match(workflow, /^permissions:\n {2}contents: read$/m);
   assert.match(
     workflow,
-    /build-test:\n[\s\S]*?if: github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read/,
+    /build-test:\n[\s\S]*?if: \(github\.ref != 'refs\/heads\/main' \|\| \(github\.event_name != 'push' && github\.event_name != 'workflow_dispatch'\)\) && inputs\.publish_preview != true[\s\S]*?permissions:\n {6}contents: read/,
   );
   assert.match(
     workflow,
-    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\)[\s\S]*?permissions:\n {6}contents: read\n {6}packages: write/,
+    /build-test-push:\n[\s\S]*?if: github\.ref == 'refs\/heads\/main' && \(github\.event_name == 'push' \|\| github\.event_name == 'workflow_dispatch'\) && inputs\.publish_preview != true[\s\S]*?permissions:\n {6}contents: read\n {6}packages: write/,
   );
   assert.match(
     workflow,
@@ -650,6 +650,22 @@ function verifyBaseImageRollout() {
     readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8"),
     /workflow_dispatch:/,
   );
+  assert.match(workflow, /publish-preview:[\s\S]*?inputs\.publish_preview == true/);
+  assert.match(workflow, /preview_variant:[\s\S]*?type: choice[\s\S]*?default: cli/);
+  for (const variant of ["cli", "browser", "game", "electronics", "infrastructure"])
+    assert.match(workflow, new RegExp(` {10}- ${variant}\\n`));
+  assert.ok(workflow.includes("inputs.publish_preview && inputs.preview_variant || 'all'"));
+  assert.match(workflow, /build-args: WORKSPACE_VARIANT=\$\{\{ env\.PREVIEW_VARIANT \}\}/);
+  assert.match(
+    workflow,
+    /tags: ghcr\.io\/kethalia\/hive-base:preview-\$\{\{ env\.PREVIEW_VARIANT \}\}-\$\{\{ github\.sha \}\}/,
+  );
+  assert.ok(workflow.includes('smoke-test.sh "$image" "$PREVIEW_VARIANT"'));
+
+  assert.match(workflow, /refs\/heads\/codex\/workspace-accounts-p03/);
+  assert.match(workflow, /EXPECTED_SOURCE_SHA.*GITHUB_SHA/);
+  assert.match(workflow, /workspace-identity=\.\/tools\/workspace-identity/);
+  assert.match(workflow, /template-runtime=\.\/templates\/ai-dev-k8s/);
   assert.doesNotMatch(workflow, /git push origin main/);
 }
 

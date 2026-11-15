@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are constrained to the repository template catalog. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -265,6 +265,28 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   writeFileSync(join(canonical, "docker.tf"), "# canonical Docker engine\n");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
   writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
+  cpSync(
+    join(repositoryRoot, "templates/ai-dev-k8s/hive-agent.tf"),
+    join(canonical, "hive-agent.tf"),
+  );
+  cpSync(join(repositoryRoot, "templates/ai-dev-k8s/assets"), join(canonical, "assets"), {
+    recursive: true,
+  });
+  for (const name of [
+    "agent-tools.py",
+    "codex-managed-auth-lock.mjs",
+    "install-agent-bridge.py",
+    "install-codex-runtime.py",
+  ])
+    cpSync(
+      join(repositoryRoot, "templates/ai-dev-k8s/scripts", name),
+      join(canonical, "scripts", name),
+    );
+  mkdirSync(join(fixtureRoot, "scripts"), { recursive: true });
+  for (const name of ["agent-bridge", "notifications"])
+    cpSync(join(repositoryRoot, "scripts", name), join(fixtureRoot, "scripts", name), {
+      recursive: true,
+    });
 
   for (const targetName of targetNames) {
     mkdirSync(join(fixtureTemplates, targetName, "scripts"), { recursive: true });

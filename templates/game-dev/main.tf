@@ -2,6 +2,10 @@ terraform {
   required_version = ">= 1.9"
 
   required_providers {
+    external = {
+      source  = "hashicorp/external"
+      version = "= 2.4.2"
+    }
     coder = {
       source  = "coder/coder"
       version = "~> 2.15"
@@ -77,6 +81,7 @@ resource "coder_agent" "main" {
     GIT_COMMITTER_NAME          = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL         = data.coder_workspace_owner.me.email
     EXTENSIONS_GALLERY          = "{\"serviceUrl\":\"https://marketplace.visualstudio.com/_apis/public/gallery\"}"
+    HIVE_RUNTIME_BUILD_ID       = local.hive_agent_enabled ? data.external.hive_agent_build_identity[0].result.build_id : ""
     HIVE_PROJECTS_ROOT          = "/home/coder"
     HIVE_WORKSPACE_PROFILE      = local.profile.id
     HIVE_EXPECTED_IMAGE_VARIANT = local.profile.image_variant
@@ -637,9 +642,9 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_agent_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
-        }
+        })
 
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
@@ -786,11 +791,36 @@ resource "kubernetes_deployment_v1" "workspace" {
           }
 
           dynamic "volume_mount" {
+            for_each = local.hive_agent_enabled ? [true] : []
+            content {
+              name       = "hive-agent-bootstrap"
+              mount_path = "/opt/hive-agent-template"
+              read_only  = true
+            }
+          }
+
+          dynamic "volume_mount" {
             for_each = local.docker_enabled ? [1] : []
             content {
               name       = "docker"
               mount_path = "/run/hive-docker"
               sub_path   = "run"
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_agent_enabled ? [true] : []
+          content {
+            name = "hive-agent-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/agent-request']"
+                }
+              }
             }
           }
         }

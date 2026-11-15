@@ -345,8 +345,15 @@ test("alias configuration is exact, HTTPS and preview-only at source and runtime
 
 const oauthBranch = "codex/coder-oauth-better-auth";
 const oauthProfile = profiles[oauthBranch];
+const oauthConfig = structuredClone(config);
+Object.assign(oauthConfig.previews.vars, {
+  HIVE_PUBLIC_ORIGIN: oauthProfile.origin,
+  HIVE_PREVIEW_ORIGIN_ALIAS: oauthProfile.alias,
+  HIVE_DATABASE_NAME: oauthProfile.databaseName,
+  HIVE_DATABASE_ROLE: oauthProfile.databaseRole,
+});
 const oauthEnv = {
-  ...config.previews.vars,
+  ...oauthConfig.previews.vars,
   DATABASE_URL: "postgresql://hive_coder_oauth_runtime:fixture@localhost/hive_coder_oauth_preview",
 };
 
@@ -360,7 +367,7 @@ test("OAuth preview has an isolated reviewed profile and schema12", () => {
     coderOAuthEnabled: true,
   });
   assert.equal(
-    deploymentPlan("preview", oauthBranch, config, profiles).origin,
+    deploymentPlan("preview", oauthBranch, oauthConfig, profiles).origin,
     oauthProfile.origin,
   );
   assert.throws(() => deploymentPlan("preview", branch, config, profiles));
@@ -395,7 +402,7 @@ test("OAuth deployment holds mismatched or disabled profile settings", () => {
     ["HIVE_PREVIEW_ORIGIN_ALIAS", alias],
     ["HIVE_CODER_OAUTH_ENABLED", "false"],
   ]) {
-    const changed = structuredClone(config);
+    const changed = structuredClone(oauthConfig);
     changed.previews.vars[key] = value;
     assert.throws(() => deploymentPlan("preview", oauthBranch, changed, profiles), key);
   }
@@ -463,4 +470,35 @@ test("OAuth preview redirects only safe alias loads to its exact canonical origi
     (await worker.fetch(new Request(oauthProfile.alias), productionEnv, context)).status,
     403,
   );
+});
+
+test("Accounts preview enforces its dedicated bridge configuration and current package pins", () => {
+  const accountsBranch = "codex/workspace-accounts-p03";
+  const accounts = profiles[accountsBranch];
+  assert.equal(deploymentPlan("preview", accountsBranch, config, profiles).origin, accounts.origin);
+  assert.equal(accounts.schemaMigrations, 12);
+  assert.equal(accounts.databaseName, "hive_workspace_accounts_preview");
+  assert.ok(config.secrets.required.includes("HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"));
+  assert.deepEqual(config.previews.secrets.required, config.secrets.required);
+  for (const [key, value] of [
+    ["HIVE_CODEX_ACCOUNTS_ENABLED", "false"],
+    ["HIVE_CLAUDE_ACCOUNTS_ENABLED", "false"],
+    ["HIVE_AGENT_TOOLS_TRANSPORT", "ssh"],
+    ["HIVE_WORKSPACE_ISSUER_MODE", "shared-host"],
+    ["HIVE_AGENT_TOOLS_HIVE_ORIGIN", "https://hive.kethalia.com"],
+    ["HIVE_AGENT_TOOLS_ISSUER_KEY_ID", ""],
+    ["HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY", "plaintext-private-key"],
+    ["HIVE_AGENT_TOOLS_PINS_JSON", "[]"],
+  ]) {
+    const changed = structuredClone(config);
+    changed.previews.vars[key] = value;
+    assert.throws(() => deploymentPlan("preview", accountsBranch, changed, profiles), key);
+  }
+  for (const key of ["manifestSha256", "helperSha256"]) {
+    const changed = structuredClone(config);
+    const pins = JSON.parse(changed.previews.vars.HIVE_AGENT_TOOLS_PINS_JSON);
+    pins[0][key] = "0".repeat(64);
+    changed.previews.vars.HIVE_AGENT_TOOLS_PINS_JSON = JSON.stringify(pins);
+    assert.throws(() => deploymentPlan("preview", accountsBranch, changed, profiles), key);
+  }
 });
