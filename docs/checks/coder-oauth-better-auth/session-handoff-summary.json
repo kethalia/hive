@@ -3,10 +3,7 @@
   "source": "c5c665512a155a5f18372001d8dd462f78d8bee6",
   "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
   "accepted": true,
-  "engines": [
-    "Playwright1.61.1 LinuxWebKit26.5",
-    "systemGoogleChrome"
-  ],
+  "engines": ["Playwright1.61.1 LinuxWebKit26.5", "systemGoogleChrome"],
   "nativeSafari": false,
   "flowCount": 4,
   "socialPostCount": 4,
