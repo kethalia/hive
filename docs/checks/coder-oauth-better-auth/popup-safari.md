@@ -114,7 +114,15 @@ also satisfy this check because the browser shares authentication cookies.
 
 The full automated suite passes 2,348 tests, with 81 optional skips. Focused
 handoff checks pass 76 tests. Both application and Cloudflare typechecks pass.
-Hosted acceptance of this follow-up is pending deployment.
+Hosted acceptance on `c5c66551`, application build
+`1a3df0b6-a65c-42a6-b92d-cc517fcba269`, passed four real OAuth flows.
+Linux WebKit and Chrome each passed normal completion and recovery with the
+completion message suppressed and the popup manually closed after cookie arrival.
+All four callbacks returned HTTP 200 HTML with `nosniff`, the parent reached
+workspaces with an authenticated API response, and sign-out removed its cookie.
+Each flow made one sign-in POST and recorded zero downloads. The
+[hosted receipt](session-handoff-live.json) records these checks without credentials.
+The original native Safari failure remains unreproduced.
 
 WebKit preparation used private extracted official Debian libraries in Browser
 Testing. An installer environment mistake removed two older Chromium caches.

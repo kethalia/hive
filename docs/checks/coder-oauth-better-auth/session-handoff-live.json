@@ -1,0 +1,716 @@
+{
+  "schemaVersion": 1,
+  "source": "c5c665512a155a5f18372001d8dd462f78d8bee6",
+  "expectedAppBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+  "nativeSafari": false,
+  "startedAt": "2026-11-15T09:47:02.524Z",
+  "flows": [
+    {
+      "engine": "webkit",
+      "scenario": "normal",
+      "startedAt": "2026-11-15T09:47:02.645Z",
+      "downloads": 0,
+      "socialPosts": 1,
+      "callback": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "nosniff": "nosniff",
+        "contentDisposition": null,
+        "setCookies": [
+          {
+            "name": "__Host-hive-oauth-state",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-auth",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-coder-host",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              },
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "secure"
+              }
+            ]
+          }
+        ],
+        "location": null
+      },
+      "accepted": true,
+      "stage": "accepted",
+      "parentDuringProvider": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "popupClosed": true,
+      "parentFinal": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/workspaces"
+      },
+      "mainProbeStatus": 200,
+      "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+      "cookies": [
+        {
+          "name": "__Host-hive-auth",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        },
+        {
+          "name": "hive-coder-host",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        }
+      ],
+      "logoutStatus": 200,
+      "frameworkCookieAbsent": true,
+      "contextClosed": true,
+      "finishedAt": "2026-11-15T09:47:24.232Z"
+    },
+    {
+      "engine": "webkit",
+      "scenario": "dropped-message-close-after-cookie",
+      "startedAt": "2026-11-15T09:47:24.233Z",
+      "downloads": 0,
+      "socialPosts": 1,
+      "callback": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "nosniff": "nosniff",
+        "contentDisposition": null,
+        "setCookies": [
+          {
+            "name": "__Host-hive-oauth-state",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-auth",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-coder-host",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              },
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "secure"
+              }
+            ]
+          }
+        ],
+        "location": null
+      },
+      "accepted": true,
+      "stage": "accepted",
+      "parentDuringProvider": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "cookiePresentBeforeManualClose": true,
+      "parentBeforeManualClose": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "droppedMessagesBeforeClose": 1,
+      "childCloseAttempts": 0,
+      "manuallyClosedAfterCookie": true,
+      "popupClosed": true,
+      "parentFinal": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/workspaces"
+      },
+      "mainProbeStatus": 200,
+      "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+      "cookies": [
+        {
+          "name": "__Host-hive-auth",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        },
+        {
+          "name": "hive-coder-host",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        }
+      ],
+      "logoutStatus": 200,
+      "frameworkCookieAbsent": true,
+      "contextClosed": true,
+      "finishedAt": "2026-11-15T09:47:39.542Z"
+    },
+    {
+      "engine": "chrome",
+      "scenario": "normal",
+      "startedAt": "2026-11-15T09:47:39.719Z",
+      "downloads": 0,
+      "socialPosts": 1,
+      "callback": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "nosniff": "nosniff",
+        "contentDisposition": null,
+        "setCookies": [
+          {
+            "name": "__Host-hive-oauth-state",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-auth",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-coder-host",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              },
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "secure"
+              }
+            ]
+          }
+        ],
+        "location": null
+      },
+      "accepted": true,
+      "stage": "accepted",
+      "parentDuringProvider": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "popupClosed": true,
+      "parentFinal": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/workspaces"
+      },
+      "mainProbeStatus": 200,
+      "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+      "cookies": [
+        {
+          "name": "__Host-hive-auth",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        },
+        {
+          "name": "hive-coder-host",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        }
+      ],
+      "logoutStatus": 200,
+      "frameworkCookieAbsent": true,
+      "contextClosed": true,
+      "finishedAt": "2026-11-15T09:47:51.481Z"
+    },
+    {
+      "engine": "chrome",
+      "scenario": "dropped-message-close-after-cookie",
+      "startedAt": "2026-11-15T09:47:51.481Z",
+      "downloads": 0,
+      "socialPosts": 1,
+      "callback": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "nosniff": "nosniff",
+        "contentDisposition": null,
+        "setCookies": [
+          {
+            "name": "__Host-hive-oauth-state",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-auth",
+            "attributes": [
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "__Host-hive-session",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "max-age",
+                "value": "0"
+              },
+              {
+                "name": "expires",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "name": "secure"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              }
+            ]
+          },
+          {
+            "name": "hive-coder-host",
+            "attributes": [
+              {
+                "name": "path",
+                "value": "/"
+              },
+              {
+                "name": "httponly"
+              },
+              {
+                "name": "samesite",
+                "value": "Lax"
+              },
+              {
+                "name": "max-age",
+                "value": "2592000"
+              },
+              {
+                "name": "secure"
+              }
+            ]
+          }
+        ],
+        "location": null
+      },
+      "accepted": true,
+      "stage": "accepted",
+      "parentDuringProvider": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "cookiePresentBeforeManualClose": true,
+      "parentBeforeManualClose": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/login"
+      },
+      "droppedMessagesBeforeClose": 1,
+      "childCloseAttempts": 0,
+      "manuallyClosedAfterCookie": true,
+      "popupClosed": true,
+      "parentFinal": {
+        "origin": "https://codex-coder-oauth-better-auth.hive-preview.kethalia.com",
+        "path": "/workspaces"
+      },
+      "mainProbeStatus": 200,
+      "appBuild": "1a3df0b6-a65c-42a6-b92d-cc517fcba269",
+      "cookies": [
+        {
+          "name": "__Host-hive-auth",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        },
+        {
+          "name": "hive-coder-host",
+          "secure": true,
+          "httpOnly": true,
+          "sameSite": "Lax",
+          "path": "/"
+        }
+      ],
+      "logoutStatus": 200,
+      "frameworkCookieAbsent": true,
+      "contextClosed": true,
+      "finishedAt": "2026-11-15T09:48:02.490Z"
+    }
+  ],
+  "accepted": true,
+  "browsersClosed": true,
+  "finishedAt": "2026-11-15T09:48:02.576Z"
+}

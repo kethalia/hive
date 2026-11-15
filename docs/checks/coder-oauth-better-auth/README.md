@@ -36,10 +36,10 @@ provider revocation produces an explicit notice with the Coder revocation action
 | Item | Verified value |
 | --- | --- |
 | Worker | Existing single `hive` Worker with repository-connected Workers Builds |
-| Accepted popup authentication code | `9486af1aa6c933d96f4e39ac7223127bdd98fb54` |
-| Connected build | `ced352ee-e879-4c78-bdd9-ee791035e545` |
-| Unique preview | `41396aec.hive-preview.kethalia.com` |
-| Application build | `0f2cd44d-c8af-48ce-9db9-e8b1f0fcbc42` |
+| Accepted popup authentication code | `c5c665512a155a5f18372001d8dd462f78d8bee6` |
+| Connected build | `a250d3d3-0730-4189-a4a4-106dea763807` |
+| Preview | `codex-coder-oauth-better-auth.hive-preview.kethalia.com` |
+| Application build | `1a3df0b6-a65c-42a6-b92d-cc517fcba269` |
 | Application version | `2.33.0`, with the release changeset included |
 | Preview Coder application | `16e90cc4-bb86-414d-80fa-9f7c7f6c8d93` |
 | Callback | `/api/auth/callback/coder` on the exact preview origin |
@@ -56,7 +56,7 @@ configuration and its branch settings use `pnpm build:cloudflare` followed by
 
 ## Automated checks
 
-- Final full Vitest run passed **2,323 tests**, with 81 optional tests skipped.
+- Final full Vitest run passed **2,348 tests**, with 81 optional tests skipped.
 - Fourteen actual PostgreSQL cases cover PKCE, encrypted storage, identity and
   preference preservation, concurrent refresh, revocation, lost refresh response,
   client refusal, newer login, persistence rollback, delayed callback, disconnect
@@ -76,7 +76,9 @@ migration is `20261114010000_coder_oauth_better_auth`.
 ## Real browser and provider acceptance
 
 The popup UI accepted the authentication code and application build listed
-above. The terminal and refresh phase used `9b1c1f8d`. Earlier consent/disconnect
+above. The latest popup follow-up passed normal sign-in and lost-message/manual-close
+recovery in Linux WebKit and Chrome. Native Safari remains for owner retesting.
+The terminal and refresh phase used `9b1c1f8d`. Earlier consent/disconnect
 checks used reviewed code `eac11a78`. Each receipt retains its exact source.
 
 - Official Coder sign-in and consent return to Hive. Reload preserves the session

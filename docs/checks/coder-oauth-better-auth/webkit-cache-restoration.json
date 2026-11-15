@@ -1,0 +1,14 @@
+[
+  {
+    "name": "chromium-1194",
+    "source": "https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194/chromium-linux.zip",
+    "archiveSha256": "5ad70cf662e7090354edbe84e1a01ac531fd217f37f5001f0d2efbe0d152b396",
+    "exists": true
+  },
+  {
+    "name": "chromium_headless_shell-1194",
+    "source": "https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194/chromium-headless-shell-linux.zip",
+    "archiveSha256": "d745c7210cc88b73c7991a22c9624819960d84bc3de77ac7336d2de841a8c91f",
+    "exists": true
+  }
+]
