@@ -78,7 +78,7 @@ vi.mock("ws", () => {
 
 import { WebSocket } from "ws";
 import { authenticateUpgrade } from "../src/auth.js";
-import { handleUpgrade, isOriginAllowed } from "../src/proxy.js";
+import { connectionRegistry, handleUpgrade, isOriginAllowed } from "../src/proxy.js";
 import { terminalSessionEventStore } from "../src/session-events.js";
 import { verifyWorkspaceAgentAccess } from "../src/workspace-authorization.js";
 
@@ -321,6 +321,12 @@ describe("handleUpgrade", () => {
     expect(verifyWorkspaceAgentAccess).toHaveBeenLastCalledWith(
       expect.objectContaining({ credentialSource: "oauth" }),
     );
+    expect(connectionRegistry.getWorkspaceMetas(validParams.workspaceId)).toContainEqual({
+      token: mockAuthResult.value.token,
+      coderUrl: mockAuthResult.value.coderUrl,
+      credentialSource: "oauth",
+      sessionId: mockAuthResult.value.sessionId,
+    });
   });
 
   it("opens upstream WebSocket with correct URL and per-user auth on valid request", async () => {

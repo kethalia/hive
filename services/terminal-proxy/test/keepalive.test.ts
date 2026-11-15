@@ -118,6 +118,119 @@ describe("KeepAliveManager", () => {
     vi.unstubAllGlobals();
   });
 
+  describe("OAuth credentials", () => {
+    const oauthMeta = {
+      ...testMeta,
+      token: "expired-attachment-token",
+      credentialSource: "oauth" as const,
+      sessionId: "session-123",
+    };
+    const currentCredential = {
+      token: "current-access-token",
+      credentialSource: "oauth",
+      coderUrl: testMeta.coderUrl,
+      expiresAt: null,
+    };
+
+    beforeEach(() => {
+      vi.stubEnv("AUTH_SERVICE_URL", "https://auth.example.com");
+      vi.stubEnv("AUTH_SERVICE_SECRET", "a".repeat(64));
+    });
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("resolves rotating credentials on every ping without reconnecting the terminal", async () => {
+      registry.addConnection("ws-abc", "conn-1", oauthMeta);
+      for (const token of ["refreshed-token-1", "refreshed-token-2"]) {
+        fetchMock
+          .mockResolvedValueOnce(Response.json({ ...currentCredential, token }))
+          .mockResolvedValueOnce(new Response(null, { status: 200 }));
+        await manager.ping("ws-abc");
+      }
+
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        "https://auth.example.com/sessions/session-123/token",
+        "https://coder.example.com/api/v2/workspaces/ws-abc/extend",
+        "https://auth.example.com/sessions/session-123/token",
+        "https://coder.example.com/api/v2/workspaces/ws-abc/extend",
+      ]);
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({
+        headers: { Authorization: `Bearer ${"a".repeat(64)}` },
+        redirect: "manual",
+      });
+      expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer refreshed-token-1");
+      expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe("Bearer refreshed-token-2");
+      expect(fetchMock.mock.calls[3][1].headers).not.toHaveProperty("Coder-Session-Token");
+      expect(registry.getConnectionCount("ws-abc")).toBe(1);
+      expect(manager.getHealth()["ws-abc"].status).toBe("healthy");
+    });
+
+    it.each([
+      null,
+      {},
+      { ...currentCredential, token: "" },
+      { ...currentCredential, credentialSource: "legacy" },
+      { ...currentCredential, coderUrl: "https://other-coder.example.com" },
+    ])("fails closed for an unavailable or invalid current credential %#", async (credential) => {
+      registry.addConnection("ws-abc", "conn-1", oauthMeta);
+      fetchMock.mockResolvedValueOnce(
+        credential === null ? new Response(null, { status: 404 }) : Response.json(credential),
+      );
+      await manager.ping("ws-abc");
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(manager.getHealth()["ws-abc"].lastFailureCategory).toBe("http-auth");
+      expect(JSON.stringify(manager.getHealth())).not.toContain(oauthMeta.token);
+    });
+
+    it("requires a session ID for OAuth keepalives", async () => {
+      registry.addConnection("ws-abc", "conn-1", { ...oauthMeta, sessionId: undefined });
+      await manager.ping("ws-abc");
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(manager.getHealth()["ws-abc"].lastFailureCategory).toBe("http-auth");
+    });
+
+    it("uses another live session when the first attachment's session is revoked", async () => {
+      registry.addConnection("ws-abc", "conn-1", oauthMeta);
+      registry.addConnection("ws-abc", "conn-2", { ...oauthMeta, sessionId: "session-456" });
+      fetchMock
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(Response.json(currentCredential))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await manager.ping("ws-abc");
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        "https://auth.example.com/sessions/session-456/token",
+      );
+      expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe("Bearer current-access-token");
+      expect(manager.getHealth()["ws-abc"].status).toBe("healthy");
+    });
+
+    it("retries an auth-service outage without sending the captured credential or leaking errors", async () => {
+      registry.addConnection("ws-abc", "conn-1", oauthMeta);
+      fetchMock.mockRejectedValueOnce(new Error("private-provider-error-value"));
+      await manager.ping("ws-abc");
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(manager.getHealth()["ws-abc"].status).toBe("failing");
+      expect(JSON.stringify(manager.getHealth())).not.toContain("private-provider-error-value");
+
+      fetchMock
+        .mockResolvedValueOnce(Response.json(currentCredential))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      await manager.ping("ws-abc");
+      expect(manager.getHealth()["ws-abc"].status).toBe("healthy");
+      expect(manager.getHealth()["ws-abc"].consecutiveFailures).toBe(0);
+    });
+
+    it("does not extend a workspace after its attachment disconnects during credential lookup", async () => {
+      registry.addConnection("ws-abc", "conn-1", oauthMeta);
+      fetchMock.mockImplementationOnce(async () => {
+        registry.removeConnection("ws-abc", "conn-1");
+        return Response.json(currentCredential);
+      });
+      await manager.ping("ws-abc");
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(registry.getActiveWorkspaceIds()).toEqual([]);
+    });
+  });
+
   it("pings active workspaces with correct URL and headers", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true });
     registry.addConnection("ws-abc", "conn-1", testMeta);

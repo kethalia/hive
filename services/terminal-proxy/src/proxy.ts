@@ -494,6 +494,7 @@ export async function handleUpgrade(
         token,
         credentialSource,
         coderUrl,
+        sessionId,
       });
       browserWs.on("close", () => {
         connectionRegistry.removeConnection(workspaceId, connectionId);

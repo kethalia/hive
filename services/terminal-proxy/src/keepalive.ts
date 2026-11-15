@@ -1,10 +1,11 @@
-import { type CoderCredentialSource, coderCredentialHeaders } from "@hive/auth";
+import { AuthServiceClient, type CoderCredentialSource, coderCredentialHeaders } from "@hive/auth";
 import { fetchCoderApi } from "./coder-fetch.js";
 
 export interface ConnectionMeta {
   token: string;
   credentialSource?: CoderCredentialSource;
   coderUrl: string;
+  sessionId?: string;
 }
 
 export type KeepAliveFailureCategory =
@@ -159,13 +160,18 @@ export class ConnectionRegistry {
   }
 
   getWorkspaceMeta(workspaceId: string): ConnectionMeta | null {
+    return this.getWorkspaceMetas(workspaceId)[0] ?? null;
+  }
+
+  getWorkspaceMetas(workspaceId: string): ConnectionMeta[] {
     const connections = this.workspaces.get(workspaceId);
-    if (!connections) return null;
+    const metas: ConnectionMeta[] = [];
+    if (!connections) return metas;
     for (const connId of connections) {
       const meta = this.connectionMeta.get(connId);
-      if (meta) return meta;
+      if (meta) metas.push(meta);
     }
-    return null;
+    return metas;
   }
 
   private pruneRecentlyDisconnected(now: number): void {
@@ -446,6 +452,34 @@ export class KeepAliveManager {
     await Promise.allSettled(workspaceIds.map((id) => this.ping(id)));
   }
 
+  private async resolveWorkspaceMeta(workspaceId: string): Promise<ConnectionMeta | null> {
+    const sessions = new Set<string>();
+    for (const meta of this.registry.getWorkspaceMetas(workspaceId)) {
+      if (meta.credentialSource !== "oauth") return meta;
+      if (!meta.sessionId || sessions.has(meta.sessionId)) continue;
+      sessions.add(meta.sessionId);
+      const auth = new AuthServiceClient(
+        process.env.AUTH_SERVICE_URL || "http://localhost:4400",
+        FETCH_TIMEOUT_MS,
+      );
+      const current = await auth.getCoderToken(meta.sessionId).catch(() => {
+        throw new Error("Auth service credential lookup unavailable.");
+      });
+      if (
+        !current ||
+        typeof current.token !== "string" ||
+        !current.token.trim() ||
+        current.credentialSource !== "oauth" ||
+        typeof current.coderUrl !== "string" ||
+        current.coderUrl.replace(/\/+$/, "") !== meta.coderUrl.replace(/\/+$/, "") ||
+        !this.registry.getWorkspaceMetas(workspaceId).includes(meta)
+      )
+        continue;
+      return { ...meta, token: current.token };
+    }
+    return null;
+  }
+
   async ping(workspaceId: string): Promise<void> {
     const activeConnectionCount = this.registry.getConnectionCount(workspaceId);
     let health = this.healthMap.get(workspaceId);
@@ -460,8 +494,7 @@ export class KeepAliveManager {
     health.lastDisconnectedAt = null;
 
     const attemptStartedAt = Date.now();
-    const meta = this.registry.getWorkspaceMeta(workspaceId);
-    if (!meta) {
+    if (!this.registry.getWorkspaceMeta(workspaceId)) {
       health.status = "no-token";
       console.log(
         `[keep-alive] event=ping-skipped status=no-token activeConnectionCount=${activeConnectionCount}`,
@@ -469,11 +502,20 @@ export class KeepAliveManager {
       return;
     }
 
-    const coderUrl = (meta.coderUrl || this.defaultCoderUrl).replace(/\/+$/, "");
-    const deadline = new Date(Date.now() + EXTEND_HOURS * 60 * 60 * 1000).toISOString();
-    const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
-
     try {
+      const meta = await this.resolveWorkspaceMeta(workspaceId);
+      if (!meta) {
+        this.recordFailure(
+          health,
+          httpFailureDetails(401, "Unauthorized", "No current authenticated Coder credential."),
+          activeConnectionCount,
+          attemptStartedAt,
+        );
+        return;
+      }
+      const coderUrl = (meta.coderUrl || this.defaultCoderUrl).replace(/\/+$/, "");
+      const deadline = new Date(Date.now() + EXTEND_HOURS * 60 * 60 * 1000).toISOString();
+      const url = `${coderUrl}/api/v2/workspaces/${workspaceId}/extend`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 

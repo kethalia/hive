@@ -15,3 +15,5 @@ Open Coder consent in a separate browser window. Serve a self-contained HTML cal
 Keep a visible workspace-loading state after successful popup sign-in until navigation completes, with a disabled button and accessible progress feedback.
 
 Fade command-palette results beneath the directional scroll arrows and preserve keyboard selection when scrolling moves rows under a stationary pointer. Mouse movement and clicks retain selection support.
+
+Resolve current OAuth credentials through the auth service for every Node terminal keepalive, including rotating tokens and revoked-session handling. Bind the refresh to the authenticated terminal session and configured Coder host.
