@@ -442,6 +442,21 @@ describe("CommandPalette", () => {
     fireEvent.scroll(list);
     expect(list.className).toContain("[scrollbar-width:none]");
     expect(list.className).toContain("[&::-webkit-scrollbar]:hidden");
+    expect(list.className).toContain("scroll-py-8");
+    expect(screen.getByTestId("command-scroll-hint-up")).toHaveClass(
+      "absolute",
+      "bg-linear-to-b",
+      "from-popover",
+      "to-transparent",
+      "pointer-events-none",
+    );
+    expect(screen.getByTestId("command-scroll-hint-down")).toHaveClass(
+      "absolute",
+      "bg-linear-to-t",
+      "from-popover",
+      "to-transparent",
+      "pointer-events-none",
+    );
     expect(screen.getByTestId("command-scroll-hint-up")).toHaveAttribute("data-visible", "false");
     expect(screen.getByTestId("command-scroll-hint-down")).toHaveAttribute("data-visible", "true");
     expect(screen.getByTestId("command-scroll-hint-up")).toBeEmptyDOMElement();

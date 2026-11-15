@@ -3,10 +3,18 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { SearchIcon } from "lucide-react";
 import type * as React from "react";
+import { useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
+function Command({
+  className,
+  onKeyDownCapture,
+  onPointerMoveCapture,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive>) {
+  const keyboardSelection = useRef(false);
+  const pointerPosition = useRef<{ x: number; y: number } | null>(null);
   return (
     <CommandPrimitive
       data-slot="command"
@@ -15,6 +23,25 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
         className,
       )}
       {...props}
+      onKeyDownCapture={(event) => {
+        keyboardSelection.current = true;
+        onKeyDownCapture?.(event);
+      }}
+      onPointerMoveCapture={(event) => {
+        onPointerMoveCapture?.(event);
+        const previous = pointerPosition.current;
+        pointerPosition.current = { x: event.clientX, y: event.clientY };
+        // Scrolling can emit pointer movement over a different row without
+        // moving the mouse. Keep keyboard selection until the pointer moves.
+        if (
+          keyboardSelection.current &&
+          (!previous || (previous.x === event.clientX && previous.y === event.clientY))
+        ) {
+          event.stopPropagation();
+          return;
+        }
+        keyboardSelection.current = false;
+      }}
     />
   );
 }

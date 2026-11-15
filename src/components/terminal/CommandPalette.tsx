@@ -398,18 +398,18 @@ function CommandPaletteBody({
           {error}
         </p>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           aria-hidden="true"
           data-testid="command-scroll-hint-up"
           data-visible={canScrollUp ? "true" : "false"}
-          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-8 items-start justify-center bg-linear-to-b from-popover via-popover/90 to-transparent pt-1 text-muted-foreground data-[visible=false]:opacity-0"
         >
           {canScrollUp ? <Triangle className="size-3 fill-current" /> : null}
         </div>
         <CommandList
           ref={commandListRef}
-          className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="max-h-[340px] scroll-py-8 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={updateScrollHints}
         >
           {!loadingText && !page?.input ? <CommandEmpty>{emptyText}</CommandEmpty> : null}
@@ -522,7 +522,7 @@ function CommandPaletteBody({
           aria-hidden="true"
           data-testid="command-scroll-hint-down"
           data-visible={canScrollDown ? "true" : "false"}
-          className="pointer-events-none flex h-5 shrink-0 items-center justify-center text-muted-foreground"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex h-8 items-end justify-center bg-linear-to-t from-popover via-popover/90 to-transparent pb-1 text-muted-foreground data-[visible=false]:opacity-0"
         >
           {canScrollDown ? <Triangle className="size-3 rotate-180 fill-current" /> : null}
         </div>

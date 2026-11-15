@@ -13,3 +13,5 @@ Apply the additive Coder OAuth migration and scoped runtime grants, then configu
 Open Coder consent in a separate browser window. Serve a self-contained HTML callback and keep the window open until Hive verifies its browser session. Recover through serialized same-origin session checks when popup notifications are lost or the user closes the window after consent. Preserve typed browser-navigation responses for existing callback flows.
 
 Keep a visible workspace-loading state after successful popup sign-in until navigation completes, with a disabled button and accessible progress feedback.
+
+Fade command-palette results beneath the directional scroll arrows and preserve keyboard selection when scrolling moves rows under a stationary pointer. Mouse movement and clicks retain selection support.
