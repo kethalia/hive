@@ -52,6 +52,8 @@ function fixture(
     wrongManifest?: boolean;
     mutationFailed?: boolean;
     wrongReceipt?: boolean;
+    management?: boolean;
+    wrongManagementFence?: boolean;
   } = {},
 ) {
   const transport = vi.fn(async (ticket: string) => {
@@ -65,28 +67,59 @@ function fixture(
             configDigest: digest,
             manifestSha256: options.wrongManifest ? "c".repeat(64) : config.manifestSha256,
             environment: {},
+            ...(options.management ? { capabilities: ["codex-management"] } : {}),
           }
-        : claims.request.operation === "install-notifications"
+        : claims.request.operation === "codex-management"
           ? {
-              sourceId: claims.request.sourceId,
-              generation: options.wrongReceipt
-                ? claims.request.generation + 1
-                : claims.request.generation,
-              createdAt: claims.request.createdAt,
-              credentialHash: sha(claims.request.token),
-              callbackOrigin: config.issuer,
+              scope: "managed-native",
+              lifetimeId,
+              generation: options.wrongManagementFence
+                ? 99
+                : claims.request.management.generation +
+                  Number(claims.request.management.action === "save-config"),
+              outcome: claims.request.management.action === "save-config" ? "saved" : "read",
+              usage: null,
+              overridden: null,
+              config: {
+                version: "version-2",
+                values: {
+                  model: null,
+                  review_model: null,
+                  model_reasoning_effort: null,
+                  model_verbosity: null,
+                  web_search: null,
+                  service_tier: null,
+                },
+                origins: {},
+                models: [],
+                truncated: false,
+                approvalPolicy: null,
+                sandboxMode: null,
+              },
             }
-          : claims.request.operation === "codex-account" ||
-              claims.request.operation === "claude-account"
+          : claims.request.operation === "install-notifications"
             ? {
-                scope:
-                  claims.request.operation === "codex-account" ? "managed-native" : "workspace-cli",
-                lifetimeId,
-                generation: 0,
-                state: "signed-out",
-                pending: null,
+                sourceId: claims.request.sourceId,
+                generation: options.wrongReceipt
+                  ? claims.request.generation + 1
+                  : claims.request.generation,
+                createdAt: claims.request.createdAt,
+                credentialHash: sha(claims.request.token),
+                callbackOrigin: config.issuer,
               }
-            : { message: "tracking installed" };
+            : claims.request.operation === "codex-account" ||
+                claims.request.operation === "claude-account"
+              ? {
+                  scope:
+                    claims.request.operation === "codex-account"
+                      ? "managed-native"
+                      : "workspace-cli",
+                  lifetimeId,
+                  generation: 0,
+                  state: "signed-out",
+                  pending: null,
+                }
+              : { message: "tracking installed" };
     const result = {
       schemaVersion: 1,
       requestId: claims.jti,
@@ -107,6 +140,44 @@ function fixture(
   return { transport, client: new AgentBridgeClient(config, transport) };
 }
 describe("portable agent client", () => {
+  it("keeps old runtime operations usable while refusing unsupported management before submission", async () => {
+    const old = fixture();
+    await expect(
+      old.client.execute({
+        operation: "codex-management",
+        management: { action: "config", lifetimeId, generation: 0 },
+      }),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    expect(old.transport).toHaveBeenCalledTimes(1);
+    expect(
+      await old.client.execute({ operation: "codex-account", account: { action: "status" } }),
+    ).toMatchObject({ state: "signed-out" });
+  });
+  it("fences management replies and treats a lost config-save response as uncertain without replay", async () => {
+    const request = {
+      operation: "codex-management" as const,
+      management: {
+        action: "save-config" as const,
+        lifetimeId,
+        generation: 0,
+        version: "version-1",
+        values: { model_verbosity: "high" as const },
+      },
+    };
+    const good = fixture({ management: true });
+    expect(await good.client.execute(request)).toMatchObject({ generation: 1, outcome: "saved" });
+    for (const options of [
+      { loseMutation: true },
+      { wrongManagementFence: true },
+      { mutationFailed: true },
+    ]) {
+      const failed = fixture({ management: true, ...options });
+      await expect(failed.client.execute(request)).rejects.toMatchObject({
+        code: "outcome_unknown",
+      });
+      expect(failed.transport).toHaveBeenCalledTimes(2);
+    }
+  });
   it.each([
     {
       operation: "claude-account" as const,

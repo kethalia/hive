@@ -60,6 +60,45 @@ beforeEach(() => {
   mocks.execute.mockResolvedValue({ message: "done" });
 });
 describe("portable agent authority", () => {
+  it("binds usage/config to the Codex provider and selected build, fencing replaced builds after a save", async () => {
+    const scoped = new AgentBridgeService({ ...config, accountProvider: "codex" }, deps);
+    const request = {
+      operation: "codex-management" as const,
+      management: { action: "config" as const, lifetimeId: randomUUID(), generation: 0 },
+    };
+    await expect(scoped.execute(principal, workspaceId, request)).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    expect(mocks.execute).not.toHaveBeenCalled();
+    await scoped.execute(principal, workspaceId, request, undefined, binding.buildId);
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    const claude = new AgentBridgeService({ ...config, accountProvider: "claude" }, deps);
+    await expect(
+      claude.execute(principal, workspaceId, request, undefined, binding.buildId),
+    ).rejects.toMatchObject({ code: "unavailable" });
+    mocks.resolve
+      .mockResolvedValueOnce({ binding })
+      .mockResolvedValueOnce({ binding: { ...binding, buildId: randomUUID() } });
+    await expect(
+      scoped.execute(
+        principal,
+        workspaceId,
+        {
+          operation: "codex-management",
+          management: {
+            action: "save-config",
+            lifetimeId: request.management.lifetimeId,
+            generation: 0,
+            version: "v1",
+            values: { model: null },
+          },
+        },
+        undefined,
+        binding.buildId,
+      ),
+    ).rejects.toMatchObject({ code: "outcome_unknown" });
+    expect(mocks.execute).toHaveBeenCalledTimes(2);
+  });
   it.each([
     {
       operation: "claude-account" as const,

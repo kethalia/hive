@@ -54,6 +54,9 @@ const MUTATIONS = new Set([
   "resume",
   "install-notifications",
 ]);
+const isMutation = (request: AgentOperation) =>
+  MUTATIONS.has(request.operation) ||
+  (request.operation === "codex-management" && request.management?.action === "save-config");
 /** Request-local authority: resolve the exact owner-only agent app before and
  * after each operation. No mutation is retried on an uncertain result. */
 export class AgentBridgeService {
@@ -79,13 +82,16 @@ export class AgentBridgeService {
         parsed.operation === "identity" ||
         (this.config.accountProvider !== undefined &&
           (!["codex", "claude"].includes(this.config.accountProvider) ||
-            parsed.operation !== `${this.config.accountProvider}-account`)) ||
+            (parsed.operation !== `${this.config.accountProvider}-account` &&
+              !(
+                this.config.accountProvider === "codex" && parsed.operation === "codex-management"
+              )))) ||
         this.config.pins.length === 0 ||
         new Set(this.config.pins.map((p) => p.templateId)).size !== this.config.pins.length
       )
         throw new Error();
       if (
-        (parsed.operation === "codex-account" || parsed.operation === "claude-account") &&
+        ["codex-account", "claude-account", "codex-management"].includes(parsed.operation) &&
         !expectedBuildId
       )
         throw new Error("Selected workspace build is required.");
@@ -136,7 +142,7 @@ export class AgentBridgeService {
       if (JSON.stringify(after.binding) !== JSON.stringify(before.binding)) throw new Error();
       return result;
     } catch (error) {
-      if (completed && MUTATIONS.has((request as AgentOperation).operation))
+      if (completed && isMutation(request as AgentOperation))
         throw new AgentBridgeError("outcome_unknown");
       if (error instanceof AgentBridgeError) throw error;
       throw new AgentBridgeError("unavailable");

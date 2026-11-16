@@ -32,6 +32,100 @@ const config = {
   manifestSha256: "a".repeat(64),
   helperSha256: "",
 };
+test("signed management capability binds usage to the exact bridge lifetime and strict fixed request", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "agent-management-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const helperPath = join(dir, "helper.py"),
+    source = Buffer.from("# fixture\n");
+  await writeFile(helperPath, source, { mode: 0o600 });
+  let calls = 0;
+  const bridge = createAgentBridge(
+    { ...config, helperSha256: sha(source) },
+    {
+      helperPath,
+      accounts: {
+        acquire: () => ({ fd: 3, close() {} }),
+        async open() {
+          return {
+            async call(method) {
+              calls++;
+              if (method === "account/rateLimits/read")
+                return {
+                  rateLimits: {
+                    primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 1000 },
+                  },
+                };
+              throw Error("unsupported");
+            },
+            async close() {},
+          };
+        },
+      },
+    },
+  );
+  bridge.server.listen(0, "127.0.0.1");
+  await once(bridge.server, "listening");
+  t.after(() => bridge.close());
+  const post = (request, lifetimeId = null, claims = {}) =>
+    fetch(`http://127.0.0.1:${bridge.server.address().port}/agent/operation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticket: issue(request, lifetimeId, claims).token }),
+    });
+  const identity = await (await post({ operation: "identity" })).json();
+  assert.deepEqual(identity.result.data.capabilities, ["codex-management"]);
+  const operation = {
+    operation: "codex-management",
+    management: { action: "usage", lifetimeId: identity.lifetimeId, generation: 0 },
+  };
+  const reply = await (await post(operation, identity.lifetimeId)).json();
+  assert.equal(reply.result.ok, true);
+  assert.equal(reply.result.data.usage.windows[0].primary.usedPercent, 20);
+  assert.equal(reply.result.data.usage.usageAvailable, false);
+  const { proof, ...unsigned } = reply;
+  assert.equal(
+    verify(
+      null,
+      Buffer.from(responsePayload(unsigned)),
+      identity.result.data.publicKeyPem,
+      Buffer.from(proof, "base64url"),
+    ),
+    true,
+  );
+  assert.equal(calls, 2);
+  for (const request of [
+    { ...operation, management: { ...operation.management, method: "thread/start" } },
+    { ...operation, management: { ...operation.management, executable: "/bin/sh" } },
+    {
+      ...operation,
+      management: {
+        action: "save-config",
+        lifetimeId: identity.lifetimeId,
+        generation: 0,
+        version: "v1",
+        values: { sandbox_mode: "danger-full-access" },
+      },
+    },
+  ])
+    assert.equal((await post(request, identity.lifetimeId)).status, 400);
+  assert.equal((await post(operation, randomUUID())).status, 400);
+  assert.equal(
+    (
+      await post(operation, identity.lifetimeId, {
+        binding: { ...binding, hiveUserId: randomUUID(), ownerId: randomUUID() },
+      })
+    ).status,
+    400,
+  );
+  const stale = await (
+    await post(
+      { ...operation, management: { ...operation.management, lifetimeId: randomUUID() } },
+      identity.lifetimeId,
+    )
+  ).json();
+  assert.equal(stale.result.ok, false);
+  assert.equal(calls, 2);
+});
 function issue(request, lifetimeId = null, extra = {}) {
   const now = Math.floor(Date.now() / 1000),
     claims = {

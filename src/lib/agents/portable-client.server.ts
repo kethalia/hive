@@ -19,13 +19,17 @@ import {
 } from "./portable-contracts";
 
 export class AgentBridgeError extends Error {
-  constructor(public readonly code: "unavailable" | "operation_failed" | "outcome_unknown") {
+  constructor(
+    public readonly code: "unavailable" | "operation_failed" | "outcome_unknown" | "unsupported",
+  ) {
     super(
       code === "outcome_unknown"
         ? "Agent operation outcome is unknown. Inspect workspace state before retrying."
-        : code === "operation_failed"
-          ? "Agent operation failed. Check the workspace configuration and try again."
-          : "Agent tools are unavailable in this workspace.",
+        : code === "unsupported"
+          ? "This workspace runtime needs an update before using Codex usage and settings."
+          : code === "operation_failed"
+            ? "Agent operation failed. Check the workspace configuration and try again."
+            : "Agent tools are unavailable in this workspace.",
     );
   }
 }
@@ -57,6 +61,9 @@ const MUTATIONS = new Set([
   "resume",
   "install-notifications",
 ]);
+const isMutation = (request: AgentOperation) =>
+  MUTATIONS.has(request.operation) ||
+  (request.operation === "codex-management" && request.management?.action === "save-config");
 function packet(
   config: AgentBridgeClientConfig,
   request: AgentOperation,
@@ -202,6 +209,11 @@ export class AgentBridgeClient {
         )
       )
         throw new Error();
+      if (
+        parsed.operation === "codex-management" &&
+        !data.capabilities?.includes("codex-management")
+      )
+        throw new AgentBridgeError("unsupported");
       const next = packet(this.config, parsed, identity.lifetimeId);
       signal.throwIfAborted();
       submitted = true;
@@ -226,10 +238,22 @@ export class AgentBridgeClient {
       )
         throw new Error();
       if (!reply.result.ok)
-        throw new AgentBridgeError(
-          MUTATIONS.has(parsed.operation) ? "outcome_unknown" : "operation_failed",
-        );
+        throw new AgentBridgeError(isMutation(parsed) ? "outcome_unknown" : "operation_failed");
       const result = agentResultSchemas[parsed.operation].parse(reply.result.data);
+      if (parsed.operation === "codex-management") {
+        const view = agentResultSchemas["codex-management"].parse(result);
+        const saving = parsed.management.action === "save-config";
+        if (
+          view.lifetimeId !== identity.lifetimeId ||
+          view.lifetimeId !== parsed.management.lifetimeId ||
+          view.generation !== parsed.management.generation + Number(saving) ||
+          (parsed.management.action === "usage"
+            ? !view.usage || view.config !== null
+            : !view.config || view.usage !== null) ||
+          (saving ? !["saved", "unknown"].includes(view.outcome) : view.outcome !== "read")
+        )
+          throw new Error();
+      }
       if (parsed.operation === "install-notifications") {
         const receipt = agentResultSchemas["install-notifications"].parse(result);
         if (
@@ -243,8 +267,12 @@ export class AgentBridgeClient {
       }
       return result as AgentOperationResult<K>;
     } catch (error) {
-      if (error instanceof AgentBridgeError && error.code === "operation_failed") throw error;
-      if (submitted && MUTATIONS.has((request as AgentOperation).operation))
+      if (
+        error instanceof AgentBridgeError &&
+        ["operation_failed", "unsupported"].includes(error.code)
+      )
+        throw error;
+      if (submitted && isMutation(request as AgentOperation))
         throw new AgentBridgeError("outcome_unknown");
       throw new AgentBridgeError("unavailable");
     }

@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
+import {
+  codexManagementRequestSchema,
+  codexManagementResponseSchema,
+} from "./codex-management-contracts";
 import { agentResumeResultSchema, agentSessionKeySchema, agentToolsSnapshotSchema } from "./types";
 
 export const terminalSessionNameSchema = z
@@ -9,6 +13,9 @@ export const terminalSessionNameSchema = z
   .refine((name) => !name.startsWith("git-clone-"));
 
 export const agentOperationSchema = z.discriminatedUnion("operation", [
+  z
+    .object({ operation: z.literal("codex-management"), management: codexManagementRequestSchema })
+    .strict(),
   z
     .object({
       operation: z.literal("claude-account"),
@@ -59,6 +66,7 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
 ]);
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export const agentResultSchemas = {
+  "codex-management": codexManagementResponseSchema,
   "claude-account": claudeAccountStatusSchema,
   "rename-terminal-session": z
     .object({ oldName: terminalSessionNameSchema, newName: terminalSessionNameSchema })
@@ -70,6 +78,7 @@ export const agentResultSchemas = {
       publicKeyPem: z.string().min(80).max(256),
       configDigest: z.string().regex(/^[a-f0-9]{64}$/),
       manifestSha256: z.string().regex(/^[a-f0-9]{64}$/),
+      capabilities: z.array(z.literal("codex-management")).max(1).optional(),
       environment: z
         .object({
           CODEX_HOME: z.string().min(1).max(4096).optional(),
@@ -120,6 +129,7 @@ export const agentReplySchema = z
       "rename-terminal-session",
       "kill-terminal-session",
       "codex-account",
+      "codex-management",
       "identity",
       "inventory",
       "sessions",

@@ -14,6 +14,15 @@ export const claudeAccountStatusSchema = z
   .object({
     ...fence,
     scope: z.literal("workspace-cli"),
+    account: z
+      .object({
+        type: z.literal("claude"),
+        email: z.string().email().max(254).nullable(),
+        plan: z.string().max(80).nullable(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     state: z.enum([
       "signed-out",
       "signed-in",

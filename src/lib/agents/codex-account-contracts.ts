@@ -13,6 +13,15 @@ export const codexAccountStatusSchema = z
   .object({
     ...fence,
     scope: z.literal("managed-native"),
+    account: z
+      .object({
+        type: z.literal("chatgpt"),
+        email: z.string().email().max(254).nullable(),
+        plan: z.string().max(80).nullable(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     state: z.enum([
       "signed-out",
       "signed-in",

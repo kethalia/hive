@@ -11,7 +11,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync }
 import { createServer } from "node:http";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 import { createClaudeAccountManager } from "./claude-account.mjs";
-import { createCodexAccountManager } from "./codex-account.mjs";
+import { createCodexAccountManager, validManagementRequest } from "./codex-account.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -21,6 +21,7 @@ const OPS = [
   "kill-terminal-session",
   "identity",
   "codex-account",
+  "codex-management",
   "inventory",
   "sessions",
   "install",
@@ -136,6 +137,8 @@ function operationValid(v) {
           a.generation >= 0)
     );
   }
+  if (v.operation === "codex-management")
+    return exact(v, ["operation", "management"]) && validManagementRequest(v.management);
   if (v.operation === "resume")
     return exact(v, ["operation", "key"]) && typeof v.key === "string" && KEY.test(v.key);
   if (v.operation === "install-notifications")
@@ -288,6 +291,7 @@ export function createAgentBridge(config, deps = {}) {
         : claudeAccounts.run(request.account);
     if (request.operation === "codex-account")
       return request.account.cached === true ? accounts.peek() : accounts.run(request.account);
+    if (request.operation === "codex-management") return accounts.manage(request.management);
     return new Promise((resolve, reject) => {
       let source, payload;
       try {
@@ -438,6 +442,7 @@ export function createAgentBridge(config, deps = {}) {
             publicKeyPem: key.publicKey.export({ type: "spki", format: "pem" }),
             configDigest: configDigest(config, environment),
             manifestSha256: config.manifestSha256,
+            capabilities: config.profile === "software" ? ["codex-management"] : [],
             environment,
           },
         };

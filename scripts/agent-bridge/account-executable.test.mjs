@@ -52,11 +52,12 @@ test("account executable admits the pinned release size and retains hash/mode/si
       child.stdout = new PassThrough();
       child.stdin.on("data", (bytes) => {
         const message = JSON.parse(bytes.toString());
-        if (message.method === "initialize")
+        if (message.method === "initialize") {
+          assert.deepEqual(message.params.capabilities, { experimentalApi: true });
           child.stdout.write(
             `${JSON.stringify({ id: message.id, result: { userAgent: "codex/0.165.0 (fixture)" } })}\n`,
           );
-        else assert.equal(message.method, "initialized");
+        } else assert.equal(message.method, "initialized");
       });
       child.kill = () => {
         setImmediate(() => child.emit("close", 0));
@@ -80,6 +81,10 @@ test("account executable admits the pinned release size and retains hash/mode/si
         .replace(
           '"../../templates/ai-dev-k8s/scripts/codex-managed-auth-lock.mjs"',
           JSON.stringify(lock.href),
+        )
+        .replace(
+          '"./codex-management.mjs"',
+          JSON.stringify(new URL("./codex-management.mjs", import.meta.url).href),
         )
         .replace(`const SHA = "${publishedSha}";`, `const SHA = "${expectedDigest}";`);
       return import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);

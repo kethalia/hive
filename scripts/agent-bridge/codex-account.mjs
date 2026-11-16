@@ -11,14 +11,17 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { acquireManagedAuthLock } from "../../templates/ai-dev-k8s/scripts/codex-managed-auth-lock.mjs";
+import { readConfig, readUsage, saveConfig, validManagementRequest } from "./codex-management.mjs";
+
+export { validManagementRequest };
 
 const SHA = "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5";
 const MAX_AGE = 10 * 60_000;
 const reject = () => {
   throw Error("managed_auth_unavailable");
 };
-/** No model/thread methods are exposed. This process has exactly the pinned
- * managed credential root, and never inherits the user's provider credentials. */
+/** The pinned managed credential root exposes account, usage and reviewed
+ * configuration RPCs through an isolated native process environment. */
 export async function openAccountSession(home, fd, notify) {
   const executable = join(
     home,
@@ -64,10 +67,15 @@ export async function openAccountSession(home, fd, notify) {
       stdio: ["pipe", "pipe", "ignore", fd],
     },
   );
-  const { call, close, initialized: ready } = createAccountWire(child, notify);
+  const {
+    call,
+    close,
+    initialized: ready,
+  } = createAccountWire(child, notify, { management: true });
   try {
     const initialized = await call("initialize", {
       clientInfo: { name: "hive_managed_accounts", version: "1" },
+      capabilities: { experimentalApi: true },
     });
     if (
       typeof initialized?.userAgent !== "string" ||
@@ -82,7 +90,7 @@ export async function openAccountSession(home, fd, notify) {
   }
 }
 
-export function createAccountWire(child, notify, { codeInput = false } = {}) {
+export function createAccountWire(child, notify, { codeInput = false, management = false } = {}) {
   let sequence = 0,
     buffer = "",
     ended = false;
@@ -101,7 +109,7 @@ export function createAccountWire(child, notify, { codeInput = false } = {}) {
   child.stdin.on("error", fail);
   child.stdout.on("data", (chunk) => {
     buffer += chunk.toString("utf8");
-    if (Buffer.byteLength(buffer) > 65536) {
+    if (Buffer.byteLength(buffer) > (management ? 512 * 1024 : 65536)) {
       child.kill("SIGKILL");
       fail();
       return;
@@ -138,6 +146,15 @@ export function createAccountWire(child, notify, { codeInput = false } = {}) {
           "account/login/start",
           "account/login/cancel",
           "account/logout",
+          ...(management
+            ? [
+                "account/rateLimits/read",
+                "account/usage/read",
+                "config/read",
+                "model/list",
+                "config/batchWrite",
+              ]
+            : []),
           ...(codeInput ? ["account/login/submitCode"] : []),
         ].includes(method) ||
         requests.size >= 4
@@ -189,12 +206,14 @@ export function createAccountManager({
     state = "unknown",
     queue = Promise.resolve();
   let sessionEpoch = 0;
+  let accountSummary = null;
   const notifications = new Map();
   const view = () => ({
     scope: provider === "codex" ? "managed-native" : "workspace-cli",
     lifetimeId,
     generation,
     state,
+    account: state === "signed-in" ? accountSummary : null,
     pending:
       state === "pending" && pending
         ? {
@@ -262,9 +281,30 @@ export function createAccountManager({
   };
   const account = async () => {
     const value = await session.call("account/read", { refreshToken: false });
+    accountSummary = null;
     if (!value || !Object.hasOwn(value, "account")) reject();
     if (value.account === null) return "signed-out";
     if (value.account.type !== (provider === "codex" ? "chatgpt" : "claude")) return "unknown";
+    if (provider === "codex") {
+      const raw = value.account;
+      accountSummary = {
+        type: "chatgpt",
+        email:
+          typeof raw.email === "string" &&
+          raw.email.length <= 254 &&
+          Array.from(raw.email).every(
+            (char) => char.charCodeAt(0) > 32 && char.charCodeAt(0) < 127,
+          ) &&
+          /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(raw.email)
+            ? raw.email
+            : null,
+        plan:
+          typeof raw.planType === "string" &&
+          /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/.test(raw.planType)
+            ? raw.planType
+            : null,
+      };
+    }
     return "signed-in";
   };
   const execute = async (request) => {
@@ -384,25 +424,74 @@ export function createAccountManager({
     }, MAX_AGE);
     return view();
   };
-  const run = (request) => {
+  const executeManagement = async (request) => {
+    if (
+      closed ||
+      provider !== "codex" ||
+      profile !== "software" ||
+      !validManagementRequest(request)
+    )
+      reject();
+    if (request.lifetimeId !== lifetimeId || request.generation !== generation || pending)
+      throw Error("managed_auth_stale");
+    await start();
+    if (!session) throw Error("managed_auth_stale");
+    const root = join(home, ".local/share/hive/codex-native/codex");
+    const rpc = (method, params) => session.call(method, params);
+    const result = (values) => ({
+      scope: "managed-native",
+      lifetimeId,
+      generation,
+      outcome: "read",
+      usage: null,
+      config: null,
+      overridden: null,
+      ...values,
+    });
+    try {
+      if (request.action === "usage") return result({ usage: await readUsage(rpc) });
+      if (request.action === "config") return result({ config: await readConfig(rpc, root) });
+      let submitted = false;
+      try {
+        const overridden = await saveConfig(rpc, root, request, () => {
+          // Fence before delivery. A lost acknowledgement cannot reuse this generation.
+          generation++;
+          submitted = true;
+        });
+        return result({ outcome: "saved", config: await readConfig(rpc, root), overridden });
+      } catch (error) {
+        if (!submitted) throw error;
+        // Close the mutating process before reading durable state under the same lock.
+        await stop(false);
+        session = await open(home, lock.fd, () => {});
+        return result({ outcome: "unknown", config: await readConfig(rpc, root) });
+      }
+    } finally {
+      await stop();
+    }
+  };
+  const enqueue = (request, operation) => {
     const result = queue
-      .then(() => execute(request))
+      .then(() => operation(request))
       .catch(async (error) => {
         if (error.message === "managed_auth_stale") throw error;
         generation++;
         state = "unknown";
+        accountSummary = null;
         await stop();
         reject();
       });
     queue = result.catch(() => {});
     return result;
   };
+  const run = (request) => enqueue(request, execute);
   return {
     async peek() {
       await queue;
       return structuredClone(view());
     }, // No process/lock/account read or refresh.
     run,
+    manage: (request) => enqueue(request, executeManagement),
     async close() {
       closed = true;
       await queue;

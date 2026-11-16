@@ -9,7 +9,7 @@ import {
   createCodexAccountManager,
 } from "./codex-account.mjs";
 
-function fixture({ signedIn = false, busy = false } = {}) {
+function fixture({ signedIn = false, busy = false, summary = {} } = {}) {
   const calls = [],
     lifetimeId = randomUUID();
   let notify,
@@ -34,7 +34,8 @@ function fixture({ signedIn = false, busy = false } = {}) {
       return {
         async call(method, params) {
           calls.push([method, params]);
-          if (method === "account/read") return { account: signedIn ? { type: "chatgpt" } : null };
+          if (method === "account/read")
+            return { account: signedIn ? { ...summary, type: "chatgpt" } : null };
           if (method === "account/login/start")
             return {
               type: "chatgptDeviceCode",
@@ -82,6 +83,48 @@ test("connect is deduplicated under concurrency; only exact completion advances 
     assert.equal(f.release(), 1);
   } finally {
     await f.manager.close();
+  }
+});
+
+test("connected account summary projects only native email/plan and clears while reconnecting or signed out", async () => {
+  const f = fixture({
+    signedIn: true,
+    summary: {
+      email: "creator@example.com",
+      planType: "plus",
+      token: "PRIVATE_TOKEN",
+      organization: "PRIVATE_ORG",
+    },
+  });
+  try {
+    const connected = await f.manager.run({ action: "status" });
+    assert.deepEqual(connected.account, {
+      type: "chatgpt",
+      email: "creator@example.com",
+      plan: "plus",
+    });
+    assert.equal(JSON.stringify(connected).includes("PRIVATE_"), false);
+    const pending = await f.command("reconnect", connected.generation);
+    assert.equal(pending.account, null);
+    f.finish();
+    const read = await f.manager.run({ action: "status" });
+    const disconnected = await f.command("disconnect", read.generation);
+    assert.equal(disconnected.account, null);
+  } finally {
+    await f.manager.close();
+  }
+  const invalid = fixture({
+    signedIn: true,
+    summary: { email: "secret-without-email", planType: "provider\nsecret" },
+  });
+  try {
+    assert.deepEqual((await invalid.manager.run({ action: "status" })).account, {
+      type: "chatgpt",
+      email: null,
+      plan: null,
+    });
+  } finally {
+    await invalid.manager.close();
   }
 });
 test("stale owner/build lifetime or generation cannot cancel or overwrite a newer attempt", async () => {
