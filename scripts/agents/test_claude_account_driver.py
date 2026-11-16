@@ -2,13 +2,16 @@
 import json
 import os
 from pathlib import Path
+import runpy
 import select
 import subprocess
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 DRIVER = Path(__file__).resolve().parents[1] / "agent-bridge/claude-account-driver.py"
+OAUTH_URL = "https://claude.com/cai/oauth/authorize?state=fixture-state-complete&code_challenge=full-pkce-challenge&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback"
 FAKE = '''#!/usr/bin/python3
 import json,os,sys,time
 from pathlib import Path
@@ -21,7 +24,19 @@ if args==['auth','logout']:
 if args==['auth','login']:
  (p/'login-pid').write_text(str(os.getpid()))
  if (p/'oversized').exists(): print('x'*70000,flush=True);sys.exit(1)
- if (p/'split-url').exists():
+ if (p/'osc8-mode').exists():
+  mode=(p/'osc8-mode').read_text();url='__OSC8_URL__';prefix=chr(27)+']8;;'
+  terminator=chr(7) if mode.endswith('bel') else chr(27)+chr(92)
+  rendered=prefix+url+terminator+url+prefix+terminator+chr(10)
+  if mode.startswith('fragmented'):
+   # The first fragment already parses as a valid URL but ends inside state.
+   first=len(prefix)+url.index('fixture-state')+len('fixture')
+   second=len(prefix)+url.index('full-pkce')+len('full')
+   previous=0
+   for end in [first,second,len(prefix)+len(url)+1,len(rendered)]:
+    sys.stdout.write(rendered[previous:end]);sys.stdout.flush();time.sleep(0.1);previous=end
+  else:sys.stdout.write(rendered);sys.stdout.flush()
+ elif (p/'split-url').exists():
   sys.stdout.write('https://claude.com/cai/oauth/authorize?state=fix');sys.stdout.flush();time.sleep(0.15)
   print('ture&code_challenge=complete',flush=True)
  else: print('https://claude.com/cai/oauth/authorize?state=fixture',flush=True)
@@ -30,7 +45,7 @@ if args==['auth','login']:
  if code=='SECRET_TEST_CODE#STATE':(p/'signed-in').touch();sys.exit(0)
  sys.exit(1)
 sys.exit(99)
-'''
+'''.replace('__OSC8_URL__', OAUTH_URL)
 
 
 class ClaudeDriverTests(unittest.TestCase):
@@ -104,6 +119,26 @@ class ClaudeDriverTests(unittest.TestCase):
         self.assertEqual(pending["verificationUrl"],
                          "https://claude.com/cai/oauth/authorize?state=fixture&code_challenge=complete")
         self.call("account/login/cancel", {"loginId": pending["loginId"]})
+
+    def test_osc8_links_exclude_bel_st_and_fragmented_terminal_artifacts(self):
+        for mode in ["bel", "st", "fragmented-bel", "fragmented-st"]:
+            with self.subTest(mode=mode):
+                (self.root / "osc8-mode").write_text(mode)
+                pending = self.call("account/login/start")["result"]
+                self.assertEqual(pending["verificationUrl"], OAUTH_URL)
+                self.assertEqual(pending["verificationUrl"].count("https://claude.com/cai/oauth/authorize"), 1)
+                self.assertFalse(any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in pending["verificationUrl"]))
+                self.call("account/login/cancel", {"loginId": pending["loginId"]})
+
+    def test_url_validation_rejects_controls_and_duplicate_artifacts_without_decoding_redirects(self):
+        with patch.dict(os.environ, {"HIVE_CLAUDE_EXECUTABLE": "/unused"}), patch("signal.signal"):
+            valid = runpy.run_path(DRIVER, run_name="driver_fixture")["valid_url"]
+        self.assertTrue(valid(OAUTH_URL))
+        for character in [*(chr(value) for value in range(32)), *(chr(value) for value in range(127, 160))]:
+            with self.subTest(control=ord(character)):
+                self.assertFalse(valid(OAUTH_URL + character + OAUTH_URL))
+                self.assertFalse(valid(OAUTH_URL + character))
+        self.assertFalse(valid(OAUTH_URL + OAUTH_URL))
 
     def test_cancel_waits_for_exact_child_and_late_code_cannot_reopen_it(self):
         pending = self.call("account/login/start")["result"]

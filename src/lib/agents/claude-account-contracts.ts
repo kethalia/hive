@@ -39,6 +39,15 @@ export const claudeAccountStatusSchema = z
           .string()
           .max(8192)
           .refine((value) => {
+            if (
+              Array.from(value).some(
+                (char) =>
+                  char.charCodeAt(0) < 32 ||
+                  (char.charCodeAt(0) >= 127 && char.charCodeAt(0) <= 159),
+              ) ||
+              value.toLowerCase().split("https://claude.com/cai/oauth/authorize").length !== 2
+            )
+              return false;
             try {
               const u = new URL(value);
               return (

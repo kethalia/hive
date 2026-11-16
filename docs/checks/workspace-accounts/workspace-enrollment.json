@@ -12,31 +12,31 @@
       {
         "templateId": "06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42",
         "profile": "software",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       },
       {
         "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
         "profile": "browser",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       },
       {
         "templateId": "78c1aaa0-ff41-4a88-b1c3-909c16d85e34",
         "profile": "infrastructure",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       },
       {
         "templateId": "50297c47-f66a-46a5-88d4-06f281d9f519",
         "profile": "electronics",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       },
       {
         "templateId": "696e7eca-937c-451c-b70d-e611ccb46f13",
         "profile": "game",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       }
     ],
@@ -55,7 +55,7 @@
       {
         "templateId": "8f4640b6-f027-4b9d-8f72-9eba10f7034d",
         "profile": "software",
-        "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+        "manifestSha256": "18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307",
         "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787"
       }
     ],

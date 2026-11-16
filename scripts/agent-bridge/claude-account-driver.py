@@ -96,6 +96,10 @@ def command(arguments):
 
 
 def valid_url(value):
+    if (not isinstance(value, str)
+            or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in value)
+            or value.lower().count("https://claude.com/cai/oauth/authorize") != 1):
+        return False
     try:
         u = urllib.parse.urlsplit(value)
         return (len(value) <= 8192 and u.scheme == "https" and u.netloc == "claude.com"
@@ -116,7 +120,9 @@ def pump():
         if len(output) > LIMIT: raise ValueError()
         text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output.decode("utf-8", errors="replace"))
         if login_url is None:
-            links = [url for url in re.findall(r"https://[^\s\x1b]+(?=[\s\x1b])", text) if valid_url(url)]
+            # OSC 8 uses BEL or ST between its URL target and visible label.
+            # Require a completed token and keep every terminal control outside it.
+            links = [url for url in re.findall(r"https://[^\s\x00-\x1f\x7f-\x9f]+(?=[\s\x00-\x1f\x7f-\x9f])", text) if valid_url(url)]
             if len(set(links)) == 1: login_url = links[0]
         ready = ready or (login_url is not None and "Paste code here" in text)
     if child.poll() is not None and not notified:

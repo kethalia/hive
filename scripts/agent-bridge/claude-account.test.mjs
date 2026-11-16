@@ -113,6 +113,22 @@ test("only the pinned CLI and official emitted login destination are accepted", 
   }
 });
 
+test("Claude URL validation rejects unstripped OSC controls and duplicate links without changing encoded redirects", () => {
+  const url =
+    "https://claude.com/cai/oauth/authorize?state=fixture-state&code_challenge=full-pkce&redirect_uri=https%3A%2F%2Fconsole.anthropic.com%2Foauth%2Fcode%2Fcallback";
+  assert.equal(validClaudeLoginUrl(url), true);
+  for (const code of [
+    ...Array.from({ length: 32 }, (_, index) => index),
+    ...Array.from({ length: 33 }, (_, index) => index + 127),
+  ]) {
+    const control = String.fromCharCode(code);
+    assert.equal(validClaudeLoginUrl(url + control), false);
+    assert.equal(validClaudeLoginUrl(url + control + url), false);
+  }
+  assert.equal(validClaudeLoginUrl(url + url), false);
+  assert.equal(validClaudeLoginUrl(`${url}\u001b\\${url}\u001b]8;;\u001b\\`), false);
+});
+
 test("Claude 2.1.325 admission matches the verified vendor and installed executable receipt", async () => {
   const receipt = JSON.parse(
     await readFile(

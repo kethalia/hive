@@ -501,11 +501,18 @@ export function createAccountManager({
 }
 
 export function validClaudeLoginUrl(value) {
+  if (
+    typeof value !== "string" ||
+    value.length > 8192 ||
+    Array.from(value).some(
+      (char) => char.charCodeAt(0) < 32 || (char.charCodeAt(0) >= 127 && char.charCodeAt(0) <= 159),
+    ) ||
+    value.toLowerCase().split("https://claude.com/cai/oauth/authorize").length !== 2
+  )
+    return false;
   try {
     const u = new URL(value);
     return (
-      typeof value === "string" &&
-      value.length <= 8192 &&
       u.protocol === "https:" &&
       u.host === "claude.com" &&
       u.pathname === "/cai/oauth/authorize" &&

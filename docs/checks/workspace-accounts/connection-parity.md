@@ -57,3 +57,20 @@ The full local Vitest rerun passed 2,473 cases with 95 optional skips. The exist
 installer and worker-router suites passed. The local Cloudflare build succeeded.
 The subsequent disconnect-focus correction carries additional card/browser
 regressions and receives final integrated checks.
+
+## Real Claude terminal-link correction
+
+The initial hosted prompt exposed a terminal OSC8 hyperlink artifact. A BEL
+terminator joined the link target and visible duplicate into one URL. Destination
+checks accepted the malformed query. The driver now waits for complete delimited
+URLs and excludes terminal controls. Native and web validators reject literal
+controls and repeated authorization targets while preserving encoded redirects.
+
+Synthetic PTY regressions cover BEL, ESC-ST and fragmented PKCE/state values. An
+isolated probe against the exact admitted Claude 2.1.325 executable returned one
+clean complete OAuth URL, then canceled and reaped its child. Real credentials
+and provider consent were absent from that probe. The updated native package
+receives a fresh image publication before hosted provider acceptance resumes.
+
+This parser correction must accompany the retained Claude package when the
+paused shared-foundation migration resumes.
