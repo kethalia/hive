@@ -2,7 +2,7 @@
   "id": "browser",
   "label": "Browser testing",
   "description": "Dedicated Chrome and Playwright workspace for browser automation and visual inspection.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:8a7a80acc9fab5cb24878a21347562f715114fc7261297ea62ff91a8beede29e",
+  "image": "ghcr.io/kethalia/hive-base@sha256:360e274d98ccce924a72babb1200631ed1f042678fa42b21750cce9e13025b64",
   "image_variant": "browser",
   "capabilities": {
     "browser": true,

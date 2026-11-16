@@ -16,15 +16,25 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Verify normal hosted Coder OAuth and persisted credential readback.
 - [x] Prepare the production bridge issuer secret and public enrollment settings.
 - [ ] Complete provider consent and verify signed-in persistence, reconnect and disconnect.
+- [ ] Validate Creative Studio connection parity, Codex usage and runtime settings through the hosted preview.
 - [x] Validate desktop/mobile Accounts navigation, reload and build changes.
 - [ ] Complete review, CI and owner acceptance checklist.
 
 ## Visible flow
 
 Open Accounts from Dock Apps, the command palette or Agent Tools. Select a running
-workspace and its exact build. Codex and Claude cards display account state and
-support connect, cancel, reconnect and disconnect. A workspace rebuild holds
+workspace and its exact build. Codex and Claude cards display connection feedback and support official sign-in,
+absolute expiry countdown, cancellation, reconnect and confirmed disconnect.
+Codex supports copying its device code and displays verified account metadata when
+the native runtime supplies it. A workspace rebuild holds
 account controls until the current build is explicitly selected.
+
+The signed-in Codex card also contains Usage and Runtime settings. Native usage
+reports include supported limits, credits and token summaries. Settings cover the
+model, review model, reasoning effort, response detail, web search and service
+tier, with source/version feedback and native configuration precedence. Saves
+carry the current account generation and native config version. An uncertain
+write requires readback before another save.
 
 Codex uses its isolated managed credential directory and the pinned official CLI.
 The device-code flow opens the official provider page. Credential storage and
@@ -146,3 +156,14 @@ The production Worker now has the bridge issuer private-key binding prepared.
 The recorded production app build continued serving P02 after preparation.
 Template publication and workspace enrollment follow the owner-controlled P03
 release. [Production issuer preparation](production-issuer-preparation.json)
+
+## Resumed connection work
+
+On 16 November the owner resumed Hive's incremental epic migration. Application
+moves into Codex Studios are paused while P03 connection parity and the remaining
+Hive increments proceed. The selected connection reference is Creative Studio
+merged main `86b3df8`, including PRs 111 and 112. The owner explicitly included
+Codex usage and runtime settings in this increment.
+
+The [connection parity record](connection-parity.md) tracks implementation and
+remaining installed/browser acceptance.

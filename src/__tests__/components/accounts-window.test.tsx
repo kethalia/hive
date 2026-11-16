@@ -152,8 +152,10 @@ it("drops late old-workspace and old-build status replies before mounting fresh 
   const view = render(tree());
   await waitFor(() => expect(oldReply).toBeDefined());
   view.rerender(tree("two", "build-two"));
-  expect(await screen.findByRole("region", { name: "Managed Codex account" })).toHaveTextContent(
-    "signed out",
+  await waitFor(() =>
+    expect(screen.getByRole("region", { name: "Managed Codex account" })).toHaveTextContent(
+      "No Codex account connected",
+    ),
   );
   await act(async () =>
     oldReply(
