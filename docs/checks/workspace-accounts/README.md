@@ -79,10 +79,11 @@ Workspace image previews use the existing public package and standard GitHub-hos
 runners for this public repository. [Runner billing](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job),
 [Container registry billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages)
 
-All five workspace profiles pin images built from `194122f1`. Their publication
-receipt records successful CI smoke checks and independent public OCI verification
-of the manifest, configuration, native helper and packaged bootstrap bytes.
-[Current publication receipt](image-publications.json),
+The initial P03 image receipt records source `194122f1`. The resumed connection
+work adds Codex management and complete Claude terminal-link parsing. Its current
+image references and independent OCI/bootstrap verification are recorded in the
+[connection parity publication receipt](connection-parity-images.json).
+[Initial P03 publication receipt](image-publications.json),
 [earlier 78a4401 publication receipt](image-publications-78a4401.json).
 The isolated test template uses the same CLI image with 4 GiB memory, 10 GiB storage
 and an empty repository seed for account validation.
@@ -148,9 +149,12 @@ session credential in tool output. The session was replaced through Coder's API,
 the replacement was verified and stored privately, and the exposed credential was
 revoked. A subsequent request using the exposed credential returned 401.
 
-The latest serial full-suite run passed 2,446 tests with 81 optional skips.
-A preceding parallel run failed the existing 300 ms PTY deadline assertion.
-Its focused retry passed all thirteen cases, followed by the full serial pass.
+The latest full-suite run passed 2,477 tests with 95 optional skips after the
+connection parity changes. An earlier full run failed the existing 300 ms PTY
+deadline assertion. Its focused retry passed all thirteen cases, followed by
+successful full reruns. Native usage and settings browser fixtures passed 20
+workflows and 15 accessibility scans. Genuine provider consent and authenticated
+native management acceptance remain pending.
 
 The production Worker now has the bridge issuer private-key binding prepared.
 The recorded production app build continued serving P02 after preparation.

@@ -31,7 +31,7 @@ the reference authentication, countdown, usage and configuration behavior.
 - [x] Native manager, route, client/service and account compatibility regressions.
 - [x] Exact pinned Codex 0.165.0 fresh-home config read/create/version-conflict
   probe in the reused P03 workspace, without provider or model calls.
-- [ ] Final serial full suite, Cloudflare build and independent review.
+- [x] Final serial full suite, Cloudflare build and independent review.
 - [x] Publish matching workspace images and verify bundled runtime identity.
 - [ ] Exercise both providers and Codex management through the hosted Accounts UI.
 - [ ] Complete real provider consent, reload persistence, reconnect and disconnect.
@@ -45,18 +45,21 @@ Primary task evidence and reused workspace identities are preserved under
 `connection-parity-local`. Browser tooling runs in `hive-project-preview` and
 native acceptance uses `hive-p03-accounts`. The primary owns their lifecycle.
 
-All five preview image publications use source `1aa48f21`. Independent registry
-checks verify each manifest/config digest, source label, variant and root-owned
-bootstrap files against the local package bytes. The [image receipt](connection-parity-images.json)
-records immutable references. The CLI dispatch stalled before job allocation, and
-a replacement dispatch completed the same reviewed publication.
+The initial native management images used source `1aa48f21`. The Claude link
+correction publishes source `eca79f06`, with game/electronics retries from
+`84a53296`. That follow-up changes only generated template hashes. Their image
+recipe, native helper and template runtime sources are identical. Independent registry checks verify each
+manifest/config digest, source label, variant and root-owned bootstrap files
+against the local package bytes. They also match the digest in the successful
+workflow push log. The [image receipt](connection-parity-images.json) records the
+verified immutable references. An initial CLI dispatch stalled before job
+allocation, and a replacement completed the same reviewed publication.
 
-The full local Vitest rerun passed 2,473 cases with 95 optional skips. The existing
-300 ms PTY deadline assertion failed in the first full run, then passed its
-13-case focused retry and the full rerun. Cloudflare, template, bridge, native
-installer and worker-router suites passed. The local Cloudflare build succeeded.
-The subsequent disconnect-focus correction carries additional card/browser
-regressions and receives final integrated checks.
+The existing 300 ms PTY deadline assertion failed in an earlier full run, then
+passed its 13-case focused retry and subsequent full reruns. Cloudflare, template,
+bridge, native installer and worker-router suites passed. The local Cloudflare
+build succeeded. Independent backend and UI reviews completed, including a
+correction restoring focus to the disconnect-dialog opener.
 
 ## Real Claude terminal-link correction
 
@@ -70,7 +73,40 @@ Synthetic PTY regressions cover BEL, ESC-ST and fragmented PKCE/state values. An
 isolated probe against the exact admitted Claude 2.1.325 executable returned one
 clean complete OAuth URL, then canceled and reaped its child. Real credentials
 and provider consent were absent from that probe. The updated native package
-receives a fresh image publication before hosted provider acceptance resumes.
+was installed from the independently verified CLI image in the reused isolated
+4 GiB workspace. All startup scripts completed and the agent became healthy.
 
 This parser correction must accompany the retained Claude package when the
 paused shared-foundation migration resumes.
+
+The corrected URI build passed 2,477 Vitest tests with 95 optional skips, plus
+41 bridge checks and six driver PTY regressions. The refreshed actual-source
+fixture proof passed 20 workflows and 15 axe scans at desktop and mobile widths.
+It uses dummy API data. Two HTTP 409 replies and three request aborts exercise
+unknown acknowledgements and cancellation. Accessibility incompletes for vendor
+focus guards and contrast were retained alongside manual guard/focus checks.
+Hosted authentication and native credential persistence require provider consent.
+
+## Hosted prompt acceptance after the correction
+
+The existing repository-connected Workers Build `56c0cb6f-2363-497b-9f2f-959868548fb0`
+succeeded for `84a53296`. The hosted Accounts run served application build
+`4347091c-a549-4d3f-b5b9-002e5aff4faf` with workspace build
+`89209228-3e3c-4f13-8981-8da0a9aa9f0e` and package manifest
+`18d60c6c5efc93e9bf568fea36e5a45ce0c378692b87a3633b5f02e497b60307`.
+Both provider Connect actions returned HTTP 200 and pending challenges through
+normal UI controls. Codex rendered its device code, Claude rendered a password
+input, reload restored both pending attempts and the 390 px card had no overflow.
+The stale build was held until explicit current-build selection.
+
+The actual Claude challenge contained exactly one authorization target, one state,
+one PKCE challenge with S256 and zero terminal controls. Provider approval remains
+a human step. Authenticated native usage/settings and completed credential
+persistence, reconnect and disconnect still require that approval.
+
+Both final provider prompts expired at 16:26 UTC without completed consent.
+The normal hosted status routes returned HTTP 200, signed out, generation 2 and
+no pending attempt for each provider afterward. New prompts are required for
+human acceptance. The current local Cloudflare build and 76 template checks pass.
+Its generated Better Auth bundle emits a duplicate-key warning inherited from
+vendor code. The build completes successfully.
