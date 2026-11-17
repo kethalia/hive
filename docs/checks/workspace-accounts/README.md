@@ -15,10 +15,13 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 - [x] Deploy the isolated P03 preview through the existing Workers Builds connection.
 - [x] Verify normal hosted Coder OAuth and persisted credential readback.
 - [x] Prepare the production bridge issuer secret and public enrollment settings.
-- [ ] Complete provider consent and verify signed-in persistence, reconnect and disconnect.
-- [ ] Validate Creative Studio connection parity, Codex usage and runtime settings through the hosted preview.
+- [x] Complete genuine Codex consent, reload persistence and reconnect.
+- [x] Verify native Codex usage/settings reads, save, reload and original-value restoration.
+- [x] Verify Claude official prompts, cancellation and retry.
+- [x] Validate Creative Studio connection parity and Codex usage/settings through the hosted preview.
 - [x] Validate desktop/mobile Accounts navigation, reload and build changes.
-- [ ] Complete review, CI and owner acceptance checklist.
+- [x] Complete independent implementation review and local validation.
+- [ ] Owner review, merge and production release activation.
 
 ## Visible flow
 
@@ -174,3 +177,20 @@ Codex usage and runtime settings in this increment.
 
 The [connection parity record](connection-parity.md) tracks implementation and
 remaining installed/browser acceptance.
+
+## Resumed live acceptance on 17 November
+
+Genuine Codex sign-in and Reconnect completed through the hosted Accounts UI.
+Native usage and configuration returned HTTP 200. The native model catalog
+contained eight choices, both usage data sources were available and the UI saved
+a response-detail change. Reload preserved it and the original value was restored.
+Claude official prompt, cancellation, retry and retry cancellation each completed
+through the hosted controls. The owner currently has no Claude subscription, so
+completed Claude code exchange, authenticated persistence, reconnect and logout
+are deferred manual acceptance items.
+
+The workspace updater selected Claude 2.1.326. Signed vendor metadata, exact binary
+identity and isolated protocol checks passed before its admission. New images for
+all five profiles carry that release admission. The P03 pull request description
+tracks the final deployed-build, workspace rebuild and disconnect checks.
+[Current P03 review and acceptance](https://github.com/kethalia/hive/pull/453).

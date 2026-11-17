@@ -33,8 +33,9 @@ the reference authentication, countdown, usage and configuration behavior.
   probe in the reused P03 workspace, without provider or model calls.
 - [x] Final serial full suite, Cloudflare build and independent review.
 - [x] Publish matching workspace images and verify bundled runtime identity.
-- [ ] Exercise both providers and Codex management through the hosted Accounts UI.
-- [ ] Complete real provider consent, reload persistence, reconnect and disconnect.
+- [x] Exercise provider prompts and Codex management through the hosted Accounts UI.
+- [x] Complete genuine Codex consent, reload persistence and Reconnect.
+- [x] Record the owner’s unavailable Claude subscription and deferred authenticated checks.
 
 The native fresh-home probe confirms that an absent config file still has a
 versioned user layer. Its native version protects the first creation and later
@@ -110,3 +111,20 @@ no pending attempt for each provider afterward. New prompts are required for
 human acceptance. The current local Cloudflare build and 76 template checks pass.
 Its generated Better Auth bundle emits a duplicate-key warning inherited from
 vendor code. The build completes successfully.
+
+## Live acceptance resumed on 17 November
+
+Codex genuine consent completed and the normal hosted UI obtained both native
+usage sources and the eight-choice native model catalog. A response-detail save
+returned a confirmed native result, persisted across reload and was restored to
+its original value. A separate genuine approval completed the Reconnect flow.
+Claude prompt cancellation and retry/cancellation returned HTTP 200. Completed
+Claude consent and authenticated operations are deferred while the owner has no
+active subscription. The current PR description records final deployed rebuild
+and disconnect results.
+
+Startup selected Claude 2.1.326, which required the release admission documented
+in the signed-vendor and isolated-runtime receipt. The compatibility correction
+uses the existing verification and adapter path. All five current image receipts
+use source `51c26c48`, with successful publication logs and independently checked
+OCI/bootstrap bytes. [Claude 2.1.326 admission](claude-2.1.326-admission.json).
