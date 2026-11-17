@@ -41,11 +41,14 @@ The device-code flow opens the official provider page. Credential storage and
 refresh follow the official CLI. [Codex authentication](https://learn.chatgpt.com/docs/auth)
 
 Claude uses the workspace's admitted official CLI. Its browser flow supports a
-one-time code entered in the Accounts window. CLI releases 2.1.312, 2.1.319 and
-2.1.325 have validated executable identities. The installed 2.1.325 release passed
+one-time code entered in the Accounts window. CLI releases 2.1.312, 2.1.319,
+2.1.325 and 2.1.326 have validated executable identities. The installed 2.1.325 release passed
 status, login-prompt and cancellation checks using temporary HOME/config directories.
 The signed-manifest, executable and protocol evidence is recorded in
-[the 2.1.325 admission receipt](claude-2.1.325-admission.json). [Claude authentication](https://code.claude.com/docs/en/authentication),
+[the 2.1.325 admission receipt](claude-2.1.325-admission.json).
+The startup updater selected 2.1.326 during resumed acceptance. Its signed vendor
+manifest, exact installed binary and isolated login/status/cancel protocol passed
+verification before admission. [The 2.1.326 receipt](claude-2.1.326-admission.json). [Claude authentication](https://code.claude.com/docs/en/authentication),
 [CLI reference](https://code.claude.com/docs/en/cli-reference)
 
 ## Installed authority

@@ -153,6 +153,41 @@ test("Claude 2.1.325 admission matches the verified vendor and installed executa
   assert.equal(receipt.protocol.authorizationCodeSubmitted, false);
 });
 
+test("Claude 2.1.326 admission binds the signed vendor release to real isolated CLI and filesystem checks", async () => {
+  const receipt = JSON.parse(
+    await readFile(
+      new URL(
+        "../../docs/checks/workspace-accounts/claude-2.1.326-admission.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(receipt.version, "2.1.326");
+  assert.equal(receipt.manifest.platform, "linux-x64");
+  assert.equal(receipt.manifest.gpgValidSignature, true);
+  assert.equal(receipt.manifest.verifiedFingerprint, "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE");
+  assert.deepEqual(CLAUDE_RELEASES[receipt.version], {
+    size: 371429904,
+    sha256: "b6b3647d981130dc44fc670846ae97b6cde531ffb667cf9c4d17cfcafb38cb37",
+  });
+  assert.equal(receipt.installedExecutable.sha256, receipt.manifest.release.checksum);
+  assert.equal(receipt.installedExecutable.bytes, receipt.manifest.release.size);
+  assert.equal(receipt.admission.admitted, true);
+  assert.equal(receipt.admission.actualFilesystemAndHashChecks, true);
+  assert.equal(receipt.admission.isolatedExecutableCopy, true);
+  assert.equal(receipt.protocol.statusBefore, "signed-out");
+  assert.equal(receipt.protocol.literalControlCount, 0);
+  assert.equal(receipt.protocol.stateValueCount, 1);
+  assert.equal(receipt.protocol.pkceValueCount, 1);
+  assert.equal(receipt.protocol.cancelStatus, "canceled");
+  assert.equal(receipt.protocol.statusAfter, "signed-out");
+  assert.equal(receipt.protocol.loginChildExited, true);
+  assert.equal(receipt.protocol.driverExited, true);
+  assert.equal(receipt.protocol.authorizationCodeSubmitted, false);
+  assert.equal(receipt.protocol.modelCalls, 0);
+});
+
 test("real private PTY driver bounds official commands, one-use input and child cancellation", () => {
   const result = spawnSync(
     "python3",
