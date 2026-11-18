@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   const value = {
     closed: false,
-    document: { title: "", body: { textContent: "" } },
+    document: document.implementation.createHTMLDocument(),
     location: { replace: vi.fn() },
     close: vi.fn(() => {
       value.closed = true;
@@ -87,6 +87,11 @@ describe("Coder OAuth popup", () => {
     expect(vi.mocked(window.open).mock.invocationCallOrder[0]).toBeLessThan(
       fetcher.mock.invocationCallOrder[0],
     );
+    expect(popup.document.title).toBe("Connecting to Coder · Hive");
+    expect(popup.document.querySelector("main [role='status']")?.textContent).toBe(
+      "Connecting to Coder…",
+    );
+    expect(popup.document.querySelector("style")?.textContent).toContain("color-scheme: dark");
     expect(startSocial).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledWith(
       "/api/auth/coder/session",
