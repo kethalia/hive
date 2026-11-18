@@ -65,8 +65,8 @@ export function PanelTabs<T extends string>({
           ref={list}
           aria-label={label}
           className={cn(
-            "sticky top-0 w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
-            wide ? "h-fit" : "z-10 !h-auto justify-start overflow-x-auto border-b",
+            "w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
+            wide ? "sticky top-0 h-fit" : "!h-auto justify-start overflow-x-auto border-b",
           )}
         >
           {items.map((item) => (
