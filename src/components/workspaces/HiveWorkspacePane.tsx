@@ -14,10 +14,19 @@ import {
 } from "@/components/ui/select";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
-import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
+import {
+  type GeneralWindow,
+  hiveToolLabels,
+  isAccountTool,
+} from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
-const AccountsPanel = dynamic(() => import("./AccountsPanel").then((m) => m.AccountsPanel));
+const CodexAccountPanel = dynamic(() =>
+  import("./CodexAccountPanel").then((m) => m.CodexAccountPanel),
+);
+const ClaudeAccountCard = dynamic(() =>
+  import("./ClaudeAccountCard").then((m) => m.ClaudeAccountCard),
+);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -87,9 +96,11 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const accountTool = isAccountTool(pane.tool);
+  const AccountPanel = pane.tool === "claude-account" ? ClaudeAccountCard : CodexAccountPanel;
   const selectedWorkspace = workspaces.find((w) => w.id === pane.workspaceId);
   const workspace =
-    pane.tool === "accounts" && pane.workspaceId
+    accountTool && pane.workspaceId
       ? selectedWorkspace
       : (selectedWorkspace ??
         workspaces.find((w) => w.latest_build.status === "running") ??
@@ -121,7 +132,7 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" || pane.tool === "accounts" ? (
+        {pane.tool === "agents" || accountTool ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <div className="space-y-2 text-sm">
               <label htmlFor={workspaceSelectId} className="block">
@@ -133,7 +144,7 @@ export function HiveWorkspacePane({
                   if (value)
                     onWorkspaceChange(
                       value,
-                      pane.tool === "accounts"
+                      accountTool
                         ? workspaces.find((w) => w.id === value)?.latest_build.id
                         : undefined,
                     );
@@ -146,7 +157,7 @@ export function HiveWorkspacePane({
               >
                 <SelectTrigger
                   id={workspaceSelectId}
-                  aria-label={pane.tool === "accounts" ? "Account workspace" : "Agent workspace"}
+                  aria-label={accountTool ? "Account workspace" : "Agent workspace"}
                   className="w-full"
                 >
                   <SelectValue placeholder="No workspaces available" />
@@ -161,7 +172,7 @@ export function HiveWorkspacePane({
               </Select>
             </div>
             {workspace?.latest_build.status === "running" ? (
-              pane.tool === "accounts" ? (
+              accountTool ? (
                 !pane.buildId || pane.buildId !== workspace.latest_build.id ? (
                   <div className="space-y-3">
                     <p role="status">Select this workspace’s current build to manage accounts.</p>
@@ -172,7 +183,7 @@ export function HiveWorkspacePane({
                     </Button>
                   </div>
                 ) : visible ? (
-                  <AccountsPanel
+                  <AccountPanel
                     key={`${userId}/${workspace.id}/${pane.buildId}`}
                     workspaceId={workspace.id}
                     buildId={pane.buildId}
@@ -189,7 +200,7 @@ export function HiveWorkspacePane({
               )
             ) : (
               <p role="status" className="text-sm text-muted-foreground">
-                {pane.tool === "accounts"
+                {accountTool
                   ? pane.workspaceId && !workspace
                     ? "The selected workspace is unavailable. Choose an account workspace."
                     : "Start a Coder workspace to manage its accounts."

@@ -55,17 +55,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("agent tools panel", () => {
-  it("opens Accounts for the displayed workspace build", async () => {
+  it.each([
+    ["Codex account", "codex-account"],
+    ["Claude account", "claude-account"],
+  ])("opens %s for the displayed workspace build", async (label, tool) => {
     const listener = vi.fn();
     window.addEventListener("hive:window-open", listener);
     try {
       render(
         <AgentToolsPanel workspaceId={id} buildId="selected-build" open onOpenSession={vi.fn()} />,
       );
-      fireEvent.click(screen.getByRole("button", { name: "Open Accounts" }));
+      fireEvent.click(screen.getByRole("button", { name: label }));
       expect(listener).toHaveBeenCalledOnce();
       expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
-        tool: "accounts",
+        tool,
         workspaceId: id,
         buildId: "selected-build",
       });

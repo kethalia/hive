@@ -161,12 +161,20 @@ export function AgentToolsPanel({
         data-mobile-scroll-allow="true"
       >
         {open ? (
-          <Button
-            variant="outline"
-            onClick={() => requestHiveWindow({ tool: "accounts", workspaceId, buildId })}
-          >
-            Open Accounts
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => requestHiveWindow({ tool: "codex-account", workspaceId, buildId })}
+            >
+              Codex account
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => requestHiveWindow({ tool: "claude-account", workspaceId, buildId })}
+            >
+              Claude account
+            </Button>
+          </div>
         ) : null}
         {snapshot ? (
           <>

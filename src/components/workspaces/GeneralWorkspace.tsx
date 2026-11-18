@@ -37,6 +37,7 @@ import {
   hiveToolSchema,
   hiveWindowRequestSchema,
   importLegacyWorkspaceBoards,
+  isAccountTool,
   MAX_GENERAL_BOARDS,
   MAX_GENERAL_WINDOWS,
   moveGeneralWindowToAdjacentBoard,
@@ -277,7 +278,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             board.windows.some((pane) => pane.kind === "hive" && pane.tool === request.tool),
           );
           const selected =
-            request.tool === "accounts" && (request.workspaceId || !existing)
+            isAccountTool(request.tool) && (request.workspaceId || !existing)
               ? (workspaces.find((workspace) => workspace.id === request.workspaceId) ??
                 (!request.workspaceId
                   ? (workspaces.find((workspace) => workspace.latest_build.status === "running") ??
@@ -352,7 +353,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         workspaceId: workspaceId ?? undefined,
         buildId: query.get("build") ?? undefined,
       });
-    if (panel.success && panel.data === "accounts" && !accountSelection.success) {
+    if (panel.success && isAccountTool(panel.data) && !accountSelection.success) {
       setNotice("The Accounts workspace or build selection is invalid.");
       router.replace("/workspaces", { scroll: false });
       return;
@@ -364,7 +365,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         template: query.get("template") ?? undefined,
         workspaceId: workspaceId ?? undefined,
         buildId:
-          panel.data === "accounts" && accountSelection.success
+          isAccountTool(panel.data) && accountSelection.success
             ? accountSelection.data.buildId
             : undefined,
         launch: query.get("launch") === "1",
@@ -663,7 +664,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                       ...current,
                       windows: current.windows.map((w) =>
                         w.id === pane.id
-                          ? { ...w, workspaceId, ...(pane.tool === "accounts" ? { buildId } : {}) }
+                          ? { ...w, workspaceId, ...(isAccountTool(pane.tool) ? { buildId } : {}) }
                           : w,
                       ),
                     }))

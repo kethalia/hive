@@ -306,8 +306,8 @@ describe("closing workspace windows", () => {
   });
 });
 
-describe("Accounts window selection", () => {
-  it("keeps one Accounts window across boards, persists only scope, and retains legacy Agents", () => {
+describe("Provider account window selection", () => {
+  it("keeps one Codex window across boards and retains legacy Agents", () => {
     let state = openHiveWindow(
       emptyGeneralWorkspace(),
       { tool: "agents", workspaceId: "one" },
@@ -315,14 +315,14 @@ describe("Accounts window selection", () => {
     );
     state = openHiveWindow(
       state,
-      { tool: "accounts", workspaceId: "one", buildId: "build-one" },
+      { tool: "codex-account", workspaceId: "one", buildId: "build-one" },
       "accounts",
     );
     state.boards.push({ key: "board-2", name: "2", order: 1, windows: [] });
     state.activeBoardKey = "board-2";
     state = openHiveWindow(
       state,
-      { tool: "accounts", workspaceId: "two", buildId: "build-two" },
+      { tool: "codex-account", workspaceId: "two", buildId: "build-two" },
       "duplicate",
     );
     expect(state.activeBoardKey).toBe("board-1");
@@ -332,27 +332,29 @@ describe("Accounts window selection", () => {
       expect.objectContaining({ id: "agents", tool: "agents", workspaceId: "one" }),
       expect.objectContaining({
         id: "accounts",
-        tool: "accounts",
+        tool: "codex-account",
         workspaceId: "two",
         buildId: "build-two",
       }),
     ]);
-    state = openHiveWindow(restored, { tool: "accounts" }, "unused");
+    state = openHiveWindow(restored, { tool: "codex-account" }, "unused");
     expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "two", buildId: "build-two" });
-    state = openHiveWindow(state, { tool: "accounts", workspaceId: "one" }, "unused");
+    state = openHiveWindow(state, { tool: "codex-account", workspaceId: "one" }, "unused");
     expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "one" });
     expect(state.boards[0].windows[1]).not.toHaveProperty("buildId", "build-two");
   });
-  it("links an exact workspace/build and strips account responses from restored state", () => {
-    expect(hiveWindowHref({ tool: "accounts", workspaceId: "workspace", buildId: "build" })).toBe(
-      "/workspaces?panel=accounts&workspace=workspace&build=build",
-    );
+  it("restores old Accounts as Codex and keeps its scope without storing provider responses", () => {
+    expect(
+      hiveWindowHref({ tool: "codex-account", workspaceId: "workspace", buildId: "build" }),
+    ).toBe("/workspaces?panel=codex-account&workspace=workspace&build=build");
     const state = openHiveWindow(
       emptyGeneralWorkspace(),
-      { tool: "accounts", workspaceId: "workspace", buildId: "build" },
+      { tool: "codex-account", workspaceId: "workspace", buildId: "build" },
       "accounts",
     );
     Object.assign(state.boards[0].windows[0], {
+      tool: "accounts",
+      label: "Accounts",
       userCode: "private-code",
       lifetimeId: "private-lifetime",
       generation: 8,
@@ -362,8 +364,8 @@ describe("Accounts window selection", () => {
     expect(restored?.boards[0].windows[0]).toEqual({
       id: "accounts",
       kind: "hive",
-      tool: "accounts",
-      label: "Accounts",
+      tool: "codex-account",
+      label: "Codex",
       workspaceId: "workspace",
       buildId: "build",
     });

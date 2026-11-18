@@ -1,4 +1,4 @@
-# P03 workspace connection bridge and Accounts window
+# P03 workspace connection bridge and provider account windows
 
 P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 
@@ -25,7 +25,9 @@ P03 builds on merged P02 `37c55299` through `codex/workspace-accounts-p03`.
 
 ## Visible flow
 
-Open Accounts from Dock Apps, the command palette or Agent Tools. Select a running
+Open Codex account or Claude account from the command palette or Agent Tools. Each
+opens a separate window. Older Accounts links and saved windows open Codex with
+the original selection. Select a running
 workspace and its exact build. Codex and Claude cards display connection feedback and support official sign-in,
 absolute expiry countdown, cancellation, reconnect and confirmed disconnect.
 Codex supports copying its device code and displays verified account metadata when
@@ -44,7 +46,7 @@ The device-code flow opens the official provider page. Credential storage and
 refresh follow the official CLI. [Codex authentication](https://learn.chatgpt.com/docs/auth)
 
 Claude uses the workspace's admitted official CLI. Its browser flow supports a
-one-time code entered in the Accounts window. CLI releases 2.1.312, 2.1.319,
+one-time code entered in the Claude window. CLI releases 2.1.312, 2.1.319,
 2.1.325 and 2.1.326 have validated executable identities. The installed 2.1.325 release passed
 status, login-prompt and cancellation checks using temporary HOME/config directories.
 The signed-manifest, executable and protocol evidence is recorded in

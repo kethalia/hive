@@ -241,7 +241,8 @@ describe("DashboardKeyboardController", () => {
 
     for (const label of [
       "Agents",
-      "Accounts",
+      "Codex account",
+      "Claude account",
       "Settings",
       "Diagnostics",
       "Logs",
@@ -251,8 +252,10 @@ describe("DashboardKeyboardController", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Settings"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=settings");
-    fireEvent.click(screen.getByText("Accounts"));
-    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=accounts");
+    fireEvent.click(screen.getByText("Codex account"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=codex-account");
+    fireEvent.click(screen.getByText("Claude account"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=claude-account");
     fireEvent.click(screen.getByText("Launch Coder workspace"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=workspaces&launch=1");
   });

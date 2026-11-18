@@ -24,25 +24,33 @@ import {
 
 export const GENERAL_WORKSPACE_OPEN_EVENT = "hive:workspace-open";
 export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
-export const hiveToolSchema = z.enum([
-  "agents",
-  "accounts",
-  "diagnostics",
-  "settings",
-  "workspaces",
-  "templates",
-  "logs",
-]);
+export const hiveToolSchema = z
+  .enum([
+    "agents",
+    "accounts",
+    "codex-account",
+    "claude-account",
+    "diagnostics",
+    "settings",
+    "workspaces",
+    "templates",
+    "logs",
+  ])
+  .transform((tool) => (tool === "accounts" ? "codex-account" : tool));
 export type HiveTool = z.infer<typeof hiveToolSchema>;
 export const hiveToolLabels: Record<HiveTool, string> = {
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
-  accounts: "Accounts",
+  "codex-account": "Codex",
+  "claude-account": "Claude",
   diagnostics: "Diagnostics",
   settings: "Settings",
   workspaces: "Coder workspaces",
 };
+export function isAccountTool(tool: HiveTool) {
+  return tool === "codex-account" || tool === "claude-account";
+}
 export const hiveWindowRequestSchema = z.object({
   tool: hiveToolSchema,
   workspaceId: z.string().trim().min(1).max(200).optional(),
@@ -98,18 +106,22 @@ const app = z
   })
   .refine((pane) => !pane.file || pane.tool === "files")
   .refine((pane) => !pane.projectPath || (pane.tool !== "desktop" && !pane.file));
-const hive = z.object({
-  sessionName: z
-    .string()
-    .regex(/^[a-zA-Z0-9._-]{1,200}$/)
-    .optional(),
-  kind: z.literal("hive"),
-  tool: hiveToolSchema,
-  template: identifier.optional(),
-  workspaceId: identifier.optional(),
-  buildId: identifier.optional(),
-  label: z.string().min(1).max(512),
-});
+const hive = z
+  .object({
+    sessionName: z
+      .string()
+      .regex(/^[a-zA-Z0-9._-]{1,200}$/)
+      .optional(),
+    kind: z.literal("hive"),
+    tool: hiveToolSchema,
+    template: identifier.optional(),
+    workspaceId: identifier.optional(),
+    buildId: identifier.optional(),
+    label: z.string().min(1).max(512),
+  })
+  .transform((pane) =>
+    isAccountTool(pane.tool) ? { ...pane, label: hiveToolLabels[pane.tool] } : pane,
+  );
 export const generalPaneSchema = z.union([terminal, app, hive]);
 export type GeneralPane = z.infer<typeof generalPaneSchema>;
 export type GeneralWindow = GeneralPane & { id: string };
@@ -248,7 +260,7 @@ export function openHiveWindow(
                 ? {
                     ...w,
                     ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
-                    ...(request.tool === "accounts" && request.workspaceId
+                    ...(isAccountTool(request.tool) && request.workspaceId
                       ? { buildId: request.buildId }
                       : {}),
                     ...(request.template ? { template: request.template } : {}),

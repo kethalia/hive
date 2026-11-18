@@ -37,15 +37,16 @@ function tree(
     workspaces?: CoderWorkspace[];
     visible?: boolean;
     userId?: string;
+    tool?: "codex-account" | "claude-account";
   } = {},
 ) {
   return (
     <HiveWorkspacePane
       pane={{
-        id: "accounts",
+        id: options.tool ?? "codex-account",
         kind: "hive",
-        tool: "accounts",
-        label: "Accounts",
+        tool: options.tool ?? "codex-account",
+        label: options.tool === "claude-account" ? "Claude" : "Codex",
         workspaceId,
         buildId,
       }}
@@ -71,32 +72,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("mounts independent account cards only in the selected visible workspace, without generic inventory", async () => {
-  const view = render(tree("one", "build-one", { visible: false }));
+it.each([
+  ["codex-account", "Managed Codex account", "Workspace Claude account"],
+  ["claude-account", "Workspace Claude account", "Managed Codex account"],
+] as const)("loads only the %s provider for the selected visible workspace", async (tool, own, other) => {
+  const view = render(tree("one", "build-one", { tool, visible: false }));
   expect(fetcher).not.toHaveBeenCalled();
-  view.rerender(tree());
-  expect(await screen.findByRole("region", { name: "Managed Codex account" })).toBeVisible();
-  expect(await screen.findByRole("region", { name: "Workspace Claude account" })).toBeVisible();
-  expect(fetcher.mock.calls.map(([path]) => path).sort()).toEqual(
-    ["claude-account", "codex-account"].map((name) => `/api/workspaces/one/${name}`).sort(),
-  );
-  for (const [, request] of fetcher.mock.calls)
-    expect(JSON.parse(request.body)).toEqual({
-      buildId: "build-one",
-      request: { action: "status" },
-    });
-  view.rerender(tree("one", "build-one", { visible: false }));
-  expect(screen.queryByRole("region", { name: "Managed Codex account" })).not.toBeInTheDocument();
+  view.rerender(tree("one", "build-one", { tool }));
+  expect(await screen.findByRole("region", { name: own })).toBeVisible();
+  expect(screen.queryByRole("region", { name: other })).not.toBeInTheDocument();
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual([`/api/workspaces/one/${tool}`]);
+  expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
+    buildId: "build-one",
+    request: { action: "status" },
+  });
+  view.rerender(tree("one", "build-one", { tool, visible: false }));
+  expect(screen.queryByRole("region", { name: own })).not.toBeInTheDocument();
 });
 
-it("explains independently disabled account capabilities in the Accounts window", async () => {
+it("explains disabled Claude connections in the Claude window", async () => {
   fetcher.mockResolvedValue(new Response(null, { status: 404 }));
-  render(tree());
-  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+  render(tree("one", "build-one", { tool: "claude-account" }));
+  await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
   expect(screen.getByRole("combobox", { name: "Account workspace" })).toBeVisible();
-  expect(await screen.findByText(/Codex connection is unavailable/)).toBeVisible();
   expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
 });
 
@@ -182,7 +181,7 @@ it("drops late old-workspace and old-build status replies before mounting fresh 
       ),
     }),
   );
-  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(before + 2));
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(before + 1));
   expect(screen.queryByText("OLD-CODE")).not.toBeInTheDocument();
 });
 

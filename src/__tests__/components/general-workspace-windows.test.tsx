@@ -27,12 +27,15 @@ vi.mock("@/components/workspaces/AgentToolsPanel", async () => {
     AgentToolsPanel: () => <p>Loaded agent controls</p>,
   };
 });
-vi.mock("@/components/workspaces/AccountsPanel", () => ({
-  AccountsPanel: ({ workspaceId, buildId }: { workspaceId: string; buildId: string }) => (
+vi.mock("@/components/workspaces/CodexAccountPanel", () => ({
+  CodexAccountPanel: ({ workspaceId, buildId }: { workspaceId: string; buildId: string }) => (
     <p>
-      Loaded accounts for {workspaceId}/{buildId}
+      Loaded Codex account for {workspaceId}/{buildId}
     </p>
   ),
+}));
+vi.mock("@/components/workspaces/ClaudeAccountCard", () => ({
+  ClaudeAccountCard: () => <p>Loaded Claude account</p>,
 }));
 vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
@@ -376,7 +379,14 @@ describe("workspace tool windows", () => {
     const view = render(tree);
     const terminal = await screen.findByLabelText("Terminal input");
     fireEvent.change(terminal, { target: { value: "unsent" } });
-    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"] as const) {
+    for (const tool of [
+      "agents",
+      "codex-account",
+      "claude-account",
+      "settings",
+      "diagnostics",
+      "workspaces",
+    ] as const) {
       act(() => requestHiveWindow({ tool }));
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -390,13 +400,20 @@ describe("workspace tool windows", () => {
     act(() => requestHiveWindow({ tool: "settings" }));
     await waitFor(() => expect(saved().activeBoardKey).toBe("board-1"));
     expect(screen.getAllByTestId("hive-window-settings")).toHaveLength(1);
-    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(6));
+    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(7));
     view.unmount();
     render(tree);
-    for (const tool of ["agents", "accounts", "settings", "diagnostics", "workspaces"])
+    for (const tool of [
+      "agents",
+      "codex-account",
+      "claude-account",
+      "settings",
+      "diagnostics",
+      "workspaces",
+    ])
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
   });
-  it("consumes an exact Accounts deep link, persists its build hold, and reuses the window for current scope", async () => {
+  it("maps an old Accounts deep link to Codex and holds the exact build until confirmed", async () => {
     navigation.search.set("panel", "accounts");
     navigation.search.set("workspace", "software");
     navigation.search.set("build", "old-build");
@@ -405,28 +422,28 @@ describe("workspace tool windows", () => {
         <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
       </KeybindingProvider>,
     );
-    expect(await screen.findByTestId("hive-window-accounts")).toBeVisible();
+    expect(await screen.findByTestId("hive-window-codex-account")).toBeVisible();
     expect(screen.getByText(/Select this workspace’s current build/)).toBeVisible();
-    expect(screen.queryByText("Loaded accounts for software/build-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Loaded Codex account for software/build-1")).not.toBeInTheDocument();
     const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
     await waitFor(() =>
       expect(saved().boards[0].windows[1]).toMatchObject({
-        tool: "accounts",
+        tool: "codex-account",
         workspaceId: "software",
         buildId: "old-build",
       }),
     );
     expect(navigation.router.replace).toHaveBeenCalledWith("/workspaces", { scroll: false });
     fireEvent.click(screen.getByRole("button", { name: "Use current build" }));
-    expect(await screen.findByText("Loaded accounts for software/build-1")).toBeVisible();
+    expect(await screen.findByText("Loaded Codex account for software/build-1")).toBeVisible();
     await waitFor(() =>
       expect(saved().boards[0].windows[1]).toMatchObject({
         workspaceId: "software",
         buildId: "build-1",
       }),
     );
-    act(() => requestHiveWindow({ tool: "accounts" }));
-    expect(screen.getAllByTestId("hive-window-accounts")).toHaveLength(1);
+    act(() => requestHiveWindow({ tool: "codex-account" }));
+    expect(screen.getAllByTestId("hive-window-codex-account")).toHaveLength(1);
     expect(saved().boards[0].windows[1]).toMatchObject({
       workspaceId: "software",
       buildId: "build-1",
@@ -444,7 +461,7 @@ describe("workspace tool windows", () => {
     expect(
       await screen.findByText("The Accounts workspace or build selection is invalid."),
     ).toBeVisible();
-    expect(screen.queryByTestId("hive-window-accounts")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hive-window-codex-account")).not.toBeInTheDocument();
   });
 });
 
