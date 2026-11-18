@@ -38,7 +38,13 @@ export function PanelTabs<T extends string>({
     if (!wide) {
       const tabs = list.current?.querySelectorAll<HTMLButtonElement>("[data-panel-section]");
       const active = tabs && Array.from(tabs).find((tab) => tab.dataset.panelSection === value);
-      active?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      const rail = list.current;
+      if (active && rail) {
+        const { left, right } = active.getBoundingClientRect();
+        const bounds = rail.getBoundingClientRect();
+        rail.scrollLeft +=
+          left < bounds.left ? left - bounds.left : Math.max(0, right - bounds.right);
+      }
     }
   }, [value, wide]);
 

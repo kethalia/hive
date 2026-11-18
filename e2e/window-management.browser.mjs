@@ -17,6 +17,20 @@ const app = createServer((_req, res) => {
 });
 const server = createServer(async (req, res) => {
   try {
+    if (req.url === "/api/settings/window") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          email: "fixture@example.test",
+          coderUrl: "https://coder.example.test",
+          connectedWorkspaceIds: [],
+          pendingWorkspaceIds: [],
+          workspaces: [],
+          workspaceError: false,
+        }),
+      );
+      return;
+    }
     const file =
       req.url === "/bundle.js"
         ? "bundle.js"
