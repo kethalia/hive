@@ -16,6 +16,12 @@ export type VerifiedHostConfig = {
   cookieDomains: string[];
 };
 
+export class WorkspaceAppSetupError extends Error {
+  constructor(readonly reason: "workspace_not_enrolled" | "workspace_bridge_missing") {
+    super("Workspace app is not configured for this deployment.");
+  }
+}
+
 const identifier = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9._:-]{1,200}$/.test(value);
 function requireValue(value: unknown): asserts value {
@@ -41,6 +47,7 @@ export async function resolveVerifiedWorkspaceHost(
   principal: RegistrationPrincipal,
   workspaceId: string,
   agentId?: string,
+  expectedBuildId?: string,
 ): Promise<{ coder: WorkspaceAppCoder; binding: VerifiedHostBinding }> {
   requireValue(
     /^[a-z0-9][a-z0-9-]{0,62}$/.test(config.appSlug) &&
@@ -64,32 +71,38 @@ export async function resolveVerifiedWorkspaceHost(
     workspace.id === workspaceId &&
       workspace.owner_id === principal.coderUserId &&
       workspace.latest_build.status === "running" &&
-      config.softwareTemplateIds.includes(workspace.template_id),
+      (expectedBuildId === undefined || workspace.latest_build.id === expectedBuildId),
   );
+  if (!config.softwareTemplateIds.includes(workspace.template_id))
+    throw new WorkspaceAppSetupError("workspace_not_enrolled");
+
   const resources = await coder.getWorkspaceResources(workspaceId, workspace.latest_build.id);
-  const agents = resources
-    .flatMap((resource) => resource.agents ?? [])
-    .filter((agent) => {
-      if (agent.status !== "connected" || (agentId !== undefined && agent.id !== agentId))
-        return false;
-      const apps: unknown = (agent as unknown as { apps?: unknown }).apps;
-      return (
-        Array.isArray(apps) &&
-        apps.some(
-          (app) =>
-            app &&
-            app.slug === config.appSlug &&
-            app.sharing_level === "owner" &&
-            app.subdomain === true &&
-            app.external === false,
-        )
-      );
-    });
+  const workspaceAgents = resources.flatMap((resource) => resource.agents ?? []);
+  const agentApps = (agent: (typeof workspaceAgents)[number]) => {
+    // Coder's full WorkspaceAgent response carries apps, which the local SDK omits.
+    const apps: unknown = (agent as unknown as { apps?: unknown }).apps;
+    return Array.isArray(apps) ? apps : undefined;
+  };
+  if (
+    workspaceAgents.some((agent) => agent.status === "connected") &&
+    workspaceAgents.every((agent) => agentApps(agent)?.every((app) => app?.slug !== config.appSlug))
+  )
+    throw new WorkspaceAppSetupError("workspace_bridge_missing");
+  const agents = workspaceAgents.filter((agent) => {
+    if (agent.status !== "connected" || (agentId !== undefined && agent.id !== agentId))
+      return false;
+    return agentApps(agent)?.some(
+      (app) =>
+        app &&
+        app.slug === config.appSlug &&
+        app.sharing_level === "owner" &&
+        app.subdomain === true &&
+        app.external === false,
+    );
+  });
   requireValue(agents.length === 1);
-  // Coder's full WorkspaceAgent response carries apps. Current local SDK type
-  // omits it; absence fails closed, never replaced with caller app metadata.
-  const apps: unknown = (agents[0] as unknown as { apps?: unknown }).apps;
-  requireValue(Array.isArray(apps));
+  const apps = agentApps(agents[0]);
+  requireValue(apps);
   const matches = apps.filter(
     (app) =>
       app &&

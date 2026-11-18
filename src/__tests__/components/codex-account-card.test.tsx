@@ -182,6 +182,16 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
   expect(fetcher).toHaveBeenCalledTimes(2);
 });
 
+it.each([
+  ["workspace_not_enrolled", /Choose a workspace set up for this deployment/],
+  ["workspace_bridge_missing", /enable Hive agent tools, and rebuild/],
+])("shows the next step for %s", async (error, message) => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error }, { status: 409 })));
+  render(<CodexAccountCard workspaceId="workspace" buildId="selected-build" />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();
+});
+
 it("distinguishes an unavailable status read from an uncertain account mutation", async () => {
   const fetcher = vi
     .fn()

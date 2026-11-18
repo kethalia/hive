@@ -9,11 +9,22 @@ import type { CodexAccountRequest, CodexAccountStatus } from "@/lib/agents/codex
 
 type AccountStatus = CodexAccountStatus | ClaudeAccountStatus;
 type AccountRequest = CodexAccountRequest | ClaudeAccountRequest;
+type SetupIssue = "workspace_not_enrolled" | "workspace_bridge_missing";
+type Failure = { mutation: boolean; setupIssue?: SetupIssue };
+
+export function accountStatusErrorMessage(failure: Failure) {
+  if (failure.mutation) return "Account outcome is unknown. Refresh status before trying again.";
+  if (failure.setupIssue === "workspace_not_enrolled")
+    return "This workspace isn’t enrolled for Accounts on this Hive deployment. Choose a workspace set up for this deployment.";
+  if (failure.setupIssue === "workspace_bridge_missing")
+    return "This workspace has no Accounts bridge. Update its Coder template, enable Hive agent tools, and rebuild.";
+  return "Account status unavailable. Check workspace bridge setup and refresh.";
+}
 interface Snapshot<Status> {
   scope: string;
   status: Status | null;
   checked: boolean;
-  failure: { mutation: boolean } | null;
+  failure: Failure | null;
 }
 
 export const ACCOUNT_REQUEST_TIMEOUT_MS = 30_000;
@@ -79,6 +90,7 @@ export function useWorkspaceAccountConnection<Status extends AccountStatus>({
         flight.controller.signal.addEventListener("abort", rejectAbort, { once: true });
       });
       const timer = setTimeout(() => flight.controller.abort(), ACCOUNT_REQUEST_TIMEOUT_MS);
+      let setupIssue: SetupIssue | undefined;
       try {
         const read = fetch(
           `/api/workspaces/${encodeURIComponent(workspaceId)}/${provider}-account`,
@@ -92,7 +104,17 @@ export function useWorkspaceAccountConnection<Status extends AccountStatus>({
           },
         ).then(async (response) => {
           if (response.status === 404 && request.action === "status") return null;
-          if (!response.ok) throw new Error("Account response unavailable");
+          if (!response.ok) {
+            if (response.status === 409 && request.action === "status") {
+              const body: { error?: unknown } | null = await response.json().catch(() => null);
+              if (
+                body?.error === "workspace_not_enrolled" ||
+                body?.error === "workspace_bridge_missing"
+              )
+                setupIssue = body.error;
+            }
+            throw new Error("Account response unavailable");
+          }
           return schema.parse(await response.json());
         });
         const value = await Promise.race([read, interrupted]);
@@ -114,6 +136,7 @@ export function useWorkspaceAccountConnection<Status extends AccountStatus>({
             status: current?.scope === scope ? current.status : null,
             checked: current?.scope === scope ? current.checked : false,
             failure: {
+              setupIssue,
               mutation:
                 request.action !== "status" ||
                 (current?.scope === scope && current.failure?.mutation === true),

@@ -13,7 +13,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useWorkspaceAccountConnection } from "@/hooks/useWorkspaceAccountConnection";
+import {
+  accountStatusErrorMessage,
+  useWorkspaceAccountConnection,
+} from "@/hooks/useWorkspaceAccountConnection";
 import {
   type CodexAccountStatus,
   codexAccountStatusSchema,
@@ -195,9 +198,7 @@ export function CodexAccountCard({
       {failure && (
         <div className="space-y-1">
           <p role="alert" className="text-sm text-destructive">
-            {failure.mutation
-              ? "Account outcome is unknown. Refresh status before trying again."
-              : "Account status unavailable. Check workspace bridge setup and refresh."}
+            {accountStatusErrorMessage(failure)}
           </p>
           {status && (
             <p className="text-sm text-muted-foreground">

@@ -240,6 +240,35 @@ describe("P03 account transport composition without managed persistence", () => 
     ).toBe(409);
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("reports preview enrollment only for the selected build of an owned workspace", async () => {
+    currentTemplate = randomUUID();
+    const response = await codexAccountRoute(request(), workspaceId);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "workspace_not_enrolled" });
+    expect(getResources).not.toHaveBeenCalled();
+
+    const stale = await codexAccountRoute(request(randomUUID()), workspaceId);
+    expect(await stale.json()).toEqual({ error: "codex_account_unavailable" });
+    currentOwner = randomUUID();
+    const foreign = await codexAccountRoute(request(), workspaceId);
+    expect(await foreign.json()).toEqual({ error: "codex_account_unavailable" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("reports an explicitly missing bridge on an eligible and connected workspace", async () => {
+    const resources = await getResources();
+    getResources.mockResolvedValueOnce(
+      resources.map((resource) => ({
+        ...resource,
+        agents: resource.agents.map((agent) => ({ ...agent, apps: [] })),
+      })),
+    );
+    const response = await codexAccountRoute(request(), workspaceId);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "workspace_bridge_missing" });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("denies an installed pin mismatch after identity without issuing the account operation", async () => {
     vi.stubEnv(
       "HIVE_AGENT_TOOLS_PINS_JSON",

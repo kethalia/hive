@@ -8,3 +8,5 @@ Add a native Accounts window for workspace Codex and Claude connections through 
 Package the independent bridge, pinned Codex runtime installer and native workspace identity helper across workspace profiles. Configure matching deployment issuer keys, package pins and workspace bridge parameters for activation.
 
 Match the Creative Studio connection experience with expiry, copy and disconnect controls, and expose native Codex usage and version-protected runtime defaults inside Accounts.
+
+Reset command palette scrolling when the search changes and explain when the selected workspace needs enrollment or the Accounts bridge.

@@ -4,6 +4,7 @@ import { publicationBody } from "@/lib/templates/publication-io";
 import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
 import { createPortableAccountService } from "./portable-config.server";
+import { WorkspaceAppSetupError } from "./workspace-app-binding.server";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 const codexEnvelope = z
@@ -75,7 +76,9 @@ async function workspaceAccountRoute(
       action.buildId,
     );
     return Response.json(codexAccountStatusSchema.parse(result), { headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkspaceAppSetupError)
+      return Response.json({ error: error.reason }, { status: 409, headers });
     // A timed-out mutation requires status readback, never automatic replay.
     return Response.json(
       { error: provider === "codex" ? "codex_account_unavailable" : "claude_account_unavailable" },

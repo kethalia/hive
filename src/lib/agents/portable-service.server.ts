@@ -14,6 +14,7 @@ import {
   type RegistrationPrincipal,
   resolveVerifiedWorkspaceHost,
   type VerifiedHostBinding,
+  WorkspaceAppSetupError,
 } from "./workspace-app-binding.server";
 
 type Reader = Pick<
@@ -108,6 +109,8 @@ export class AgentBridgeService {
         async () => coder,
         principal,
         workspaceId,
+        undefined,
+        expectedBuildId,
       );
       signal.throwIfAborted();
       const pin = this.config.pins.find((p) => p.templateId === before.binding.templateId);
@@ -144,6 +147,14 @@ export class AgentBridgeService {
     } catch (error) {
       if (completed && isMutation(request as AgentOperation))
         throw new AgentBridgeError("outcome_unknown");
+      if (
+        !completed &&
+        this.config.accountProvider &&
+        "account" in request &&
+        request.account.action === "status" &&
+        error instanceof WorkspaceAppSetupError
+      )
+        throw error;
       if (error instanceof AgentBridgeError) throw error;
       throw new AgentBridgeError("unavailable");
     }

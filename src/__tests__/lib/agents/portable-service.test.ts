@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ resolve: vi.fn(), execute: vi.fn() }));
-vi.mock("@/lib/agents/workspace-app-binding.server", () => ({
+vi.mock("@/lib/agents/workspace-app-binding.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/agents/workspace-app-binding.server")>()),
   resolveVerifiedWorkspaceHost: mocks.resolve,
 }));
 vi.mock("@/lib/agents/portable-client.server", async (importOriginal) => {
