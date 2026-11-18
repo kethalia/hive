@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { acquireManagedAuthLock } from "../../templates/ai-dev-k8s/scripts/codex-managed-auth-lock.mjs";
+import { readLibrary, saveLibrary } from "./codex-library.mjs";
 import { readConfig, readUsage, saveConfig, validManagementRequest } from "./codex-management.mjs";
 
 export { validManagementRequest };
@@ -107,8 +108,9 @@ export function createAccountWire(child, notify, { codeInput = false, management
   child.once("error", fail);
   child.once("close", fail);
   child.stdin.on("error", fail);
+  child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
-    buffer += chunk.toString("utf8");
+    buffer += chunk;
     if (Buffer.byteLength(buffer) > (management ? 512 * 1024 : 65536)) {
       child.kill("SIGKILL");
       fail();
@@ -153,6 +155,14 @@ export function createAccountWire(child, notify, { codeInput = false, management
                 "config/read",
                 "model/list",
                 "config/batchWrite",
+                "skills/list",
+                "skills/config/write",
+                "plugin/list",
+                "plugin/install",
+                "plugin/uninstall",
+                "thread/list",
+                "thread/read",
+                "mcpServerStatus/list",
               ]
             : []),
           ...(codeInput ? ["account/login/submitCode"] : []),
@@ -451,20 +461,35 @@ export function createAccountManager({
     try {
       if (request.action === "usage") return result({ usage: await readUsage(rpc) });
       if (request.action === "config") return result({ config: await readConfig(rpc, root) });
+      const library = request.action.endsWith("library");
+      if (library && (await account()) !== "signed-in") throw Error("managed_auth_stale");
+      if (request.action === "library")
+        return result({ library: await readLibrary(rpc, home, request) });
       let submitted = false;
+      const onSubmit = () => {
+        // Fence before delivery. A lost acknowledgement cannot reuse this generation.
+        generation++;
+        submitted = true;
+      };
       try {
-        const overridden = await saveConfig(rpc, root, request, () => {
-          // Fence before delivery. A lost acknowledgement cannot reuse this generation.
-          generation++;
-          submitted = true;
-        });
+        if (library)
+          return result({
+            outcome: "saved",
+            library: await saveLibrary(rpc, home, root, request, onSubmit),
+          });
+        const overridden = await saveConfig(rpc, root, request, onSubmit);
         return result({ outcome: "saved", config: await readConfig(rpc, root), overridden });
       } catch (error) {
         if (!submitted) throw error;
         // Close the mutating process before reading durable state under the same lock.
         await stop(false);
         session = await open(home, lock.fd, () => {});
-        return result({ outcome: "unknown", config: await readConfig(rpc, root) });
+        return result({
+          outcome: "unknown",
+          ...(library
+            ? { library: await readLibrary(rpc, home, request) }
+            : { config: await readConfig(rpc, root) }),
+        });
       }
     } finally {
       await stop();

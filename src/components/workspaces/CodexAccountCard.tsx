@@ -3,7 +3,7 @@
 import { Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -27,11 +27,13 @@ export function CodexAccountCard({
   workspaceId,
   buildId,
   managementBusy = false,
+  showConnection = true,
   children,
 }: {
   workspaceId: string;
   buildId: string;
   managementBusy?: boolean;
+  showConnection?: boolean;
   children?: (
     status: CodexAccountStatus,
     controls: { refresh: () => void; busy: boolean },
@@ -162,20 +164,21 @@ export function CodexAccountCard({
     }
   }
 
+  if (!showConnection)
+    return status?.state === "signed-in" ? (
+      children?.(status, { refresh: refreshStatus, busy })
+    ) : (
+      <p className="text-sm text-muted-foreground">Connect Codex in the Connection tab.</p>
+    );
+
   return (
-    <section
-      className="space-y-4 rounded-md border p-4"
-      aria-label="Managed Codex account"
-      aria-busy={busy}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-medium">Codex</h3>
-        {status?.state === "signed-in" && <Badge>Connected</Badge>}
-        {status?.state === "pending" && <Badge variant="secondary">Awaiting sign-in</Badge>}
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Connect the workspace’s managed Codex account with your ChatGPT sign-in.
-      </p>
+    <section className="space-y-4" aria-label="Managed Codex account" aria-busy={busy}>
+      {status?.state === "signed-in" && <Badge>Connected</Badge>}
+      {status?.state !== "pending" && status?.state !== "signed-in" && (
+        <p className="text-sm text-muted-foreground">
+          Connect the workspace’s managed Codex account with your ChatGPT sign-in.
+        </p>
+      )}
       {!status && (busy || (!failure && !unavailable)) && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle
@@ -188,11 +191,6 @@ export function CodexAccountCard({
       {unavailable && !failure && (
         <p role="status" className="text-sm text-muted-foreground">
           Codex connection is unavailable. Check workspace bridge setup and refresh.
-        </p>
-      )}
-      {pendingAction && status && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Updating Codex connection…
         </p>
       )}
       {failure && (
@@ -249,48 +247,71 @@ export function CodexAccountCard({
         </div>
       )}
       {status?.state === "pending" && (
-        <div className="space-y-3">
-          {status.pending && expiresIn !== null && (
-            <AccountChallengeExpiry expiresAt={status.pending.expiresAt} remaining={expiresIn} />
-          )}
+        <div className="mx-auto max-w-md space-y-4 text-center">
           {expired ? (
-            <p role="status" className="text-sm">
-              The sign-in window expired. Refresh status to continue.
-            </p>
+            <>
+              {status.pending && (
+                <AccountChallengeExpiry expiresAt={status.pending.expiresAt} remaining={0} />
+              )}
+              <p role="status" className="text-sm">
+                The sign-in window expired. Refresh status to continue.
+              </p>
+            </>
           ) : status.pending ? (
             <>
-              <p className="text-sm">Enter this code on OpenAI to finish signing in.</p>
-              <fieldset className="flex flex-wrap items-center gap-2">
-                <legend className="sr-only">One-time Codex sign-in code</legend>
-                <code className="select-all rounded-md border bg-muted px-3 py-2 font-mono text-lg font-semibold tracking-wider">
+              <p className="text-sm text-muted-foreground">Enter this code on OpenAI.</p>
+              <div className="relative flex flex-wrap items-center justify-center gap-1 rounded-md border bg-muted/50 p-2 @lg:p-3">
+                <code className="min-w-0 select-all break-all font-mono text-xl font-semibold tracking-wide @lg:text-3xl">
                   {status.pending.userCode}
                 </code>
                 <Button
-                  size="sm"
-                  variant="outline"
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Copy code"
+                  title="Copy code"
                   disabled={blocked}
                   onClick={() => void copyCode()}
                 >
                   <Copy aria-hidden="true" />
-                  Copy code
                 </Button>
-              </fieldset>
-              <a
-                ref={continueLink}
-                href={status.pending.verificationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(event) => {
-                  if (status.pending && status.pending.expiresAt <= Date.now()) {
-                    event.preventDefault();
-                    void refresh();
-                  }
-                }}
-                className="inline-flex items-center gap-2 text-sm underline underline-offset-4"
-              >
-                Open official Codex sign-in
-                <ExternalLink aria-hidden="true" className="size-4" />
-              </a>
+              </div>
+              {expiresIn !== null && (
+                <div className="flex items-center gap-2 before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+                  <AccountChallengeExpiry
+                    expiresAt={status.pending.expiresAt}
+                    remaining={expiresIn}
+                  />
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  ref={continueLink}
+                  href={status.pending.verificationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => {
+                    if (status.pending && status.pending.expiresAt <= Date.now()) {
+                      event.preventDefault();
+                      void refresh();
+                    }
+                  }}
+                  className={buttonVariants({
+                    size: "sm",
+                    className: "h-auto min-h-10 flex-1 whitespace-normal py-2",
+                  })}
+                >
+                  Open OpenAI
+                  <ExternalLink aria-hidden="true" className="size-4" />
+                </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={blocked}
+                  onClick={() => void mutate("cancel")}
+                >
+                  {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
+                </Button>
+              </div>
             </>
           ) : (
             <p role="status" className="text-sm">
@@ -299,87 +320,96 @@ export function CodexAccountCard({
           )}
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy || managementBusy}
-          onClick={refreshStatus}
-        >
-          Refresh status
-        </Button>
-        {status &&
-          status.state !== "busy" &&
-          status.state !== "unknown" &&
-          !failure &&
-          (status.state === "pending" ? (
-            <Button size="sm" disabled={blocked || expired} onClick={() => void mutate("cancel")}>
-              {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
-            </Button>
-          ) : (
-            <Button
-              ref={connectButton}
-              size="sm"
-              disabled={blocked}
-              onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
-            >
-              {pendingAction === "connect" || pendingAction === "reconnect"
-                ? "Starting…"
-                : status.state === "signed-in"
-                  ? "Reconnect"
-                  : "Connect Codex"}
-            </Button>
-          ))}
-        <Dialog
-          open={disconnect?.scope === scope}
-          onOpenChange={(open) => {
-            if (busy || (open && managementBusy)) return;
-            setDisconnect(
-              open && status?.state === "signed-in"
-                ? { scope, lifetimeId: status.lifetimeId, generation: status.generation }
-                : null,
-            );
-          }}
-        >
-          {status?.state === "signed-in" && (
-            <DialogTrigger render={<Button size="sm" variant="outline" disabled={blocked} />}>
-              Disconnect
-            </DialogTrigger>
-          )}
-          <DialogContent
-            showCloseButton={!busy}
-            finalFocus={() =>
-              status?.state === "signed-in" ? true : (connectButton.current ?? false)
-            }
+      {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || managementBusy}
+            onClick={refreshStatus}
           >
-            <DialogHeader>
-              <DialogTitle>Disconnect Codex?</DialogTitle>
-              <DialogDescription>
-                This signs the workspace’s managed Codex account out. Active Codex work may be
-                interrupted. You can reconnect when you’re ready.
-              </DialogDescription>
-            </DialogHeader>
-            {disconnectStale && (
-              <p role="alert" className="text-sm">
-                The account connection changed. Close this dialog and refresh status before
-                disconnecting.
-              </p>
+            {busy && pendingAction === "status" && (
+              <LoaderCircle
+                aria-hidden="true"
+                className="animate-spin motion-reduce:animate-none"
+              />
             )}
-            <DialogFooter>
-              <Button variant="outline" disabled={busy} onClick={() => setDisconnect(null)}>
-                Cancel
-              </Button>
+            Refresh status
+          </Button>
+          {status?.state === "pending" && expired && (
+            <Button size="sm" variant="outline" disabled>
+              Cancel sign-in
+            </Button>
+          )}
+          {status &&
+            status.state !== "busy" &&
+            status.state !== "unknown" &&
+            !failure &&
+            status.state !== "pending" && (
               <Button
-                variant="destructive"
-                disabled={blocked || disconnectStale}
-                onClick={() => void mutate("disconnect")}
+                ref={connectButton}
+                size="sm"
+                disabled={blocked}
+                onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
               >
-                {pendingAction === "disconnect" ? "Disconnecting…" : "Disconnect Codex"}
+                {pendingAction === "connect" || pendingAction === "reconnect"
+                  ? "Starting…"
+                  : status.state === "signed-in"
+                    ? "Reconnect"
+                    : "Connect Codex"}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            )}
+          <Dialog
+            open={disconnect?.scope === scope}
+            onOpenChange={(open) => {
+              if (busy || (open && managementBusy)) return;
+              setDisconnect(
+                open && status?.state === "signed-in"
+                  ? { scope, lifetimeId: status.lifetimeId, generation: status.generation }
+                  : null,
+              );
+            }}
+          >
+            {status?.state === "signed-in" && (
+              <DialogTrigger render={<Button size="sm" variant="outline" disabled={blocked} />}>
+                Disconnect
+              </DialogTrigger>
+            )}
+            <DialogContent
+              showCloseButton={!busy}
+              finalFocus={() =>
+                status?.state === "signed-in" ? true : (connectButton.current ?? false)
+              }
+            >
+              <DialogHeader>
+                <DialogTitle>Disconnect Codex?</DialogTitle>
+                <DialogDescription>
+                  This signs the workspace’s managed Codex account out. Active Codex work may be
+                  interrupted. You can reconnect when you’re ready.
+                </DialogDescription>
+              </DialogHeader>
+              {disconnectStale && (
+                <p role="alert" className="text-sm">
+                  The account connection changed. Close this dialog and refresh status before
+                  disconnecting.
+                </p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" disabled={busy} onClick={() => setDisconnect(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={blocked || disconnectStale}
+                  onClick={() => void mutate("disconnect")}
+                >
+                  {pendingAction === "disconnect" ? "Disconnecting…" : "Disconnect Codex"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
       {status?.state === "signed-in" && children?.(status, { refresh: refreshStatus, busy })}
     </section>
   );

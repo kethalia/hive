@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { validLibraryRequest } from "./codex-library.mjs";
 
 // Adapted from CCS 86b3df8 apps/studio-server/src/codex-management.ts.
 // Only native usage and the six reviewed user-config fields cross this boundary.
@@ -39,7 +40,7 @@ const exact = (value, keys) =>
 export function validManagementRequest(request) {
   if (
     !request ||
-    !["usage", "config", "save-config"].includes(request.action) ||
+    !["usage", "config", "save-config", "library", "save-library"].includes(request.action) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.lifetimeId) ||
     !Number.isSafeInteger(request.generation) ||
     request.generation < 0 ||
@@ -47,10 +48,18 @@ export function validManagementRequest(request) {
       "action",
       "lifetimeId",
       "generation",
-      ...(request.action === "save-config" ? ["version", "values"] : []),
+      ...({
+        "save-config": ["version", "values"],
+        library: ["section", "search", "archived", "cursor"],
+        "save-library": ["section", "id", "revision", "change"],
+      }[request.action] ?? []),
+      ...(request.action.endsWith("library") && Object.hasOwn(request, "sessionId")
+        ? ["sessionId"]
+        : []),
     ])
   )
     return false;
+  if (request.action.endsWith("library")) return validLibraryRequest(request);
   if (request.action !== "save-config") return true;
   if (
     typeof request.version !== "string" ||

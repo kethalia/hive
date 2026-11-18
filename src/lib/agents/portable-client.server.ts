@@ -63,7 +63,7 @@ const MUTATIONS = new Set([
 ]);
 const isMutation = (request: AgentOperation) =>
   MUTATIONS.has(request.operation) ||
-  (request.operation === "codex-management" && request.management?.action === "save-config");
+  (request.operation === "codex-management" && request.management.action.startsWith("save-"));
 function packet(
   config: AgentBridgeClientConfig,
   request: AgentOperation,
@@ -211,7 +211,9 @@ export class AgentBridgeClient {
         throw new Error();
       if (
         parsed.operation === "codex-management" &&
-        !data.capabilities?.includes("codex-management")
+        !data.capabilities?.includes(
+          parsed.management.action.endsWith("library") ? "codex-library" : "codex-management",
+        )
       )
         throw new AgentBridgeError("unsupported");
       const next = packet(this.config, parsed, identity.lifetimeId);
@@ -242,14 +244,22 @@ export class AgentBridgeClient {
       const result = agentResultSchemas[parsed.operation].parse(reply.result.data);
       if (parsed.operation === "codex-management") {
         const view = agentResultSchemas["codex-management"].parse(result);
-        const saving = parsed.management.action === "save-config";
+        const operation = parsed.management;
+        const saving = isMutation(parsed);
+        const matchingPayload =
+          operation.action === "library" || operation.action === "save-library"
+            ? view.library?.section === operation.section &&
+              view.config === null &&
+              view.usage === null
+            : view.library === undefined &&
+              (operation.action === "usage"
+                ? view.usage !== null && view.config === null
+                : view.config !== null && view.usage === null);
         if (
           view.lifetimeId !== identity.lifetimeId ||
           view.lifetimeId !== parsed.management.lifetimeId ||
           view.generation !== parsed.management.generation + Number(saving) ||
-          (parsed.management.action === "usage"
-            ? !view.usage || view.config !== null
-            : !view.config || view.usage !== null) ||
+          !matchingPayload ||
           (saving ? !["saved", "unknown"].includes(view.outcome) : view.outcome !== "read")
         )
           throw new Error();

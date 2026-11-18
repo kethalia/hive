@@ -86,6 +86,10 @@ test("account executable admits the pinned release size and retains hash/mode/si
           '"./codex-management.mjs"',
           JSON.stringify(new URL("./codex-management.mjs", import.meta.url).href),
         )
+        .replace(
+          '"./codex-library.mjs"',
+          JSON.stringify(new URL("./codex-library.mjs", import.meta.url).href),
+        )
         .replace(`const SHA = "${publishedSha}";`, `const SHA = "${expectedDigest}";`);
       return import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
     };

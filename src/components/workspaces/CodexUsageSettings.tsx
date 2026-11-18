@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type CodexConfig,
   type CodexManagementRequest,
@@ -22,6 +21,7 @@ type Section = "usage" | "config";
 type Draft = { version: string; values: Partial<CodexConfig["values"]> };
 
 export function CodexUsageSettings({
+  section,
   workspaceId,
   buildId,
   lifetimeId,
@@ -29,7 +29,9 @@ export function CodexUsageSettings({
   disabled,
   onBusyChange,
   onAccountRefresh,
+  onGeneration,
 }: {
+  section: Section;
   workspaceId: string;
   buildId: string;
   lifetimeId: string;
@@ -37,8 +39,8 @@ export function CodexUsageSettings({
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
   onAccountRefresh: () => void;
+  onGeneration?: (generation: number) => void;
 }) {
-  const [section, setSection] = useState<Section>("usage");
   const [usage, setUsage] = useState<CodexUsage | null>(null);
   const [config, setConfig] = useState<CodexConfig | null>(null);
   const [draft, setDraft] = useState<Draft>();
@@ -50,6 +52,10 @@ export function CodexUsageSettings({
   const fence = useRef(generation);
   const accountBusy = useRef(disabled);
   const refreshAccount = useRef(onAccountRefresh);
+  const updateGeneration = useRef(onGeneration);
+  useEffect(() => {
+    updateGeneration.current = onGeneration;
+  }, [onGeneration]);
   useEffect(() => {
     refreshAccount.current = onAccountRefresh;
   }, [onAccountRefresh]);
@@ -95,6 +101,7 @@ export function CodexUsageSettings({
         )
           throw Error();
         fence.current = Math.max(fence.current, result.generation);
+        if (result.generation > request.generation) updateGeneration.current?.(result.generation);
         if (result.usage) setUsage(result.usage);
         if (result.config) setConfig(result.config);
         if (result.outcome === "unknown") {
@@ -155,6 +162,7 @@ export function CodexUsageSettings({
       if (controller) {
         active.current = null;
         controller.abort();
+        setBusy(false);
         onBusyChange(false);
       }
     };
@@ -183,22 +191,9 @@ export function CodexUsageSettings({
 
   const locked = busy || disabled;
   return (
-    <Tabs
-      value={section}
-      onValueChange={(value) => {
-        if (value === "usage" || value === "config") setSection(value);
-      }}
-      className="@container min-w-0 border-t pt-4"
-    >
+    <div className="@container min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <TabsList aria-label="Codex account details">
-          <TabsTrigger value="usage" disabled={locked}>
-            Usage
-          </TabsTrigger>
-          <TabsTrigger value="config" disabled={locked}>
-            Runtime settings
-          </TabsTrigger>
-        </TabsList>
+        <h2 className="font-medium">{section === "usage" ? "Usage" : "Runtime settings"}</h2>
         <Button size="sm" variant="outline" disabled={locked} onClick={() => void load()}>
           {busy ? (
             <Loader2
@@ -211,7 +206,7 @@ export function CodexUsageSettings({
           Refresh {section === "usage" ? "usage" : "settings"}
         </Button>
       </div>
-      {busy && (
+      {busy && !(section === "usage" ? usage : config) && (
         <p role="status" className="text-sm text-muted-foreground">
           {section === "usage" ? "Loading usage…" : "Updating runtime settings…"}
         </p>
@@ -226,22 +221,20 @@ export function CodexUsageSettings({
           {notice}
         </p>
       )}
-      <TabsContent value="usage">{usage && <Usage data={usage} />}</TabsContent>
-      <TabsContent value="config">
-        {config && (
-          <RuntimeSettings
-            config={config}
-            draft={draft}
-            disabled={locked}
-            saveDisabled={
-              locked || !!error || needsReadback || !draft || draft.version !== config.version
-            }
-            onDraft={setDraft}
-            onSave={() => void save()}
-          />
-        )}
-      </TabsContent>
-    </Tabs>
+      {section === "usage" && usage && <Usage data={usage} />}
+      {section === "config" && config && (
+        <RuntimeSettings
+          config={config}
+          draft={draft}
+          disabled={locked}
+          saveDisabled={
+            locked || !!error || needsReadback || !draft || draft.version !== config.version
+          }
+          onDraft={setDraft}
+          onSave={() => void save()}
+        />
+      )}
+    </div>
   );
 }
 

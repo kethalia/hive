@@ -442,7 +442,8 @@ export function createAgentBridge(config, deps = {}) {
             publicKeyPem: key.publicKey.export({ type: "spki", format: "pem" }),
             configDigest: configDigest(config, environment),
             manifestSha256: config.manifestSha256,
-            capabilities: config.profile === "software" ? ["codex-management"] : [],
+            capabilities:
+              config.profile === "software" ? ["codex-management", "codex-library"] : [],
             environment,
           },
         };

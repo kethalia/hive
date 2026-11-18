@@ -753,7 +753,7 @@ try {
   await launcher.getByRole("option").filter({ hasText: "Account, app updates" }).click();
   await launcher
     .getByTestId("hive-window-settings")
-    .getByText("App updates", { exact: true })
+    .getByRole("tab", { name: "App updates", exact: true })
     .waitFor();
   await launcher.getByRole("dialog").waitFor({ state: "hidden" });
   await launcher.waitForTimeout(250);
@@ -1024,7 +1024,8 @@ try {
       await openTool(tool);
       const pane = toolsPage.getByTestId(`hive-window-${tool}`);
       await pane.getByRole("button").first().waitFor();
-      if (tool === "settings") await pane.getByText("App updates", { exact: true }).waitFor();
+      if (tool === "settings")
+        await pane.getByRole("tab", { name: "App updates", exact: true }).waitFor();
       if (tool === "diagnostics") await pane.getByText("Workspace rows", { exact: true }).waitFor();
       if (tool === "workspaces") await pane.getByTestId("workspace-card").first().waitFor();
       assert.equal(await pane.evaluate((el) => el.scrollWidth > el.clientWidth + 1), false);
@@ -1067,7 +1068,7 @@ try {
     await toolsPage.waitForTimeout(180);
     await toolsPage.reload();
     await openTool("settings");
-    await toolsPage.getByText("App updates", { exact: true }).waitFor();
+    await toolsPage.getByRole("tab", { name: "App updates", exact: true }).waitFor();
     assert.equal(await toolsPage.getByTestId("hive-window-settings").count(), 1);
     assert.equal(
       await toolsPage.evaluate(() => document.documentElement.scrollWidth > innerWidth),

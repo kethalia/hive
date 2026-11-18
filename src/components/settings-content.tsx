@@ -1,12 +1,20 @@
 "use client";
+import { Bell, Download, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppUpdateSettings } from "@/components/app-update-settings";
 import {
   NotificationSettings,
   type NotificationSettingsProps,
 } from "@/components/notification-settings";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { PanelTabs } from "@/components/ui/panel-tabs";
+
+const sections = [
+  { id: "account", label: "Account", icon: <UserRound /> },
+  { id: "updates", label: "App updates", icon: <Download /> },
+  { id: "notifications", label: "Notifications", icon: <Bell /> },
+] as const;
 
 export function SettingsContent({
   email,
@@ -19,6 +27,15 @@ export function SettingsContent({
   coderOAuthEnabled?: boolean;
 }) {
   const router = useRouter();
+  const [section, setSection] = useState<(typeof sections)[number]["id"]>("account");
+  useEffect(() => {
+    const selectNotifications = () => {
+      if (window.location.hash === "#notifications") setSection("notifications");
+    };
+    selectNotifications();
+    window.addEventListener("hashchange", selectNotifications);
+    return () => window.removeEventListener("hashchange", selectNotifications);
+  }, []);
   const [signingOut, setSigningOut] = useState(false);
   const [accountError, setAccountError] = useState("");
   async function signOut(disconnect = false) {
@@ -41,65 +58,66 @@ export function SettingsContent({
     }
   }
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto">
-      <div className="min-w-0 p-4">
-        <div className="mx-auto w-full min-w-0 max-w-6xl divide-y divide-border pb-8">
-          <section className="space-y-3 py-4" aria-label="Account">
-            <h2 className="text-base font-medium">Account</h2>
-            {email ? <p className="break-all text-sm">{email}</p> : null}
-            <div className="flex flex-wrap gap-2">
-              {coderUrl ? (
-                <a
-                  className="inline-flex items-center rounded-md border px-3 text-sm"
-                  href={coderUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open Coder ↗
-                </a>
-              ) : null}
-              <Button variant="outline" disabled={signingOut} onClick={() => void signOut()}>
-                Sign out
-              </Button>
-              {coderOAuthEnabled && (
-                <Button variant="outline" disabled={signingOut} onClick={() => void signOut(true)}>
-                  Disconnect Coder
-                </Button>
-              )}
-            </div>
+    <div className="@container h-full min-h-0 min-w-0 overflow-y-auto">
+      <PanelTabs label="Settings" items={sections} value={section} onChange={setSection}>
+        <section className="space-y-3" aria-label="Account" hidden={section !== "account"}>
+          <h2 className="text-base font-medium">Account</h2>
+          {email ? <p className="break-all text-sm">{email}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            {coderUrl ? (
+              <a
+                className={buttonVariants({
+                  variant: "outline",
+                  className: "h-auto min-h-10 whitespace-normal py-2",
+                })}
+                href={coderUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Coder ↗
+              </a>
+            ) : null}
+            <Button variant="outline" disabled={signingOut} onClick={() => void signOut()}>
+              Sign out
+            </Button>
             {coderOAuthEnabled && (
-              <p className="text-sm text-muted-foreground">
-                Disconnecting revokes Hive’s Coder connection and ends this account’s Hive sessions.
-              </p>
+              <Button variant="outline" disabled={signingOut} onClick={() => void signOut(true)}>
+                Disconnect Coder
+              </Button>
             )}
-            {accountError ? <p role="alert">{accountError}</p> : null}
-          </section>
-          <section aria-labelledby="app-updates-heading" className="space-y-4 pb-8">
-            <header className="space-y-1">
-              <h2 id="app-updates-heading" className="text-base font-medium">
-                App updates
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Check versions and update Hive on this device.
-              </p>
-            </header>
-            <AppUpdateSettings />
-          </section>
-          <section
-            id="notifications"
-            aria-labelledby="notifications-heading"
-            className="space-y-6 pt-8 scroll-mt-4"
-          >
-            <div>
-              <h2 id="notifications-heading" className="text-base font-medium">
-                Notifications
-              </h2>
-              <p className="text-sm text-muted-foreground">Keep your agents within earshot.</p>
-            </div>
-            <NotificationSettings {...props} embedded />
-          </section>
-        </div>
-      </div>
+          </div>
+          {coderOAuthEnabled && (
+            <p className="text-sm text-muted-foreground">
+              Disconnecting revokes Hive’s Coder connection and ends this account’s Hive sessions.
+            </p>
+          )}
+          {accountError ? <p role="alert">{accountError}</p> : null}
+        </section>
+        <section
+          aria-labelledby="app-updates-heading"
+          className="space-y-4"
+          hidden={section !== "updates"}
+        >
+          <h2 id="app-updates-heading" className="text-base font-medium">
+            App updates
+          </h2>
+          <AppUpdateSettings />
+        </section>
+        <section
+          id="notifications"
+          aria-labelledby="notifications-heading"
+          className="space-y-6"
+          hidden={section !== "notifications"}
+        >
+          <div>
+            <h2 id="notifications-heading" className="text-base font-medium">
+              Notifications
+            </h2>
+            <p className="text-sm text-muted-foreground">Keep your agents within earshot.</p>
+          </div>
+          <NotificationSettings {...props} embedded />
+        </section>
+      </PanelTabs>
     </div>
   );
 }

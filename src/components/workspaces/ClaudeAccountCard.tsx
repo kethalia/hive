@@ -3,7 +3,7 @@
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -182,14 +182,12 @@ export function ClaudeAccountCard({
       aria-label="Workspace Claude account"
       aria-busy={busy}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-medium">Claude</h3>
-        {status?.state === "signed-in" && <Badge>Connected</Badge>}
-        {status?.state === "pending" && <Badge variant="secondary">Awaiting sign-in</Badge>}
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Connect through the official Claude CLI configured in this workspace.
-      </p>
+      {status?.state === "signed-in" && <Badge>Connected</Badge>}
+      {status?.state !== "pending" && status?.state !== "signed-in" && (
+        <p className="text-sm text-muted-foreground">
+          Connect your Claude account to this workspace.
+        </p>
+      )}
       {!status && (busy || (!failure && !unavailable)) && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle
@@ -202,11 +200,6 @@ export function ClaudeAccountCard({
       {unavailable && !failure && (
         <p role="status" className="text-sm text-muted-foreground">
           Claude connection is unavailable. Check workspace bridge setup and refresh.
-        </p>
-      )}
-      {pendingAction && status && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Updating Claude connection…
         </p>
       )}
       {failure && (
@@ -268,6 +261,7 @@ export function ClaudeAccountCard({
             </p>
           ) : status.pending ? (
             <>
+              <h3 className="text-sm font-medium">Sign in to Claude</h3>
               <a
                 ref={continueLink}
                 href={status.pending.verificationUrl}
@@ -279,7 +273,7 @@ export function ClaudeAccountCard({
                     void refresh();
                   }
                 }}
-                className="inline-flex items-center gap-2 text-sm underline underline-offset-4"
+                className={buttonVariants({ size: "sm" })}
               >
                 Open official Claude sign-in
                 <ExternalLink aria-hidden="true" className="size-4" />
@@ -348,6 +342,9 @@ export function ClaudeAccountCard({
             void refresh();
           }}
         >
+          {busy && pendingAction === "status" && (
+            <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+          )}
           Refresh status
         </Button>
         {status &&
@@ -355,7 +352,12 @@ export function ClaudeAccountCard({
           status.state !== "unknown" &&
           !failure &&
           (status.state === "pending" ? (
-            <Button size="sm" disabled={blocked || expired} onClick={() => void mutate("cancel")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={blocked || expired}
+              onClick={() => void mutate("cancel")}
+            >
               {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
             </Button>
           ) : (

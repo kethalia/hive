@@ -78,7 +78,10 @@ export const agentResultSchemas = {
       publicKeyPem: z.string().min(80).max(256),
       configDigest: z.string().regex(/^[a-f0-9]{64}$/),
       manifestSha256: z.string().regex(/^[a-f0-9]{64}$/),
-      capabilities: z.array(z.literal("codex-management")).max(1).optional(),
+      capabilities: z
+        .array(z.enum(["codex-management", "codex-library"]))
+        .max(2)
+        .optional(),
       environment: z
         .object({
           CODEX_HOME: z.string().min(1).max(4096).optional(),

@@ -60,13 +60,18 @@ function mount() {
     onBusyChange,
     onAccountRefresh,
   };
-  const view = render(<CodexUsageSettings {...props} generation={4} />);
+  let section: "usage" | "config" = "usage";
+  const view = render(<CodexUsageSettings {...props} section={section} generation={4} />);
   return {
     ...view,
     onBusyChange,
     onAccountRefresh,
+    openSettings: () => {
+      section = "config";
+      view.rerender(<CodexUsageSettings {...props} section={section} generation={4} />);
+    },
     updateGeneration: (generation: number) =>
-      view.rerender(<CodexUsageSettings {...props} generation={generation} />),
+      view.rerender(<CodexUsageSettings {...props} section={section} generation={generation} />),
   };
 }
 async function chooseDetail() {
@@ -102,7 +107,7 @@ it("shows native usage, loads settings on selection and saves with the current v
   expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuetext", "80% remaining");
   expect(screen.getByText("1,200")).toBeVisible();
   expect(fetcher).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("tab", { name: "Runtime settings" }));
+  view.openSettings();
   await screen.findByRole("combobox", { name: "Model" });
   expect(screen.getByText("Source user")).toBeVisible();
   await chooseDetail();
@@ -136,7 +141,7 @@ it("keeps uncertain saves blocked until an explicit settings readback and versio
   vi.stubGlobal("fetch", fetcher);
   const view = mount();
   await screen.findByRole("progressbar");
-  fireEvent.click(screen.getByRole("tab", { name: "Runtime settings" }));
+  view.openSettings();
   await screen.findByRole("combobox", { name: "Model" });
   await chooseDetail();
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));

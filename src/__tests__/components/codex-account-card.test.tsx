@@ -36,7 +36,7 @@ it("connects through the fixed route, displays official one-time code, and fence
     <CodexAccountCard workspaceId="workspace" buildId="22222222-2222-4222-8222-222222222222" />,
   );
   fireEvent.click(await screen.findByRole("button", { name: "Connect Codex" }));
-  expect(await screen.findByRole("link", { name: "Open official Codex sign-in" })).toHaveAttribute(
+  expect(await screen.findByRole("link", { name: "Open OpenAI" })).toHaveAttribute(
     "href",
     "https://auth.openai.com/codex/device",
   );
@@ -138,7 +138,7 @@ it("hides codes and drops a late response when the same workspace changes build"
   vi.stubGlobal("fetch", fetcher);
   const view = render(<CodexAccountCard workspaceId="workspace" buildId="old-build" />);
   await screen.findByText("OLD-CODE");
-  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+  await act(async () => window.dispatchEvent(new Event("focus")));
   view.rerender(<CodexAccountCard workspaceId="workspace" buildId="new-build" />);
   expect(screen.queryByText("OLD-CODE")).not.toBeInTheDocument();
   await screen.findByRole("button", { name: "Connect Codex" });
@@ -269,9 +269,7 @@ it("hides an expired challenge and reads status before offering another sign-in"
   expect(await screen.findByText("Code expired")).toBeVisible();
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
   expect(screen.queryByText("EXPIRED-CODE")).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("link", { name: "Open official Codex sign-in" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open OpenAI" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Cancel sign-in" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();
   await act(async () => readback(Response.json(status("expired", 4))));

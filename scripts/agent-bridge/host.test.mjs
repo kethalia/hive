@@ -73,7 +73,7 @@ test("signed management capability binds usage to the exact bridge lifetime and 
       body: JSON.stringify({ ticket: issue(request, lifetimeId, claims).token }),
     });
   const identity = await (await post({ operation: "identity" })).json();
-  assert.deepEqual(identity.result.data.capabilities, ["codex-management"]);
+  assert.deepEqual(identity.result.data.capabilities, ["codex-management", "codex-library"]);
   const operation = {
     operation: "codex-management",
     management: { action: "usage", lifetimeId: identity.lifetimeId, generation: 0 },

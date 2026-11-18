@@ -57,7 +57,7 @@ const MUTATIONS = new Set([
 ]);
 const isMutation = (request: AgentOperation) =>
   MUTATIONS.has(request.operation) ||
-  (request.operation === "codex-management" && request.management?.action === "save-config");
+  (request.operation === "codex-management" && request.management.action.startsWith("save-"));
 /** Request-local authority: resolve the exact owner-only agent app before and
  * after each operation. No mutation is retried on an uncertain result. */
 export class AgentBridgeService {
