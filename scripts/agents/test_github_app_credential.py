@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import os
+import sys
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -9,7 +10,8 @@ from unittest.mock import patch
 HELPER = Path(__file__).resolve().parents[2] / "templates/ai-dev-k8s/scripts/github-app-credential.py"
 spec = importlib.util.spec_from_file_location("github_app_credential", HELPER)
 helper = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(helper)
+with patch.object(sys, "dont_write_bytecode", True):
+    spec.loader.exec_module(helper)
 
 
 class WorkspaceCredentials(unittest.TestCase):

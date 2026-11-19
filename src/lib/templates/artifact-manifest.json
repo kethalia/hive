@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "templates": {
     "ai-dev-k8s": {
-      "contentHash": "70f387d2925961044fa711f907d1089c6f277558f9f2d3842ef2dbcaee5f3068",
-      "archiveDigest": "15218d2e49b6ed6dab797f7c524a774dfac53d6471421934f0c7bba2098a1db0",
-      "archiveBytes": 356352,
-      "fileCount": 52
+      "contentHash": "315bc082bd7f5e049bab3c2fe432cbbfc9a72a3feaf6d2a5c5a32275faa2fec4",
+      "archiveDigest": "d678723c8fee89f5b1cced90fb388e9acc1ad75195a0bc9fc8c28e099c8209b1",
+      "archiveBytes": 347648,
+      "fileCount": 51
     },
     "browser-testing": {
       "contentHash": "66cd1f98402448ddc15e844f4982875d039f678dbc1bf6c9f0a9e2ed0ce3e61a",
