@@ -1,6 +1,7 @@
 "use client";
 
-import { type CSSProperties, useEffect, useRef } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 /** Pointer capture keeps resizing alive over terminals and cross-origin app frames. */
 export function WindowResizeHandle({
@@ -25,6 +26,7 @@ export function WindowResizeHandle({
   onInteraction: (active: boolean) => void;
 }) {
   const drag = useRef<{ point: number; value: number; pending?: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const frame = useRef(0);
   const change = useRef(onChange);
   change.current = onChange;
@@ -43,6 +45,7 @@ export function WindowResizeHandle({
     frame.current = 0;
     if (drag.current?.pending !== undefined) change.current(drag.current.pending);
     drag.current = null;
+    setDragging(false);
     onInteraction(false);
   };
   return (
@@ -55,7 +58,10 @@ export function WindowResizeHandle({
       aria-valuenow={Math.round(value * 100)}
       aria-valuemin={Math.round(min * 100)}
       aria-valuemax={Math.round(max * 100)}
-      className={`absolute z-30 touch-none outline-none hover:bg-primary/15 active:bg-primary/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
+      className={cn(
+        "group/resize-handle absolute z-30 touch-none overflow-hidden outline-none",
+        axis === "width" ? "cursor-col-resize" : "cursor-row-resize",
+      )}
       style={style}
       data-window-resize=""
       data-launcher-gesture-ignore="true"
@@ -67,6 +73,7 @@ export function WindowResizeHandle({
         if (event.pointerType !== "touch") event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         drag.current = { point: axis === "width" ? event.clientX : event.clientY, value };
+        setDragging(true);
         onInteraction(true);
       }}
       onPointerMove={(event) => {
@@ -98,6 +105,17 @@ export function WindowResizeHandle({
               : clamp(value + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -0.05 : 0.05)),
         );
       }}
-    />
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute top-1/2 left-1/2 max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary",
+          axis === "width" ? "h-8 w-0.5" : "h-0.5 w-8",
+          dragging
+            ? "opacity-100"
+            : "opacity-0 group-hover/resize-handle:opacity-60 group-focus-visible/resize-handle:opacity-100",
+        )}
+      />
+    </div>
   );
 }
