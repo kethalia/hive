@@ -13,7 +13,9 @@ On 19 November 2026, a Chromium session in the Browser Testing workspace exercis
 
 The test workspace was `codex/hive-p04-discovery`, with an inactive preview template version `p04-6c615e9d-check`. Its CLI image was published from `6c615e9d` at digest `sha256:7fc88d1e2ae7d2f9ee7b160a62401ec2b336826c3e1e1aea03e21aa30bf186fb`. The normal image workflow must publish matching workspace assets for production enrollment after merge. [Preview image build](https://github.com/kethalia/hive/actions/runs/44583249438)
 
-To repeat the check, sign in to the preview as the workspace owner and start the enrolled workspace if stopped. Open **Browse GitHub repositories** with Cmd/Ctrl+K, choose that workspace, search by repository name and expand **Repository details**. Search covers the pages loaded in the window. Existing P03 bridges can still serve provider account requests and require the P04 package for discovery.
+To repeat the check, sign in to the preview as the workspace owner. Open **GitHub** with Cmd/Ctrl+K. The **Connection** tab shows the signed-in Coder user's GitHub status and works while the workspace is stopped. Choose **Connect GitHub** or **Reconnect GitHub**, enter the displayed code on GitHub, and return to Hive for confirmation. Reconnection applies to the GitHub identity Coder uses across that user's workspaces.
+
+In **Repositories**, choose the running enrolled workspace, search by repository name and expand **Repository details**. Search covers the pages loaded in the window. Existing P03 bridges can still serve provider account requests and require the P04 package for discovery.
 
 ## P03 production check
 

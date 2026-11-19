@@ -7,6 +7,7 @@ import {
   type CommandPaletteAction,
   type CommandPalettePage,
 } from "@/components/terminal/CommandPalette";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
@@ -34,6 +35,7 @@ const DIAGNOSTICS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 export function DashboardKeyboardController() {
   const router = useRouter();
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -151,6 +153,17 @@ export function DashboardKeyboardController() {
             WORKSPACE_AGENTS_KEYS,
             ["assistants", "conversations", "codex", "claude"],
           ],
+          ...(projectDiscoveryEnabled
+            ? ([
+                [
+                  "projects",
+                  "GitHub",
+                  "Manage your connection and browse repositories",
+                  undefined,
+                  ["Browse GitHub repositories", "GitHub connection", "Reconnect GitHub"],
+                ],
+              ] as const)
+            : []),
           [
             "codex-account",
             "Codex account",
@@ -229,7 +242,7 @@ export function DashboardKeyboardController() {
         onSelect: toggleFullscreen,
       },
     ],
-    [source?.actions, openTool, fullscreen, toggleFullscreen],
+    [source?.actions, openTool, fullscreen, toggleFullscreen, projectDiscoveryEnabled],
   );
   const launcher = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();

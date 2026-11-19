@@ -2,7 +2,6 @@
 
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
 import { useWindowCreationPages } from "@/hooks/useWindowCreationPages";
 import type { CoderWorkspace } from "@/lib/coder/types";
@@ -12,7 +11,7 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { matchesProjectSearch } from "@/lib/terminal/command-search";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
-import { type GeneralPane, requestHiveWindow } from "@/lib/workspaces/general-workspace";
+import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 import { repositories, repositoryTerminalPane } from "@/lib/workspaces/terminal-selection";
 
 export function useGeneralWorkspaceCommands({
@@ -30,7 +29,6 @@ export function useGeneralWorkspaceCommands({
   initialWorkspaceId?: string;
   additionalActions?: CommandPaletteAction[];
 }) {
-  const { projectDiscoveryEnabled } = useRuntimeConfig();
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -330,21 +328,6 @@ export function useGeneralWorkspaceCommands({
         onSelect: () => beginCreation("terminal"),
       },
       ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
-      ...(projectDiscoveryEnabled
-        ? [
-            {
-              id: "github-repositories",
-              label: "GitHub",
-              aliases: ["Browse GitHub repositories", "GitHub connection", "Reconnect GitHub"],
-              description: "Manage your connection and browse repositories",
-              group: "Projects",
-              value: "discover search github repositories projects",
-              icon: "search" as const,
-              onSelect: () =>
-                requestHiveWindow({ tool: "projects", workspaceId: initialWorkspaceId }),
-            },
-          ]
-        : []),
       {
         id: "new-project",
         label: "New project",
@@ -373,8 +356,6 @@ export function useGeneralWorkspaceCommands({
     startWorkspace,
     retryWorkspace,
     beginCreation,
-    projectDiscoveryEnabled,
-    initialWorkspaceId,
   ]);
 
   useEffect(
