@@ -334,7 +334,9 @@ export function useGeneralWorkspaceCommands({
         ? [
             {
               id: "github-repositories",
-              label: "Browse GitHub repositories",
+              label: "GitHub",
+              aliases: ["Browse GitHub repositories", "GitHub connection", "Reconnect GitHub"],
+              description: "Manage your connection and browse repositories",
               group: "Projects",
               value: "discover search github repositories projects",
               icon: "search" as const,

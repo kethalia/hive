@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
     // Discovery authenticates in its route and must return JSON 401, not login HTML.
     pathname.startsWith("/api/discovery/") ||
     /^\/api\/workspaces\/[^/]+\/(?:codex-account|claude-account)$/.test(pathname) ||
+    pathname === "/api/github/connection" ||
     pathname === "/api/notifications/events" ||
     pathname === "/" ||
     PUBLIC_PATHS.some((path) => pathname.startsWith(path))

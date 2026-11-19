@@ -115,7 +115,7 @@ describe("project browser", () => {
   });
   it.each([
     ["workspace_unavailable", "Review workspace setup", "workspace"],
-    ["github_auth_required", "Manage Coder connection", "account"],
+    ["github_auth_required", "Manage GitHub connection", "account"],
   ] as const)("provides the right setup action for %s without cloning", async (code, label, kind) => {
     vi.mocked(fetch).mockResolvedValueOnce(response({ error: code }, 502));
     const setup = vi.fn();

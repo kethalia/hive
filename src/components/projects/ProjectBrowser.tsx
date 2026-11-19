@@ -199,7 +199,7 @@ export function ProjectBrowser({
       ) : null}
       {snapshot.error && onSetup ? (
         <Button variant="outline" onClick={() => onSetup(snapshot.setup ?? "workspace")}>
-          {snapshot.setup === "account" ? "Manage Coder connection" : "Review workspace setup"}
+          {snapshot.setup === "account" ? "Manage GitHub connection" : "Review workspace setup"}
         </Button>
       ) : null}
       {snapshot.loaded && !snapshot.loading && repositories.length === 0 ? (

@@ -43,7 +43,7 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
-  projects: "GitHub repositories",
+  projects: "GitHub",
   "codex-account": "Codex",
   "claude-account": "Claude",
   diagnostics: "Diagnostics",
@@ -123,7 +123,9 @@ const hive = z
     label: z.string().min(1).max(512),
   })
   .transform((pane) =>
-    isAccountTool(pane.tool) ? { ...pane, label: hiveToolLabels[pane.tool] } : pane,
+    isAccountTool(pane.tool) || pane.tool === "projects"
+      ? { ...pane, label: hiveToolLabels[pane.tool] }
+      : pane,
   );
 export const generalPaneSchema = z.union([terminal, app, hive]);
 export type GeneralPane = z.infer<typeof generalPaneSchema>;

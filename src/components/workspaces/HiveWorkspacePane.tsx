@@ -19,8 +19,8 @@ import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 import { WorkspacePicker } from "./WorkspacePicker";
 
-const ProjectBrowser = dynamic(() =>
-  import("@/components/projects/ProjectBrowser").then((m) => m.ProjectBrowser),
+const GitHubWindow = dynamic(() =>
+  import("@/components/projects/GitHubWindow").then((m) => m.GitHubWindow),
 );
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
@@ -115,7 +115,10 @@ export function HiveWorkspacePane({
         workspaces.find((w) => w.latest_build.status === "running") ??
         workspaces[0])
       : undefined;
-  const hasSidebar = pane.tool === "settings" || accountTool;
+  const hasSidebar =
+    pane.tool === "settings" ||
+    (pane.tool === "projects" && !!projectDiscoveryEnabled) ||
+    accountTool;
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -178,26 +181,15 @@ export function HiveWorkspacePane({
           />
         ) : pane.tool === "projects" ? (
           projectDiscoveryEnabled ? (
-            <div className="space-y-3 p-4">
-              <WorkspacePicker
-                label="Repository workspace"
-                workspaces={workspaces}
-                selected={projectWorkspace?.id}
-                onSelect={onWorkspaceChange}
-              />
-              {projectWorkspace?.latest_build.status === "running" ? (
-                <ProjectBrowser
-                  key={projectWorkspace.latest_build.id}
-                  workspaceId={projectWorkspace.id}
-                  enabled
-                  visible={visible}
-                />
-              ) : (
-                <p role="status">
-                  Choose a running Coder workspace to browse its GitHub repositories.
-                </p>
-              )}
-            </div>
+            <GitHubWindow
+              key={userId}
+              userId={userId}
+              workspaces={workspaces}
+              workspace={projectWorkspace}
+              onWorkspaceChange={onWorkspaceChange}
+              visible={visible}
+              navigation={navigation}
+            />
           ) : (
             <p className="p-4">Repository discovery is disabled.</p>
           )
