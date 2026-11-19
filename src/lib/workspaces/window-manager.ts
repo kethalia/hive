@@ -110,6 +110,8 @@ export interface LayoutDivider {
   max: number;
   extent: number;
   edge?: "start" | "end";
+  /** Horizontal position of a shared gutter within or alongside the hit area. */
+  gripOffsetX?: number;
   target:
     | { kind: "grid"; path: string }
     | { kind: "column"; id: string }
@@ -245,13 +247,20 @@ export function windowGeometry(
         }
       });
       // Inside the Strip, the gutter belongs to the window on its left.
-      // Keep the last window’s leading grip just inside its own painted edge.
+      // Start the last window’s leading hit area just inside its own painted edge.
+      const gripWidth = 8;
       const gutter = !c.pin && c !== last ? WORKSPACE_WINDOW_INSET : 0;
       const divider: LayoutDivider = {
         id: c.id,
         axis: "width",
-        rect: { x: c.pin === "right" ? x : x + w - 8, y: 0, width: 8 + gutter, height: h },
+        rect: {
+          x: c.pin === "right" ? x : x + w - gripWidth,
+          y: 0,
+          width: gripWidth + gutter,
+          height: h,
+        },
         edge: c.pin === "right" ? "start" : "end",
+        gripOffsetX: gutter ? gripWidth : undefined,
         value: w / (c.pin ? width : available),
         min: c.pin
           ? Math.max(0.05, Math.min(0.25, 180 / width))
@@ -267,6 +276,7 @@ export function windowGeometry(
           id: `${c.id}-start`,
           rect: { ...divider.rect, x: x + (unpinned.length > 1 ? WORKSPACE_WINDOW_INSET : 0) },
           edge: "start",
+          gripOffsetX: unpinned.length > 1 ? -WORKSPACE_WINDOW_INSET : undefined,
           extent: -available,
         });
     };

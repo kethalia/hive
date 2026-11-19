@@ -436,37 +436,41 @@ export function WindowCanvas({
             ) : null}
           </DndContext>
           {!dragId
-            ? activeGeometry.dividers.map((d) => (
-                <WindowResizeHandle
-                  key={d.id}
-                  label={`Resize ${d.axis}`}
-                  axis={d.axis}
-                  value={d.value}
-                  min={d.min}
-                  max={d.max}
-                  extent={d.extent}
-                  style={styleRect(
-                    mobile
-                      ? {
-                          ...d.rect,
-                          ...(d.axis === "width"
-                            ? {
-                                x:
-                                  d.edge === "start"
-                                    ? d.rect.x
-                                    : d.edge === "end"
-                                      ? d.rect.x + d.rect.width - 16
-                                      : d.rect.x + d.rect.width / 2 - 8,
-                                width: 16,
-                              }
-                            : { y: d.rect.y + d.rect.height / 2 - 8, height: 16 }),
-                        }
-                      : d.rect,
-                  )}
-                  onChange={(value) => resize(d, value)}
-                  onInteraction={setResizing}
-                />
-              ))
+            ? activeGeometry.dividers.map((d) => {
+                const rect = mobile
+                  ? {
+                      ...d.rect,
+                      ...(d.axis === "width"
+                        ? {
+                            x:
+                              d.edge === "start"
+                                ? d.rect.x
+                                : d.edge === "end"
+                                  ? d.rect.x + d.rect.width - 16
+                                  : d.rect.x + d.rect.width / 2 - 8,
+                            width: 16,
+                          }
+                        : { y: d.rect.y + d.rect.height / 2 - 8, height: 16 }),
+                    }
+                  : d.rect;
+                return (
+                  <WindowResizeHandle
+                    key={d.id}
+                    label={`Resize ${d.axis}`}
+                    axis={d.axis}
+                    value={d.value}
+                    min={d.min}
+                    max={d.max}
+                    extent={d.extent}
+                    style={styleRect(rect)}
+                    gripOffsetX={
+                      d.gripOffsetX === undefined ? undefined : d.gripOffsetX + d.rect.x - rect.x
+                    }
+                    onChange={(value) => resize(d, value)}
+                    onInteraction={setResizing}
+                  />
+                );
+              })
             : null}
           {!mobile
             ? activeGeometry.tabs.map(({ column, rect }) => (

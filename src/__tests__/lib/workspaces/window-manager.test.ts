@@ -104,6 +104,8 @@ describe("window layouts", () => {
     );
     expect(previous!.rect.x).toBeLessThan(pane.x);
     expect(previous!.rect.x + previous!.rect.width).toBeCloseTo(handle!.rect.x);
+    expect(previous!.rect.x + previous!.gripOffsetX!).toBeCloseTo(pane.x);
+    expect(handle!.rect.x + handle!.gripOffsetX!).toBeCloseTo(pane.x);
     expect(pane.x).toBeGreaterThanOrEqual(0);
     expect(pane.x + pane.width).toBeCloseTo(width);
     expect(handle!.value - 40 / handle!.extent).toBeGreaterThan(handle!.value);

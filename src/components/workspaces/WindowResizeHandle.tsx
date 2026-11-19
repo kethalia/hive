@@ -12,6 +12,7 @@ export function WindowResizeHandle({
   max,
   extent,
   style,
+  gripOffsetX,
   onChange,
   onInteraction,
 }: {
@@ -22,6 +23,7 @@ export function WindowResizeHandle({
   max: number;
   extent: number;
   style: CSSProperties;
+  gripOffsetX?: number;
   onChange: (value: number) => void;
   onInteraction: (active: boolean) => void;
 }) {
@@ -32,6 +34,7 @@ export function WindowResizeHandle({
   change.current = onChange;
   const interaction = useRef(onInteraction);
   interaction.current = onInteraction;
+  const gutterGrip = gripOffsetX !== undefined;
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
   useEffect(
     () => () => {
@@ -59,7 +62,8 @@ export function WindowResizeHandle({
       aria-valuemin={Math.round(min * 100)}
       aria-valuemax={Math.round(max * 100)}
       className={cn(
-        "group/resize-handle absolute z-30 touch-none overflow-hidden outline-none",
+        "group/resize-handle absolute z-30 touch-none outline-none",
+        !gutterGrip && "overflow-hidden",
         axis === "width" ? "cursor-col-resize" : "cursor-row-resize",
       )}
       style={style}
@@ -108,12 +112,16 @@ export function WindowResizeHandle({
     >
       <span
         aria-hidden="true"
+        style={gutterGrip ? { left: gripOffsetX } : undefined}
         className={cn(
           "pointer-events-none absolute top-1/2 left-1/2 max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary",
           axis === "width" ? "h-8 w-0.5" : "h-0.5 w-8",
-          dragging
-            ? "opacity-100"
-            : "opacity-0 group-hover/resize-handle:opacity-60 group-focus-visible/resize-handle:opacity-100",
+          gutterGrip && "shadow-[0_0_0_1px_var(--background)]",
+          dragging ? "opacity-100" : "opacity-0 group-focus-visible/resize-handle:opacity-100",
+          !dragging &&
+            (gutterGrip
+              ? "group-hover/resize-handle:opacity-90"
+              : "group-hover/resize-handle:opacity-60"),
         )}
       />
     </div>
