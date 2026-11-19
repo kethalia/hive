@@ -47,7 +47,6 @@ locals {
 # =============================================================================
 
 data "coder_external_auth" "github" {
-  count = var.hive_scoped_github ? 0 : 1
   id = "github"
 }
 
@@ -265,8 +264,7 @@ resource "coder_script" "tools_ci" {
   start_blocks_login = true
   script = templatefile("${path.module}/scripts/tools-ci.sh", {
     git_config_retry_script        = file("${path.module}/scripts/git-config-retry.sh")
-    github_token                   = var.hive_scoped_github ? "" : data.coder_external_auth.github[0].access_token
-    github_app_helper_b64          = base64encode(file("${path.module}/scripts/github-app-credential.py"))
+    github_token                   = data.coder_external_auth.github.access_token
     github_cli_script_b64          = base64encode(file("${path.module}/scripts/github-cli.sh"))
     github_credential_script_b64   = base64encode(file("${path.module}/scripts/github-credential.sh"))
     clone_repositories_script_b64  = base64encode(file("${path.module}/scripts/clone-repositories.sh"))
@@ -529,7 +527,7 @@ resource "coder_app" "desktop" {
 # =============================================================================
 
 module "coder-login" {
-  count    = local.profile.id == "software" && !var.hive_scoped_github ? data.coder_workspace.me.start_count : 0
+  count    = local.profile.id == "software" ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/coder-login/coder"
   version  = "1.1.1"
   agent_id = coder_agent.main.id
@@ -726,10 +724,7 @@ resource "kubernetes_deployment_v1" "workspace" {
           name              = "dev"
           image             = local.profile.image
           image_pull_policy = "IfNotPresent"
-          command = ["sh", "-c", var.hive_scoped_github ? templatefile("${path.module}/scripts/github-scoped-start.sh.tftpl", {
-            coder_origin      = trimsuffix(data.coder_workspace.me.access_url, "/")
-            agent_init_script = coder_agent.main.init_script
-          }) : local.profile.id == "software" ? coder_agent.main.init_script : templatefile("${path.module}/scripts/specialist-agent-entrypoint.sh", {
+          command = ["sh", "-c", local.profile.id == "software" ? coder_agent.main.init_script : templatefile("${path.module}/scripts/specialist-agent-entrypoint.sh", {
             agent_init_script               = coder_agent.main.init_script
             coder_access_url_b64            = base64encode(data.coder_workspace.me.access_url)
             workspace_profile_b64           = base64encode(local.profile.id)
@@ -743,15 +738,6 @@ resource "kubernetes_deployment_v1" "workspace" {
 
             capabilities {
               drop = ["ALL"]
-            }
-          }
-
-          dynamic "volume_mount" {
-            for_each = var.hive_scoped_github ? [1] : []
-            content {
-              name = "github-app"
-              mount_path = "/etc/hive-github"
-              read_only = true
             }
           }
 
@@ -826,14 +812,6 @@ resource "kubernetes_deployment_v1" "workspace" {
                 }
               }
             }
-          }
-        }
-
-        dynamic "volume" {
-          for_each = var.hive_scoped_github ? [1] : []
-          content {
-            name = "github-app"
-            secret { secret_name = "hive-github-${data.coder_workspace.me.id}" }
           }
         }
 

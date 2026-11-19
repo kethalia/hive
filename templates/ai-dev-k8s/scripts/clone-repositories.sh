@@ -7,7 +7,7 @@ if [ ! -f "$repositories_file" ]; then
   exit 1
 fi
 
-if [ ! -d /etc/hive-github ] && [ -z "${GH_TOKEN:-}" ] && command -v coder >/dev/null 2>&1; then
+if [ -z "${GH_TOKEN:-}" ] && command -v coder >/dev/null 2>&1; then
   external_auth_token=""
   if external_auth_token="$(coder external-auth access-token github)"; then
     GH_TOKEN="$external_auth_token"
@@ -15,7 +15,7 @@ if [ ! -d /etc/hive-github ] && [ -z "${GH_TOKEN:-}" ] && command -v coder >/dev
   fi
 fi
 
-if ! command -v gh >/dev/null 2>&1 || { [ ! -d /etc/hive-github ] && [ -z "${GH_TOKEN:-}" ]; }; then
+if ! command -v gh >/dev/null 2>&1 || [ -z "${GH_TOKEN:-}" ]; then
   printf '[error] GitHub CLI or external-auth token is unavailable\n' >&2
   exit 1
 fi

@@ -1,16 +1,9 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// The thirteen-migration application uses these exact runtime tables.
+// The twelve-migration application uses these exact runtime tables.
 export const runtimeTables = {
-  mutable: [
-    "github_workspace_grants",
-    "users",
-    "coder_tokens",
-    "vapid_keys",
-    "template_jobs",
-    "template_notices",
-  ],
+  mutable: ["users", "coder_tokens", "vapid_keys", "template_jobs", "template_notices"],
   deletable: [
     "coder_oauth_accounts",
     "better_auth_verifications",
@@ -69,7 +62,6 @@ export const cutoverMigrationNames = [
   "20261113030000_template_jobs",
   "20261113040000_legacy_rotation_leases",
   "20261114010000_coder_oauth_better_auth",
-  "20261119010000_github_workspace_grants",
 ];
 const array = (values) => `ARRAY[${values.map((value) => `'${value}'`).join(",")}]`;
 

@@ -102,7 +102,6 @@ it("uses the Workspace tab to switch repositories to another workspace or start 
   expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
     "Workspace",
     "Connection",
-    "Permissions",
     "Repositories",
   ]);
   fireEvent.click(screen.getByRole("tab", { name: "Repositories" }));

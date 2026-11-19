@@ -3,8 +3,6 @@ import { AgentBridgeError } from "@/lib/agents/portable-client.server";
 import { createProjectDiscoveryService } from "@/lib/agents/portable-config.server";
 import { getRequestSession } from "@/lib/auth/session";
 import { githubRevision } from "@/lib/projects/github-connection";
-import { workspaceBinding } from "@/lib/projects/installation.server";
-import { ownsGrantWorkspace } from "@/lib/projects/permission-owner.server";
 import { publicationBody } from "@/lib/templates/publication-io";
 
 export const dynamic = "force-dynamic";
@@ -48,13 +46,6 @@ export async function POST(request: Request) {
   }
   const { workspaceId, buildId, ...action } = input;
   try {
-    const binding = workspaceBinding(workspaceId);
-    if (binding) {
-      if (!(await ownsGrantWorkspace(workspaceId, binding, session.user, request.signal)))
-        return json({}, 403);
-      if (action.action !== "status") return json({ error: "workspace_forbidden" }, 403);
-      return json({ managed: true });
-    }
     const result = await createProjectDiscoveryService().execute<"github-connection">(
       { hiveUserId: session.user.id, coderUserId: session.user.coderUserId },
       workspaceId,

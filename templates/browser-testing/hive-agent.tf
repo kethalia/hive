@@ -128,9 +128,3 @@ resource "coder_script" "hive_agent" {
     }
   }
 }
-
-variable "hive_scoped_github" {
-  type = bool
-  default = false
-  description = "Use a dedicated GitHub App credential broker for fresh restricted workspaces."
-}

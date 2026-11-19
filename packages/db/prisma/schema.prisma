@@ -288,16 +288,3 @@ model TerminalEvent {
   @@index([createdAt])
   @@map("terminal_events")
 }
-
-model GitHubWorkspaceGrant {
-  workspaceId String @map("workspace_id") @db.Uuid
-  repoId String @map("repo_id")
-  access String
-  revision String @db.Uuid
-  installationId String @map("installation_id")
-  credential String?
-  expiresAt DateTime? @map("expires_at") @db.Timestamptz
-
-  @@id([workspaceId, repoId])
-  @@map("github_workspace_grants")
-}

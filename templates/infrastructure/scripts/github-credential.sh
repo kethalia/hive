@@ -1,10 +1,6 @@
 #!/bin/sh
 set -eu
 
-if [ -d /etc/hive-github ]; then
-  exec "$HOME/.local/libexec/hive-github-app" git "$@"
-fi
-
 operation=${1:-}
 host=""
 while IFS='=' read -r key value; do

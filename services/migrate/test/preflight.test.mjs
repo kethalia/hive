@@ -22,8 +22,8 @@ test("OAuth preview grants select the isolated database, owner, role and current
   assert(sql.includes("ARRAY['hive_coder_oauth_runtime','hive_production_runtime']"));
   assert(sql.includes("'coder_oauth_accounts'"));
   assert(sql.includes("'better_auth_verifications'"));
-  assert.equal(cutoverMigrationNames.length, 13);
-  assert.equal(Object.values(runtimeTables).flat().length, 16);
+  assert.equal(cutoverMigrationNames.length, 12);
+  assert.equal(Object.values(runtimeTables).flat().length, 15);
   assert(!sql.includes("hive_foundation_runtime"));
 });
 

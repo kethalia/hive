@@ -498,7 +498,7 @@ test("Accounts preview enforces its dedicated bridge configuration and current p
   const accountsBranch = "codex/github-projects-p04";
   const accounts = profiles[accountsBranch];
   assert.equal(deploymentPlan("preview", accountsBranch, config, profiles).origin, accounts.origin);
-  assert.equal(accounts.schemaMigrations, 13);
+  assert.equal(accounts.schemaMigrations, 12);
   assert.equal(accounts.databaseName, "hive_workspace_accounts_preview");
   assert.ok(config.secrets.required.includes("HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"));
   assert.equal(config.previews.secrets, undefined);

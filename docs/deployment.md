@@ -383,31 +383,3 @@ and check keepalive status/session events. Verify browser network requests do
 not deliver Hive's account cookie to the terminal or workspace app hosts. Check
 that ticket expiry, modified targets, and revoked sessions are rejected. Browser
 fixture evidence does not substitute for this live Coder rollout verification.
-
-### Workspace GitHub App permissions
-
-The GitHub window’s **Permissions** tab controls GitHub App repository contents access. Each repository starts at **No access**. **Read** enables authenticated reads and clones. **Read and write** also allows pushes subject to the repository’s rules. GitHub installation tokens act as the app. Public repositories remain readable anonymously.
-
-1. Install the same GitHub App in each participating organization. Request **Contents: read and write**, accept GitHub’s implicit metadata read permission, and select the repositories the installation may access. Set `HIVE_GITHUB_APP_ID` and the multiline `HIVE_GITHUB_APP_PRIVATE_KEY` in the Hive control plane’s secret store. The signing key belongs only in the control plane.
-2. Apply the database migration and runtime grants. Bind the owner, template, workspace and installation repository IDs using the server setting `HIVE_GITHUB_APP_WORKSPACES`. The example below shows the shape of one entry. Replace all placeholders with deployment values. Resolve the numeric repository and installation IDs from GitHub. The catalog defines the maximum access the workspace owner can grant.
-3. Provision a fresh workspace from a template version with the operator variable `hive_scoped_github=true`. Mount its dedicated Kubernetes Secret `hive-github-<workspace UUID>` with a `config.json` key containing `origin` (the HTTPS Hive origin), `workspaceId` and `key` (32 or more random bytes encoded as base64url). Put the lowercase hex SHA-256 digest of that encoded key in the matching server entry. Provision a unique key per workspace.
-4. The scoped agent requires a Coder policy or isolated deployment that denies its agent access to personal GitHub external-auth credentials and the owner's Git SSH key. Verify the denial from the agent. The template checks at startup, omits the personal GitHub token from bootstrap and disables automatic owner CLI login. Use a fresh home for this profile. Converting an existing home with saved GitHub credentials requires a separate migration.
-5. In **GitHub → Permissions**, change a repository’s access. Hive issues a token for that one immutable repository ID and verifies GitHub’s returned permissions. Downgrading or removing a grant revokes the previously issued token before acknowledging the edit. In a workspace terminal, HTTPS Git uses the remote’s full path. Run `gh` from its clone, pass `-R OWNER/REPO`, or set `GH_REPO=OWNER/REPO`. Commands across organizations use their respective installations.
-
-```json
-{
-  "<workspace UUID>": {
-    "ownerId": "<Coder user UUID>",
-    "templateId": "<scoped template UUID>",
-    "keyHash": "<SHA-256 digest>",
-    "repositories": [
-      { "id": 1183966024, "name": "kethalia/hive", "installationId": 101 },
-      { "id": 1371240353, "name": "kethalia/codex-creative-studio", "installationId": 101 },
-      { "id": 975000813, "name": "chillwhales/lsp-indexer", "installationId": 202 },
-      { "id": 846580864, "name": "chillwhales/chillwhales-frontend", "installationId": 202 }
-    ]
-  }
-}
-```
-
-Before removing a workspace or repository binding, set its grants to **No access** or revoke the installation on GitHub. Removing configuration alone stops new issuance. Already delivered installation tokens can otherwise last up to one hour. [GitHub installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)
