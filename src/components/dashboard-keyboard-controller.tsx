@@ -166,14 +166,14 @@ export function DashboardKeyboardController() {
             : []),
           [
             "codex-account",
-            "Codex account",
+            "Codex",
             "Connect Codex and manage usage and runtime settings",
             undefined,
             ["accounts", "connections", "sign in"],
           ],
           [
             "claude-account",
-            "Claude account",
+            "Claude",
             "Connect Claude in a workspace",
             undefined,
             ["accounts", "connections", "sign in"],
