@@ -27,6 +27,7 @@ export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
 export const hiveToolSchema = z
   .enum([
     "agents",
+    "projects",
     "accounts",
     "codex-account",
     "claude-account",
@@ -42,6 +43,7 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
+  projects: "GitHub repositories",
   "codex-account": "Codex",
   "claude-account": "Claude",
   diagnostics: "Diagnostics",

@@ -29,6 +29,7 @@ type Pin = {
   templateId: string;
   profile: AgentBridgeClientConfig["profile"];
   manifestSha256: string;
+  previousManifestSha256?: string;
   helperSha256: string;
 };
 export type AgentBridgeServiceConfig = {
@@ -38,6 +39,7 @@ export type AgentBridgeServiceConfig = {
   pins: Pin[];
   cookieDomains: string[];
   home: string;
+  discoveryOnly?: boolean;
   accountProvider?: "codex" | "claude";
 };
 export type AgentBridgeServiceDependencies = {
@@ -81,6 +83,7 @@ export class AgentBridgeService {
       const parsed = agentOperationSchema.parse(request);
       if (
         parsed.operation === "identity" ||
+        (parsed.operation === "discover-projects") !== Boolean(this.config.discoveryOnly) ||
         (this.config.accountProvider !== undefined &&
           (!["codex", "claude"].includes(this.config.accountProvider) ||
             (parsed.operation !== `${this.config.accountProvider}-account` &&
@@ -127,6 +130,7 @@ export class AgentBridgeService {
         profile: pin.profile,
         manifestSha256: pin.manifestSha256,
         helperSha256: pin.helperSha256,
+        previousManifestSha256: pin.previousManifestSha256,
       };
       const client = new AgentBridgeClient(config, this.deps.transport(coder, before.binding));
       const result = await client.execute(

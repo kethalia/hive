@@ -42,6 +42,7 @@ export type AgentBridgeClientConfig = {
   home: string;
   profile: "software" | "browser" | "game" | "electronics" | "infrastructure";
   manifestSha256: string;
+  previousManifestSha256?: string;
   helperSha256: string;
 };
 export type AgentBridgeTransport = (
@@ -197,8 +198,10 @@ export class AgentBridgeClient {
         publicKey = createPublicKey(data.publicKeyPem),
         { proof, ...unsigned } = identity;
       if (
-        data.manifestSha256 !== this.config.manifestSha256 ||
-        data.configDigest !== digest(this.config, data.environment) ||
+        (data.manifestSha256 !== this.config.manifestSha256 &&
+          data.manifestSha256 !== this.config.previousManifestSha256) ||
+        data.configDigest !==
+          digest({ ...this.config, manifestSha256: data.manifestSha256 }, data.environment) ||
         publicKey.asymmetricKeyType !== "ed25519" ||
         publicKey.export({ type: "spki", format: "pem" }) !== data.publicKeyPem ||
         !verify(
@@ -214,6 +217,11 @@ export class AgentBridgeClient {
         !data.capabilities?.includes(
           parsed.management.action.endsWith("library") ? "codex-library" : "codex-management",
         )
+      )
+        throw new AgentBridgeError("unsupported");
+      if (
+        parsed.operation === "discover-projects" &&
+        data.manifestSha256 !== this.config.manifestSha256
       )
         throw new AgentBridgeError("unsupported");
       const next = packet(this.config, parsed, identity.lifetimeId);

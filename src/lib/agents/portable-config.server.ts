@@ -11,6 +11,10 @@ const pin = z
     templateId: z.string().uuid(),
     profile: z.enum(["software", "browser", "game", "electronics", "infrastructure"]),
     manifestSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    previousManifestSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     helperSha256: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
@@ -74,6 +78,11 @@ export function createPortableAgentService(config = portableAgentConfig()) {
 }
 export function createPortableAccountService(provider: "codex" | "claude") {
   return agentService(portableAccountConfig(provider));
+}
+export function createProjectDiscoveryService() {
+  if (process.env.HIVE_PROJECT_DISCOVERY_ENABLED !== "true")
+    throw new AgentBridgeError("unavailable");
+  return agentService({ ...transportConfig(process.env), discoveryOnly: true });
 }
 function agentService(config: AgentBridgeServiceConfig) {
   return new AgentBridgeService(config, {

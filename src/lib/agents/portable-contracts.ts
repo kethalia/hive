@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  projectErrorCodeSchema,
+  projectPageSchema,
+  projectRequestSchema,
+} from "@/lib/projects/contracts";
 import { claudeAccountRequestSchema, claudeAccountStatusSchema } from "./claude-account-contracts";
 import { codexAccountRequestSchema, codexAccountStatusSchema } from "./codex-account-contracts";
 import {
@@ -47,6 +52,10 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
       ]),
     })
     .strict(),
+  projectRequestSchema
+    .omit({ workspaceId: true })
+    .extend({ operation: z.literal("discover-projects") })
+    .strict(),
   z.object({ operation: z.literal("identity") }).strict(),
   z.object({ operation: z.literal("inventory") }).strict(),
   z.object({ operation: z.literal("sessions") }).strict(),
@@ -66,6 +75,10 @@ export const agentOperationSchema = z.discriminatedUnion("operation", [
 ]);
 export type AgentOperation = z.infer<typeof agentOperationSchema>;
 export const agentResultSchemas = {
+  "discover-projects": z.union([
+    projectPageSchema,
+    z.object({ schemaVersion: z.literal(1), error: projectErrorCodeSchema }).strict(),
+  ]),
   "codex-management": codexManagementResponseSchema,
   "claude-account": claudeAccountStatusSchema,
   "rename-terminal-session": z
@@ -128,6 +141,7 @@ export const agentReplySchema = z
     requestId: z.string().uuid(),
     lifetimeId: z.string().uuid(),
     operation: z.enum([
+      "discover-projects",
       "claude-account",
       "rename-terminal-session",
       "kill-terminal-session",

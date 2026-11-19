@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 import uuid
 import zlib
 
-MEMBERS = {"agent-host.mjs", "codex-account.mjs", "claude-account.mjs", "claude-account-driver.py", "agent-start.mjs", "install-codex-runtime.py", "agent-tools.py", "notifications-install.py", "notifications-hook.py", "manifest.json"}
+MEMBERS = {"github-projects.py", "agent-host.mjs", "codex-account.mjs", "claude-account.mjs", "claude-account-driver.py", "agent-start.mjs", "install-codex-runtime.py", "agent-tools.py", "notifications-install.py", "notifications-hook.py", "manifest.json"}
 PROFILES = {"software", "browser", "game", "electronics", "infrastructure"}
 BINDING = {"coderOrigin", "ownerId", "workspaceId", "buildId", "agentId", "templateId", "appOrigin", "appId"}
 CONFIG = {"schemaVersion", "binding", "profile", "home", "hiveOrigin", "issuerKeyId", "issuerPublicKeyPem", "packageDirectory", "manifestSha256", "helperSha256", "port"}
@@ -443,7 +443,7 @@ def install(request):
         try:
             _INSTALL_STAGE = "launch"
             child = subprocess.Popen([str(node), str(target / "agent-start.mjs")], stdin=subprocess.DEVNULL, stdout=log_fd, stderr=log_fd,
-                                     env={"PATH": str(home / ".local/bin") + ":/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "USER": pwd.getpwuid(os.getuid()).pw_name, "LANG": "C.UTF-8"}, close_fds=True, start_new_session=True)
+                                     env={**{key: os.environ[key] for key in ("CODER_AGENT_URL", "CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE") if key in os.environ}, "PATH": str(home / ".local/bin") + ":/usr/local/bin:/usr/bin:/bin", "HOME": str(home), "USER": pwd.getpwuid(os.getuid()).pw_name, "LANG": "C.UTF-8"}, close_fds=True, start_new_session=True)
             record["attemptedPid"] = child.pid
             save(record)
             identity = process_identity(child.pid)

@@ -4,7 +4,10 @@
   "account_id": "225177f82b9234ede14e897fe15e0cb5",
   "main": "worker.ts",
   "compatibility_date": "2026-10-29",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "workers_dev": false,
   "preview_urls": true,
   "assets": {
@@ -27,7 +30,9 @@
     "redact_query_string": true
   },
   "triggers": {
-    "crons": ["17 * * * *"]
+    "crons": [
+      "17 * * * *"
+    ]
   },
   "vars": {
     "HIVE_NATIVE_MODE": "production",
@@ -49,8 +54,9 @@
     "HIVE_AGENT_TOOLS_TRANSPORT": "workspace-app",
     "HIVE_AGENT_TOOLS_HIVE_ORIGIN": "https://hive.kethalia.com",
     "HIVE_AGENT_TOOLS_ISSUER_KEY_ID": "hive-accounts-v1",
-    "HIVE_AGENT_TOOLS_PINS_JSON": "[{\"templateId\":\"06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42\",\"profile\":\"software\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"},{\"templateId\":\"ff15e3b2-638e-4328-a62b-718a2ee7472a\",\"profile\":\"browser\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"},{\"templateId\":\"78c1aaa0-ff41-4a88-b1c3-909c16d85e34\",\"profile\":\"infrastructure\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"},{\"templateId\":\"50297c47-f66a-46a5-88d4-06f281d9f519\",\"profile\":\"electronics\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"},{\"templateId\":\"696e7eca-937c-451c-b70d-e611ccb46f13\",\"profile\":\"game\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"}]",
-    "HIVE_WORKSPACE_ISSUER_MODE": "dedicated"
+    "HIVE_AGENT_TOOLS_PINS_JSON": "[{\"templateId\":\"06ab5cf1-fc5a-4f98-ac96-94a6eaf5ef42\",\"profile\":\"software\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"},{\"templateId\":\"ff15e3b2-638e-4328-a62b-718a2ee7472a\",\"profile\":\"browser\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"},{\"templateId\":\"78c1aaa0-ff41-4a88-b1c3-909c16d85e34\",\"profile\":\"infrastructure\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"},{\"templateId\":\"50297c47-f66a-46a5-88d4-06f281d9f519\",\"profile\":\"electronics\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"},{\"templateId\":\"696e7eca-937c-451c-b70d-e611ccb46f13\",\"profile\":\"game\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"}]",
+    "HIVE_WORKSPACE_ISSUER_MODE": "dedicated",
+    "HIVE_PROJECT_DISCOVERY_ENABLED": "true"
   },
   "previews": {
     "placement": {
@@ -62,23 +68,24 @@
       "HIVE_DISABLE_BACKGROUND_WORKERS": "true",
       "HIVE_GENERIC_TERMINAL_ENABLED": "true",
       "HIVE_TERMINAL_WS_URL": "/",
-      "HIVE_PUBLIC_ORIGIN": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+      "HIVE_PUBLIC_ORIGIN": "https://codex-github-projects-p04.hive-preview.kethalia.com",
       "CODER_URL": "https://coder.kethalia.com",
       "HIVE_DATABASE_NAME": "hive_workspace_accounts_preview",
       "HIVE_DATABASE_ROLE": "hive_accounts_runtime",
       "ALLOWED_CODER_URLS": "https://coder.kethalia.com",
       "HIVE_TERMINAL_PASTE_ENABLED": "true",
       "HIVE_CODEX_VOICE_ENABLED": "true",
-      "HIVE_PREVIEW_ORIGIN_ALIAS": "https://codex-workspace-accounts-p03-hive.b00ste.workers.dev",
+      "HIVE_PREVIEW_ORIGIN_ALIAS": "https://codex-github-projects-p04-hive.b00ste.workers.dev",
       "HIVE_CODER_OAUTH_ENABLED": "true",
       "CODER_OAUTH_CLIENT_ID": "27ddaac0-2f17-4f71-851b-227501a40493",
       "HIVE_CODEX_ACCOUNTS_ENABLED": "true",
       "HIVE_CLAUDE_ACCOUNTS_ENABLED": "true",
       "HIVE_AGENT_TOOLS_TRANSPORT": "workspace-app",
-      "HIVE_AGENT_TOOLS_HIVE_ORIGIN": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+      "HIVE_AGENT_TOOLS_HIVE_ORIGIN": "https://codex-github-projects-p04.hive-preview.kethalia.com",
       "HIVE_AGENT_TOOLS_ISSUER_KEY_ID": "p03-preview-v1",
-      "HIVE_AGENT_TOOLS_PINS_JSON": "[{\"templateId\":\"8f4640b6-f027-4b9d-8f72-9eba10f7034d\",\"profile\":\"software\",\"manifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\"}]",
-      "HIVE_WORKSPACE_ISSUER_MODE": "dedicated"
+      "HIVE_AGENT_TOOLS_PINS_JSON": "[{\"templateId\":\"8f4640b6-f027-4b9d-8f72-9eba10f7034d\",\"profile\":\"software\",\"manifestSha256\":\"251be4205666a1deae04142399fad70599f0d2f7177616aabee04dcfc453f14f\",\"helperSha256\":\"125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787\",\"previousManifestSha256\":\"cde27656f6088d66268874123852280be59b24f57c39de700896c810c9a21449\"}]",
+      "HIVE_WORKSPACE_ISSUER_MODE": "dedicated",
+      "HIVE_PROJECT_DISCOVERY_ENABLED": "true"
     },
     "durable_objects": {
       "bindings": [
@@ -125,7 +132,9 @@
   "migrations": [
     {
       "tag": "hive-background-v1",
-      "new_sqlite_classes": ["HiveBackground"]
+      "new_sqlite_classes": [
+        "HiveBackground"
+      ]
     }
   ]
 }

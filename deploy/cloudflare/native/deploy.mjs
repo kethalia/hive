@@ -40,6 +40,7 @@ export function deploymentPlan(target, branch, config, profiles) {
       databaseRole: "hive_production_runtime",
       coderOAuthEnabled: true,
       workspaceAccounts: true,
+      projectDiscovery: true,
     };
     vars = config.vars;
     assert.equal(vars.HIVE_PREVIEW_ORIGIN_ALIAS, undefined);
@@ -64,6 +65,7 @@ export function deploymentPlan(target, branch, config, profiles) {
     assert.equal(url.password, "");
   }
   if (profile.coderOAuthEnabled) assert.equal(vars.HIVE_CODER_OAUTH_ENABLED, "true");
+  if (profile.projectDiscovery) assert.equal(vars.HIVE_PROJECT_DISCOVERY_ENABLED, "true");
   if (profile.workspaceAccounts) {
     assert.equal(vars.HIVE_CODEX_ACCOUNTS_ENABLED, "true");
     assert.equal(vars.HIVE_CLAUDE_ACCOUNTS_ENABLED, "true");

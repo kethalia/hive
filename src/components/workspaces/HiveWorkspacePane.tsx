@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Suspense, useId, useState } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
@@ -18,6 +19,9 @@ import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 import { WorkspacePicker } from "./WorkspacePicker";
 
+const ProjectBrowser = dynamic(() =>
+  import("@/components/projects/ProjectBrowser").then((m) => m.ProjectBrowser),
+);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -94,6 +98,13 @@ export function HiveWorkspacePane({
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
+  const projectWorkspace =
+    pane.tool !== "projects"
+      ? undefined
+      : pane.workspaceId
+        ? workspaces.find((w) => w.id === pane.workspaceId)
+        : (workspaces.find((w) => w.latest_build.status === "running") ?? workspaces[0]);
   const navigationId = useId();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigation = { id: navigationId, collapsed: sidebarCollapsed };
@@ -165,6 +176,31 @@ export function HiveWorkspacePane({
             onStartWorkspace={onStartWorkspace}
             onWorkspaceChange={onWorkspaceChange}
           />
+        ) : pane.tool === "projects" ? (
+          projectDiscoveryEnabled ? (
+            <div className="space-y-3 p-4">
+              <WorkspacePicker
+                label="Repository workspace"
+                workspaces={workspaces}
+                selected={projectWorkspace?.id}
+                onSelect={onWorkspaceChange}
+              />
+              {projectWorkspace?.latest_build.status === "running" ? (
+                <ProjectBrowser
+                  key={projectWorkspace.latest_build.id}
+                  workspaceId={projectWorkspace.id}
+                  enabled
+                  visible={visible}
+                />
+              ) : (
+                <p role="status">
+                  Choose a running Coder workspace to browse its GitHub repositories.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="p-4">Repository discovery is disabled.</p>
+          )
         ) : pane.tool === "agents" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
             <WorkspacePicker
