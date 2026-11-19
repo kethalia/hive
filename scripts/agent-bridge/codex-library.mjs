@@ -12,6 +12,8 @@ const within = (home, path) => {
   const location = relative(home, path);
   return !isAbsolute(location) && location !== ".." && !location.startsWith(`..${sep}`);
 };
+// Native sends the full tool schemas for each server. Bound each page before projection.
+const integrationPageSize = 4;
 const sessionStates = new Map([
   ["notLoaded", "saved"],
   ["active", "running"],
@@ -142,7 +144,9 @@ async function plugins(rpc) {
   const counts = new Map();
   for (const { row } of entries) counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
   return {
-    entries: entries.filter(({ row }) => counts.get(row.id) === 1),
+    entries: entries
+      .filter(({ row }) => counts.get(row.id) === 1)
+      .sort((a, b) => Number(b.row.installed) - Number(a.row.installed)),
     partial: array(native.marketplaceLoadErrors).length > 0 || counts.size !== entries.length,
   };
 }
@@ -172,7 +176,11 @@ export async function readLibrary(rpc, home, request) {
           archived: request.archived,
           searchTerm: request.search,
         })
-      : await rpc("mcpServerStatus/list", { cursor, limit: 20, detail: "toolsAndAuthOnly" });
+      : await rpc("mcpServerStatus/list", {
+          cursor,
+          limit: integrationPageSize,
+          detail: "toolsAndAuthOnly",
+        });
   if (!Array.isArray(native?.data)) throw Error("managed_management_unavailable");
   const rows =
     section === "sessions"
@@ -192,7 +200,7 @@ export async function readLibrary(rpc, home, request) {
             status: sessionStates.get(item.status?.type) ?? "unknown",
             canInspectSkills: sessionId.test(label(item.id)) && within(home, item.cwd),
           }))
-      : native.data.slice(0, 20).map((item) => ({
+      : native.data.slice(0, integrationPageSize).map((item) => ({
           name: label(item.name),
           pluginId: label(item.pluginId) || null,
           auth: ["unsupported", "notLoggedIn", "bearerToken", "oAuth"].includes(item.authStatus)

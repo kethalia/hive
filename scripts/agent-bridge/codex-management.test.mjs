@@ -385,3 +385,35 @@ test("only the Codex management wire enables the fixed read/write RPC allowlist"
     }
   }
 });
+
+test("only matching Codex catalog responses can exceed the normal frame limit", async () => {
+  const child = new EventEmitter();
+  child.stdin = new PassThrough();
+  child.stdout = new PassThrough();
+  child.kill = () => {
+    queueMicrotask(() => child.emit("close"));
+    return true;
+  };
+  const wire = createAccountWire(child, () => assert.fail("unexpected notification"), {
+    management: true,
+  });
+  const payload = `€${"a".repeat(600 * 1024)}`;
+  try {
+    for (const [id, method] of ["plugin/list", "mcpServerStatus/list"].entries()) {
+      const response = wire.call(method, {});
+      await assert.rejects(wire.call("config/read", {}), /managed_auth_unavailable/);
+      const frame = Buffer.from(`${JSON.stringify({ id: id + 1, result: payload })}\n`);
+      const split = frame.indexOf(Buffer.from("€")) + 1;
+      child.stdout.write(frame.subarray(0, split));
+      child.stdout.write(frame.subarray(split, split + 300 * 1024));
+      child.stdout.write(frame.subarray(split + 300 * 1024));
+      assert.equal(await response, payload);
+    }
+
+    const response = wire.call("plugin/list", {});
+    child.stdout.write(`${JSON.stringify({ method: "account/updated", params: payload })}\n`);
+    await assert.rejects(response, /managed_auth_unavailable/);
+  } finally {
+    await wire.close();
+  }
+});

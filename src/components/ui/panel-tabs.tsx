@@ -57,7 +57,7 @@ export function PanelTabs<T extends string>({
   }, [value, wide, collapsed]);
 
   return (
-    <div ref={container} className="flex min-w-0 flex-1 flex-col">
+    <div ref={container} className="@container flex min-w-0 flex-1 flex-col">
       <Tabs
         orientation={wide ? "vertical" : "horizontal"}
         value={value}
@@ -66,42 +66,58 @@ export function PanelTabs<T extends string>({
         }}
         className={cn(
           "min-h-0 min-w-0 flex-1 gap-0",
-          wide && !collapsed && "grid grid-cols-[minmax(6.25rem,27%)_minmax(0,1fr)]",
+          wide &&
+            "grid transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none",
+          wide && (collapsed ? "grid-cols-[0%_minmax(0,1fr)]" : "grid-cols-[27%_minmax(0,1fr)]"),
         )}
       >
         <div
           id={navigation?.id}
-          hidden={collapsed}
-          className={cn("min-w-0", wide && "border-r border-border/75 bg-background")}
+          inert={collapsed}
+          aria-hidden={collapsed || undefined}
+          className={cn(
+            "min-w-0 transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            wide ? "overflow-x-clip" : "grid",
+            !wide && (collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]"),
+            collapsed && "opacity-0",
+          )}
         >
-          <TabsList
-            ref={list}
-            aria-label={label}
+          <div
             className={cn(
-              "w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
-              wide ? "sticky top-0 h-fit" : "!h-auto justify-start overflow-x-auto border-b",
+              wide
+                ? "h-full w-[27cqw] border-r border-border/75 bg-background"
+                : "min-h-0 overflow-hidden",
             )}
           >
-            {items.map((item) => (
-              <TabsTrigger
-                className={cn(
-                  "h-auto min-h-9 flex-none justify-start px-2 py-1.5 text-left text-xs leading-tight",
-                  wide && "whitespace-normal @lg:text-sm",
-                )}
-                data-panel-section={item.id}
-                value={item.id}
-                key={item.id}
-                disabled={busy && value !== item.id}
-              >
-                {wide && (
-                  <span className="hidden @lg:inline-flex" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                )}
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+            <TabsList
+              ref={list}
+              aria-label={label}
+              className={cn(
+                "w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
+                wide ? "sticky top-0 h-fit" : "!h-auto justify-start overflow-x-auto border-b",
+              )}
+            >
+              {items.map((item) => (
+                <TabsTrigger
+                  className={cn(
+                    "h-auto min-h-9 flex-none justify-start px-2 py-1.5 text-left text-xs leading-tight",
+                    wide && "whitespace-normal @lg:text-sm",
+                  )}
+                  data-panel-section={item.id}
+                  value={item.id}
+                  key={item.id}
+                  disabled={busy && value !== item.id}
+                >
+                  {wide && (
+                    <span className="hidden @lg:inline-flex" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                  )}
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </div>
         <TabsContent value={value} className="min-h-0 min-w-0 px-3 py-3 @lg:px-5 @lg:py-4">
           {children}

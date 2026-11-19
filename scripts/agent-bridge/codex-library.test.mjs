@@ -75,7 +75,7 @@ test("integration listing projects auth and tool names without returning endpoin
   const answer = await readLibrary(
     async (method, params) => {
       assert.equal(method, "mcpServerStatus/list");
-      assert.deepEqual(params, { cursor: null, limit: 20, detail: "toolsAndAuthOnly" });
+      assert.deepEqual(params, { cursor: null, limit: 4, detail: "toolsAndAuthOnly" });
       return {
         data: [
           {
@@ -98,6 +98,31 @@ test("integration listing projects auth and tool names without returning endpoin
     partial: false,
     nextCursor: "next",
   });
+});
+
+test("a large plugin catalog keeps installed entries in the returned inventory", async () => {
+  const answer = await readLibrary(
+    async (method) => {
+      assert.equal(method, "plugin/list");
+      return {
+        marketplaces: [
+          {
+            name: "market",
+            plugins: [
+              ...Array.from({ length: 201 }, (_, index) => ({ id: `plugin-${index}@market` })),
+              { id: "installed@market", installed: true },
+            ],
+          },
+        ],
+      };
+    },
+    "/unused",
+    read("plugins"),
+  );
+  assert.equal(answer.rows.length, 200);
+  assert.equal(answer.rows[0].name, "installed@market");
+  assert.equal(answer.rows[0].installed, true);
+  assert.equal(answer.partial, true);
 });
 
 test("a stale catalog cannot write and a lost write is read back without replay", async () => {

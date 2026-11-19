@@ -92,13 +92,23 @@ export async function openAccountSession(home, fd, notify) {
 }
 
 export function createAccountWire(child, notify, { codeInput = false, management = false } = {}) {
-  let sequence = 0,
-    buffer = "",
-    ended = false;
+  let sequence = 0;
+  let parts = [];
+  let bufferedBytes = 0;
+  let ended = false;
+  const normalLimit = management ? 512 * 1024 : 65536;
+  // Native inventory contains full marketplace metadata or MCP tool schemas.
+  // Only these fixed reads need larger frames. Results are projected before leaving the bridge.
+  const catalogLimits = new Map([
+    ["plugin/list", 48 * 1024 * 1024],
+    ["mcpServerStatus/list", 16 * 1024 * 1024],
+  ]);
   const requests = new Map();
   const closed = new Promise((resolve) => child.once("close", resolve));
   const fail = () => {
     ended = true;
+    parts = [];
+    bufferedBytes = 0;
     for (const p of requests.values()) {
       clearTimeout(p.timer);
       p.reject(Error("managed_auth_unavailable"));
@@ -108,40 +118,46 @@ export function createAccountWire(child, notify, { codeInput = false, management
   child.once("error", fail);
   child.once("close", fail);
   child.stdin.on("error", fail);
-  child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
-    buffer += chunk;
-    if (Buffer.byteLength(buffer) > (management ? 512 * 1024 : 65536)) {
-      child.kill("SIGKILL");
-      fail();
-      return;
-    }
-    for (;;) {
-      const index = buffer.indexOf("\n");
-      if (index < 0) break;
-      const line = buffer.slice(0, index);
-      buffer = buffer.slice(index + 1);
-      try {
-        const message = JSON.parse(line);
-        if (message.id !== undefined) {
-          const p = requests.get(message.id);
-          if (!p) continue;
+    if (ended) return;
+    try {
+      let offset = 0;
+      while (offset < chunk.length) {
+        const end = chunk.indexOf(10, offset);
+        const part = chunk.subarray(offset, end === -1 ? chunk.length : end);
+        bufferedBytes += part.length;
+        const pending = requests.size === 1 ? requests.values().next().value : null;
+        if (bufferedBytes > (pending?.limit ?? normalLimit)) reject();
+        parts.push(part);
+        if (end === -1) break;
+        offset = end + 1;
+        const length = bufferedBytes;
+        const line = parts.length === 1 ? parts[0] : Buffer.concat(parts, length);
+        parts = [];
+        bufferedBytes = 0;
+        const message = JSON.parse(line.toString("utf8"));
+        const p = requests.get(message.id);
+        if (length > (p?.limit ?? normalLimit)) reject();
+        if (p) {
           requests.delete(message.id);
           clearTimeout(p.timer);
           if (message.error) p.reject(Error("managed_auth_unavailable"));
           else p.resolve(message.result);
         } else if (["account/login/completed", "account/updated"].includes(message.method))
           notify(message);
-      } catch {
-        child.kill("SIGKILL");
-        fail();
       }
+    } catch {
+      child.kill("SIGKILL");
+      fail();
     }
   });
   const call = (method, params) =>
     new Promise((resolve, rejectCall) => {
+      const limit = (management && catalogLimits.get(method)) || normalLimit;
       if (
         ended ||
+        (limit > normalLimit && requests.size > 0) ||
+        (requests.size === 1 && requests.values().next().value.limit > normalLimit) ||
         ![
           "initialize",
           "account/read",
@@ -175,7 +191,7 @@ export function createAccountWire(child, notify, { codeInput = false, management
           requests.delete(id);
           rejectCall(Error("managed_auth_unavailable"));
         }, 8000);
-      requests.set(id, { resolve, reject: rejectCall, timer });
+      requests.set(id, { resolve, reject: rejectCall, timer, limit });
       child.stdin.write(
         `${JSON.stringify({ id, method, ...(params === undefined ? {} : { params }) })}\n`,
       );
