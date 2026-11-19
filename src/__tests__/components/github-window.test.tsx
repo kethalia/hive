@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { GitHubWindow } from "@/components/projects/GitHubWindow";
@@ -57,9 +57,24 @@ it.each([
       />
     </QueryClientProvider>,
   );
-  fireEvent.click(
-    await screen.findByRole("button", { name: initial ? "Reconnect" : "Connect GitHub" }),
-  );
+  const connect = await screen.findByRole("button", {
+    name: initial ? "Reconnect" : "Connect GitHub",
+  });
+  if (!initial) {
+    const panel = screen.getByRole("region", { name: "Workspace GitHub connection" });
+    const state = within(panel).getByRole("status");
+    expect(panel.firstElementChild).toBe(state);
+    expect(state.firstElementChild).toBe(
+      within(state).getByRole("heading", { name: "No GitHub account connected" }),
+    );
+    expect(state.children).toHaveLength(2);
+    expect(
+      within(panel)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Refresh status", "Connect GitHub"]);
+  }
+  fireEvent.click(connect);
   expect(await screen.findByText("TEST-CODE")).toBeInTheDocument();
   expect(screen.queryByText("@new-account")).not.toBeInTheDocument();
   expect(await screen.findByText("@new-account", {}, { timeout: 5000 })).toBeVisible();
@@ -148,9 +163,12 @@ it("offers workspace selection when the running helper cannot manage GitHub", as
       />
     </QueryClientProvider>,
   );
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Update the workspace template for First",
+  const alert = await screen.findByRole("alert");
+  expect(alert.parentElement?.firstElementChild).toBe(alert);
+  expect(alert.firstElementChild).toBe(
+    within(alert).getByRole("heading", { name: "Could not verify GitHub connection" }),
   );
+  expect(alert).toHaveTextContent("Update the workspace template for First");
   expect(screen.queryByText("Checking GitHub connection…")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Choose workspace" }));
   expect(screen.getByRole("radio", { name: "First, running" })).toBeChecked();

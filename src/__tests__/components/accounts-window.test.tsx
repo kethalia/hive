@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -75,13 +75,23 @@ afterEach(() => {
 });
 
 it.each([
-  ["codex-account", "Managed Codex account", "Workspace Claude account"],
-  ["claude-account", "Workspace Claude account", "Managed Codex account"],
-] as const)("loads only the %s provider for the selected visible workspace", async (tool, own, other) => {
+  ["codex-account", "Managed Codex account", "Workspace Claude account", "Codex"],
+  ["claude-account", "Workspace Claude account", "Managed Codex account", "Claude"],
+] as const)("loads only the %s provider for the selected visible workspace", async (tool, own, other, provider) => {
   const view = render(tree("one", "build-one", { tool, visible: false }));
   expect(fetcher).not.toHaveBeenCalled();
   view.rerender(tree("one", "build-one", { tool }));
-  expect(await screen.findByRole("region", { name: own })).toBeVisible();
+  const panel = await screen.findByRole("region", { name: own });
+  const heading = within(panel).getByRole("heading", { name: `No ${provider} account connected` });
+  const state = within(panel).getByRole("status");
+  expect(panel.firstElementChild).toBe(state);
+  expect(state.firstElementChild).toBe(heading);
+  expect(state.children).toHaveLength(2);
+  expect(
+    within(panel)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual(["Refresh status", `Connect ${provider}`]);
   expect(screen.queryByRole("region", { name: other })).not.toBeInTheDocument();
   expect(
     screen
@@ -103,9 +113,13 @@ it("explains disabled Claude connections in the Claude window", async () => {
   fetcher.mockResolvedValue(new Response(null, { status: 404 }));
   render(tree("one", "build-one", { tool: "claude-account" }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
-  expect(
-    await screen.findByRole("heading", { name: "Could not verify Claude connection" }),
-  ).toBeVisible();
+  const heading = await screen.findByRole("heading", {
+    name: "Could not verify Claude connection",
+  });
+  const alert = screen.getByRole("alert");
+  expect(alert.parentElement?.firstElementChild).toBe(alert);
+  expect(alert.firstElementChild).toBe(heading);
+  expect(alert.children).toHaveLength(2);
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
 });
 
