@@ -403,13 +403,21 @@ describe("workspace server actions", () => {
       owner_name: "testuser",
       latest_build: { status: "stopped" },
     });
+    mockWaitForBuild.mockResolvedValueOnce({
+      id: "ws-1",
+      latest_build: { id: "started-build", status: "running" },
+    });
 
     const { startWorkspaceAction } = await import("@/lib/actions/workspaces");
     const result = await startWorkspaceAction({ workspaceId: "ws-1" });
 
     expect(mockStartWorkspace).toHaveBeenCalledWith("ws-1");
     expect(mockWaitForBuild).toHaveBeenCalledWith("ws-1", "running");
-    expect(result?.data).toEqual({ workspaceId: "ws-1", status: "running" });
+    expect(result?.data).toEqual({
+      workspaceId: "ws-1",
+      status: "running",
+      buildId: "started-build",
+    });
   });
 
   it("stopWorkspaceAction stops an owned running workspace and waits until stopped", async () => {

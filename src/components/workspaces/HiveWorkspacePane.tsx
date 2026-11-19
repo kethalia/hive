@@ -2,7 +2,7 @@
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LoaderCircle, PanelLeftClose, PanelLeftOpen, Play } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Suspense, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   type GeneralWindow,
   hiveToolLabels,
   isAccountTool,
+  requestHiveWindow,
 } from "@/lib/workspaces/general-workspace";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
 
@@ -86,6 +87,7 @@ interface Props {
   onActivate: () => void;
   onClose: () => void;
   onCycleWidth?: () => void;
+  onStartWorkspace: (workspaceId: string) => Promise<void>;
   onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
@@ -101,12 +103,14 @@ export function HiveWorkspacePane({
   onActivate,
   onClose,
   onCycleWidth,
+  onStartWorkspace,
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
   const navigationId = useId();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [startup, setStartup] = useState<{ id: string; pending: boolean } | null>(null);
   const navigation = { id: navigationId, collapsed: sidebarCollapsed };
   const accountTool = isAccountTool(pane.tool);
   const codexTool = pane.tool === "codex-account";
@@ -117,9 +121,21 @@ export function HiveWorkspacePane({
       : (selectedWorkspace ??
         workspaces.find((w) => w.latest_build.status === "running") ??
         workspaces[0]);
-  const workspaceReady = workspace?.latest_build.status === "running";
+  const status = workspace?.latest_build.status;
+  const starting = startup?.id === workspace?.id && startup?.pending === true;
+  const startFailed = startup?.id === workspace?.id && startup?.pending === false;
+  const workspaceReady = status === "running";
   const matchingBuild = pane.buildId && pane.buildId === workspace?.latest_build.id;
   const hasSidebar = pane.tool === "settings" || (codexTool && workspaceReady && matchingBuild);
+  async function startSelectedWorkspace(id: string) {
+    setStartup({ id, pending: true });
+    try {
+      await onStartWorkspace(id);
+      setStartup(null);
+    } catch {
+      setStartup({ id, pending: false });
+    }
+  }
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -174,21 +190,23 @@ export function HiveWorkspacePane({
             data-mobile-scroll-allow="true"
           >
             <div className={cn("space-y-2 text-sm", codexTool && "p-4")}>
-              <label htmlFor={workspaceSelectId} className="block">
+              <label htmlFor={workspaceSelectId} className={accountTool ? "sr-only" : "block"}>
                 Coder workspace
               </label>
               <Select
                 value={workspace?.id ?? null}
                 onValueChange={(value) => {
-                  if (value)
+                  if (value) {
+                    setStartup(null);
                     onWorkspaceChange(
                       value,
                       accountTool
                         ? workspaces.find((w) => w.id === value)?.latest_build.id
                         : undefined,
                     );
+                  }
                 }}
-                disabled={!workspaces.length}
+                disabled={!workspaces.length || starting}
                 items={workspaces.map((w) => ({
                   value: w.id,
                   label: `${w.name} · ${w.latest_build.status}`,
@@ -197,9 +215,15 @@ export function HiveWorkspacePane({
                 <SelectTrigger
                   id={workspaceSelectId}
                   aria-label={accountTool ? "Account workspace" : "Agent workspace"}
-                  className="w-full"
+                  size={accountTool ? "sm" : "default"}
+                  className={accountTool ? "max-w-full" : "w-full"}
                 >
-                  <SelectValue placeholder="No workspaces available" />
+                  <SelectValue
+                    className={accountTool ? "min-w-0 truncate" : undefined}
+                    placeholder={
+                      workspaces.length ? "Choose a workspace" : "No workspaces available"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {workspaces.map((w) => (
@@ -210,7 +234,45 @@ export function HiveWorkspacePane({
                 </SelectContent>
               </Select>
             </div>
-            {workspace?.latest_build.status === "running" ? (
+            {accountTool && starting ? (
+              <p
+                role="status"
+                className={cn(
+                  "flex items-center gap-2 text-sm text-muted-foreground",
+                  codexTool && "px-4 pb-4",
+                )}
+              >
+                <LoaderCircle
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                  aria-hidden
+                />
+                Starting {workspace?.name}…
+              </p>
+            ) : accountTool && workspace && (status === "stopped" || startFailed) ? (
+              <div className={cn("space-y-3", codexTool && "px-4 pb-4")}>
+                {startFailed && (
+                  <p role="alert" className="text-sm text-destructive">
+                    Could not open {workspace.name}.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {(status === "stopped" || status === "running") && (
+                    <Button onClick={() => void startSelectedWorkspace(workspace.id)}>
+                      <Play aria-hidden />
+                      {status === "running" ? "Retry" : "Start workspace"}
+                    </Button>
+                  )}
+                  {startFailed && (
+                    <Button
+                      variant="outline"
+                      onClick={() => requestHiveWindow({ tool: "workspaces" })}
+                    >
+                      Coder workspaces
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : workspace && workspaceReady ? (
               accountTool ? (
                 !matchingBuild ? (
                   <div className={cn("space-y-3", codexTool && "px-4 pb-4")}>
@@ -253,8 +315,12 @@ export function HiveWorkspacePane({
               >
                 {accountTool
                   ? pane.workspaceId && !workspace
-                    ? "The selected workspace is unavailable. Choose an account workspace."
-                    : "Start a Coder workspace to manage its accounts."
+                    ? "The selected workspace is unavailable. Choose another workspace."
+                    : status === "starting" || status === "pending"
+                      ? "Waiting for the workspace to start…"
+                      : workspace
+                        ? `Workspace is ${status}. Manage it in Coder workspaces.`
+                        : "Choose a workspace to manage its accounts."
                   : "Start a Coder workspace to view its agent conversations."}
               </p>
             )}

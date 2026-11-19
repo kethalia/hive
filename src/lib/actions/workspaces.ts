@@ -93,15 +93,19 @@ export const startWorkspaceAction = authActionClient
     const status = workspace.latest_build.status;
 
     if (status === "running") {
-      return { workspaceId: workspace.id, status };
+      return { workspaceId: workspace.id, buildId: workspace.latest_build.id, status };
     }
     if (status !== "stopped") {
       throw new Error(`Workspace must be stopped before it can start. Current status: ${status}.`);
     }
 
     await client.startWorkspace(workspace.id);
-    await client.waitForBuild(workspace.id, "running");
-    return { workspaceId: workspace.id, status: "running" as const };
+    const running = await client.waitForBuild(workspace.id, "running");
+    return {
+      workspaceId: workspace.id,
+      buildId: running.latest_build.id,
+      status: "running" as const,
+    };
   });
 
 export const stopWorkspaceAction = authActionClient

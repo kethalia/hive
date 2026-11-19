@@ -48,7 +48,8 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   settings: "Settings",
   workspaces: "Coder workspaces",
 };
-export function isAccountTool(tool: HiveTool) {
+type AccountTool = "codex-account" | "claude-account";
+export function isAccountTool(tool: HiveTool): tool is AccountTool {
   return tool === "codex-account" || tool === "claude-account";
 }
 export const hiveWindowRequestSchema = z.object({
@@ -138,6 +139,7 @@ export interface GeneralWorkspaceState {
   version: 1;
   activeBoardKey: string;
   boards: GeneralBoard[];
+  accountWorkspaces?: Partial<Record<AccountTool, { workspaceId: string; buildId?: string }>>;
 }
 export function generalWorkspaceStorageKey(userId: string) {
   return `general-workspace:v1:${userId}`;
@@ -231,20 +233,25 @@ export function openHiveWindow(
   const board = state.boards.find((b) =>
     b.windows.some((w) => w.kind === "hive" && w.tool === request.tool),
   );
-  if (!board)
+  if (!board) {
+    const saved =
+      isAccountTool(request.tool) && !request.workspaceId
+        ? state.accountWorkspaces?.[request.tool]
+        : undefined;
     return addGeneralWindow(
       state,
       {
         kind: "hive",
         tool: request.tool,
         label: hiveToolLabels[request.tool],
-        workspaceId: request.workspaceId,
-        buildId: request.buildId,
+        workspaceId: request.workspaceId ?? saved?.workspaceId,
+        buildId: request.buildId ?? saved?.buildId,
         template: request.template,
         sessionName: request.sessionName,
       },
       id,
     );
+  }
   const existing = board.windows.find((w) => w.kind === "hive" && w.tool === request.tool);
   if (!existing) return state;
   return {
@@ -355,6 +362,7 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
       .object({
         version: z.literal(1),
         activeBoardKey: identifier,
+        accountWorkspaces: z.unknown().optional(),
         boards: z
           .array(
             z.object({
@@ -423,12 +431,17 @@ export function parseGeneralWorkspace(raw: string | null): GeneralWorkspaceState
       ];
     });
     if (!boards.length) return null;
+    const selection = z.object({ workspaceId: identifier, buildId: identifier.optional() });
+    const accountWorkspaces = z
+      .object({ "codex-account": selection.optional(), "claude-account": selection.optional() })
+      .safeParse(data.accountWorkspaces).data;
     return {
       version: 1,
       activeBoardKey: boards.some((b) => b.key === data.activeBoardKey)
         ? data.activeBoardKey
         : boards[0].key,
       boards,
+      ...(accountWorkspaces ? { accountWorkspaces } : {}),
     };
   } catch {
     return null;

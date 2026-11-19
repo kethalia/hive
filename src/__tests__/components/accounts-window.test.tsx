@@ -20,6 +20,7 @@ const workspaces = [
   { id: "two", name: "Software two", latest_build: { id: "build-two", status: "running" } },
 ] as CoderWorkspace[];
 const select = vi.fn();
+const start = vi.fn();
 const fetcher = vi.fn();
 function accountResponse(path: string) {
   return Response.json({
@@ -57,6 +58,7 @@ function tree(
       launchRequest={0}
       onActivate={() => {}}
       onClose={() => {}}
+      onStartWorkspace={start}
       onWorkspaceChange={select}
       onOpenSession={() => {}}
     />
@@ -101,23 +103,12 @@ it("explains disabled Claude connections in the Claude window", async () => {
 
 it.each([
   "missing",
-  "stopped",
   "old-build",
 ])("does not substitute another running workspace or build for a %s selection", async (scope) => {
   render(
     tree(
       scope === "missing" ? "missing" : "one",
       scope === "old-build" ? "old-build" : "build-one",
-      {
-        workspaces:
-          scope === "stopped"
-            ? workspaces.map((w) =>
-                w.id === "one"
-                  ? { ...w, latest_build: { ...w.latest_build, status: "stopped" } }
-                  : w,
-              )
-            : workspaces,
-      },
     ),
   );
   expect(fetcher).not.toHaveBeenCalled();
@@ -137,6 +128,28 @@ it("uses the existing workspace selector and returns the selected current build 
   fireEvent.mouseMove(option);
   fireEvent.click(option);
   expect(select).toHaveBeenCalledExactlyOnceWith("two", "build-two");
+});
+
+it("offers a retry and workspace management after a failed start", async () => {
+  start.mockRejectedValueOnce(new Error("Workspace did not start"));
+  render(
+    tree("one", "build-one", {
+      tool: "claude-account",
+      workspaces: [
+        {
+          ...workspaces[0],
+          latest_build: { ...workspaces[0].latest_build, status: "stopped" },
+        },
+      ],
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not open Software one");
+  expect(screen.getByRole("button", { name: "Coder workspaces" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(start.mock.calls).toEqual([["one"], ["one"]]);
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
 it("drops late old-workspace and old-build status replies before mounting fresh account lifetimes", async () => {

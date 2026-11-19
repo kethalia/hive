@@ -16,3 +16,5 @@ Add a sidebar to Codex and Settings, a focused device-code sign-in, and expandab
 Extend the Settings and Codex sidebar dividers to the bottom of each pane, add a title-bar toggle, and make the Strip resize gutter target the window on its left.
 
 Animate sidebar toggles with reduced-motion support and load larger Codex plugin and integration inventories within dedicated limits.
+
+Remember separate Codex and Claude workspace selections on this browser, and start a stopped workspace directly from either account window.
