@@ -12,7 +12,11 @@ export async function GET(request: Request, context: { params: Promise<{ workspa
   const { workspaceId } = await context.params;
   const query = new URL(request.url).searchParams;
   const cursor = Number(query.get("after") ?? 0);
-  if (!z.string().uuid().safeParse(workspaceId).success || !Number.isSafeInteger(cursor) || cursor < 0)
+  if (
+    !z.string().uuid().safeParse(workspaceId).success ||
+    !Number.isSafeInteger(cursor) ||
+    cursor < 0
+  )
     return Response.json({}, { status: 400, headers });
   try {
     const client = await getCoderClientForUser(session.user.id, { signal: request.signal });
