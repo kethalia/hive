@@ -45,6 +45,22 @@ jobs:
       build-cache-paths: .next/cache
     secrets: inherit
 
+  workspace-identity:
+    name: Workspace identity / Go SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/workspace-identity/go.mod
+          cache-dependency-path: tools/workspace-identity/go.sum
+      - name: Validate official Coder identity protocol
+        working-directory: tools/workspace-identity
+        run: go test -mod=readonly -p=2 -count=1 -timeout=60s ./...
+
   migration-integration:
     name: Migration preflight / PostgreSQL
     runs-on: ubuntu-latest

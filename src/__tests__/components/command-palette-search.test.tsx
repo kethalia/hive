@@ -76,6 +76,35 @@ describe("real command search", () => {
     await waitFor(() => expect(selected()).toBe("settings"));
   });
 
+  it("returns a scrolled list to the best match when the query changes", async () => {
+    const actions = [
+      settings,
+      ...Array.from({ length: 12 }, (_, i) => ({
+        id: `session-${i}`,
+        label: `Session ${i}`,
+        group: "Terminals",
+        onSelect: vi.fn(),
+      })),
+    ];
+    const { rerender } = render(<Palette actions={actions} />);
+    const input = screen.getByRole("combobox");
+    const list = screen.getByRole("listbox");
+    input.focus();
+    search("s");
+    await waitFor(() => expect(selected()).toBe("settings"));
+    list.scrollTop = 180;
+    search("se");
+    expect(list.scrollTop).toBe(0);
+    expect(selected()).toBe("settings");
+    expect(document.activeElement).toBe(input);
+
+    list.scrollTop = 130;
+    rerender(<Palette actions={[{ ...settings, description: "Updated" }, ...actions.slice(1)]} />);
+    expect(list.scrollTop).toBe(130);
+    search("");
+    expect(list.scrollTop).toBe(0);
+  });
+
   it("keeps matching results visible when their metadata refreshes", async () => {
     const { rerender } = render(<Palette actions={[desktop, settings]} />);
     search("settings");

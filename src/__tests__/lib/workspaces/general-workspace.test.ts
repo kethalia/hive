@@ -7,7 +7,9 @@ import {
   type GeneralPane,
   generalWorkspaceHref,
   generalWorkspaceStorageKey,
+  hiveWindowHref,
   importLegacyWorkspaceBoards,
+  openHiveWindow,
   parseGeneralWorkspace,
   removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
@@ -301,5 +303,71 @@ describe("closing workspace windows", () => {
     reordered.manager!.columns[1].pin = "left";
     reordered.activeWindowId = "second";
     expect(removeGeneralWindow(reordered, "second").activeWindowId).toBe("third");
+  });
+});
+
+describe("Provider account window selection", () => {
+  it("keeps one Codex window across boards and retains legacy Agents", () => {
+    let state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "agents", workspaceId: "one" },
+      "agents",
+    );
+    state = openHiveWindow(
+      state,
+      { tool: "codex-account", workspaceId: "one", buildId: "build-one" },
+      "accounts",
+    );
+    state.boards.push({ key: "board-2", name: "2", order: 1, windows: [] });
+    state.activeBoardKey = "board-2";
+    state = openHiveWindow(
+      state,
+      { tool: "codex-account", workspaceId: "two", buildId: "build-two" },
+      "duplicate",
+    );
+    expect(state.activeBoardKey).toBe("board-1");
+    expect(state.boards.flatMap((b) => b.windows)).toHaveLength(2);
+    const restored = parseGeneralWorkspace(JSON.stringify(state))!;
+    expect(restored.boards[0].windows).toEqual([
+      expect.objectContaining({ id: "agents", tool: "agents", workspaceId: "one" }),
+      expect.objectContaining({
+        id: "accounts",
+        tool: "codex-account",
+        workspaceId: "two",
+        buildId: "build-two",
+      }),
+    ]);
+    state = openHiveWindow(restored, { tool: "codex-account" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "two", buildId: "build-two" });
+    state = openHiveWindow(state, { tool: "codex-account", workspaceId: "one" }, "unused");
+    expect(state.boards[0].windows[1]).toMatchObject({ workspaceId: "one" });
+    expect(state.boards[0].windows[1]).not.toHaveProperty("buildId", "build-two");
+  });
+  it("restores old Accounts as Codex and keeps its scope without storing provider responses", () => {
+    expect(
+      hiveWindowHref({ tool: "codex-account", workspaceId: "workspace", buildId: "build" }),
+    ).toBe("/workspaces?panel=codex-account&workspace=workspace&build=build");
+    const state = openHiveWindow(
+      emptyGeneralWorkspace(),
+      { tool: "codex-account", workspaceId: "workspace", buildId: "build" },
+      "accounts",
+    );
+    Object.assign(state.boards[0].windows[0], {
+      tool: "accounts",
+      label: "Accounts",
+      userCode: "private-code",
+      lifetimeId: "private-lifetime",
+      generation: 8,
+      pending: { verificationUrl: "https://private.example/" },
+    });
+    const restored = parseGeneralWorkspace(JSON.stringify(state));
+    expect(restored?.boards[0].windows[0]).toEqual({
+      id: "accounts",
+      kind: "hive",
+      tool: "codex-account",
+      label: "Codex",
+      workspaceId: "workspace",
+      buildId: "build",
+    });
   });
 });

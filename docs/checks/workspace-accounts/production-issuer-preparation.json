@@ -1,0 +1,10 @@
+{
+  "worker": "hive",
+  "secretNames": ["HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY"],
+  "issuerKeyId": "hive-accounts-v1",
+  "publicKeySha256": "6003c55e04faa6b45480d7ec4d42c1535cf3d87169b3402a3462fbadf13f3256",
+  "productionBuildBefore": "65af9568-c541-43af-88b3-4d6ac5e0a101",
+  "preparedAt": "2026-11-15T16:24:03.965Z",
+  "productionBuildAfter": "65af9568-c541-43af-88b3-4d6ac5e0a101",
+  "prepared": true
+}

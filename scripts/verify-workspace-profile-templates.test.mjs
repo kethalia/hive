@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are constrained to the repository template catalog. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -87,33 +87,9 @@ test("every profile leaves Codex installation, configuration, and authentication
     assert.match(
       terraform,
       /required_version\s*=\s*">= 1\.9"/,
-      `${template}: module requires Terraform 1.9`,
+      `${template}: template requires Terraform 1.9`,
     );
-    const modules = [...terraform.matchAll(/module "codex" \{([\s\S]*?)\n\}/g)];
-    assert.equal(modules.length, 1, `${template}: expected one released Codex module`);
-    const body = modules[0][1];
-    for (const [name, value] of Object.entries({
-      count: "data.coder_workspace.me.start_count",
-      source: '"registry.coder.com/coder-labs/codex/coder"',
-      version: '"5.5.0"',
-      agent_id: "coder_agent.main.id",
-      install_codex: "false",
-      manage_config: "false",
-    })) {
-      const input = new RegExp(`^\\s*${name}\\s*=\\s*(.+)$`, "m").exec(body);
-      assert.equal(input?.[1], value, `${template}: unsafe Codex ${name}`);
-    }
-    // Explicit API keys still trigger authentication with manage_config disabled.
-    // Config/gateway inputs are invalid in that mode; allow only the inputs above.
-    const names = [...body.matchAll(/^\s*(\w+)\s*=/gm)].map((match) => match[1]);
-    assert.deepEqual(names.sort(), [
-      "agent_id",
-      "count",
-      "install_codex",
-      "manage_config",
-      "source",
-      "version",
-    ]);
+    assert.doesNotMatch(terraform, /module "codex"|registry\.coder\.com\/coder-labs\/codex/);
 
     const launcher = /resource "coder_app" "codex_cli" \{([\s\S]*?)\n\}/.exec(terraform)?.[1];
     assert.ok(launcher, `${template}: keep the native launcher`);
@@ -121,7 +97,29 @@ test("every profile leaves Codex installation, configuration, and authentication
     const updater = readTemplateFile(template, "scripts/tools-ai.sh");
     assert.match(updater, /npm install -g @openai\/codex@latest/);
     assert.match(updater, /\nrefresh_codex\n/);
+    assert.doesNotMatch(updater, /\bcodex\s+login\b/);
+    const tools = /resource "coder_script" "tools_ai" \{([\s\S]*?)\n\}/.exec(terraform)?.[1];
+    assert.ok(tools, `${template}: Hive owns AI CLI installation`);
+    assert.match(tools, /run_on_start\s*=\s*true/);
+    assert.match(tools, /start_blocks_login\s*=\s*true/);
+    assert.match(tools, /script\s*=\s*file\("\$\{path\.module\}\/scripts\/tools-ai\.sh"\)/);
   }
+});
+
+test("Codex mocked plans exercise Hive installation and the native launcher", () => {
+  const fixture = readFileSync(
+    join(repositoryRoot, "scripts/fixtures/codex-user-managed-config.tftest.hcl"),
+    "utf8",
+  );
+  assert.doesNotMatch(fixture, /module\.codex/);
+  assert.match(fixture, /mock_provider "external"/);
+  assert.match(fixture, /run "running_workspace"[\s\S]*coder_script\.tools_ai\.run_on_start/);
+  assert.match(fixture, /coder_script\.tools_ai\.start_blocks_login/);
+  assert.match(fixture, /coder_app\.codex_cli\.command == "cd \/home\/coder && exec codex"/);
+  assert.match(
+    fixture,
+    /run "stopped_workspace"[\s\S]*length\(kubernetes_deployment_v1\.workspace\) == 0/,
+  );
 });
 
 test("every Coder script has a supported execution trigger", () => {
@@ -265,6 +263,28 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   writeFileSync(join(canonical, "docker.tf"), "# canonical Docker engine\n");
   writeFileSync(join(canonical, "WORKSPACE_ROUTING.md"), "# Canonical routing\n");
   writeFileSync(join(canonical, "scripts", "init.sh"), "#!/bin/sh\n");
+  cpSync(
+    join(repositoryRoot, "templates/ai-dev-k8s/hive-agent.tf"),
+    join(canonical, "hive-agent.tf"),
+  );
+  cpSync(join(repositoryRoot, "templates/ai-dev-k8s/assets"), join(canonical, "assets"), {
+    recursive: true,
+  });
+  for (const name of [
+    "agent-tools.py",
+    "codex-managed-auth-lock.mjs",
+    "install-agent-bridge.py",
+    "install-codex-runtime.py",
+  ])
+    cpSync(
+      join(repositoryRoot, "templates/ai-dev-k8s/scripts", name),
+      join(canonical, "scripts", name),
+    );
+  mkdirSync(join(fixtureRoot, "scripts"), { recursive: true });
+  for (const name of ["agent-bridge", "notifications"])
+    cpSync(join(repositoryRoot, "scripts", name), join(fixtureRoot, "scripts", name), {
+      recursive: true,
+    });
 
   for (const targetName of targetNames) {
     mkdirSync(join(fixtureTemplates, targetName, "scripts"), { recursive: true });

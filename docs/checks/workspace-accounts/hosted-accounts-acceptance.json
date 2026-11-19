@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "source": "b70ad69bdec3fe25a4e1c94e9936f49d4f4dda7d",
+  "appBuild": "5e2105e2-6c48-4bc6-99c6-2ad9ba2a02bd",
+  "origin": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+  "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+  "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+  "accepted": true,
+  "engine": "existing Google Chrome with Playwright1.61.1 in reused Browser Testing",
+  "networkRouteInterception": false,
+  "checks": {
+    "codexOfficialLink": {
+      "origin": "https://auth.openai.com",
+      "path": "/codex/device",
+      "queryPresent": false,
+      "targetBlank": true,
+      "noopener": true,
+      "noreferrer": true
+    },
+    "codexCodeRendered": true,
+    "codexConnectCancel": true,
+    "claudeOfficialLink": {
+      "origin": "https://claude.com",
+      "path": "/cai/oauth/authorize",
+      "queryPresent": true,
+      "targetBlank": true,
+      "noopener": true,
+      "noreferrer": true
+    },
+    "claudeCodeInputEmptyPassword": true,
+    "claudeConnectCancel": true,
+    "mobileCardsFit": true,
+    "reloadCurrentBuildStatus": true
+  },
+  "initialStatuses": {
+    "codex": {
+      "sequence": 2,
+      "provider": "codex",
+      "action": "status",
+      "status": 200,
+      "elapsedMs": 6497,
+      "state": "signed-out",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 0,
+      "pending": false,
+      "expiresAt": null
+    },
+    "claude": {
+      "sequence": 1,
+      "provider": "claude",
+      "action": "status",
+      "status": 200,
+      "elapsedMs": 7212,
+      "state": "signed-out",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 0,
+      "pending": false,
+      "expiresAt": null
+    }
+  },
+  "requests": [
+    {
+      "sequence": 1,
+      "provider": "claude",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 2,
+      "provider": "codex",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 3,
+      "provider": "codex",
+      "action": "connect",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 0
+    },
+    {
+      "sequence": 4,
+      "provider": "codex",
+      "action": "cancel",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 1
+    },
+    {
+      "sequence": 5,
+      "provider": "claude",
+      "action": "connect",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 0
+    },
+    {
+      "sequence": 6,
+      "provider": "claude",
+      "action": "cancel",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca",
+      "lifetimeId": "dc9766ad-4e74-4117-baf6-be4941e464c3",
+      "generation": 1
+    },
+    {
+      "sequence": 7,
+      "provider": "claude",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 8,
+      "provider": "codex",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 9,
+      "provider": "claude",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 10,
+      "provider": "codex",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 11,
+      "provider": "claude",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    },
+    {
+      "sequence": 12,
+      "provider": "codex",
+      "action": "status",
+      "workspaceId": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+      "buildId": "e52ee2de-4e3a-41f7-9556-6c0ab6cb7bca"
+    }
+  ],
+  "readOnlyRefreshes": {
+    "codex": 0,
+    "claude": 0
+  },
+  "providerConsentAccepted": false,
+  "modelCalls": 0,
+  "codeValuesRecorded": false,
+  "priorAttempts": "Earlier status409, timing and synchronization failures remain preserved under /tmp/hive-p03-accounts-preparation. This normal flow used no interception. It does not establish the sole cause of earlier failures.",
+  "normalUiLogout": true,
+  "cookieAbsent": true,
+  "privateStorageStateRemoved": true,
+  "browserClosed": true,
+  "processes": {
+    "chrome": 0,
+    "ownedHarness": 0
+  },
+  "sshClosed": true,
+  "files": {
+    "result.json": "90252c0777b0423087fafdfd769fa049b7e5bb2c22e80aa0b66b5f13d6b6ce67",
+    "codex-pending.png": "13c492118fdb6f4383a79fb25d2c7e575ec0b4ea962d441b4f533168906ce53c",
+    "claude-pending.png": "f2ca916010aa5d9f8ccc3c993d6a707cb7dc319c928f3bddb2fca30c95517b69",
+    "accounts-mobile.png": "247f2899319f265e133116685ad55ea1ace11d10d5e01c98be7ee44abfb2d413",
+    "accounts-reload.png": "1b6a65be94ef854f20935f09735f093f4e53fc84154e304ab5a11a5773b27609"
+  },
+  "recordedAt": "2026-11-15T17:23:40.531728+00:00"
+}

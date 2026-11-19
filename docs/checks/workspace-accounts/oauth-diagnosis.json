@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "b70ad69bdec3fe25a4e1c94e9936f49d4f4dda7d",
+  "appBuildId": "5e2105e2-6c48-4bc6-99c6-2ad9ba2a02bd",
+  "normalHostedOAuth": {
+    "startedAt": "2026-11-15T17:11:25.399Z",
+    "callbackStatus": 200,
+    "contentType": "text/html; charset=utf-8",
+    "bodyCompletedMs": 4073,
+    "bodyBytes": 1009,
+    "popupClosed": true,
+    "authenticatedAppVersionStatus": 200,
+    "globalNetworkInterception": false,
+    "accountRequests": 0
+  },
+  "persistedCredential": {
+    "schemaVersion": 1,
+    "startedAt": "2026-11-15T17:16:29.739Z",
+    "mode": "unchanged resolver with write-blocking diagnostic database facade",
+    "http": [
+      {
+        "endpoint": "coder-identity",
+        "method": "GET",
+        "credentialHeader": "Authorization",
+        "status": 200,
+        "headerDurationMs": 36,
+        "cfCacheStatus": null,
+        "age": null,
+        "contentType": "application/json; charset=utf-8"
+      }
+    ],
+    "writes": [],
+    "complete": true,
+    "before": {
+      "version": 4,
+      "refreshState": "idle",
+      "expiresAt": "2026-11-16T17:11:26.843Z",
+      "updatedAt": "2026-11-15T17:11:28.428Z"
+    },
+    "activeSessions": 1,
+    "credential": {
+      "source": "oauth",
+      "expiresAt": "2026-11-16T17:11:26.843Z",
+      "remainingAccessMs": 86094948,
+      "resolverDurationMs": 801
+    },
+    "after": {
+      "version": 4,
+      "refreshState": "idle",
+      "expiresAt": "2026-11-16T17:11:26.843Z",
+      "updatedAt": "2026-11-15T17:11:28.428Z"
+    },
+    "versionUnchanged": true,
+    "stage": "fresh-account-after",
+    "finishedAt": "2026-11-15T17:16:32.023Z"
+  },
+  "priorFailures": {
+    "earlierStoredVersion": 3,
+    "identityStatus": 401,
+    "keyLookupStatus": 404,
+    "causeEstablished": false,
+    "intermittentHostedStatus409": true,
+    "earlierHarnessObservationDeadlineShorterThanServiceDeadline": true
+  },
+  "sourceInvestigation": {
+    "confirmedP1P2Findings": 0,
+    "sourceEdits": 0,
+    "localNativePrismaTests": {
+      "defaultPoolPassed": 14,
+      "singleConnectionPassed": 14
+    },
+    "generatedWorkerdPrismaNeonNodeRelay": {
+      "passedCallbacks": 3,
+      "durationsMs": [85, 61, 61]
+    },
+    "limitations": [
+      "Local relay probes ran in Node and exclude Cloudflare scheduling and live Neon networking.",
+      "The failed hosted callback lacks a per-stage trace.",
+      "Current successful OAuth does not establish the cause of earlier failures."
+    ]
+  },
+  "remaining": [
+    "Hosted Accounts UI full acceptance",
+    "Genuine provider consent and signed-in persistence/reconnect/disconnect"
+  ]
+}

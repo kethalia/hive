@@ -2,6 +2,9 @@
 import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
+import { syncAgentPackage } from "./agent-bridge/build-package.mjs";
+import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
+
 const repositoryRoot = process.cwd();
 const canonicalRoot = join(repositoryRoot, "templates", "ai-dev-k8s");
 const targetRoots = [
@@ -11,12 +14,14 @@ const targetRoots = [
   join(repositoryRoot, "templates", "infrastructure"),
 ];
 const checkOnly = process.argv.includes("--check");
+await syncAgentPackage(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
 
   for (const entry of entries) {
+    if (entry.name === "__pycache__" && entry.isDirectory()) continue;
     const absolutePath = join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...(await collectFiles(absolutePath)));
@@ -36,6 +41,11 @@ const sharedRelativePaths = [
   ".terraform.lock.hcl",
   "main.tf",
   "docker.tf",
+  "hive-agent.tf",
+  "assets/agent-bridge.tar.gz",
+  "assets/agent-bridge.tar.sha256",
+  "assets/agent-bridge.manifest.sha256",
+  "assets/agent-bridge.helper.sha256",
   "WORKSPACE_ROUTING.md",
   ...canonicalScriptRelativePaths,
 ].sort();
@@ -92,3 +102,6 @@ if (checkOnly && drift.length > 0) {
   const cleanup = removedScripts > 0 ? `; removed ${removedScripts} obsolete scripts` : "";
   console.log(`Synchronized ${targetRoots.length} workspace profile scaffolds${cleanup}.`);
 }
+
+if (!process.exitCode)
+  await buildTemplateArtifacts(repositoryRoot, checkOnly ? "check" : "manifest");

@@ -36,6 +36,12 @@ const profiles = {
     runtime: "hive_coder_oauth_runtime",
     other: "hive_production_runtime",
   },
+  "accounts-preview": {
+    database: "hive_workspace_accounts_preview",
+    owner: "hive_epic_owner",
+    runtime: "hive_accounts_runtime",
+    other: "hive_production_runtime",
+  },
   "local-test": {
     database: "hive_cutover_migrations_20261113",
     owner: "coder",
@@ -70,7 +76,7 @@ export function runtimeGrantsSql(target, databaseOid) {
     databaseOid > 4294967295
   )
     throw Error(
-      "Select production, preview, oauth-preview or local-test and an exact PostgreSQL database OID",
+      "Select production, preview, oauth-preview, accounts-preview or local-test and an exact PostgreSQL database OID",
     );
   const { database, owner, runtime, other } = profile;
   const tables = Object.values(runtimeTables).flat().sort();

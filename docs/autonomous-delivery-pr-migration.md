@@ -35,7 +35,7 @@ for each increment.
 | P01 | [Cloudflare and Neon deployment foundation](https://github.com/kethalia/hive/pull/449) | Large | Build and serve the existing Hive application through the single `hive` Worker. Include request-scoped database access, required runtime/schema support, authenticated workspace/settings reads, ordinary terminal transport and connected Workers Builds. Establish a reviewed preview configuration for each increment. | Open the preview, authenticate, browse workspaces/settings, reload and use a terminal. Check output, resize, reconnect and clean exit. A branch commit updates the preview to the corresponding source. |
 | P01b | Existing-feature Cloudflare compatibility and application cutover | Large | Build on merged P01 with repository terminals, workspace commands, file helpers and clipboard uploads, native audio and current Codex voice signaling, notifications, credential rotation, template publication and diagnostics. Initialize a fresh production database and independent secrets under the owner's approved legacy-data waiver, validate the hosted preview, then move `hive.kethalia.com` to the existing Worker and retire the Hive application in `k8s-cluster`. | Test each existing feature through its ordinary UI, verify background work after closing the browser, verify fresh schema initialization, scoped permissions and production secret isolation. Coordinate the approved maintenance window so Kubernetes writers stop before fresh Cloudflare sign-in, then verify the production domain/application and complete residual storage retirement. |
 | P02 | [Better Auth and Coder OAuth login](https://github.com/kethalia/hive/pull/452) | Large | Build on merged P01b with Better Auth, the configured Coder host, browser consent, identity-preserving schema changes, credential refresh, revocation, disconnect/reconnect and OAuth-aware API, command, terminal and audio credentials. | Sign in through `coder.kethalia.com`, return to the existing Hive identity, reload, use a terminal, then sign out, disconnect and reconnect. Validate expiry, concurrent refresh and uncertain refresh recovery. |
-| P03 | Workspace connection bridge and Accounts window | Large | Build on P02 with signed workspace operations, versioned bridge installation, exact workspace/build selection and in-app Codex/Claude connection cards. Separate the account transport from the later managed-task maintenance integration. | Select a workspace, inspect account status, complete each provider's supported sign-in flow and verify saved selection and connection status after reload. |
+| P03 | [Workspace connection bridge and Accounts window](https://github.com/kethalia/hive/pull/453) | Large | Build on P02 with signed workspace operations, versioned bridge installation, exact workspace/build selection, in-app Codex/Claude connection flows matching Creative Studio, and Codex native usage/runtime settings. Separate the account transport from the later managed-task maintenance integration. | Select a workspace, inspect account status, complete each provider's supported sign-in flow and verify saved selection and connection status after reload. Inspect native usage, save a runtime default with version protection and verify readback. |
 | P04 | GitHub repositories as projects | Medium | Build on P03 with authenticated discovery, search, pagination and stable repository identity. Separate repository browsing from managed task execution. | Discover and search repositories through Coder-connected GitHub. Select a repository and inspect its identity. Verify repository browsing preserves the existing checkout inventory. |
 | P05 | Managed project execution and shared sessions | Extra large | Build on P04 with on-demand checkout preparation, registered sessions, Conversation/Terminal views, guardian authority, manager delegation/progression, source application, acceptance/report persistence, restart/recovery and lifecycle guards. Keep matching host assets, contracts and server checks together. | Submit one small coding task, observe delegation and inspect the same session through both views. Reconnect, exercise a supported interruption/recovery and verify completed results. Check that dirty files and active consumers hold cleanup. |
 | P06 | Delivery window and detailed step reports | Medium | Build on P05 with task/step navigation, report history, difficulty/issues/results, owner scheduling controls and links to the correct manager session. | Track the task, open current and historical reports, pause/resume and return to its manager. Verify desktop/mobile layouts and persisted selection. |
@@ -198,12 +198,16 @@ production initialization replaces the Rancher/source-backup dependency. The
 separate experimental Codex Voice component has no UI caller, so its additional
 sign-in test was removed from the cutover gates.
 
-P02 is implemented and validated on `codex/coder-oauth-better-auth` from `d7bd8b10`,
-using Better Auth as requested on 14 November. Its isolated preview uses
-`hive_coder_oauth_preview` and the existing Neon compute. The
-[P02 acceptance record](checks/coder-oauth-better-auth/README.md) tracks its
-checks and production prerequisites. P03–P10 continue in the agreed feature order.
+P02 merged through [PR452](https://github.com/kethalia/hive/pull/452) at
+`37c55299`. Production acceptance passed OAuth sign-in, reload persistence,
+Settings, ordinary terminal input/output and clean exit, disconnect/reconnect with
+stable Hive identity, and final sign-out. The
+[production receipt](checks/workspace-accounts/p02-production-acceptance.json)
+records the exact application build and browser instrumentation limitations.
 
-The detailed implementation status and historical evidence remain in the
-[execution ledger](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/checks/autonomous-delivery/progress.md). The
-[epic roadmap](https://github.com/kethalia/hive/blob/codex/delivery-system-design/docs/autonomous-delivery-epic.md) retains the full outcome requirements.
+P03 is in progress on `codex/workspace-accounts-p03` from this accepted baseline.
+It adds the independent workspace bridge and native Accounts window. Account
+requests carry the selected workspace build and reject replacement builds before
+submission. Its [acceptance record](checks/workspace-accounts/README.md) tracks
+installed package/image identity and real provider/browser validation.
+P04–P11 continue in the agreed feature order.

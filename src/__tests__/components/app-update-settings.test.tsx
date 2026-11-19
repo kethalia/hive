@@ -20,7 +20,7 @@ afterEach(cleanup);
 describe("AppUpdateSettings", () => {
   it("shows the loaded version and requires a check before updating", () => {
     render(<AppUpdateSettings />);
-    expect(screen.getByText(APP_VERSION.version)).toBeInTheDocument();
+    expect(screen.getByText("Installed").parentElement).toHaveTextContent(APP_VERSION.version);
     expect(screen.getByRole("button", { name: "Update app" })).toBeDisabled();
     expect(check).not.toHaveBeenCalled();
   });

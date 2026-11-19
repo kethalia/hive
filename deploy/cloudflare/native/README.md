@@ -3,7 +3,8 @@
 Hive uses one `hive` Worker with production settings and isolated branch Previews.
 Repository-connected Workers Builds runs the pinned OpenNext build and Wrangler.
 The P01 foundation was merged through PR449. P01b adds existing application
-features needed for the production move. Coder OAuth remains the next increment.
+features needed for the production move. P02 supplies Better Auth and Coder OAuth,
+and P03 adds workspace account connections.
 
 ## Build and validate
 
@@ -28,11 +29,13 @@ OpenNext's embedded local environment module before marking output deployable.
 The connected repository uses root `/`, build `pnpm build:cloudflare`, production
 command `node deploy/cloudflare/native/deploy.mjs production` and preview command
 `node deploy/cloudflare/native/deploy.mjs preview`.
+Set these commands in Previews Base and in an existing branch Preview's copied
+build settings. `deploy.mjs` checks the branch's repository-managed runtime profile.
 
 `wrangler.jsonc` defines production. `preview-profiles.json` enrolls each branch,
 canonical origin, database and restricted runtime role. Production requires `main`,
 `hive_production`, `hive_production_runtime` and `https://hive.kethalia.com`.
-Preview requires `hive_foundation_preview` and `hive_foundation_runtime`.
+Each Preview requires the exact database and runtime role in its enrolled profile.
 HTTP, scheduled work and background alarms validate this scope before database use.
 
 P01b's Preview is
@@ -47,8 +50,12 @@ The same-site Preview exercises Coder workspace-app cookies under the production
 Configure its existing Workers Builds Preview settings for automatic branch builds.
 The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.
 
-Provision `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET` and
-`AUTH_SERVICE_SECRET` through Cloudflare runtime settings. The owner authorized a
+Provision `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`,
+`AUTH_SERVICE_SECRET`, `CODER_OAUTH_CLIENT_SECRET` and
+`HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY` through Cloudflare runtime settings.
+Preview secrets can be staged through `wrangler preview base-config secret bulk`
+before the initial deployment. After deployment, `wrangler preview secret bulk`
+updates the named Preview. The owner authorized a
 fresh production start on 13 November 2026. Initialize the empty production schema,
 apply scoped runtime grants and configure independent production secrets before
 activating the production build. Its source configuration binds the Custom Domain.

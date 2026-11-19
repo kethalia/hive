@@ -27,6 +27,16 @@ vi.mock("@/components/workspaces/AgentToolsPanel", async () => {
     AgentToolsPanel: () => <p>Loaded agent controls</p>,
   };
 });
+vi.mock("@/components/workspaces/CodexAccountPanel", () => ({
+  CodexAccountPanel: ({ workspaceId, buildId }: { workspaceId: string; buildId: string }) => (
+    <p>
+      Loaded Codex account for {workspaceId}/{buildId}
+    </p>
+  ),
+}));
+vi.mock("@/components/workspaces/ClaudeAccountCard", () => ({
+  ClaudeAccountCard: () => <p>Loaded Claude account</p>,
+}));
 vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
   return { WorkspaceListContent: () => <p>Loaded workspace controls</p> };
@@ -52,9 +62,12 @@ vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: vi.fn(),
   startWorkspaceAction: vi.fn(),
 }));
+const navigation = vi.hoisted(() => ({
+  search: new URLSearchParams(),
+  router: { replace: vi.fn() },
+}));
 vi.mock("next/navigation", () => {
-  const search = new URLSearchParams();
-  const router = { replace: vi.fn() };
+  const { search, router } = navigation;
   return { useRouter: () => router, useSearchParams: () => search };
 });
 vi.mock("@/components/workspaces/WorkspaceHeaderButton", async (importOriginal) => ({
@@ -77,6 +90,7 @@ import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
+import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   emptyGeneralWorkspace,
@@ -90,6 +104,7 @@ const workspaces = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  for (const key of [...navigation.search.keys()]) navigation.search.delete(key);
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({
@@ -365,7 +380,14 @@ describe("workspace tool windows", () => {
     const view = render(tree);
     const terminal = await screen.findByLabelText("Terminal input");
     fireEvent.change(terminal, { target: { value: "unsent" } });
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"] as const) {
+    for (const tool of [
+      "agents",
+      "codex-account",
+      "claude-account",
+      "settings",
+      "diagnostics",
+      "workspaces",
+    ] as const) {
       act(() => requestHiveWindow({ tool }));
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
       expect(screen.queryByRole("dialog")).toBeNull();
@@ -379,11 +401,132 @@ describe("workspace tool windows", () => {
     act(() => requestHiveWindow({ tool: "settings" }));
     await waitFor(() => expect(saved().activeBoardKey).toBe("board-1"));
     expect(screen.getAllByTestId("hive-window-settings")).toHaveLength(1);
-    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(5));
+    await waitFor(() => expect(saved().boards[0].windows).toHaveLength(7));
     view.unmount();
     render(tree);
-    for (const tool of ["agents", "settings", "diagnostics", "workspaces"])
+    for (const tool of [
+      "agents",
+      "codex-account",
+      "claude-account",
+      "settings",
+      "diagnostics",
+      "workspaces",
+    ])
       expect(await screen.findByTestId(`hive-window-${tool}`)).toBeVisible();
+  });
+  it("maps an old Accounts deep link to Codex and holds the exact build until confirmed", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "old-build");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(await screen.findByTestId("hive-window-codex-account")).toBeVisible();
+    expect(screen.getByText(/Select this workspace’s current build/)).toBeVisible();
+    expect(screen.queryByText("Loaded Codex account for software/build-1")).not.toBeInTheDocument();
+    const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        tool: "codex-account",
+        workspaceId: "software",
+        buildId: "old-build",
+      }),
+    );
+    expect(navigation.router.replace).toHaveBeenCalledWith("/workspaces", { scroll: false });
+    fireEvent.click(screen.getByRole("button", { name: "Use current build" }));
+    expect(await screen.findByText("Loaded Codex account for software/build-1")).toBeVisible();
+    await waitFor(() =>
+      expect(saved().boards[0].windows[1]).toMatchObject({
+        workspaceId: "software",
+        buildId: "build-1",
+      }),
+    );
+    act(() => requestHiveWindow({ tool: "codex-account" }));
+    expect(screen.getAllByTestId("hive-window-codex-account")).toHaveLength(1);
+    expect(saved().boards[0].windows[1]).toMatchObject({
+      workspaceId: "software",
+      buildId: "build-1",
+    });
+  });
+  it("does not drop a malformed explicit build scope and open unscoped Accounts instead", async () => {
+    navigation.search.set("panel", "accounts");
+    navigation.search.set("workspace", "software");
+    navigation.search.set("build", "");
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
+      </KeybindingProvider>,
+    );
+    expect(
+      await screen.findByText("The Accounts workspace or build selection is invalid."),
+    ).toBeVisible();
+    expect(screen.queryByTestId("hive-window-codex-account")).not.toBeInTheDocument();
+  });
+
+  it("starts the chosen workspace in place and remembers individual provider selections", async () => {
+    const saved = () => JSON.parse(localStorage.getItem(generalWorkspaceStorageKey("user"))!);
+    const stopped = {
+      ...workspaces[0],
+      id: "second",
+      name: "ai-dev-02",
+      latest_build: {
+        ...workspaces[0].latest_build,
+        id: "stopped-build",
+        status: "stopped" as const,
+      },
+    };
+    const running = {
+      ...stopped,
+      latest_build: { ...stopped.latest_build, id: "started-build", status: "running" as const },
+    };
+    vi.mocked(startWorkspaceAction).mockResolvedValueOnce({
+      data: { workspaceId: stopped.id, status: "running", buildId: running.latest_build.id },
+    });
+    vi.mocked(listWorkspacesAction).mockResolvedValue({ data: [...workspaces, running] });
+
+    const tree = (
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={[...workspaces, stopped]} />
+      </KeybindingProvider>
+    );
+    const view = render(tree);
+    await screen.findByRole("textbox", { name: "Terminal input" });
+    act(() => requestHiveWindow({ tool: "claude-account", workspaceId: "software" }));
+    const claude = await screen.findByTestId("hive-window-claude-account");
+    expect(await within(claude).findByText("Loaded Claude account")).toBeVisible();
+    act(() => requestHiveWindow({ tool: "codex-account", workspaceId: stopped.id }));
+    const codex = await screen.findByTestId("hive-window-codex-account");
+    fireEvent.click(await within(codex).findByRole("button", { name: "Start workspace" }));
+    expect(within(codex).getByRole("status")).toHaveTextContent("Starting ai-dev-02");
+    expect(
+      await within(codex).findByText("Loaded Codex account for second/started-build"),
+    ).toBeVisible();
+    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: "second",
+      waitForAgent: true,
+    });
+    fireEvent.click(within(claude).getByRole("tab", { name: "Workspace" }));
+    expect(within(claude).getByRole("radio", { name: /ai-dev-01/ })).toBeChecked();
+
+    fireEvent.click(within(codex).getByRole("button", { name: "Close Codex" }));
+    await waitFor(() =>
+      expect(saved().accountWorkspaces?.["codex-account"]).toMatchObject({
+        workspaceId: "second",
+        buildId: "started-build",
+      }),
+    );
+    view.unmount();
+    render(
+      <KeybindingProvider>
+        <GeneralWorkspace userId="user" initialWorkspaces={[...workspaces, running]} />
+      </KeybindingProvider>,
+    );
+    await screen.findByTestId("hive-window-claude-account");
+    act(() => requestHiveWindow({ tool: "codex-account" }));
+    expect(await screen.findByText("Loaded Codex account for second/started-build")).toBeVisible();
+    vi.mocked(listWorkspacesAction).mockReset();
   });
 });
 

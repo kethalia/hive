@@ -1,0 +1,15 @@
+{
+  "identity": {
+    "database": "hive_workspace_accounts_preview",
+    "oid": "385026",
+    "owner": "hive_epic_owner"
+  },
+  "state": {
+    "migrations": 12,
+    "tables": 15,
+    "users": 0,
+    "runtimeAdmin": false
+  },
+  "directMigrations": true,
+  "existingCompute": true
+}

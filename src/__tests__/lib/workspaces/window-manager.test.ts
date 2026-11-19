@@ -84,28 +84,39 @@ describe("window layouts", () => {
     }
   });
 
-  it.each([
-    390, 744, 1194,
-  ])("offers an inward-facing leading grip for the last Strip column at %spx", (width) => {
+  it.each([744, 1194])("assigns each Strip seam a single splitter at %spx", (width) => {
     const b = board();
     const m = b.manager!;
     m.scroll = 100000;
     const geometry = windowGeometry(m, b.layout, ["a", "b", "c"], "c", width, 800);
-    const handle = geometry.dividers.find(
-      (d) => d.target.kind === "column" && d.target.id === m.columns[2].id && d.edge === "start",
-    );
-    expect(handle).toBeDefined();
-    expect(handle!.extent).toBeLessThan(0);
     const pane = geometry.rects.get("c")!;
-    expect(handle!.rect.x).toBe(pane.x);
-    const previous = geometry.dividers.find(
-      (d) => d.target.kind === "column" && d.target.id === m.columns[1].id,
+    const shared = geometry.dividers.filter(
+      (d) => d.rect.x <= pane.x && d.rect.x + d.rect.width > pane.x,
     );
-    expect(previous!.rect.x + previous!.rect.width).toBeLessThanOrEqual(handle!.rect.x);
-    expect(pane.x).toBeGreaterThanOrEqual(0);
-    expect(pane.x + pane.width).toBeCloseTo(width);
-    expect(handle!.value - 40 / handle!.extent).toBeGreaterThan(handle!.value);
+    expect(shared).toHaveLength(1);
+    expect(shared[0].target).toEqual({
+      kind: "column-split",
+      before: m.columns[1].id,
+      after: m.columns[2].id,
+      totalFraction: 1,
+    });
+    expect(shared[0].rect.x + shared[0].gripOffsetX!).toBeCloseTo(pane.x);
+    expect(shared[0].extent).toBeCloseTo(width);
+    expect(shared[0].min).toBeCloseTo(280 / width);
+    expect(shared[0].max).toBeCloseTo(1 - 280 / width);
+    const outside = geometry.dividers.filter((d) => d.target.kind === "column");
+    expect(outside).toHaveLength(1);
+    expect(outside[0]).toMatchObject({ edge: "end", target: { id: m.columns[2].id } });
+    expect(outside[0].rect.x + outside[0].gripOffsetX!).toBeCloseTo(pane.x + pane.width - 5);
   });
+
+  it("omits a shared splitter when both adjacent columns are at their minimum size", () => {
+    const b = board();
+    const geometry = windowGeometry(b.manager!, b.layout, ["a", "b", "c"], "a", 390, 800);
+    expect(geometry.dividers.some((d) => d.target.kind === "column-split")).toBe(false);
+    expect(geometry.dividers.some((d) => d.edge === "end")).toBe(true);
+  });
+
   it("equalizes a Grid with only vertical splits", () => {
     const b = board("grid");
     b.layout = {

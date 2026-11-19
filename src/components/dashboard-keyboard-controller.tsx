@@ -152,6 +152,20 @@ export function DashboardKeyboardController() {
             ["assistants", "conversations", "codex", "claude"],
           ],
           [
+            "codex-account",
+            "Codex account",
+            "Connect Codex and manage usage and runtime settings",
+            undefined,
+            ["accounts", "connections", "sign in"],
+          ],
+          [
+            "claude-account",
+            "Claude account",
+            "Connect Claude in a workspace",
+            undefined,
+            ["accounts", "connections", "sign in"],
+          ],
+          [
             "settings",
             "Settings",
             "Account, app updates, and notifications",

@@ -237,6 +237,12 @@ function CommandPaletteBody({
     return rankCommandGroups(entries, filterQuery ?? "");
   }, [actions, tabs, groupHeading, onCreateSession, filterQuery]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A query change resets the list; metadata refreshes preserve scroll.
+  useLayoutEffect(() => {
+    const list = commandListRef.current;
+    if (list) list.scrollTop = 0;
+  }, [filterQuery]);
+
   useLayoutEffect(() => {
     updateScrollHints();
   });
@@ -409,7 +415,7 @@ function CommandPaletteBody({
         </div>
         <CommandList
           ref={commandListRef}
-          className="max-h-[340px] scroll-py-8 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="max-h-[340px] scroll-py-8 py-5 [overflow-anchor:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={updateScrollHints}
         >
           {!loadingText && !page?.input ? <CommandEmpty>{emptyText}</CommandEmpty> : null}

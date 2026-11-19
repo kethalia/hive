@@ -1,0 +1,77 @@
+{
+  "cli": {
+    "sourceSha": "51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "variant": "cli",
+    "runId": 44050999095,
+    "image": "ghcr.io/kethalia/hive-base@sha256:dbd5df42e84015515c8f0f0231606ef9e79bdec2bc84c67e79e4d71f4c11ce0c",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-cli-51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "imageConfigDigest": "sha256:8f81758b812c0d24bfa254dac9ed611514dad9fabd4f839189aa53ed26de241e",
+    "smokeTestedPushDigest": "sha256:dbd5df42e84015515c8f0f0231606ef9e79bdec2bc84c67e79e4d71f4c11ce0c",
+    "independentRegistryVerification": true,
+    "bootstrapFiles": {
+      "usr/local/libexec/hive-template-runtime/agent-bridge.tar.gz": "4017d75ce9551412f2d9a60d58f2f1f480b0e9a7e6f8ff062ea4857c9f9c079d",
+      "usr/local/libexec/hive-template-runtime/install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983",
+      "usr/local/libexec/hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571"
+    }
+  },
+  "browser": {
+    "sourceSha": "51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "variant": "browser",
+    "runId": 44051005050,
+    "image": "ghcr.io/kethalia/hive-base@sha256:b12811f13546eb1931db3a06af481f39114e9df336d84eb8efb555573e245399",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-browser-51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "imageConfigDigest": "sha256:ae2e99351ab809a2f6a9c0c7efc494622f6abe6cc03eee4783528af50f51ccfd",
+    "smokeTestedPushDigest": "sha256:b12811f13546eb1931db3a06af481f39114e9df336d84eb8efb555573e245399",
+    "independentRegistryVerification": true,
+    "bootstrapFiles": {
+      "usr/local/libexec/hive-template-runtime/agent-bridge.tar.gz": "4017d75ce9551412f2d9a60d58f2f1f480b0e9a7e6f8ff062ea4857c9f9c079d",
+      "usr/local/libexec/hive-template-runtime/install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983",
+      "usr/local/libexec/hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571"
+    }
+  },
+  "infrastructure": {
+    "sourceSha": "51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "variant": "infrastructure",
+    "runId": 44051022229,
+    "image": "ghcr.io/kethalia/hive-base@sha256:959e895d3442cff0952fd1a18b9482a631f5a09f4b1f176484ce5e321527cc39",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-infrastructure-51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "imageConfigDigest": "sha256:524a6fa66a7aa46c8231414e4ea53e10a64386fc21e375518d665aed678e6e3d",
+    "smokeTestedPushDigest": "sha256:959e895d3442cff0952fd1a18b9482a631f5a09f4b1f176484ce5e321527cc39",
+    "independentRegistryVerification": true,
+    "bootstrapFiles": {
+      "usr/local/libexec/hive-template-runtime/agent-bridge.tar.gz": "4017d75ce9551412f2d9a60d58f2f1f480b0e9a7e6f8ff062ea4857c9f9c079d",
+      "usr/local/libexec/hive-template-runtime/install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983",
+      "usr/local/libexec/hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571"
+    }
+  },
+  "electronics": {
+    "sourceSha": "51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "variant": "electronics",
+    "runId": 44051016495,
+    "image": "ghcr.io/kethalia/hive-base@sha256:f2eeae56aa819d4624e21b81898b3c5fa89c97b25c48fd43345c6dd313a7f6ea",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-electronics-51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "imageConfigDigest": "sha256:3164f958c429085ac9da2b8e4ca018a2f7f54577fdacedeb50158bd5337a0da1",
+    "smokeTestedPushDigest": "sha256:f2eeae56aa819d4624e21b81898b3c5fa89c97b25c48fd43345c6dd313a7f6ea",
+    "independentRegistryVerification": true,
+    "bootstrapFiles": {
+      "usr/local/libexec/hive-template-runtime/agent-bridge.tar.gz": "4017d75ce9551412f2d9a60d58f2f1f480b0e9a7e6f8ff062ea4857c9f9c079d",
+      "usr/local/libexec/hive-template-runtime/install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983",
+      "usr/local/libexec/hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571"
+    }
+  },
+  "game": {
+    "sourceSha": "51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "variant": "game",
+    "runId": 44051010887,
+    "image": "ghcr.io/kethalia/hive-base@sha256:a64c22424c1160c9ea35ad68df96bb9faf775ebb5ca5e7b0f029fe64cefee12c",
+    "imageTag": "ghcr.io/kethalia/hive-base:preview-game-51c26c48fc0ee0e92ab7eff29c98ba87f3d90e5d",
+    "imageConfigDigest": "sha256:97bd6374852345b7309d6b37c20b624d05e3b1bbf6b19403aa81b6a88c2ddeda",
+    "smokeTestedPushDigest": "sha256:a64c22424c1160c9ea35ad68df96bb9faf775ebb5ca5e7b0f029fe64cefee12c",
+    "independentRegistryVerification": true,
+    "bootstrapFiles": {
+      "usr/local/libexec/hive-template-runtime/agent-bridge.tar.gz": "4017d75ce9551412f2d9a60d58f2f1f480b0e9a7e6f8ff062ea4857c9f9c079d",
+      "usr/local/libexec/hive-template-runtime/install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983",
+      "usr/local/libexec/hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571"
+    }
+  }
+}

@@ -1,0 +1,568 @@
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import {
+  closeSync,
+  constants,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
+import { join } from "node:path";
+import { acquireManagedAuthLock } from "../../templates/ai-dev-k8s/scripts/codex-managed-auth-lock.mjs";
+import { readLibrary, saveLibrary } from "./codex-library.mjs";
+import { readConfig, readUsage, saveConfig, validManagementRequest } from "./codex-management.mjs";
+
+export { validManagementRequest };
+
+const SHA = "c06a67fd8ac76508dc78bd99ce20c9f317b8d568beda59485f3f4134df9962d5";
+const MAX_AGE = 10 * 60_000;
+const reject = () => {
+  throw Error("managed_auth_unavailable");
+};
+/** The pinned managed credential root exposes account, usage and reviewed
+ * configuration RPCs through an isolated native process environment. */
+export async function openAccountSession(home, fd, notify) {
+  const executable = join(
+    home,
+    ".local/share/hive/codex-runtime/0.165.0-linux-x64-c06a67fd8ac76508/vendor/x86_64-unknown-linux-musl/bin/codex",
+  );
+  if (realpathSync(executable) !== executable) reject();
+  const info = lstatSync(executable);
+  if (
+    !info.isFile() ||
+    info.uid !== process.getuid() ||
+    info.mode & 0o022 ||
+    info.size > 512 * 1024 * 1024
+  )
+    reject();
+  const handle = openSync(executable, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    if (createHash("sha256").update(readFileSync(handle)).digest("hex") !== SHA) reject();
+  } finally {
+    closeSync(handle);
+  }
+  const root = join(home, ".local/share/hive/codex-native/codex");
+  try {
+    mkdirSync(root, { mode: 0o700 });
+  } catch (e) {
+    if (e.code !== "EEXIST") throw e;
+  }
+  const s = lstatSync(root);
+  if (
+    realpathSync(root) !== root ||
+    !s.isDirectory() ||
+    s.uid !== process.getuid() ||
+    s.mode & 0o077
+  )
+    reject();
+  const guardian =
+    "import ctypes,os,signal,sys\np=int(sys.argv[1])\nr=ctypes.CDLL(None).prctl(1,signal.SIGTERM,0,0,0)\nif r!=0 or os.getppid()!=p: sys.exit(1)\nos.execv(sys.argv[2],sys.argv[2:])";
+  const child = spawn(
+    "/usr/bin/python3",
+    ["-c", guardian, String(process.pid), executable, "app-server", "--listen", "stdio://"],
+    {
+      env: { HOME: home, CODEX_HOME: root, PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8" },
+      cwd: home,
+      stdio: ["pipe", "pipe", "ignore", fd],
+    },
+  );
+  const {
+    call,
+    close,
+    initialized: ready,
+  } = createAccountWire(child, notify, { management: true });
+  try {
+    const initialized = await call("initialize", {
+      clientInfo: { name: "hive_managed_accounts", version: "1" },
+      capabilities: { experimentalApi: true },
+    });
+    if (
+      typeof initialized?.userAgent !== "string" ||
+      !/^[^/\s]+\/0\.165\.0(?:\s|$)/.test(initialized.userAgent)
+    )
+      reject();
+    ready();
+    return { call, close };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
+
+export function createAccountWire(child, notify, { codeInput = false, management = false } = {}) {
+  let sequence = 0;
+  let parts = [];
+  let bufferedBytes = 0;
+  let ended = false;
+  const normalLimit = management ? 512 * 1024 : 65536;
+  // Native inventory contains full marketplace metadata or MCP tool schemas.
+  // Only these fixed reads need larger frames. Results are projected before leaving the bridge.
+  const catalogLimits = new Map([
+    ["plugin/list", 48 * 1024 * 1024],
+    ["mcpServerStatus/list", 16 * 1024 * 1024],
+  ]);
+  const requests = new Map();
+  const closed = new Promise((resolve) => child.once("close", resolve));
+  const fail = () => {
+    ended = true;
+    parts = [];
+    bufferedBytes = 0;
+    for (const p of requests.values()) {
+      clearTimeout(p.timer);
+      p.reject(Error("managed_auth_unavailable"));
+    }
+    requests.clear();
+  };
+  child.once("error", fail);
+  child.once("close", fail);
+  child.stdin.on("error", fail);
+  child.stdout.on("data", (chunk) => {
+    if (ended) return;
+    try {
+      let offset = 0;
+      while (offset < chunk.length) {
+        const end = chunk.indexOf(10, offset);
+        const part = chunk.subarray(offset, end === -1 ? chunk.length : end);
+        bufferedBytes += part.length;
+        const pending = requests.size === 1 ? requests.values().next().value : null;
+        if (bufferedBytes > (pending?.limit ?? normalLimit)) reject();
+        parts.push(part);
+        if (end === -1) break;
+        offset = end + 1;
+        const length = bufferedBytes;
+        const line = parts.length === 1 ? parts[0] : Buffer.concat(parts, length);
+        parts = [];
+        bufferedBytes = 0;
+        const message = JSON.parse(line.toString("utf8"));
+        const p = requests.get(message.id);
+        if (length > (p?.limit ?? normalLimit)) reject();
+        if (p) {
+          requests.delete(message.id);
+          clearTimeout(p.timer);
+          if (message.error) p.reject(Error("managed_auth_unavailable"));
+          else p.resolve(message.result);
+        } else if (["account/login/completed", "account/updated"].includes(message.method))
+          notify(message);
+      }
+    } catch {
+      child.kill("SIGKILL");
+      fail();
+    }
+  });
+  const call = (method, params) =>
+    new Promise((resolve, rejectCall) => {
+      const limit = (management && catalogLimits.get(method)) || normalLimit;
+      if (
+        ended ||
+        (limit > normalLimit && requests.size > 0) ||
+        (requests.size === 1 && requests.values().next().value.limit > normalLimit) ||
+        ![
+          "initialize",
+          "account/read",
+          "account/login/start",
+          "account/login/cancel",
+          "account/logout",
+          ...(management
+            ? [
+                "account/rateLimits/read",
+                "account/usage/read",
+                "config/read",
+                "model/list",
+                "config/batchWrite",
+                "skills/list",
+                "skills/config/write",
+                "plugin/list",
+                "plugin/install",
+                "plugin/uninstall",
+                "thread/list",
+                "thread/read",
+                "mcpServerStatus/list",
+              ]
+            : []),
+          ...(codeInput ? ["account/login/submitCode"] : []),
+        ].includes(method) ||
+        requests.size >= 4
+      )
+        return rejectCall(Error("managed_auth_unavailable"));
+      const id = ++sequence,
+        timer = setTimeout(() => {
+          requests.delete(id);
+          rejectCall(Error("managed_auth_unavailable"));
+        }, 8000);
+      requests.set(id, { resolve, reject: rejectCall, timer, limit });
+      child.stdin.write(
+        `${JSON.stringify({ id, method, ...(params === undefined ? {} : { params }) })}\n`,
+      );
+    });
+  const close = async () => {
+    if (!ended) child.kill("SIGTERM");
+    const kill = setTimeout(() => child.kill("SIGKILL"), 1000);
+    await closed;
+    clearTimeout(kill);
+    fail();
+  };
+  return {
+    call,
+    close,
+    initialized: () => child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`),
+  };
+}
+
+export function createCodexAccountManager(options) {
+  return createAccountManager({ ...options, provider: "codex" });
+}
+
+export function createAccountManager({
+  provider = "codex",
+  home,
+  lifetimeId,
+  profile,
+  open = openAccountSession,
+  acquire = acquireManagedAuthLock,
+  now = Date.now,
+}) {
+  let generation = 0,
+    pending = null,
+    session = null,
+    lock = null,
+    timer,
+    closed = false,
+    state = "unknown",
+    queue = Promise.resolve();
+  let sessionEpoch = 0;
+  let accountSummary = null;
+  const notifications = new Map();
+  const view = () => ({
+    scope: provider === "codex" ? "managed-native" : "workspace-cli",
+    lifetimeId,
+    generation,
+    state,
+    account: state === "signed-in" ? accountSummary : null,
+    pending:
+      state === "pending" && pending
+        ? {
+            verificationUrl: pending.verificationUrl,
+            ...(provider === "codex"
+              ? { userCode: pending.userCode }
+              : { codeSubmitted: pending.codeSubmitted }),
+            expiresAt: pending.expiresAt,
+          }
+        : null,
+  });
+  const stop = async (release = true) => {
+    clearTimeout(timer);
+    sessionEpoch++;
+    notifications.clear();
+    pending = null;
+    const current = session;
+    session = null;
+    try {
+      await current?.close();
+    } finally {
+      if (release) {
+        lock?.close();
+        lock = null;
+      }
+    }
+  };
+  const start = async () => {
+    if (session) return;
+    try {
+      lock = acquire(home);
+    } catch {
+      state = "busy";
+      return;
+    }
+    try {
+      const epoch = ++sessionEpoch;
+      session = await open(home, lock.fd, (message) => {
+        if (
+          epoch !== sessionEpoch ||
+          message.method !== "account/login/completed" ||
+          typeof message.params?.loginId !== "string" ||
+          typeof message.params?.success !== "boolean" ||
+          notifications.size >= 4
+        )
+          return;
+        notifications.set(message.params.loginId, message.params.success);
+      });
+    } catch (error) {
+      lock.close();
+      lock = null;
+      throw error;
+    }
+  };
+  const settledAccount = async () => {
+    // A cancelled/expired process must have exited before durable credential
+    // readback. Keep the native fence across close and the fresh read process.
+    await stop(false);
+    session = await open(home, lock.fd, () => {});
+    try {
+      return await account();
+    } finally {
+      await stop();
+    }
+  };
+  const account = async () => {
+    const value = await session.call("account/read", { refreshToken: false });
+    accountSummary = null;
+    if (!value || !Object.hasOwn(value, "account")) reject();
+    if (value.account === null) return "signed-out";
+    if (value.account.type !== (provider === "codex" ? "chatgpt" : "claude")) return "unknown";
+    if (provider === "codex") {
+      const raw = value.account;
+      accountSummary = {
+        type: "chatgpt",
+        email:
+          typeof raw.email === "string" &&
+          raw.email.length <= 254 &&
+          Array.from(raw.email).every(
+            (char) => char.charCodeAt(0) > 32 && char.charCodeAt(0) < 127,
+          ) &&
+          /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(raw.email)
+            ? raw.email
+            : null,
+        plan:
+          typeof raw.planType === "string" &&
+          /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}$/.test(raw.planType)
+            ? raw.planType
+            : null,
+      };
+    }
+    return "signed-in";
+  };
+  const execute = async (request) => {
+    if (
+      closed ||
+      !["codex", "claude"].includes(provider) ||
+      (provider === "codex" && profile !== "software")
+    )
+      reject();
+    if (
+      request.action !== "status" &&
+      (request.lifetimeId !== lifetimeId || request.generation !== generation)
+    ) {
+      if (
+        request.action === "connect" &&
+        request.lifetimeId === lifetimeId &&
+        pending?.priorGeneration === request.generation
+      )
+        return view();
+      throw Error("managed_auth_stale");
+    }
+    if (request.action === "status" && pending) {
+      // Poll the exact managed process; no force-refresh is requested.
+      if (now() >= pending.expiresAt) {
+        generation++;
+        state = "expired";
+        await stop();
+        return view();
+      }
+      await account();
+      if (notifications.has(pending.loginId)) {
+        const success = notifications.get(pending.loginId);
+        generation++;
+        // Completion may follow the stale read response in the same transport
+        // callback. Only a subsequent official read can settle saved credentials.
+        state = success ? await account() : "failed";
+        await stop();
+      }
+      return view();
+    }
+    if (request.action === "code") {
+      if (
+        provider !== "claude" ||
+        !pending ||
+        pending.codeSubmitted ||
+        typeof request.code !== "string" ||
+        !/^[!-~]{1,2048}$/.test(request.code)
+      )
+        throw Error("managed_auth_stale");
+      pending.codeSubmitted = true;
+      generation++;
+      const accepted = await session.call("account/login/submitCode", {
+        loginId: pending.loginId,
+        code: request.code,
+      });
+      if (accepted?.accepted !== true) reject();
+      return view();
+    }
+    if (request.action === "connect" && pending) return view();
+    if (request.action === "cancel") {
+      if (!pending || !session) return view();
+      const result = await session.call("account/login/cancel", { loginId: pending.loginId });
+      if (!["canceled", "notFound"].includes(result?.status)) reject();
+      generation++;
+      state = await settledAccount();
+      if (state === "signed-out") state = "cancelled";
+      return view();
+    }
+    if (pending) {
+      const result = await session.call("account/login/cancel", { loginId: pending.loginId });
+      if (!["canceled", "notFound"].includes(result?.status)) reject();
+      generation++;
+      await stop();
+    }
+    await start();
+    if (!session) return view();
+    if (request.action === "status") {
+      try {
+        state = await account();
+      } finally {
+        await stop();
+      }
+      return view();
+    }
+    if (request.action === "disconnect") {
+      await session.call("account/logout");
+      generation++;
+      state = await settledAccount();
+      return view();
+    }
+    const priorGeneration = generation;
+    const result = await session.call("account/login/start", {
+      type: provider === "codex" ? "chatgptDeviceCode" : "claudeCli",
+    });
+    if (
+      result?.type !== (provider === "codex" ? "chatgptDeviceCode" : "claudeCli") ||
+      typeof result.loginId !== "string" ||
+      result.loginId.length > 200 ||
+      (provider === "codex"
+        ? result.verificationUrl !== "https://auth.openai.com/codex/device" ||
+          !/^[A-Z0-9-]{4,32}$/.test(result.userCode)
+        : !validClaudeLoginUrl(result.verificationUrl))
+    )
+      reject();
+    generation++;
+    state = "pending";
+    pending = {
+      loginId: result.loginId,
+      verificationUrl: result.verificationUrl,
+      userCode: result.userCode,
+      codeSubmitted: false,
+      expiresAt: now() + MAX_AGE,
+      priorGeneration,
+    };
+    timer = setTimeout(() => {
+      void run({ action: "status" }).catch(() => {});
+    }, MAX_AGE);
+    return view();
+  };
+  const executeManagement = async (request) => {
+    if (
+      closed ||
+      provider !== "codex" ||
+      profile !== "software" ||
+      !validManagementRequest(request)
+    )
+      reject();
+    if (request.lifetimeId !== lifetimeId || request.generation !== generation || pending)
+      throw Error("managed_auth_stale");
+    await start();
+    if (!session) throw Error("managed_auth_stale");
+    const root = join(home, ".local/share/hive/codex-native/codex");
+    const rpc = (method, params) => session.call(method, params);
+    const result = (values) => ({
+      scope: "managed-native",
+      lifetimeId,
+      generation,
+      outcome: "read",
+      usage: null,
+      config: null,
+      overridden: null,
+      ...values,
+    });
+    try {
+      if (request.action === "usage") return result({ usage: await readUsage(rpc) });
+      if (request.action === "config") return result({ config: await readConfig(rpc, root) });
+      const library = request.action.endsWith("library");
+      if (library && (await account()) !== "signed-in") throw Error("managed_auth_stale");
+      if (request.action === "library")
+        return result({ library: await readLibrary(rpc, home, request) });
+      let submitted = false;
+      const onSubmit = () => {
+        // Fence before delivery. A lost acknowledgement cannot reuse this generation.
+        generation++;
+        submitted = true;
+      };
+      try {
+        if (library)
+          return result({
+            outcome: "saved",
+            library: await saveLibrary(rpc, home, root, request, onSubmit),
+          });
+        const overridden = await saveConfig(rpc, root, request, onSubmit);
+        return result({ outcome: "saved", config: await readConfig(rpc, root), overridden });
+      } catch (error) {
+        if (!submitted) throw error;
+        // Close the mutating process before reading durable state under the same lock.
+        await stop(false);
+        session = await open(home, lock.fd, () => {});
+        return result({
+          outcome: "unknown",
+          ...(library
+            ? { library: await readLibrary(rpc, home, request) }
+            : { config: await readConfig(rpc, root) }),
+        });
+      }
+    } finally {
+      await stop();
+    }
+  };
+  const enqueue = (request, operation) => {
+    const result = queue
+      .then(() => operation(request))
+      .catch(async (error) => {
+        if (error.message === "managed_auth_stale") throw error;
+        generation++;
+        state = "unknown";
+        accountSummary = null;
+        await stop();
+        reject();
+      });
+    queue = result.catch(() => {});
+    return result;
+  };
+  const run = (request) => enqueue(request, execute);
+  return {
+    async peek() {
+      await queue;
+      return structuredClone(view());
+    }, // No process/lock/account read or refresh.
+    run,
+    manage: (request) => enqueue(request, executeManagement),
+    async close() {
+      closed = true;
+      await queue;
+      await stop();
+    },
+  };
+}
+
+export function validClaudeLoginUrl(value) {
+  if (
+    typeof value !== "string" ||
+    value.length > 8192 ||
+    Array.from(value).some(
+      (char) => char.charCodeAt(0) < 32 || (char.charCodeAt(0) >= 127 && char.charCodeAt(0) <= 159),
+    ) ||
+    value.toLowerCase().split("https://claude.com/cai/oauth/authorize").length !== 2
+  )
+    return false;
+  try {
+    const u = new URL(value);
+    return (
+      u.protocol === "https:" &&
+      u.host === "claude.com" &&
+      u.pathname === "/cai/oauth/authorize" &&
+      !u.username &&
+      !u.password &&
+      !u.hash &&
+      !!u.search
+    );
+  } catch {
+    return false;
+  }
+}

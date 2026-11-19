@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "194122f167e4ff58ad186945125d0795972e180c",
+  "expected": {
+    "deploymentUrl": "https://coder.kethalia.com",
+    "id": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+    "owner_id": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "template_id": "8f4640b6-f027-4b9d-8f72-9eba10f7034d",
+    "created_at": "2026-11-15T15:26:43.717493Z",
+    "buildId": "85b76f07-2d3d-4aa8-a005-2194ff220066",
+    "agentId": "92230080-7ad5-4fe0-9d8b-b87603b33f57",
+    "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+    "archiveSha256": "b83b44c893d780213d109704f55a924fb58211167e442642a030ff45e9afbd41",
+    "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+    "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+    "previousBuildId": "213ae46b-ae5f-427b-b3dc-f1ad0321cc88",
+    "previousLifetimeId": "16dea53d-4b55-4f86-8c6f-134bed208175"
+  },
+  "scope": "Installed bridge and real signed app transport with reused dedicated Coder password session and synthetic Hive principal",
+  "exclusions": [
+    "Hive browser authentication and UI",
+    "provider consent or completed provider sign-in",
+    "model execution",
+    "workspace lifecycle"
+  ],
+  "startedAt": "2026-11-15T15:55:58.292Z",
+  "providers": {
+    "codex": {
+      "initial-status": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 0,
+        "scope": "managed-native",
+        "state": "signed-out",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "previousBuild": {
+        "denied": true,
+        "zeroTransport": true
+      },
+      "old-lifetime-readback": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 0,
+        "scope": "managed-native",
+        "state": "signed-out",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "oldLifetime": {
+        "statusOnlyRequest": true,
+        "rejectedBeforeOperation": true,
+        "httpStatus": 400,
+        "currentGenerationUnchanged": true
+      },
+      "connect": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 1,
+        "scope": "managed-native",
+        "state": "pending",
+        "pending": true,
+        "officialDestination": true,
+        "codeShapeOnly": true
+      },
+      "generation-readback": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 1,
+        "scope": "managed-native",
+        "state": "pending",
+        "pending": true,
+        "officialDestination": true,
+        "codeShapeOnly": true
+      },
+      "staleGeneration": {
+        "denied": true,
+        "negativeReconnectOnly": true,
+        "pendingPreserved": true
+      },
+      "cancel": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 2,
+        "scope": "managed-native",
+        "state": "cancelled",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "final-status-0": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 2,
+        "scope": "managed-native",
+        "state": "signed-out",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "complete": true
+    },
+    "claude": {
+      "initial-status": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 0,
+        "scope": "workspace-cli",
+        "state": "signed-out",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "previousBuild": {
+        "denied": true,
+        "zeroTransport": true
+      },
+      "connect": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 1,
+        "scope": "workspace-cli",
+        "state": "pending",
+        "pending": true,
+        "officialDestination": true,
+        "codeShapeOnly": null
+      },
+      "generation-readback": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 1,
+        "scope": "workspace-cli",
+        "state": "pending",
+        "pending": true,
+        "officialDestination": true,
+        "codeShapeOnly": null
+      },
+      "staleGeneration": {
+        "denied": true,
+        "negativeReconnectOnly": true,
+        "pendingPreserved": true
+      },
+      "cancel": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 2,
+        "scope": "workspace-cli",
+        "state": "cancelled",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "final-status-0": {
+        "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+        "generation": 2,
+        "scope": "workspace-cli",
+        "state": "signed-out",
+        "pending": false,
+        "officialDestination": null,
+        "codeShapeOnly": null
+      },
+      "complete": true
+    }
+  },
+  "complete": true,
+  "stage": "complete",
+  "counts": {
+    "codex-status": 4,
+    "codex-connect": 1,
+    "codex-reconnect": 1,
+    "codex-cancel": 1,
+    "claude-status": 3,
+    "claude-connect": 1,
+    "claude-reconnect": 1,
+    "claude-cancel": 1
+  },
+  "signedTransportCalls": 27,
+  "finishedAt": "2026-11-15T15:56:46.802Z",
+  "cleanup": {
+    "schemaVersion": 1,
+    "buildId": "85b76f07-2d3d-4aa8-a005-2194ff220066",
+    "archiveSha256": "b83b44c893d780213d109704f55a924fb58211167e442642a030ff45e9afbd41",
+    "lifetimeId": "de8e880b-da84-40f6-9806-f707b45d551f",
+    "serviceReady": true,
+    "servicePid": 394,
+    "serviceStartTime": "1115774599",
+    "locksFree": {
+      "codex": true,
+      "claude": true
+    },
+    "lockHolders": [],
+    "knownAccountProcesses": [],
+    "inaccessibleSameUserProcesses": 0
+  },
+  "fullyAcceptedWithinRecordedScope": true,
+  "cleanupMethod": "Natural account cancellation and signed-out readback; read-only owner-profile process/lock inspection; no process signals",
+  "harnessSha256": "aa892b31e1c32976eb3995307a06b58cb35044f095f4e86fdc443cc46eba3ae3"
+}

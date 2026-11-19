@@ -17,6 +17,20 @@ afterEach(() => {
 
 describe("proxy", async () => {
   it.each([
+    "codex-account",
+    "claude-account",
+  ])("lets the %s route return its own authenticated JSON response", async (provider) => {
+    vi.stubEnv("HIVE_CODER_OAUTH_ENABLED", "true");
+    const response = await proxy(
+      new NextRequest(`https://hive.example.com/api/workspaces/workspace-id/${provider}`, {
+        method: "POST",
+      }),
+    );
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
+    expect(mockVerifyCookie).not.toHaveBeenCalled();
+  });
+  it.each([
     "__Host-hive-auth=stale",
     "__Host-hive-auth=one; __Host-hive-auth=two",
   ])("ignores disabled OAuth cookies while admitting the protected legacy cookie: %s", async (stale) => {

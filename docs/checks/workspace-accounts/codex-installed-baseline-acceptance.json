@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "1e6722fa5cb7d10959275c3308f3869e123d0769",
+  "installedArchiveSha256": "bec192c23809768d4fcd6d63f1ee787d9141c92c4d69ff1b78d0fdd1d7cb5153",
+  "installedManifestSha256": "e81ca34080e97a2768f84d601a5f4666c90c58e4415b8341ef3215f235c2870d",
+  "installedHelperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+  "workspace": {
+    "deploymentUrl": "https://coder.kethalia.com",
+    "id": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+    "owner_id": "25eabc8a-f9bb-4ae3-b87e-dce06f8d1401",
+    "template_id": "8f4640b6-f027-4b9d-8f72-9eba10f7034d",
+    "created_at": "2026-11-15T15:26:43.717493Z",
+    "buildId": "213ae46b-ae5f-427b-b3dc-f1ad0321cc88",
+    "agentId": "97576dec-a639-457f-b3cf-6e1ce327b357"
+  },
+  "accepted": [
+    "fresh creation identity/current build/agent",
+    "signed installed identity and account status",
+    "stale selected build denied before transport",
+    "official Codex device-flow response",
+    "stale generation denied with pending attempt preserved",
+    "exact cancellation",
+    "later signed-out status",
+    "credential lock free with no visible holders"
+  ],
+  "initialAttempt": {
+    "complete": false,
+    "stage": "final-status",
+    "finalState": "busy",
+    "transportCalls": 12,
+    "mutationRequests": 3
+  },
+  "followup": [
+    {
+      "at": "2026-11-15T15:37:25.428Z",
+      "lifetimeId": "16dea53d-4b55-4f86-8c6f-134bed208175",
+      "generation": 2,
+      "scope": "managed-native",
+      "state": "signed-out",
+      "pending": false
+    }
+  ],
+  "lockSnapshot": {
+    "schemaVersion": 1,
+    "buildId": "213ae46b-ae5f-427b-b3dc-f1ad0321cc88",
+    "serviceReady": true,
+    "servicePid": 521,
+    "serviceStartTime": "1115637070",
+    "installedArchiveSha256": "bec192c23809768d4fcd6d63f1ee787d9141c92c4d69ff1b78d0fdd1d7cb5153",
+    "lockFree": true,
+    "lockHolders": [],
+    "inaccessibleSameUserProcesses": 0
+  },
+  "scopeComplete": true,
+  "limits": [
+    "Installed host and real signed workspace-app transport",
+    "Synthetic Hive principal with dedicated Coder password login",
+    "Hive authentication, OAuth credential resolution and browser UI excluded",
+    "No model or Claude calls",
+    "Immediate post-cancel status returned busy; later read was signed-out. Exact transient cause unestablished.",
+    "Read-only proc snapshot may omit inaccessible same-user processes, whose count is reported.",
+    "Installed source and package predate the later Claude 2.1.325 regeneration.",
+    "Successful provider sign-in and browser UI acceptance were not exercised."
+  ],
+  "modelCalls": 0,
+  "claudeCalls": 0,
+  "lifecycleChanges": 0
+}

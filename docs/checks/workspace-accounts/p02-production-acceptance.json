@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "source": "37c552996dc4b1a4e9a732ce2c6b8e9422e6b2dd",
+  "appBuild": "65af9568-c541-43af-88b3-4d6ac5e0a101",
+  "origin": "https://hive.kethalia.com",
+  "functionalAcceptancePassed": true,
+  "engine": "existing system Google Chrome through Playwright1.61.1 in Browser Testing",
+  "browserWorkspace": {
+    "id": "5cf78a47-70dc-4781-ac53-b7a3d4b1001f",
+    "ownerId": "3b232194-5c7d-41f0-834d-e7fe6911ebc0",
+    "templateId": "ff15e3b2-638e-4328-a62b-718a2ee7472a",
+    "buildId": "4745de9f-8195-492a-956e-2aeed991253e",
+    "designation": "reused-persistent"
+  },
+  "checks": {
+    "initial_signin": true,
+    "reloadPersists": true,
+    "settingsLoads": true,
+    "terminalOutput": true,
+    "terminalNormalClose": true,
+    "terminalWindowClosed": true,
+    "disconnectClearedCookie": true,
+    "reconnect": true,
+    "stableIdentityAfterReconnect": true
+  },
+  "identity": {
+    "initialHiveUserId": "e07115c7-8801-4c70-89aa-d3e2b7216e86",
+    "reconnectedHiveUserId": "e07115c7-8801-4c70-89aa-d3e2b7216e86",
+    "basis": "User-scoped general-workspace:v1 storage key written by actual authenticated UI."
+  },
+  "terminal": {
+    "workspaceId": "23023679-3c7b-4a50-ba52-4ca31673148e",
+    "available": true,
+    "observedStatus": "running",
+    "inputs": 2,
+    "session": "p02-prod-a916870d",
+    "buildId": "0d6eb50e-d24f-49bc-8d03-579071920a2d",
+    "pid": 1402,
+    "closes": [
+      {
+        "code": 1000,
+        "wasClean": true
+      }
+    ]
+  },
+  "terminalHostPhysicalAbsenceSeparatelyChecked": false,
+  "workspaceHealthLimitation": "Root reported overallhealth false from known unrelated Claude LSP startup plugin failure. Ordinary terminal worked.",
+  "disconnectStatus": 200,
+  "finalSignoutUi": true,
+  "finalCookieAbsent": true,
+  "finalUnauthStatus": 307,
+  "finalUnauthLogin": true,
+  "cumulativeOAuthFlows": 3,
+  "finalRunSocialPosts": 2,
+  "callbackObservations": [
+    {
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "nosniff": "nosniff"
+    },
+    {
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "nosniff": "nosniff"
+    },
+    {
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "nosniff": "nosniff"
+    }
+  ],
+  "downloads": 0,
+  "validationLimitations": [
+    {
+      "attempt": 1,
+      "issue": "Harness queried intentionally unavailable standard Better Auth /api/auth/get-session. Initial signin and UI logout passed. Replaced harness identity check with existing UI scope."
+    },
+    {
+      "attempt": "final",
+      "issue": "Harness aggregate required exactly2 callback response observations for2 social POSTs, but observed3 callbacks. Every observed callback was200 HTML/nosniff. All requested functional checks completed before this aggregate assertion. No sole-cause inference or new auth attempt."
+    }
+  ],
+  "browserProcessesAfterCleanup": {
+    "chrome": 0,
+    "webkit": 0,
+    "ownedHarness": 0
+  },
+  "sshClosed": true,
+  "sourceChanges": false,
+  "providerConfigurationChanges": false,
+  "modelCalls": 0,
+  "files": {
+    "result.json": "8ad9bf499db7a4d15cc9dd84bb4711797736ffb08c144e25138f5cb86745e1d5",
+    "screenshots/settings-initial.png": "515c9abb7a91c7d3cd685256e7f1bf171c5f46b1385a68ea6b8354c6c2fd2db3",
+    "screenshots/settings-reconnected.png": "68ff06e573578c46374c4dd844c533a56e5bc292ae114ddd19f2e02c9b44deb7"
+  },
+  "completedAt": "2026-11-15T13:44:11.188458+00:00"
+}

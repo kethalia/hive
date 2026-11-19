@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "sourceSha": "194122f167e4ff58ad186945125d0795972e180c",
+  "previousPublicationReceipt": "image-publications-78a4401.json",
+  "claudeVersionAdmissionReceipt": "claude-2.1.325-admission.json",
+  "nativeIdentityHelper": {
+    "goVersion": "go1.26.10",
+    "schemaVersion": 1,
+    "sdkVersion": "v2.38.4",
+    "sha256": "5cb01a6bde1a451cec77568e08ffebba491086d8271c0a785b8744b18a74ae39"
+  },
+  "verifiedBootstrapFiles": {
+    "hive-template-bootstrap": "8180e0e01c9a1dd2270ef7012186c1aa1ee04d6dd29781da1dc0b9f4130c7571",
+    "agent-bridge.tar.gz": "0bec2912e3c01e9f08d988b86179806f3ce32be91a30dbf3d7f54486a097fe25",
+    "install-agent-bridge.py": "55eac7c20d04838005f1fd9d2f554cf7441f354e372c2d69fbe4163bf8b85983"
+  },
+  "verificationScope": "CI completed final-filesystem ownership, byte verification and native smoke checks. Independently reread the public OCI manifest, config and bounded COPY layers and matched bootstrap bytes to current source. Job summary JSON is unavailable through the standard check-run API.",
+  "requiredCiChecks": [
+    "Verify reviewed source and absent public package tag",
+    "Build exact preview image locally",
+    "Smoke exact preview image",
+    "Recheck absence and publish exact smoke-tested image",
+    "Record exact source, registry digest and helper identity"
+  ],
+  "images": {
+    "cli": {
+      "runId": 43731118523,
+      "jobId": 132863548455,
+      "runUrl": "https://github.com/kethalia/hive/actions/runs/43731118523",
+      "jobUrl": "https://github.com/kethalia/hive/actions/runs/43731118523/job/132863548455",
+      "conclusion": "success",
+      "completedAt": "2026-11-15T15:46:42Z",
+      "image": "ghcr.io/kethalia/hive-base@sha256:37a8b7bc18e8fd5bd6af6a49537a77e12147face367ab829887c2d4bf39d615a",
+      "imageTag": "ghcr.io/kethalia/hive-base:preview-cli-194122f167e4ff58ad186945125d0795972e180c",
+      "imageConfigDigest": "sha256:99cb3e78f003ff7b3c478f304295bb601fb9e1852cefdfc94f8996b63cf352a2",
+      "smokeTestedLocalImageId": "sha256:37a8b7bc18e8fd5bd6af6a49537a77e12147face367ab829887c2d4bf39d615a",
+      "verifiedCopyLayers": [
+        {
+          "digest": "sha256:1ea6fd2c42dd2879a1e3f71766cb216c0735632de1a74581c58662a32af53821",
+          "compressedBytes": 17300589
+        },
+        {
+          "digest": "sha256:fd9b96d93cb4ff2b3c17682e699cf27b84d7aaa29aae65d099cb6273433cd132",
+          "compressedBytes": 296
+        },
+        {
+          "digest": "sha256:c65d4fc6103b4eb6af0907276bc15ba8cd07f097c55bcf7f6e0d3fd911304fbb",
+          "compressedBytes": 1436
+        },
+        {
+          "digest": "sha256:ccdbd34e4b55b9943ba00aa3abd4fc6f4f7cc465c4592840d9e1acd2b13c8c92",
+          "compressedBytes": 33722
+        }
+      ],
+      "profilePath": "templates/ai-dev-k8s/profile.json",
+      "previousImage": "ghcr.io/kethalia/hive-base@sha256:1527a3f6f48643801186e4de682dd240eadd7673c95e4289284675376767ada8"
+    },
+    "browser": {
+      "runId": 43731121790,
+      "jobId": 132863560798,
+      "runUrl": "https://github.com/kethalia/hive/actions/runs/43731121790",
+      "jobUrl": "https://github.com/kethalia/hive/actions/runs/43731121790/job/132863560798",
+      "conclusion": "success",
+      "completedAt": "2026-11-15T15:47:39Z",
+      "image": "ghcr.io/kethalia/hive-base@sha256:8a7a80acc9fab5cb24878a21347562f715114fc7261297ea62ff91a8beede29e",
+      "imageTag": "ghcr.io/kethalia/hive-base:preview-browser-194122f167e4ff58ad186945125d0795972e180c",
+      "imageConfigDigest": "sha256:ac9c838c13ba48c6ffa5820a2b6856ac7a83b06162a6813b8dc83858424c84e9",
+      "smokeTestedLocalImageId": "sha256:8a7a80acc9fab5cb24878a21347562f715114fc7261297ea62ff91a8beede29e",
+      "verifiedCopyLayers": [
+        {
+          "digest": "sha256:4f8d6380637a1afc9235be56e6df3c0109e7ac9a6a8dad5328030c47c52d26fe",
+          "compressedBytes": 17300580
+        },
+        {
+          "digest": "sha256:ceed07bc7fdddb119762cdd7cdc654affadbc97ae204825deb7e53c64b127df0",
+          "compressedBytes": 297
+        },
+        {
+          "digest": "sha256:aefd202f1fa18fe732502d676c1a9ab5922602ba623db175369dd56c3471bd7e",
+          "compressedBytes": 1438
+        },
+        {
+          "digest": "sha256:67d32d3ea432c23192f865300ddf703120716c98c3b87790ced649f9a910d1b9",
+          "compressedBytes": 33722
+        }
+      ],
+      "profilePath": "templates/browser-testing/profile.json",
+      "previousImage": "ghcr.io/kethalia/hive-base@sha256:08e178211082880e6e013bf307771a88d8ff2cbf52395645f2d3c6b44f7dcb3d"
+    },
+    "game": {
+      "runId": 43731125389,
+      "jobId": 132863569040,
+      "runUrl": "https://github.com/kethalia/hive/actions/runs/43731125389",
+      "jobUrl": "https://github.com/kethalia/hive/actions/runs/43731125389/job/132863569040",
+      "conclusion": "success",
+      "completedAt": "2026-11-15T15:46:46Z",
+      "image": "ghcr.io/kethalia/hive-base@sha256:cecd99eb983f97a39de04f78f62d73b92ec111d7aba600ba54a9fe0688ddd672",
+      "imageTag": "ghcr.io/kethalia/hive-base:preview-game-194122f167e4ff58ad186945125d0795972e180c",
+      "imageConfigDigest": "sha256:78aae283669ce6fa90ce86936578cd2762a4a79d515019644030f604b042507f",
+      "smokeTestedLocalImageId": "sha256:cecd99eb983f97a39de04f78f62d73b92ec111d7aba600ba54a9fe0688ddd672",
+      "verifiedCopyLayers": [
+        {
+          "digest": "sha256:1199267335061558771a1d28b215efe6b77035d3b979152768681f12aa264ae2",
+          "compressedBytes": 17300578
+        },
+        {
+          "digest": "sha256:8fa617a63062a1f4b2ec4a98b5fb8412533838daed099a29b51bb68c26f4eb73",
+          "compressedBytes": 298
+        },
+        {
+          "digest": "sha256:eabb23c2a35c19bb07196af45e8f7f804d2b9ec6e258b5f5de9e88aa9c7a0970",
+          "compressedBytes": 1434
+        },
+        {
+          "digest": "sha256:42fc26330d3e3cb3809bf007f102380dcec0fe29e2ca5c696f99bbfb8c99190b",
+          "compressedBytes": 33723
+        }
+      ],
+      "profilePath": "templates/game-dev/profile.json",
+      "previousImage": "ghcr.io/kethalia/hive-base@sha256:15da7cf4901429b978e9b6cbcff901a3b7b50e1a9c7e58011bb52749f173b2d2"
+    },
+    "electronics": {
+      "runId": 43731129306,
+      "jobId": 132863580128,
+      "runUrl": "https://github.com/kethalia/hive/actions/runs/43731129306",
+      "jobUrl": "https://github.com/kethalia/hive/actions/runs/43731129306/job/132863580128",
+      "conclusion": "success",
+      "completedAt": "2026-11-15T15:50:21Z",
+      "image": "ghcr.io/kethalia/hive-base@sha256:6965f311b5ad22dd00df85ff61d5ac4375015680b806b0407ba2fb2acd23130a",
+      "imageTag": "ghcr.io/kethalia/hive-base:preview-electronics-194122f167e4ff58ad186945125d0795972e180c",
+      "imageConfigDigest": "sha256:baead18744789620ada359eb607e69e946987af6332cd65b1ec6fbd0dd5f56fc",
+      "smokeTestedLocalImageId": "sha256:6965f311b5ad22dd00df85ff61d5ac4375015680b806b0407ba2fb2acd23130a",
+      "verifiedCopyLayers": [
+        {
+          "digest": "sha256:dd9d1d5e3286d0cc828ff87a45e45d3c105231341f733090da7b2d4eff70f141",
+          "compressedBytes": 17300589
+        },
+        {
+          "digest": "sha256:d13f24f80de0f16a5b21cab076d0a530d83a8e925ec51d73ee7b4c7eee6a3ac2",
+          "compressedBytes": 298
+        },
+        {
+          "digest": "sha256:059e4f521c063a5cbdf6882f631b33dafefa2e5e13e5d72bef522d77928e0acf",
+          "compressedBytes": 1437
+        },
+        {
+          "digest": "sha256:3c673f37d98cf447ecd0db259407b0cb28bdd2008831706afbc470fd30c7c46d",
+          "compressedBytes": 33722
+        }
+      ],
+      "profilePath": "templates/electronics/profile.json",
+      "previousImage": "ghcr.io/kethalia/hive-base@sha256:92f359f66e3ccafced37b21b35e630e3797525da9dcfc7ad169e75a0d517a951"
+    },
+    "infrastructure": {
+      "runId": 43731132870,
+      "jobId": 132863591254,
+      "runUrl": "https://github.com/kethalia/hive/actions/runs/43731132870",
+      "jobUrl": "https://github.com/kethalia/hive/actions/runs/43731132870/job/132863591254",
+      "conclusion": "success",
+      "completedAt": "2026-11-15T15:47:01Z",
+      "image": "ghcr.io/kethalia/hive-base@sha256:f72d6a5740202c7c8c7a8d575cd70631f76a8b0c15a528851c053980f93c00a7",
+      "imageTag": "ghcr.io/kethalia/hive-base:preview-infrastructure-194122f167e4ff58ad186945125d0795972e180c",
+      "imageConfigDigest": "sha256:51cec55cfd82f3fb703f4ced1a6a88cfd57d501949ebbee7cf756433c9dc6880",
+      "smokeTestedLocalImageId": "sha256:f72d6a5740202c7c8c7a8d575cd70631f76a8b0c15a528851c053980f93c00a7",
+      "verifiedCopyLayers": [
+        {
+          "digest": "sha256:503143e1df88ce3b4b7f1d882955a04b773596a8fb18f9df364ba057c9c6ff21",
+          "compressedBytes": 17300578
+        },
+        {
+          "digest": "sha256:28b3d386751d8ac2a7ff61eee6aa65fb016b7779abc25a1d5f7e08d51acac9a8",
+          "compressedBytes": 297
+        },
+        {
+          "digest": "sha256:6d62b8ef741fafd719c68ff96948ca688b2e092600821c74660e789dfa802030",
+          "compressedBytes": 1437
+        },
+        {
+          "digest": "sha256:bf2013bdeb8f8aaca75f12c51cec0ef3f10abefc6718c6d7d08c79121fd2854d",
+          "compressedBytes": 33720
+        }
+      ],
+      "profilePath": "templates/infrastructure/profile.json",
+      "previousImage": "ghcr.io/kethalia/hive-base@sha256:d87dd8d10938003726a3eb841b66402b4f77d5e1c9f09d79ee34e43d78761852"
+    }
+  },
+  "workspaceActivation": false,
+  "agentPackage": {
+    "archiveSha256": "b83b44c893d780213d109704f55a924fb58211167e442642a030ff45e9afbd41",
+    "manifestSha256": "a1f068b221860d66f425669e5ee9effec7f334418b07ca649d11404d9c51f48c",
+    "helperSha256": "125b344f1986526a8bc8eacf4fd5465e9907454d4921cc48558d7284ca387787",
+    "compressedSha256": "0bec2912e3c01e9f08d988b86179806f3ce32be91a30dbf3d7f54486a097fe25"
+  },
+  "templateArtifacts": {
+    "ai-dev-k8s": {
+      "contentHash": "d6ef23376ec73f3f19e78790dda3f55b40cdbae3f68c5b45f9063870ee9948ca",
+      "archiveDigest": "a0e16fd76e008b2a2174099243b172c61f22a2718bb3febf5a8a267640c3573b",
+      "archiveBytes": 325632,
+      "fileCount": 49
+    },
+    "browser-testing": {
+      "contentHash": "84d34ade874e4a52a726d3ce5bd1664dec42f3bafcf0aca7097ee9b9c15b5768",
+      "archiveDigest": "ceaab00f8a7db0c0c5ad866cf784bf9b8a7b901102147e3f0e96f4420e6a6275",
+      "archiveBytes": 321024,
+      "fileCount": 49
+    },
+    "game-dev": {
+      "contentHash": "13bc175ebbaeb8e4f83770292ac8750ffc31df001f61202a5413643af1208662",
+      "archiveDigest": "389f039caa4a6fe564c7fa460ed16fcb8ee133e5eea0d28084a44ff8b11db552",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    },
+    "electronics": {
+      "contentHash": "c88074865e692d9f1133986f54f986d026cc052948d535a0aa9f4952ae995766",
+      "archiveDigest": "4a9f7f9aaf2607df873d0ac29e908a0626f10657a64f599479ddc401ef93b03e",
+      "archiveBytes": 321536,
+      "fileCount": 49
+    },
+    "infrastructure": {
+      "contentHash": "963922d0bc45e686d8f4eac6d094a866d78cb0cd3aae5f3beab112a3617036aa",
+      "archiveDigest": "45c43588737d2ed0f29f953b7b13b66314aa29dca74ee1b0c63dc0b99fcbda18",
+      "archiveBytes": 322048,
+      "fileCount": 49
+    }
+  }
+}

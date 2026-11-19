@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-17T08:54:15.291818+00:00",
+  "version": "2.1.326",
+  "platform": "linux-x64",
+  "binaryUrl": "https://downloads.claude.ai/claude-code-releases/2.1.326/linux-x64/claude",
+  "manifestUrl": "https://downloads.claude.ai/claude-code-releases/2.1.326/manifest.json",
+  "manifestSignatureUrl": "https://downloads.claude.ai/claude-code-releases/2.1.326/manifest.json.sig",
+  "vendorKeyUrl": "https://downloads.claude.ai/keys/claude-code.asc",
+  "manifest": {
+    "version": "2.1.326",
+    "platform": "linux-x64",
+    "commit": "e601e33ab7cb260b9713df44fa4406cde23c91a0",
+    "buildDate": "2026-11-16T17:26:18Z",
+    "release": {
+      "binary": "claude",
+      "checksum": "b6b3647d981130dc44fc670846ae97b6cde531ffb667cf9c4d17cfcafb38cb37",
+      "size": 371429904
+    },
+    "hashes": {
+      "manifest.json": "883e153b05d4a34e4225cdc90d692e4415ed4e46b26434b6430f128b6b8beb1e",
+      "manifest.json.sig": "50db46627c45106962392b8e367da37b7dec71fc0dd15f30b5e456272cb894d8",
+      "claude-code.asc": "bd70a5e4a268002704024ceba7f8446024114e94f3f0bdd11c23a9e592be81c6"
+    },
+    "verifiedFingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+    "trustedFingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+    "gpgValidSignature": true
+  },
+  "installedExecutable": {
+    "version": "2.1.326 (Claude Code)",
+    "bytes": 371429904,
+    "sha256": "b6b3647d981130dc44fc670846ae97b6cde531ffb667cf9c4d17cfcafb38cb37",
+    "uid": 1000,
+    "mode": "0o755",
+    "nlink": 1
+  },
+  "protocol": {
+    "version": "2.1.326",
+    "protocol": "hive-claude-cli-auth-v1",
+    "statusBefore": "signed-out",
+    "officialLoginDestination": true,
+    "codePromptRecognized": true,
+    "urlBytes": 497,
+    "authorizeTargetCount": 1,
+    "literalControlCount": 0,
+    "stateValueCount": 1,
+    "pkceValueCount": 1,
+    "httpsRedirectCount": 1,
+    "cancelStatus": "canceled",
+    "statusAfter": "signed-out",
+    "isolatedHomeAndConfig": true,
+    "authorizationCodeSubmitted": false,
+    "modelCalls": 0,
+    "driverExited": true,
+    "loginChildExited": true,
+    "trackedChildren": 1,
+    "remainingChildren": 0
+  },
+  "driverSha256": "3c652eb1d348d1cadf9a07638597e5b958414949cc42ffe583a49293eb6cb465",
+  "workspace": {
+    "name": "codex/hive-p03-accounts",
+    "id": "a0b5ddfb-0a0e-4e9e-b973-b98293a80fb1",
+    "buildId": "7066e9e4-5be1-465f-80dd-f88a7f7d0f19"
+  },
+  "admission": {
+    "version": "2.1.326",
+    "admitted": true,
+    "actualFilesystemAndHashChecks": true,
+    "isolatedExecutableCopy": true
+  },
+  "verificationScope": "The official linux-x64 manifest signature verified with the previously trusted vendor key. The exact installed version path matched vendor size, SHA256, ownership, mode and link count. The existing Node admission function accepted a byte-identical copy in a temporary home layout. The current PTY driver completed official status, login URL, cancel and fresh signed-out readback in a separate temporary HOME/config, with a private FD3. The isolated login child and driver exited. The real CLI symlink, real auth scopes and bridge lifecycle were preserved."
+}

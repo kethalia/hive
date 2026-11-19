@@ -264,7 +264,21 @@ export function WindowCanvas({
             ? resizeWorkspaceSplit(board.layout, target.path, value)
             : board.layout,
         };
-      const resized = {
+      if (target.kind === "column-split")
+        return {
+          ...board,
+          manager: {
+            ...m,
+            columns: m.columns.map((column) =>
+              column.id === target.before
+                ? { ...column, width: target.totalFraction * value }
+                : column.id === target.after
+                  ? { ...column, width: target.totalFraction * (1 - value) }
+                  : column,
+            ),
+          },
+        };
+      return {
         ...board,
         manager: updateColumn(m, target.id, (c) => {
           if (target.kind === "column") return { ...c, width: value };
@@ -276,24 +290,6 @@ export function WindowCanvas({
           };
         }),
       };
-      if (
-        target.kind === "column" &&
-        divider.edge === "start" &&
-        !m.columns.find((c) => c.id === target.id)?.pin
-      ) {
-        // Growing the last column from its left edge keeps its right edge in view.
-        const before = geometry(board);
-        const after = geometry(resized);
-        resized.manager.scroll = Math.max(
-          0,
-          Math.min(
-            after.maxScroll,
-            Math.min(m.scroll, before.maxScroll) +
-              (value - divider.value) * Math.abs(divider.extent),
-          ),
-        );
-      }
-      return resized;
     });
   }
   return (
@@ -436,37 +432,47 @@ export function WindowCanvas({
             ) : null}
           </DndContext>
           {!dragId
-            ? activeGeometry.dividers.map((d) => (
-                <WindowResizeHandle
-                  key={d.id}
-                  label={`Resize ${d.axis}`}
-                  axis={d.axis}
-                  value={d.value}
-                  min={d.min}
-                  max={d.max}
-                  extent={d.extent}
-                  style={styleRect(
-                    mobile
-                      ? {
-                          ...d.rect,
-                          ...(d.axis === "width"
-                            ? {
-                                x:
-                                  d.edge === "start"
-                                    ? d.rect.x
-                                    : d.edge === "end"
-                                      ? d.rect.x + d.rect.width - 16
-                                      : d.rect.x + d.rect.width / 2 - 8,
-                                width: 16,
-                              }
-                            : { y: d.rect.y + d.rect.height / 2 - 8, height: 16 }),
-                        }
-                      : d.rect,
-                  )}
-                  onChange={(value) => resize(d, value)}
-                  onInteraction={setResizing}
-                />
-              ))
+            ? activeGeometry.dividers.map((d) => {
+                const rect = mobile
+                  ? {
+                      ...d.rect,
+                      ...(d.axis === "width"
+                        ? {
+                            x:
+                              d.edge === "start"
+                                ? d.rect.x
+                                : d.edge === "end"
+                                  ? d.rect.x + d.rect.width - 16
+                                  : d.rect.x + d.rect.width / 2 - 8,
+                            width: 16,
+                          }
+                        : { y: d.rect.y + d.rect.height / 2 - 8, height: 16 }),
+                    }
+                  : d.rect;
+                return (
+                  <WindowResizeHandle
+                    key={d.id}
+                    label={
+                      d.target.kind === "column-split"
+                        ? "Resize adjoining columns"
+                        : d.target.kind === "column"
+                          ? `Resize ${d.edge === "start" ? "left" : "right"} edge`
+                          : `Resize ${d.axis}`
+                    }
+                    axis={d.axis}
+                    value={d.value}
+                    min={d.min}
+                    max={d.max}
+                    extent={d.extent}
+                    style={styleRect(rect)}
+                    gripOffsetX={
+                      d.gripOffsetX === undefined ? undefined : d.gripOffsetX + d.rect.x - rect.x
+                    }
+                    onChange={(value) => resize(d, value)}
+                    onInteraction={setResizing}
+                  />
+                );
+              })
             : null}
           {!mobile
             ? activeGeometry.tabs.map(({ column, rect }) => (

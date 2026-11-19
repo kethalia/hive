@@ -19,5 +19,14 @@
     "databaseRole": "hive_coder_oauth_runtime",
     "schemaMigrations": 12,
     "coderOAuthEnabled": true
+  },
+  "codex/workspace-accounts-p03": {
+    "origin": "https://codex-workspace-accounts-p03.hive-preview.kethalia.com",
+    "alias": "https://codex-workspace-accounts-p03-hive.b00ste.workers.dev",
+    "databaseName": "hive_workspace_accounts_preview",
+    "databaseRole": "hive_accounts_runtime",
+    "schemaMigrations": 12,
+    "coderOAuthEnabled": true,
+    "workspaceAccounts": true
   }
 }

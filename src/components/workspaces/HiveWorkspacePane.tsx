@@ -2,20 +2,21 @@
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Suspense, useId } from "react";
+import { Suspense, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
-import { type GeneralWindow, hiveToolLabels } from "@/lib/workspaces/general-workspace";
+import {
+  type GeneralWindow,
+  hiveToolLabels,
+  isAccountTool,
+} from "@/lib/workspaces/general-workspace";
+import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
+import { WorkspacePicker } from "./WorkspacePicker";
 
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
@@ -33,7 +34,13 @@ const Logs = dynamic(() =>
 );
 const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.TemplatesWindow));
 
-function SettingsWindow({ userId }: { userId: string }) {
+function SettingsWindow({
+  userId,
+  navigation,
+}: {
+  userId: string;
+  navigation: PanelTabsNavigation;
+}) {
   const query = useQuery({
     queryKey: ["settings-window", userId],
     queryFn: ({ signal }) => fetchSettingsWindow(signal),
@@ -53,7 +60,7 @@ function SettingsWindow({ userId }: { userId: string }) {
         <Button onClick={() => void query.refetch()}>Retry</Button>
       </div>
     );
-  return <SettingsContent {...query.data} />;
+  return <SettingsContent {...query.data} navigation={navigation} />;
 }
 
 interface Props {
@@ -67,7 +74,8 @@ interface Props {
   onActivate: () => void;
   onClose: () => void;
   onCycleWidth?: () => void;
-  onWorkspaceChange: (workspaceId: string) => void;
+  onStartWorkspace: (workspaceId: string) => Promise<void>;
+  onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
 
@@ -82,14 +90,21 @@ export function HiveWorkspacePane({
   onActivate,
   onClose,
   onCycleWidth,
+  onStartWorkspace,
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
-  const workspaceSelectId = useId();
-  const workspace =
-    workspaces.find((w) => w.id === pane.workspaceId) ??
-    workspaces.find((w) => w.latest_build.status === "running") ??
-    workspaces[0];
+  const navigationId = useId();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const navigation = { id: navigationId, collapsed: sidebarCollapsed };
+  const accountTool = isAccountTool(pane.tool);
+  const agentWorkspace =
+    pane.tool === "agents"
+      ? (workspaces.find((w) => w.id === pane.workspaceId) ??
+        workspaces.find((w) => w.latest_build.status === "running") ??
+        workspaces[0])
+      : undefined;
+  const hasSidebar = pane.tool === "settings" || accountTool;
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -107,6 +122,27 @@ export function HiveWorkspacePane({
       onFocusActivate
       onClose={onClose}
       onCycleWidth={onCycleWidth}
+      headerActions={
+        hasSidebar && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            aria-expanded={!sidebarCollapsed}
+            aria-controls={navigationId}
+            title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen aria-hidden="true" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" />
+            )}
+          </Button>
+        )
+      }
       closeLabel={`Close ${hiveToolLabels[pane.tool]}`}
       dataTestId={`hive-window-${pane.tool}`}
     >
@@ -117,49 +153,36 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" ? (
+        {accountTool ? (
+          <AccountWorkspacePanel
+            provider={pane.tool === "codex-account" ? "Codex" : "Claude"}
+            userId={userId}
+            workspaces={workspaces}
+            workspaceId={pane.workspaceId}
+            buildId={pane.buildId}
+            navigation={navigation}
+            visible={visible}
+            onStartWorkspace={onStartWorkspace}
+            onWorkspaceChange={onWorkspaceChange}
+          />
+        ) : pane.tool === "agents" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
-            <div className="space-y-2 text-sm">
-              <label htmlFor={workspaceSelectId} className="block">
-                Coder workspace
-              </label>
-              <Select
-                value={workspace?.id ?? null}
-                onValueChange={(value) => {
-                  if (value) onWorkspaceChange(value);
-                }}
-                disabled={!workspaces.length}
-                items={workspaces.map((w) => ({
-                  value: w.id,
-                  label: `${w.name} · ${w.latest_build.status}`,
-                }))}
-              >
-                <SelectTrigger
-                  id={workspaceSelectId}
-                  aria-label="Agent workspace"
-                  className="w-full"
-                >
-                  <SelectValue placeholder="No workspaces available" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name} · {w.latest_build.status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {workspace?.latest_build.status === "running" ? (
+            <WorkspacePicker
+              label="Agent workspace"
+              workspaces={workspaces}
+              selected={agentWorkspace?.id}
+              onSelect={onWorkspaceChange}
+            />
+            {agentWorkspace?.latest_build.status === "running" ? (
               <AgentToolsPanel
-                key={`${workspace.id}:${workspace.latest_build.id}`}
-                workspaceId={workspace.id}
-                buildId={workspace.latest_build.id}
+                key={`${agentWorkspace.id}:${agentWorkspace.latest_build.id}`}
+                workspaceId={agentWorkspace.id}
+                buildId={agentWorkspace.latest_build.id}
                 open={visible}
-                onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
+                onOpenSession={(sessionName) => onOpenSession(agentWorkspace.id, sessionName)}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">
+              <p role="status" className="text-sm text-muted-foreground">
                 Start a Coder workspace to view its agent conversations.
               </p>
             )}
@@ -185,7 +208,7 @@ export function HiveWorkspacePane({
         ) : pane.tool === "diagnostics" ? (
           <Diagnostics visible={visible} highlightedWorkspaceId={pane.workspaceId} />
         ) : (
-          <SettingsWindow userId={userId} />
+          <SettingsWindow userId={userId} navigation={navigation} />
         )}
       </Suspense>
     </TerminalSessionFrame>

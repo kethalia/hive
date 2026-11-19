@@ -85,23 +85,43 @@ function assertWorkspaceOwner(workspace: CoderWorkspace, username: string) {
 }
 
 export const startWorkspaceAction = authActionClient
-  .inputSchema(workspaceLifecycleSchema)
+  .inputSchema(workspaceLifecycleSchema.extend({ waitForAgent: z.boolean().optional() }))
   .action(async ({ parsedInput, ctx }) => {
     const client = await getCoderClientForUser(ctx.user.id);
     const workspace = await client.getWorkspace(parsedInput.workspaceId);
     assertWorkspaceOwner(workspace, ctx.user.username);
     const status = workspace.latest_build.status;
 
-    if (status === "running") {
-      return { workspaceId: workspace.id, status };
-    }
-    if (status !== "stopped") {
+    if (status !== "running" && status !== "stopped") {
       throw new Error(`Workspace must be stopped before it can start. Current status: ${status}.`);
     }
 
-    await client.startWorkspace(workspace.id);
-    await client.waitForBuild(workspace.id, "running");
-    return { workspaceId: workspace.id, status: "running" as const };
+    let buildId = workspace.latest_build.id;
+    if (status === "stopped") {
+      await client.startWorkspace(workspace.id);
+      const running = await client.waitForBuild(workspace.id, "running");
+      buildId = running.latest_build.id;
+    }
+    if (parsedInput.waitForAgent) {
+      const deadline = Date.now() + 60_000;
+      do {
+        const resources = await client.getWorkspaceResources(workspace.id, buildId);
+        const agents = resources.flatMap((resource) => resource.agents ?? []);
+        if (
+          agents.some(
+            (agent) =>
+              agent.status === "connected" &&
+              agent.lifecycle_state !== "created" &&
+              agent.lifecycle_state !== "starting",
+          )
+        )
+          return { workspaceId: workspace.id, buildId, status: "running" as const };
+        if (!agents.length) break;
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      } while (Date.now() < deadline);
+      throw new Error("The workspace agent is still getting ready. Try again in a moment.");
+    }
+    return { workspaceId: workspace.id, buildId, status: "running" as const };
   });
 
 export const stopWorkspaceAction = authActionClient

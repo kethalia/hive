@@ -25,10 +25,10 @@
     "test:runtime": "node --test scripts/verify-coder-install.test.mjs scripts/verify-workspace-downloads.test.mjs services/migrate/test/preflight.test.mjs && python3 -B scripts/agents/test_terminal_paste_writer.py",
     "verify:standalone": "node scripts/verify-standalone-runtime.mjs",
     "test:templates": "node --test scripts/verify-ai-dev-k8s-template.test.mjs scripts/verify-workspace-profile-templates.test.mjs scripts/verify-desktop-isolation.test.mjs scripts/verify-coder-credential-boundary.test.mjs scripts/verify-tmux-retirement.test.mjs scripts/verify-agent-tools.test.mjs",
-    "test": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:cloudflare && pnpm test:templates && pnpm test:runtime && vitest run",
+    "test": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:cloudflare && pnpm test:templates && pnpm test:runtime && pnpm test:agent-bridge && vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "test:coverage": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:cloudflare && pnpm test:templates && pnpm test:runtime && vitest run --coverage",
+    "test:coverage": "node --test deploy/cloudflare/worker.test.mjs && pnpm test:cloudflare && pnpm test:templates && pnpm test:runtime && pnpm test:agent-bridge && vitest run --coverage",
     "test:all": "pnpm -r test",
     "db:studio": "pnpm --filter @hive/db db:studio",
     "db:push": "pnpm --filter @hive/db db:push",
@@ -41,7 +41,8 @@
     "deploy:cloudflare:preview": "node deploy/cloudflare/native/deploy.mjs preview",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare/tsconfig.json",
     "types:cloudflare": "wrangler types deploy/cloudflare/native/env.d.ts --config deploy/cloudflare/native/wrangler.jsonc --env-interface CloudflareBindings --include-runtime false",
-    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test"
+    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test",
+    "test:agent-bridge": "node --test scripts/agent-bridge/*.test.mjs && python3 -B -m unittest scripts/agents/test_workspace_identity_install.py scripts/agents/test_codex_runtime_install.py scripts/agents/test_claude_account_driver.py"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -68,7 +69,7 @@
     "embla-carousel-react": "^8.6.0",
     "ioredis": "^5.4.0",
     "lucide-react": "^0.577.0",
-    "next": "^16.4.1",
+    "next": "^16.4.6",
     "next-safe-action": "^8.1.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
