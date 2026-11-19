@@ -64,6 +64,53 @@ describe("project browser", () => {
       "/api/projects?workspaceId=workspace-1&page=2&perPage=100",
     ]);
   });
+  it("retains a page-two search during focus refresh and publishes updated pages together", async () => {
+    let finish!: (response: Response) => void;
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response(page(1, 2)))
+      .mockResolvedValueOnce(response(page(2, null, "second", "43")))
+      .mockResolvedValueOnce(response(page(1, 2, "new-first")))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+      );
+    render(<ProjectBrowser workspaceId="workspace-1" enabled />);
+    fireEvent.click(await screen.findByRole("button", { name: "Load more repositories" }));
+    await screen.findByRole("link", { name: "owner/second" });
+    const search = screen.getByLabelText("Search loaded repositories");
+    fireEvent.change(search, { target: { value: "second" } });
+    fireEvent.focus(window);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+    expect(screen.getByRole("link", { name: "owner/second" })).toBeInTheDocument();
+    fireEvent.focus(window);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    await act(async () => finish(response(page(2, 3, "second-renamed", "43"))));
+    expect(search).toHaveValue("second");
+    expect(screen.getByRole("link", { name: "owner/second-renamed" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Load more repositories" })).toBeEnabled();
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getByRole("link", { name: "owner/new-first" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "owner/hive" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [() => response({ error: "github_auth_required" }, 401), "Connect or reconnect GitHub"],
+    [() => response({ ...page(2), providerAccountId: "456" }), "GitHub account changed"],
+  ] as const)("clears every page when a later refresh response loses the original identity", async (failure, message) => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response(page(1, 2)))
+      .mockResolvedValueOnce(response(page(2, null, "second", "43")))
+      .mockResolvedValueOnce(response(page(1, 2, "updated")))
+      .mockResolvedValueOnce(failure());
+    render(<ProjectBrowser workspaceId="workspace-1" enabled />);
+    fireEvent.click(await screen.findByRole("button", { name: "Load more repositories" }));
+    await screen.findByRole("link", { name: "owner/second" });
+    fireEvent.focus(window);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
   it("clears all loaded metadata when GitHub access is revoked", async () => {
     render(<ProjectBrowser workspaceId="workspace-1" enabled />);
     await screen.findByRole("link", { name: "owner/hive" });

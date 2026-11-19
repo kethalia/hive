@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  type ProjectPage,
   projectErrorCodeSchema,
   projectErrorMessages,
   projectPageSchema,
@@ -45,6 +46,31 @@ const empty = (workspaceId: string): Snapshot => ({
   setup: null,
 });
 
+async function fetchRepositoryPage(workspaceId: string, page: number, signal: AbortSignal) {
+  const params = new URLSearchParams({ workspaceId, page: String(page), perPage: "100" });
+  const response = await fetch(`/api/projects?${params}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+  });
+  const value: unknown = await response.json();
+  if (!response.ok) {
+    const code = projectErrorCodeSchema.safeParse(
+      value && typeof value === "object" && "error" in value ? value.error : null,
+    );
+    throw new ProjectBrowserError(
+      code.success
+        ? projectErrorMessages[code.data]
+        : "Could not load repositories. Refresh to try again.",
+      code.success && code.data === "github_auth_required" ? "account" : "workspace",
+    );
+  }
+  const result = projectPageSchema.parse(value);
+  if (result.page !== page || result.perPage !== 100)
+    throw new ProjectBrowserError("Invalid repository page.");
+  return result;
+}
+
 /** Read-only and unmounted by default until its transport capability gate passes. */
 export function ProjectBrowser({
   workspaceId,
@@ -56,65 +82,53 @@ export function ProjectBrowser({
   const [state, setState] = useState<Snapshot>(() => empty(workspaceId));
   const [query, setQuery] = useState("");
   const searchId = useId();
-  const sequence = useRef(0);
+  const loadedPages = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const account = useRef<string | null>(null);
   const active = enabled && visible;
 
   const load = useCallback(
     async (page = 1) => {
-      if (!active) return;
-      controller.current?.abort();
+      if (!active || controller.current) return;
       const request = new AbortController();
       controller.current = request;
-      const generation = ++sequence.current;
-      if (page === 1) account.current = null;
       setState((previous) => ({
-        ...(page === 1 || previous.workspaceId !== workspaceId ? empty(workspaceId) : previous),
+        ...(previous.workspaceId === workspaceId ? previous : empty(workspaceId)),
         loading: true,
         error: null,
       }));
       try {
-        const params = new URLSearchParams({ workspaceId, page: String(page), perPage: "100" });
-        const response = await fetch(`/api/projects?${params}`, {
-          credentials: "same-origin",
-          cache: "no-store",
-          signal: request.signal,
-        });
-        const value: unknown = await response.json();
-        if (!response.ok) {
-          const code = projectErrorCodeSchema.safeParse(
-            value && typeof value === "object" && "error" in value ? value.error : null,
-          );
-          throw new ProjectBrowserError(
-            code.success
-              ? projectErrorMessages[code.data]
-              : "Could not load repositories. Refresh to try again.",
-            code.success && code.data === "github_auth_required" ? "account" : "workspace",
-          );
+        const refreshed = new Map<string, RepositoryProject>();
+        const lastPage = page === 1 ? Math.max(1, loadedPages.current) : page;
+        let expectedAccount = account.current;
+        let result: ProjectPage;
+        for (let current = page; ; current++) {
+          result = await fetchRepositoryPage(workspaceId, current, request.signal);
+          if (request.signal.aborted) return;
+          if (expectedAccount !== null && expectedAccount !== result.providerAccountId)
+            throw new ProjectBrowserError(
+              "GitHub account changed. Refresh to load its repositories.",
+              "account",
+            );
+          expectedAccount = result.providerAccountId;
+          for (const repository of result.repositories)
+            refreshed.set(repository.providerRepositoryId, repository);
+          if (current >= lastPage || result.nextPage === null) break;
         }
-        const result = projectPageSchema.parse(value);
-        if (result.page !== page || result.perPage !== 100)
-          throw new ProjectBrowserError("Invalid repository page.");
-        if (generation !== sequence.current || request.signal.aborted) return;
-        if (page > 1 && account.current !== result.providerAccountId)
-          throw new ProjectBrowserError(
-            "GitHub account changed. Refresh to load its repositories.",
-            "account",
-          );
         account.current = result.providerAccountId;
+        loadedPages.current = result.page;
+        const nextPage = result.nextPage;
         setState((previous) => {
           const repositories = new Map(
             (page === 1 || previous.workspaceId !== workspaceId ? [] : previous.repositories).map(
               (repository) => [repository.providerRepositoryId, repository],
             ),
           );
-          for (const repository of result.repositories)
-            repositories.set(repository.providerRepositoryId, repository);
+          for (const [id, repository] of refreshed) repositories.set(id, repository);
           return {
             workspaceId,
             repositories: [...repositories.values()],
-            nextPage: result.nextPage,
+            nextPage,
             loading: false,
             loaded: true,
             error: null,
@@ -122,7 +136,8 @@ export function ProjectBrowser({
           };
         });
       } catch (error) {
-        if (generation !== sequence.current || request.signal.aborted) return;
+        if (request.signal.aborted) return;
+        loadedPages.current = 0;
         account.current = null;
         // Revoke all visible/cached metadata on authorization, transport, or schema failure.
         setState({
@@ -133,6 +148,8 @@ export function ProjectBrowser({
               ? error.message
               : "Could not load repositories. Refresh to try again.",
         });
+      } finally {
+        if (controller.current === request) controller.current = null;
       }
     },
     [active, workspaceId],
@@ -140,6 +157,7 @@ export function ProjectBrowser({
 
   useEffect(() => {
     account.current = null;
+    loadedPages.current = 0;
     setState(empty(workspaceId));
     setQuery("");
     if (!active) return;
@@ -151,8 +169,8 @@ export function ProjectBrowser({
     document.addEventListener("visibilitychange", refresh);
     const interval = window.setInterval(refresh, 30_000);
     return () => {
-      ++sequence.current;
       controller.current?.abort();
+      controller.current = null;
       window.clearInterval(interval);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
