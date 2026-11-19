@@ -1,4 +1,4 @@
-import { Copy } from "lucide-react";
+import { Copy, LoaderCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -46,18 +46,65 @@ export function ConnectedAccount({
   );
 }
 
+function ConnectionMessage({
+  title,
+  children,
+  error = false,
+}: {
+  title: string;
+  children: ReactNode;
+  error?: boolean;
+}) {
+  return (
+    <div role={error ? "alert" : "status"} className="space-y-1 text-sm">
+      <h2 className={error ? "font-medium text-destructive" : "font-medium"}>{title}</h2>
+      <p className="text-muted-foreground">{children}</p>
+    </div>
+  );
+}
+
 export function DisconnectedAccount({
   provider,
   children,
 }: {
   provider: string;
-  children?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div role="status" className="space-y-1 text-sm">
-      <p className="font-medium">No {provider} account connected</p>
-      {children && <p className="text-muted-foreground">{children}</p>}
-    </div>
+    <ConnectionMessage title={`No ${provider} account connected`}>{children}</ConnectionMessage>
+  );
+}
+
+export function ConnectionProblem({
+  provider,
+  children,
+}: {
+  provider: string;
+  children: ReactNode;
+}) {
+  return (
+    <ConnectionMessage title={`Could not verify ${provider} connection`} error>
+      {children}
+    </ConnectionMessage>
+  );
+}
+
+export function RefreshConnectionButton({
+  refreshing,
+  disabled,
+  onClick,
+}: {
+  refreshing: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button size="sm" variant="outline" disabled={refreshing || disabled} onClick={onClick}>
+      {refreshing && (
+        <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+      )}
+      Refresh status
+    </Button>
   );
 }
 

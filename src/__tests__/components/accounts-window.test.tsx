@@ -103,7 +103,9 @@ it("explains disabled Claude connections in the Claude window", async () => {
   fetcher.mockResolvedValue(new Response(null, { status: 404 }));
   render(tree("one", "build-one", { tool: "claude-account" }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
-  expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Could not verify Claude connection" }),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, LoaderCircle } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,8 +25,10 @@ import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
 import {
   CheckingConnection,
   ConnectedAccount,
+  ConnectionProblem,
   DeviceCode,
   DisconnectedAccount,
+  RefreshConnectionButton,
 } from "./ConnectionStatus";
 
 export function CodexAccountCard({
@@ -78,7 +80,7 @@ export function CodexAccountCard({
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
-  const checkingConnection = !status && (busy || (!failure && !unavailable));
+  const checkingConnection = !status && !failure && !unavailable;
   const blocked = busy || managementBusy || Boolean(failure);
   const disconnectStale = Boolean(
     disconnect &&
@@ -161,27 +163,16 @@ export function CodexAccountCard({
 
   return (
     <section className="space-y-4" aria-label="Managed Codex account" aria-busy={busy}>
-      {status?.state !== "pending" && status?.state !== "signed-in" && (
-        <p className="text-sm text-muted-foreground">
-          Connect the workspace’s managed Codex account with your ChatGPT sign-in.
-        </p>
-      )}
       {unavailable && !failure && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Codex connection is unavailable. Check workspace bridge setup and refresh.
-        </p>
+        <ConnectionProblem provider="Codex">
+          This connection is unavailable in this Hive deployment.
+        </ConnectionProblem>
       )}
       {failure && (
-        <div className="space-y-1">
-          <p role="alert" className="text-sm text-destructive">
-            {accountStatusErrorMessage(failure)}
-          </p>
-          {status && (
-            <p className="text-sm text-muted-foreground">
-              Showing the last confirmed account status.
-            </p>
-          )}
-        </div>
+        <ConnectionProblem provider="Codex">
+          {accountStatusErrorMessage(failure)}
+          {status && " Showing the last confirmed account status."}
+        </ConnectionProblem>
       )}
       {notice && (
         <p role="status" className="text-sm">
@@ -201,10 +192,8 @@ export function CodexAccountCard({
           Codex is using these credentials. Refresh status after it closes.
         </p>
       )}
-      {status?.state === "unknown" && (
-        <p role="status" className="text-sm">
-          Codex account status could not be confirmed. Refresh status to continue.
-        </p>
+      {status?.state === "unknown" && !failure && (
+        <ConnectionProblem provider="Codex">Refresh status to try again.</ConnectionProblem>
       )}
       {status && !["signed-in", "pending", "busy", "unknown"].includes(status.state) && (
         <DisconnectedAccount provider="Codex">
@@ -214,7 +203,7 @@ export function CodexAccountCard({
               ? "Sign-in did not complete. You can try again."
               : status.state === "cancelled"
                 ? "Sign-in was cancelled. You can connect when you’re ready."
-                : "Your connection will appear here after sign-in."}
+                : "Use your ChatGPT sign-in in this workspace."}
         </DisconnectedAccount>
       )}
       {status?.state === "pending" && (
@@ -284,20 +273,11 @@ export function CodexAccountCard({
       )}
       {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+          <RefreshConnectionButton
             disabled={busy || managementBusy}
+            refreshing={busy && pendingAction === "status"}
             onClick={refreshStatus}
-          >
-            {status && busy && pendingAction === "status" && (
-              <LoaderCircle
-                aria-hidden="true"
-                className="animate-spin motion-reduce:animate-none"
-              />
-            )}
-            Refresh status
-          </Button>
+          />
           {status?.state === "pending" && expired && (
             <Button size="sm" variant="outline" disabled>
               Cancel sign-in

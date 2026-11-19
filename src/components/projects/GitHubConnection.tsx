@@ -18,8 +18,10 @@ import { AccountChallengeExpiry } from "@/components/workspaces/AccountChallenge
 import {
   CheckingConnection,
   ConnectedAccount,
+  ConnectionProblem,
   DeviceCode,
   DisconnectedAccount,
+  RefreshConnectionButton,
 } from "@/components/workspaces/ConnectionStatus";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { projectErrorCodeSchema, projectErrorMessages } from "@/lib/projects/contracts";
@@ -143,17 +145,14 @@ export function GitHubConnection({
   const problem = failure ?? error;
   const message = problem?.message;
   const refreshButton = (
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={isFetching || !!busy}
+    <RefreshConnectionButton
+      disabled={!!busy}
+      refreshing={isFetching}
       onClick={() => {
         setFailure(null);
         void refetch();
       }}
-    >
-      Refresh status
-    </Button>
+    />
   );
   return (
     <section
@@ -163,9 +162,10 @@ export function GitHubConnection({
     >
       {!data && !message && <CheckingConnection provider="GitHub" />}
       {message && (
-        <p role="alert" className="text-sm text-destructive">
+        <ConnectionProblem provider="GitHub">
           {message}
-        </p>
+          {data && !pending && " Showing the last confirmed account status."}
+        </ConnectionProblem>
       )}
       {data &&
         (pending ? (
@@ -216,11 +216,15 @@ export function GitHubConnection({
               />
             ) : (
               <DisconnectedAccount provider="GitHub">
-                Connect GitHub to browse repositories in this workspace.
+                {data.outcome === "expired"
+                  ? "The sign-in code expired. Start again for a new code."
+                  : data.outcome === "failed"
+                    ? "Sign-in did not complete. You can try again."
+                    : "Sign in to browse repositories in this workspace."}
               </DisconnectedAccount>
             )}
-            {data.outcome && (
-              <p role="status">
+            {data.login && data.outcome && (
+              <p role="status" className="text-sm">
                 {data.outcome === "expired"
                   ? "The sign-in code expired. Start again for a new code."
                   : "GitHub sign-in did not complete. You can try again."}

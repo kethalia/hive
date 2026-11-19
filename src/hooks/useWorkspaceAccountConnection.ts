@@ -18,7 +18,7 @@ export function accountStatusErrorMessage(failure: Failure) {
     return "This workspace isn’t enrolled for Accounts on this Hive deployment. Choose a workspace set up for this deployment.";
   if (failure.setupIssue === "workspace_bridge_missing")
     return "This workspace has no Accounts bridge. Update its Coder template, enable Hive agent tools, and rebuild.";
-  return "Account status unavailable. Check workspace bridge setup and refresh.";
+  return "Check the workspace bridge setup, then refresh status.";
 }
 interface Snapshot<Status> {
   scope: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, LoaderCircle } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,7 +20,13 @@ import {
 } from "@/hooks/useWorkspaceAccountConnection";
 import { claudeAccountStatusSchema } from "@/lib/agents/claude-account-contracts";
 import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
-import { CheckingConnection, ConnectedAccount, DisconnectedAccount } from "./ConnectionStatus";
+import {
+  CheckingConnection,
+  ConnectedAccount,
+  ConnectionProblem,
+  DisconnectedAccount,
+  RefreshConnectionButton,
+} from "./ConnectionStatus";
 
 export function ClaudeAccountCard({
   workspaceId,
@@ -72,7 +78,7 @@ export function ClaudeAccountCard({
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
-  const checkingConnection = !status && (busy || (!failure && !unavailable));
+  const checkingConnection = !status && !failure && !unavailable;
   const blocked = busy || Boolean(failure);
   const notice = feedback?.scope === scope ? feedback.notice : undefined;
   const disconnectStale = Boolean(
@@ -179,27 +185,16 @@ export function ClaudeAccountCard({
 
   return (
     <section className="space-y-4" aria-label="Workspace Claude account" aria-busy={busy}>
-      {status?.state !== "pending" && status?.state !== "signed-in" && (
-        <p className="text-sm text-muted-foreground">
-          Connect your Claude account to this workspace.
-        </p>
-      )}
       {unavailable && !failure && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Claude connection is unavailable. Check workspace bridge setup and refresh.
-        </p>
+        <ConnectionProblem provider="Claude">
+          This connection is unavailable in this Hive deployment.
+        </ConnectionProblem>
       )}
       {failure && (
-        <div className="space-y-1">
-          <p role="alert" className="text-sm text-destructive">
-            {accountStatusErrorMessage(failure)}
-          </p>
-          {status && (
-            <p className="text-sm text-muted-foreground">
-              Showing the last confirmed account status.
-            </p>
-          )}
-        </div>
+        <ConnectionProblem provider="Claude">
+          {accountStatusErrorMessage(failure)}
+          {status && " Showing the last confirmed account status."}
+        </ConnectionProblem>
       )}
       {notice && (
         <p role="status" className="text-sm">
@@ -219,10 +214,8 @@ export function ClaudeAccountCard({
           Another account operation is active. Refresh status to continue.
         </p>
       )}
-      {status?.state === "unknown" && (
-        <p role="status" className="text-sm">
-          Claude account status could not be confirmed. Refresh status to continue.
-        </p>
+      {status?.state === "unknown" && !failure && (
+        <ConnectionProblem provider="Claude">Refresh status to try again.</ConnectionProblem>
       )}
       {status && !["signed-in", "pending", "busy", "unknown"].includes(status.state) && (
         <DisconnectedAccount provider="Claude">
@@ -232,7 +225,7 @@ export function ClaudeAccountCard({
               ? "Sign-in did not complete. You can try again."
               : status.state === "cancelled"
                 ? "Sign-in was cancelled. You can connect when you’re ready."
-                : "Your connection will appear here after sign-in."}
+                : "Use your Claude sign-in in this workspace."}
         </DisconnectedAccount>
       )}
       {status?.state === "pending" && (
@@ -318,20 +311,14 @@ export function ClaudeAccountCard({
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
+        <RefreshConnectionButton
           disabled={busy}
+          refreshing={busy && pendingAction === "status"}
           onClick={() => {
             setFeedback(null);
             void refresh();
           }}
-        >
-          {status && busy && pendingAction === "status" && (
-            <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-          )}
-          Refresh status
-        </Button>
+        />
         {status &&
           status.state !== "busy" &&
           status.state !== "unknown" &&

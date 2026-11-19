@@ -20,6 +20,9 @@
   Preserve the last confirmed identity during a refresh and use one loading indicator per operation.
 - Reuse the workspace list and connection-state components across provider windows. Show the
   credential scope and the actions supported by that provider.
+- Lead signed-out and unavailable panels with the shared connection state heading. Follow it with
+  one sentence for sign-in or recovery and put the actions below, with Refresh status first when
+  offered. Keep sign-in instructions in the signed-out or active sign-in state.
 - Place the connection heading and status tag on one row above the bordered details. Align labels
   left and values right inside the card, with connection actions below it.
 

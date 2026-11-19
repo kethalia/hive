@@ -127,7 +127,9 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     screen.queryByText(/Connect your Claude account to this workspace/),
   ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
-  expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Could not verify Claude connection" }),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await screen.findByRole("button", { name: "Cancel sign-in" });
@@ -143,7 +145,7 @@ it("distinguishes an unavailable status read from an uncertain account mutation"
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="selected-build" />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Account status unavailable. Check workspace bridge setup and refresh.",
+    "Check the workspace bridge setup, then refresh status.",
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));

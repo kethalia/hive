@@ -183,7 +183,9 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     screen.queryByText(/Connect the workspace’s managed Codex account/),
   ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
-  expect(await screen.findByText(/Codex connection is unavailable/)).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Could not verify Codex connection" }),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await screen.findByRole("button", { name: "Connect Codex" });
@@ -209,7 +211,7 @@ it("distinguishes an unavailable status read from an uncertain account mutation"
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="selected-build" />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Account status unavailable. Check workspace bridge setup and refresh.",
+    "Check the workspace bridge setup, then refresh status.",
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
