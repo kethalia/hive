@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
@@ -8,12 +9,7 @@ import { getSessionAction } from "@/lib/auth/actions";
 
 async function WorkspaceContent() {
   const [result, session] = await Promise.all([listWorkspacesAction(), getSessionAction()]);
-  if (!session?.data?.user)
-    return (
-      <p role="alert" className="p-4">
-        Sign in to open your workspace.
-      </p>
-    );
+  if (!session?.data?.user) redirect("/login");
   return (
     <GeneralWorkspace
       userId={session.data.user.id}
