@@ -237,6 +237,12 @@ export class CoderClient {
     return this.request<ListWorkspacesResponse>(`/api/v2/workspaces${query}`);
   }
 
+  getWorkspaceBuildLogs(buildId: string, after: number) {
+    return this.request<{ id: number; output: string; stage: string; created_at: string }[]>(
+      `/api/v2/workspacebuilds/${encodeURIComponent(buildId)}/logs?after=${after}`,
+    );
+  }
+
   /** Trigger a stop build for a workspace. */
   async stopWorkspace(workspaceId: string): Promise<void> {
     console.log(`[coder] Stopping workspace ${workspaceId}`);

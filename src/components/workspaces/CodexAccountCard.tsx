@@ -71,6 +71,7 @@ export function CodexAccountCard({
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
+  const checkingConnection = !status && (busy || (!failure && !unavailable));
   const blocked = busy || managementBusy || Boolean(failure);
   const disconnectStale = Boolean(
     disconnect &&
@@ -179,7 +180,7 @@ export function CodexAccountCard({
           Connect the workspace’s managed Codex account with your ChatGPT sign-in.
         </p>
       )}
-      {!status && (busy || (!failure && !unavailable)) && (
+      {checkingConnection && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle
             aria-hidden="true"
@@ -322,20 +323,22 @@ export function CodexAccountCard({
       )}
       {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy || managementBusy}
-            onClick={refreshStatus}
-          >
-            {busy && pendingAction === "status" && (
-              <LoaderCircle
-                aria-hidden="true"
-                className="animate-spin motion-reduce:animate-none"
-              />
-            )}
-            Refresh status
-          </Button>
+          {!checkingConnection && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || managementBusy}
+              onClick={refreshStatus}
+            >
+              {status && busy && pendingAction === "status" && (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="animate-spin motion-reduce:animate-none"
+                />
+              )}
+              Refresh status
+            </Button>
+          )}
           {status?.state === "pending" && expired && (
             <Button size="sm" variant="outline" disabled>
               Cancel sign-in

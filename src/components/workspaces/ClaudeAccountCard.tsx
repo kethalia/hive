@@ -69,6 +69,7 @@ export function ClaudeAccountCard({
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
+  const checkingConnection = !status && (busy || (!failure && !unavailable));
   const blocked = busy || Boolean(failure);
   const notice = feedback?.scope === scope ? feedback.notice : undefined;
   const disconnectStale = Boolean(
@@ -188,7 +189,7 @@ export function ClaudeAccountCard({
           Connect your Claude account to this workspace.
         </p>
       )}
-      {!status && (busy || (!failure && !unavailable)) && (
+      {checkingConnection && (
         <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle
             aria-hidden="true"
@@ -333,20 +334,25 @@ export function ClaudeAccountCard({
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            setFeedback(null);
-            void refresh();
-          }}
-        >
-          {busy && pendingAction === "status" && (
-            <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-          )}
-          Refresh status
-        </Button>
+        {!checkingConnection && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setFeedback(null);
+              void refresh();
+            }}
+          >
+            {status && busy && pendingAction === "status" && (
+              <LoaderCircle
+                aria-hidden="true"
+                className="animate-spin motion-reduce:animate-none"
+              />
+            )}
+            Refresh status
+          </Button>
+        )}
         {status &&
           status.state !== "busy" &&
           status.state !== "unknown" &&

@@ -79,6 +79,7 @@ describe("general workspace search", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn().mockResolvedValue(undefined),
+      onStop: vi.fn().mockResolvedValue(undefined),
     };
     const hook = renderHook(
       (value) => {
@@ -94,7 +95,7 @@ describe("general workspace search", () => {
     await waitFor(() => expect(action("session:software:main")).toBeDefined());
   }
   it("discovers running workspaces when search opens, without refetching on each query or poll", async () => {
-    const { rerender, onOpenPane, onError, onStart } = setup();
+    const { rerender, onOpenPane, onError, onStart, onStop } = setup();
     expect(mocks.sessions).not.toHaveBeenCalled();
     await open();
     expect(mocks.sessions.mock.calls).toEqual([
@@ -102,7 +103,7 @@ describe("general workspace search", () => {
       [{ workspaceId: "software" }],
     ]);
     search("hive");
-    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError, onStart });
+    rerender({ workspaces: structuredClone(workspaces), onOpenPane, onError, onStart, onStop });
     expect(mocks.sessions).toHaveBeenCalledTimes(2);
     expect(action("new-terminal:infra")).toBeUndefined();
   });
@@ -127,7 +128,7 @@ describe("general workspace search", () => {
     expect(scoreCommand(infra, "remote desktop")).toBe(0);
     await act(async () => software.onSelect());
     expect(onStart).toHaveBeenCalledExactlyOnceWith("software");
-    expect(software.closeOnSelect).toBe(false);
+    expect(software.closeOnSelect).not.toBe(false);
   });
 
   it("offers one creation action first in each group and opens existing sessions directly", async () => {
@@ -363,12 +364,12 @@ describe("general workspace search", () => {
     expect(source().actions!.some((item) => item.id.startsWith("retry-terminals:"))).toBe(false);
     expect(action("new-terminal")).toBeDefined();
   });
-  it("only starts a stopped workspace when selected, keeps search open, then discovers its terminals", async () => {
-    const { rerender, onStart, onOpenPane, onError } = setup();
+  it("only starts a stopped workspace when selected, closes search, then discovers its terminals", async () => {
+    const { rerender, onStart, onStop, onOpenPane, onError } = setup();
     await open();
     expect(onStart).not.toHaveBeenCalled();
     const start = action("start-workspace:infra");
-    expect(start.closeOnSelect).toBe(false);
+    expect(start.closeOnSelect).not.toBe(false);
     await act(async () => start.onSelect());
     expect(onStart).toHaveBeenCalledWith("infra");
     expect(onOpenPane).not.toHaveBeenCalled();
@@ -379,30 +380,28 @@ describe("general workspace search", () => {
           : workspace,
       ),
       onStart,
+      onStop,
       onOpenPane,
       onError,
     });
     await waitFor(() => expect(action("session:infra:main")).toBeDefined());
     expect(action("start-workspace:infra")).toBeUndefined();
   });
-  it("reports start errors in search and prevents duplicate starts", async () => {
-    const { onStart } = setup();
-    let fail!: (error: Error) => void;
-    onStart.mockReturnValue(
-      new Promise((_, reject) => {
-        fail = reject;
-      }),
+  it("browses workspace actions and opens the identified window without starting it", () => {
+    const { onStart, onOpenPane, onStop } = setup();
+    expect(action("workspace:infra").onSelect()).toEqual({ page: "workspace:infra" });
+    const menu = source().pages!["workspace:infra"];
+    expect(menu.actions.map((item) => item.label)).toEqual([
+      "Open workspace window",
+      "Start workspace",
+    ]);
+    act(() => menu.actions[0].onSelect());
+    expect(onStart).not.toHaveBeenCalled();
+    expect(onOpenPane).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: "workspace-details", workspaceId: "infra" }),
     );
-    const start = action("start-workspace:infra");
-    act(() => {
-      start.onSelect();
-      start.onSelect();
-    });
-    expect(onStart).toHaveBeenCalledTimes(1);
-    expect(action("start-workspace:infra").disabled).toBe(true);
-    await act(async () => fail(new Error("Start failed")));
-    expect(action("start-workspace:infra").description).toBe("Start failed");
-    expect(action("start-workspace:infra").disabled).toBe(false);
+    act(() => source().pages!["workspace:browser"].actions[1].onSelect());
+    expect(onStop).toHaveBeenCalledWith("browser");
   });
   it("does not apply stale discovery results after a workspace rebuild", async () => {
     let finish!: (result: unknown) => void;
@@ -412,7 +411,7 @@ describe("general workspace search", () => {
           finish = resolve;
         }),
     );
-    const { rerender, onOpenPane, onError, onStart } = setup();
+    const { rerender, onOpenPane, onError, onStart, onStop } = setup();
     await open();
     rerender({
       workspaces: workspaces.map((w) =>
@@ -421,6 +420,7 @@ describe("general workspace search", () => {
       onOpenPane,
       onError,
       onStart,
+      onStop,
     });
     await waitFor(() => expect(action("session:browser:main")).toBeDefined());
     await act(async () => finish({ data: [{ name: "stale" }] }));

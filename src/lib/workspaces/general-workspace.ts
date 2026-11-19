@@ -33,6 +33,7 @@ export const hiveToolSchema = z
     "claude-account",
     "diagnostics",
     "settings",
+    "workspace-details",
     "workspaces",
     "templates",
     "logs",
@@ -49,6 +50,7 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   diagnostics: "Diagnostics",
   settings: "Settings",
   workspaces: "Coder workspaces",
+  "workspace-details": "Workspace",
 };
 type AccountTool = "codex-account" | "claude-account";
 export function isAccountTool(tool: HiveTool): tool is AccountTool {
@@ -156,7 +158,7 @@ export function emptyGeneralWorkspace(): GeneralWorkspaceState {
   };
 }
 export function generalPaneIdentity(pane: GeneralPane) {
-  if (pane.kind === "hive") return JSON.stringify(["hive", pane.tool]);
+  if (pane.kind === "hive") return hiveWindowIdentity(pane);
   return JSON.stringify([
     pane.workspaceId,
     pane.kind,
@@ -228,15 +230,23 @@ export function addGeneralWindow(
     ),
   };
 }
-/** Built-in tools have one window across all workspaces. Reopening reveals it in place. */
+function hiveWindowIdentity(request: HiveWindowRequest) {
+  return JSON.stringify(
+    request.tool === "workspace-details"
+      ? ["hive", request.tool, request.workspaceId]
+      : ["hive", request.tool],
+  );
+}
+
+/** Reopening a tool reveals its existing window, including workspace-specific details. */
 export function openHiveWindow(
   state: GeneralWorkspaceState,
   request: HiveWindowRequest,
   id: string,
 ): GeneralWorkspaceState {
-  const board = state.boards.find((b) =>
-    b.windows.some((w) => w.kind === "hive" && w.tool === request.tool),
-  );
+  const matches = (w: GeneralWindow) =>
+    w.kind === "hive" && hiveWindowIdentity(w) === hiveWindowIdentity(request);
+  const board = state.boards.find((b) => b.windows.some(matches));
   if (!board) {
     const saved =
       isAccountTool(request.tool) && !request.workspaceId
@@ -256,7 +266,7 @@ export function openHiveWindow(
       id,
     );
   }
-  const existing = board.windows.find((w) => w.kind === "hive" && w.tool === request.tool);
+  const existing = board.windows.find(matches);
   if (!existing) return state;
   return {
     ...state,

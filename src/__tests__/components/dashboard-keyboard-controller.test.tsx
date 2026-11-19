@@ -337,6 +337,7 @@ describe("DashboardKeyboardController", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn(),
+      onStop: vi.fn(),
     };
     function WorkspaceCommands({ mode, shortcuts }: Pick<WindowManager, "mode" | "shortcuts">) {
       const additionalActions = useWindowManagerCommands(

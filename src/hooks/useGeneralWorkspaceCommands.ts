@@ -2,7 +2,10 @@
 
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CommandPaletteAction } from "@/components/terminal/CommandPalette";
+import type {
+  CommandPaletteAction,
+  CommandPalettePage,
+} from "@/components/terminal/CommandPalette";
 import { useWindowCreationPages } from "@/hooks/useWindowCreationPages";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
@@ -19,6 +22,7 @@ export function useGeneralWorkspaceCommands({
   onOpenPane,
   onError,
   onStart,
+  onStop,
   initialWorkspaceId,
   additionalActions,
 }: {
@@ -26,6 +30,7 @@ export function useGeneralWorkspaceCommands({
   onOpenPane: (pane: GeneralPane) => void;
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
+  onStop: (workspaceId: string) => Promise<void>;
   initialWorkspaceId?: string;
   additionalActions?: CommandPaletteAction[];
 }) {
@@ -40,10 +45,6 @@ export function useGeneralWorkspaceCommands({
   });
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  const [starting, setStarting] = useState<string | null>(null);
-  const [startError, setStartError] = useState<{ workspaceId: string; message: string } | null>(
-    null,
-  );
   // Polling returns new workspace objects. Rediscover only when the running builds change or search opens.
   const targets = JSON.stringify(
     workspaces
@@ -130,28 +131,41 @@ export function useGeneralWorkspaceCommands({
     [onOpenPane, onError],
   );
 
-  const startWorkspace = useCallback(
-    async (workspaceId: string) => {
-      if (pending.current) return;
-      pending.current = true;
-      setBusy(true);
-      setStarting(workspaceId);
-      setStartError(null);
-      try {
-        await onStart(workspaceId);
-      } catch (error) {
-        setStartError({
-          workspaceId,
-          message: error instanceof Error ? error.message : "Could not start workspace.",
+  const workspacePages = useMemo(() => {
+    const pages: Record<string, CommandPalettePage> = {};
+    for (const workspace of workspaces) {
+      const status = workspace.latest_build.status;
+      const actions: CommandPaletteAction[] = [
+        {
+          id: `open-workspace:${workspace.id}`,
+          label: "Open workspace window",
+          group: "Workspace",
+          description: "Status, actions and build logs",
+          icon: "desktop",
+          onSelect: () =>
+            onOpenPane({
+              kind: "hive",
+              tool: "workspace-details",
+              workspaceId: workspace.id,
+              label: workspace.name,
+            }),
+        },
+      ];
+      if (status === "running" || status === "stopped") {
+        const start = status === "stopped";
+        actions.push({
+          id: `lifecycle:${workspace.id}`,
+          label: start ? "Start workspace" : "Stop workspace",
+          group: "Workspace",
+          onSelect: () => {
+            void (start ? onStart : onStop)(workspace.id).catch((error) => onError(error.message));
+          },
         });
-      } finally {
-        pending.current = false;
-        setBusy(false);
-        setStarting(null);
       }
-    },
-    [onStart],
-  );
+      pages[`workspace:${workspace.id}`] = { title: workspace.name, actions };
+    }
+    return pages;
+  }, [workspaces, onOpenPane, onStart, onStop, onError]);
 
   const actions = useMemo<CommandPaletteAction[]>(() => {
     const resultsByWorkspace = workspaces.flatMap<CommandPaletteAction>((workspace) => {
@@ -177,32 +191,40 @@ export function useGeneralWorkspaceCommands({
           available: capabilities.desktop,
         },
       ] as const;
+      const details: CommandPaletteAction = {
+        id: `workspace:${workspace.id}`,
+        label: workspace.name,
+        group: "Workspaces",
+        description: status,
+        icon: "desktop",
+        rightLabel: "Actions",
+        onSelect: () => ({ page: `workspace:${workspace.id}` }),
+      };
       if (status !== "running") {
+        if (status !== "stopped") return [details];
         const availableApps = apps.filter((app) => app.available);
         const available = availableApps.map((app) => app.label);
-        const error = startError?.workspaceId === workspace.id ? startError.message : null;
+
         return [
+          details,
           {
             id: `start-workspace:${workspace.id}`,
-            label: `${status === "stopped" ? "Start" : "Workspace"} ${workspace.name}`,
-            description:
-              error ??
-              `${status} · Terminals, repositories${available.length ? `, ${available.join(", ")}` : ""}`,
+            label: `Start ${workspace.name}`,
+            description: `${status} · Terminals, repositories${available.length ? `, ${available.join(", ")}` : ""}`,
             group: "Workspaces",
             aliases: availableApps.flatMap<string>((app) => app.aliases),
             value: `${workspace.name} ${status} start workspace terminals repositories agents ${available.join(" ")}`,
-            rightLabel: starting === workspace.id ? "Starting…" : status,
+            rightLabel: status,
             icon: "terminal",
-            disabled: busy || status !== "stopped",
-            closeOnSelect: false,
+            disabled: busy,
             onSelect: () => {
-              void startWorkspace(workspace.id);
+              void onStart(workspace.id).catch((error) => onError(error.message));
             },
           },
         ];
       }
       const found = data.find((entry) => entry.workspaceId === workspace.id);
-      const results: CommandPaletteAction[] = [];
+      const results: CommandPaletteAction[] = [details];
       for (const repository of found?.repositories ?? []) {
         if (matchesProjectSearch(repository.label, repository.relativePath, query))
           results.push({
@@ -351,9 +373,8 @@ export function useGeneralWorkspaceCommands({
     busy,
     run,
     onOpenPane,
-    starting,
-    startError,
-    startWorkspace,
+    onStart,
+    onError,
     retryWorkspace,
     beginCreation,
   ]);
@@ -363,7 +384,7 @@ export function useGeneralWorkspaceCommands({
       registerGlobalCommandPaletteSource({
         id: "general-workspace",
         handlesWorkspaces: true,
-        pages: creationPages,
+        pages: { ...creationPages, ...workspacePages },
         actions: [...actions, ...(additionalActions ?? [])],
         searchValue: query,
         onSearchValueChange: setQuery,
@@ -372,6 +393,6 @@ export function useGeneralWorkspaceCommands({
         emptyText: "No matching windows or commands.",
         loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),
-    [actions, query, loading, additionalActions, creationPages],
+    [actions, query, loading, additionalActions, creationPages, workspacePages],
   );
 }

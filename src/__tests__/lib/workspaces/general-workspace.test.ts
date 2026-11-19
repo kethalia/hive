@@ -306,6 +306,16 @@ describe("closing workspace windows", () => {
   });
 });
 
+it("restores independent workspace detail windows and focuses an existing workspace", () => {
+  let state = emptyGeneralWorkspace();
+  for (const id of ["one", "two"])
+    state = openHiveWindow(state, { tool: "workspace-details", workspaceId: id }, id);
+  state = parseGeneralWorkspace(JSON.stringify(state))!;
+  state = openHiveWindow(state, { tool: "workspace-details", workspaceId: "one" }, "unused");
+  expect(state.boards[0].windows.map((w) => w.id)).toEqual(["one", "two"]);
+  expect(state.boards[0].activeWindowId).toBe("one");
+});
+
 describe("Provider account window selection", () => {
   it("keeps one Codex window across boards and retains legacy Agents", () => {
     let state = openHiveWindow(

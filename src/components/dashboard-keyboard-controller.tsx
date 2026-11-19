@@ -2,12 +2,12 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import {
   CommandPalette,
   type CommandPaletteAction,
   type CommandPalettePage,
 } from "@/components/terminal/CommandPalette";
-import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDashboardFullscreen } from "@/hooks/useDashboardFullscreen";
 import { useGlobalCommandPaletteGesture } from "@/hooks/useGlobalCommandPaletteGesture";
@@ -259,7 +259,10 @@ export function DashboardKeyboardController() {
       const title = group === "Terminals" ? "Terminal" : group;
       pages[id] = {
         title,
-        actions: items,
+        actions:
+          group === "Workspaces"
+            ? items.filter((item) => !item.id.startsWith("start-workspace:"))
+            : items,
         searchPlaceholder: `Search ${group.toLowerCase()}…`,
         loadingText: ["Terminals", "Projects", "Files", "VS Code", "Logs"].includes(group)
           ? source?.loadingText

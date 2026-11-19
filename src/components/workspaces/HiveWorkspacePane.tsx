@@ -17,6 +17,7 @@ import {
 } from "@/lib/workspaces/general-workspace";
 import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
+import { WorkspaceDetails, type WorkspaceOperationState } from "./WorkspaceDetails";
 import { WorkspacePicker } from "./WorkspacePicker";
 
 const GitHubWindow = dynamic(() =>
@@ -74,6 +75,8 @@ interface Props {
   active: boolean;
   visible: boolean;
   launchRequest: number;
+  operation?: WorkspaceOperationState;
+  onLifecycle?: (id: string, action: "start" | "stop") => void;
   dragHandleListeners?: DraggableSyntheticListeners;
   onActivate: () => void;
   onClose: () => void;
@@ -90,6 +93,8 @@ export function HiveWorkspacePane({
   active,
   visible,
   launchRequest,
+  operation,
+  onLifecycle,
   dragHandleListeners,
   onActivate,
   onClose,
@@ -115,13 +120,17 @@ export function HiveWorkspacePane({
         workspaces.find((w) => w.latest_build.status === "running") ??
         workspaces[0])
       : undefined;
+  const detailWorkspace =
+    pane.tool === "workspace-details"
+      ? workspaces.find((w) => w.id === pane.workspaceId)
+      : undefined;
   const hasSidebar =
     pane.tool === "settings" ||
     (pane.tool === "projects" && !!projectDiscoveryEnabled) ||
     accountTool;
   return (
     <TerminalSessionFrame
-      label={hiveToolLabels[pane.tool]}
+      label={detailWorkspace?.name ?? hiveToolLabels[pane.tool]}
       subtitle={
         pane.tool === "logs" && pane.workspaceId
           ? `${workspaces.find((w) => w.id === pane.workspaceId)?.name ?? pane.workspaceId}${pane.sessionName ? ` · ${pane.sessionName}` : ""}`
@@ -216,11 +225,28 @@ export function HiveWorkspacePane({
               </p>
             )}
           </div>
+        ) : pane.tool === "workspace-details" ? (
+          detailWorkspace && onLifecycle ? (
+            <WorkspaceDetails
+              key={detailWorkspace.id}
+              workspace={detailWorkspace}
+              userId={userId}
+              visible={visible}
+              operation={operation}
+              onStart={() => onLifecycle(detailWorkspace.id, "start")}
+              onStop={() => onLifecycle(detailWorkspace.id, "stop")}
+            />
+          ) : (
+            <p role="status" className="p-4">
+              This workspace is unavailable.
+            </p>
+          )
         ) : pane.tool === "workspaces" ? (
           <WorkspaceListContent
             workspaces={workspaces}
             launchRequest={launchRequest}
             visible={visible}
+            onLifecycle={onLifecycle}
             embedded
           />
         ) : pane.tool === "templates" ? (

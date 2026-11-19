@@ -50,6 +50,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  type WorkspacePaneAction,
+  WorkspacePaneActionSheet,
+} from "@/components/workspaces/WorkspacePaneActionSheet";
 import { useRegisterKeybinding } from "@/hooks/useKeybindings";
 import {
   createWorkspaceAction,
@@ -60,7 +64,7 @@ import {
 import type { CoderWorkspace, WorkspaceBuildStatus } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
 import { formatRelativeDate, statusVariant } from "@/lib/helpers/format";
-import { generalWorkspaceHref } from "@/lib/workspaces/general-workspace";
+import { generalWorkspaceHref, requestHiveWindow } from "@/lib/workspaces/general-workspace";
 import { WORKSPACE_PROFILES, workspaceProfileForTemplate } from "@/lib/workspaces/profiles";
 
 interface WorkspaceListContentProps {
@@ -70,6 +74,7 @@ interface WorkspaceListContentProps {
   launchRequest?: number;
   visible?: boolean;
   embedded?: boolean;
+  onLifecycle?: (id: string, action: "start" | "stop") => void;
 }
 
 interface WorkspaceTemplateOption {
@@ -218,8 +223,37 @@ function WorkspaceListCard({
   const anyOperationPending = pendingOperation !== null;
   const profile = workspaceProfile(workspace);
 
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const openDetails = () =>
+    requestHiveWindow({ tool: "workspace-details", workspaceId: workspace.id });
+  const actions: WorkspacePaneAction[] = [
+    { id: "open", label: "Open workspace window", icon: "activate", onSelect: openDetails },
+  ];
+  if (status === "running" || status === "stopped") {
+    const start = status === "stopped";
+    actions.push({
+      id: "lifecycle",
+      label: start ? "Start workspace" : "Stop workspace",
+      icon: "activate",
+      disabled: anyOperationPending,
+      onSelect: () => (start ? onStart : onStop)(workspace),
+    });
+  }
+
   return (
-    <ListCard role="presentation" className="h-full min-w-0" data-testid="workspace-card">
+    <ListCard
+      role="presentation"
+      className="h-full min-w-0"
+      data-testid="workspace-card"
+      onContextMenu={(event) => {
+        if ((event.target as HTMLElement).closest("a")) return;
+        event.preventDefault();
+        setMenuAnchor(
+          event.currentTarget.querySelector<HTMLElement>("[data-workspace-details]") ??
+            event.currentTarget,
+        );
+      }}
+    >
       <ListCardHeader>
         <ListCardTitle>
           <span className="break-all text-foreground">{workspaceName}</span>
@@ -240,6 +274,14 @@ function WorkspaceListCard({
         <ListCardRow label="Health">{healthLabel(workspace)}</ListCardRow>
       </ListCardRows>
       <ListCardActions className="mt-auto">
+        <ListCardAction
+          type="button"
+          data-workspace-details
+          onClick={openDetails}
+          aria-label={`Workspace details for ${workspaceName}`}
+        >
+          Details
+        </ListCardAction>
         {status === "running" ? (
           <ListCardAction as={Link} href={href} aria-label={`Open workspace for ${workspaceName}`}>
             <TerminalSquare className="h-4 w-4" aria-hidden="true" />
@@ -289,6 +331,17 @@ function WorkspaceListCard({
           </ListCardAction>
         ) : null}
       </ListCardActions>
+      {menuAnchor && (
+        <WorkspacePaneActionSheet
+          label={workspaceName}
+          actions={actions}
+          open
+          anchor={menuAnchor}
+          onOpenChange={(open) => {
+            if (!open) setMenuAnchor(null);
+          }}
+        />
+      )}
     </ListCard>
   );
 }
@@ -300,6 +353,7 @@ export function WorkspaceListContent({
   launchRequest = 0,
   visible = true,
   embedded = false,
+  onLifecycle,
 }: WorkspaceListContentProps) {
   const hasError = Boolean(error);
   const router = useRouter();
@@ -737,10 +791,14 @@ export function WorkspaceListContent({
                 workspace={workspace}
                 pendingOperation={pendingOperation}
                 onStart={(selectedWorkspace) =>
-                  void runWorkspaceOperation(selectedWorkspace, "start")
+                  onLifecycle
+                    ? onLifecycle(selectedWorkspace.id, "start")
+                    : void runWorkspaceOperation(selectedWorkspace, "start")
                 }
                 onStop={(selectedWorkspace) =>
-                  void runWorkspaceOperation(selectedWorkspace, "stop")
+                  onLifecycle
+                    ? onLifecycle(selectedWorkspace.id, "stop")
+                    : void runWorkspaceOperation(selectedWorkspace, "stop")
                 }
                 onDelete={openDeleteDialog}
               />
