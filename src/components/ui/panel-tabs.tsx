@@ -4,12 +4,18 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+export interface PanelTabsNavigation {
+  id: string;
+  collapsed: boolean;
+}
+
 export function PanelTabs<T extends string>({
   label,
   items,
   value,
   onChange,
   busy,
+  navigation,
   children,
 }: {
   label: string;
@@ -17,11 +23,13 @@ export function PanelTabs<T extends string>({
   value: T;
   onChange: (value: T) => void;
   busy?: boolean;
+  navigation?: PanelTabsNavigation;
   children: ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(false);
+  const collapsed = navigation?.collapsed ?? false;
 
   useLayoutEffect(() => {
     const element = container.current;
@@ -35,7 +43,7 @@ export function PanelTabs<T extends string>({
   }, []);
 
   useLayoutEffect(() => {
-    if (!wide) {
+    if (!wide && !collapsed) {
       const tabs = list.current?.querySelectorAll<HTMLButtonElement>("[data-panel-section]");
       const active = tabs && Array.from(tabs).find((tab) => tab.dataset.panelSection === value);
       const rail = list.current;
@@ -46,10 +54,10 @@ export function PanelTabs<T extends string>({
           left < bounds.left ? left - bounds.left : Math.max(0, right - bounds.right);
       }
     }
-  }, [value, wide]);
+  }, [value, wide, collapsed]);
 
   return (
-    <div ref={container} className="min-w-0">
+    <div ref={container} className="flex min-w-0 flex-1 flex-col">
       <Tabs
         orientation={wide ? "vertical" : "horizontal"}
         value={value}
@@ -57,45 +65,45 @@ export function PanelTabs<T extends string>({
           if (!busy) onChange(next);
         }}
         className={cn(
-          "min-h-0 min-w-0 gap-0",
-          wide && "grid grid-cols-[minmax(6.25rem,27%)_minmax(0,1fr)]",
+          "min-h-0 min-w-0 flex-1 gap-0",
+          wide && !collapsed && "grid grid-cols-[minmax(6.25rem,27%)_minmax(0,1fr)]",
         )}
       >
-        <TabsList
-          ref={list}
-          aria-label={label}
-          className={cn(
-            "w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
-            wide ? "sticky top-0 h-fit" : "!h-auto justify-start overflow-x-auto border-b",
-          )}
+        <div
+          id={navigation?.id}
+          hidden={collapsed}
+          className={cn("min-w-0", wide && "border-r border-border/75 bg-background")}
         >
-          {items.map((item) => (
-            <TabsTrigger
-              className={cn(
-                "h-auto min-h-9 flex-none justify-start px-2 py-1.5 text-left text-xs leading-tight",
-                wide && "whitespace-normal @lg:text-sm",
-              )}
-              data-panel-section={item.id}
-              value={item.id}
-              key={item.id}
-              disabled={busy && value !== item.id}
-            >
-              {wide && (
-                <span className="hidden @lg:inline-flex" aria-hidden="true">
-                  {item.icon}
-                </span>
-              )}
-              {item.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent
-          value={value}
-          className={cn(
-            "min-h-0 min-w-0 px-3 py-3 @lg:px-5 @lg:py-4",
-            wide && "border-l border-border/75",
-          )}
-        >
+          <TabsList
+            ref={list}
+            aria-label={label}
+            className={cn(
+              "w-full min-w-0 gap-1 rounded-none bg-background px-1.5 py-2",
+              wide ? "sticky top-0 h-fit" : "!h-auto justify-start overflow-x-auto border-b",
+            )}
+          >
+            {items.map((item) => (
+              <TabsTrigger
+                className={cn(
+                  "h-auto min-h-9 flex-none justify-start px-2 py-1.5 text-left text-xs leading-tight",
+                  wide && "whitespace-normal @lg:text-sm",
+                )}
+                data-panel-section={item.id}
+                value={item.id}
+                key={item.id}
+                disabled={busy && value !== item.id}
+              >
+                {wide && (
+                  <span className="hidden @lg:inline-flex" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                )}
+                {item.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        <TabsContent value={value} className="min-h-0 min-w-0 px-3 py-3 @lg:px-5 @lg:py-4">
           {children}
         </TabsContent>
       </Tabs>

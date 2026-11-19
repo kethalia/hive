@@ -21,6 +21,7 @@ import {
   windowGeometry,
   windowManagerSchema,
 } from "@/lib/workspaces/window-manager";
+import { WORKSPACE_WINDOW_INSET } from "@/lib/workspaces/window-spacing";
 import {
   reconcileWorkspaceWindowLayout,
   resizeWorkspaceSplit,
@@ -97,11 +98,12 @@ describe("window layouts", () => {
     expect(handle).toBeDefined();
     expect(handle!.extent).toBeLessThan(0);
     const pane = geometry.rects.get("c")!;
-    expect(handle!.rect.x).toBe(pane.x);
+    expect(handle!.rect.x).toBe(pane.x + WORKSPACE_WINDOW_INSET);
     const previous = geometry.dividers.find(
       (d) => d.target.kind === "column" && d.target.id === m.columns[1].id,
     );
-    expect(previous!.rect.x + previous!.rect.width).toBeLessThanOrEqual(handle!.rect.x);
+    expect(previous!.rect.x).toBeLessThan(pane.x);
+    expect(previous!.rect.x + previous!.rect.width).toBeCloseTo(handle!.rect.x);
     expect(pane.x).toBeGreaterThanOrEqual(0);
     expect(pane.x + pane.width).toBeCloseTo(width);
     expect(handle!.value - 40 / handle!.extent).toBeGreaterThan(handle!.value);

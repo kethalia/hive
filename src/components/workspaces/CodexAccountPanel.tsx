@@ -2,7 +2,7 @@
 
 import { Activity, BookOpen, Link2, List, Plug, Puzzle, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
-import { PanelTabs } from "@/components/ui/panel-tabs";
+import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import { CodexAccountCard } from "./CodexAccountCard";
 import { CodexLibraryPanel } from "./CodexLibraryPanel";
 import { CodexUsageSettings } from "./CodexUsageSettings";
@@ -20,16 +20,18 @@ const sections = [
 export function CodexAccountPanel({
   workspaceId,
   buildId,
+  navigation,
 }: {
   workspaceId: string;
   buildId: string;
+  navigation: PanelTabsNavigation;
 }) {
   const [section, setSection] = useState<(typeof sections)[number]["id"]>("connection");
   const [directorySession, setDirectorySession] = useState<string>();
   const [managementBusy, setManagementBusy] = useState(false);
   const [generation, setGeneration] = useState<{ lifetimeId: string; value: number }>();
   return (
-    <div className="@container min-w-0">
+    <div className="@container flex min-w-0 flex-1 flex-col">
       <PanelTabs
         label="Codex settings"
         items={sections}
@@ -39,6 +41,7 @@ export function CodexAccountPanel({
           setSection(next);
         }}
         busy={managementBusy}
+        navigation={navigation}
       >
         <CodexAccountCard
           workspaceId={workspaceId}

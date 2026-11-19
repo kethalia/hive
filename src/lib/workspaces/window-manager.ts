@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WORKSPACE_WINDOW_INSET } from "./window-spacing";
 import {
   reconcileWorkspaceWindowLayout,
   splitRatio,
@@ -204,6 +205,7 @@ export function windowGeometry(
     const available = Math.max(200, width - result.left - result.right);
     let cursor = result.left;
     const unpinned = manager.columns.filter((c) => !c.pin);
+    const last = unpinned.at(-1);
     const place = (c: WindowColumn, x: number, w: number) => {
       const h = Math.max(
         height,
@@ -242,10 +244,13 @@ export function windowGeometry(
             });
         }
       });
+      // Inside the Strip, the gutter belongs to the window on its left.
+      // Keep the last window’s leading grip just inside its own painted edge.
+      const gutter = !c.pin && c !== last ? WORKSPACE_WINDOW_INSET : 0;
       const divider: LayoutDivider = {
         id: c.id,
         axis: "width",
-        rect: { x: c.pin === "right" ? x : x + w - 8, y: 0, width: 8, height: h },
+        rect: { x: c.pin === "right" ? x : x + w - 8, y: 0, width: 8 + gutter, height: h },
         edge: c.pin === "right" ? "start" : "end",
         value: w / (c.pin ? width : available),
         min: c.pin
@@ -256,11 +261,11 @@ export function windowGeometry(
         target: { kind: "column", id: c.id },
       };
       result.dividers.push(divider);
-      if (!c.pin && c === unpinned.at(-1))
+      if (!c.pin && c === last)
         result.dividers.push({
           ...divider,
           id: `${c.id}-start`,
-          rect: { ...divider.rect, x },
+          rect: { ...divider.rect, x: x + (unpinned.length > 1 ? WORKSPACE_WINDOW_INSET : 0) },
           edge: "start",
           extent: -available,
         });

@@ -55,7 +55,7 @@ export function WindowResizeHandle({
       aria-valuenow={Math.round(value * 100)}
       aria-valuemin={Math.round(min * 100)}
       aria-valuemax={Math.round(max * 100)}
-      className={`absolute z-30 touch-none outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
+      className={`absolute z-30 touch-none outline-none hover:bg-primary/15 active:bg-primary/25 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${axis === "width" ? "cursor-col-resize" : "cursor-row-resize"}`}
       style={style}
       data-window-resize=""
       data-launcher-gesture-ignore="true"

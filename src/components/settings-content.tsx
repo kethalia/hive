@@ -8,7 +8,7 @@ import {
   type NotificationSettingsProps,
 } from "@/components/notification-settings";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { PanelTabs } from "@/components/ui/panel-tabs";
+import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 
 const sections = [
   { id: "account", label: "Account", icon: <UserRound /> },
@@ -20,11 +20,13 @@ export function SettingsContent({
   email,
   coderUrl,
   coderOAuthEnabled = false,
+  navigation,
   ...props
 }: Omit<NotificationSettingsProps, "embedded"> & {
   email?: string;
   coderUrl?: string;
   coderOAuthEnabled?: boolean;
+  navigation?: PanelTabsNavigation;
 }) {
   const router = useRouter();
   const [section, setSection] = useState<(typeof sections)[number]["id"]>("account");
@@ -58,8 +60,14 @@ export function SettingsContent({
     }
   }
   return (
-    <div className="@container h-full min-h-0 min-w-0 overflow-y-auto">
-      <PanelTabs label="Settings" items={sections} value={section} onChange={setSection}>
+    <div className="@container flex h-full min-h-0 min-w-0 flex-col overflow-y-auto">
+      <PanelTabs
+        label="Settings"
+        items={sections}
+        value={section}
+        onChange={setSection}
+        navigation={navigation}
+      >
         <section className="space-y-3" aria-label="Account" hidden={section !== "account"}>
           <h2 className="text-base font-medium">Account</h2>
           {email ? <p className="break-all text-sm">{email}</p> : null}

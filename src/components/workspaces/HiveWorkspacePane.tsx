@@ -2,9 +2,11 @@
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Suspense, useId } from "react";
+import { Suspense, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import {
   Select,
   SelectContent,
@@ -14,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
+import { cn } from "@/lib/utils";
 import {
   type GeneralWindow,
   hiveToolLabels,
@@ -43,7 +46,13 @@ const Logs = dynamic(() =>
 );
 const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.TemplatesWindow));
 
-function SettingsWindow({ userId }: { userId: string }) {
+function SettingsWindow({
+  userId,
+  navigation,
+}: {
+  userId: string;
+  navigation: PanelTabsNavigation;
+}) {
   const query = useQuery({
     queryKey: ["settings-window", userId],
     queryFn: ({ signal }) => fetchSettingsWindow(signal),
@@ -63,7 +72,7 @@ function SettingsWindow({ userId }: { userId: string }) {
         <Button onClick={() => void query.refetch()}>Retry</Button>
       </div>
     );
-  return <SettingsContent {...query.data} />;
+  return <SettingsContent {...query.data} navigation={navigation} />;
 }
 
 interface Props {
@@ -96,8 +105,11 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const workspaceSelectId = useId();
+  const navigationId = useId();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const navigation = { id: navigationId, collapsed: sidebarCollapsed };
   const accountTool = isAccountTool(pane.tool);
-  const AccountPanel = pane.tool === "claude-account" ? ClaudeAccountCard : CodexAccountPanel;
+  const codexTool = pane.tool === "codex-account";
   const selectedWorkspace = workspaces.find((w) => w.id === pane.workspaceId);
   const workspace =
     accountTool && pane.workspaceId
@@ -105,6 +117,9 @@ export function HiveWorkspacePane({
       : (selectedWorkspace ??
         workspaces.find((w) => w.latest_build.status === "running") ??
         workspaces[0]);
+  const workspaceReady = workspace?.latest_build.status === "running";
+  const matchingBuild = pane.buildId && pane.buildId === workspace?.latest_build.id;
+  const hasSidebar = pane.tool === "settings" || (codexTool && workspaceReady && matchingBuild);
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -122,6 +137,27 @@ export function HiveWorkspacePane({
       onFocusActivate
       onClose={onClose}
       onCycleWidth={onCycleWidth}
+      headerActions={
+        hasSidebar && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            aria-expanded={!sidebarCollapsed}
+            aria-controls={navigationId}
+            title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen aria-hidden="true" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" />
+            )}
+          </Button>
+        )
+      }
       closeLabel={`Close ${hiveToolLabels[pane.tool]}`}
       dataTestId={`hive-window-${pane.tool}`}
     >
@@ -133,8 +169,11 @@ export function HiveWorkspacePane({
         }
       >
         {pane.tool === "agents" || accountTool ? (
-          <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
-            <div className="space-y-2 text-sm">
+          <div
+            className={codexTool ? "flex min-h-full flex-col" : "space-y-4 p-4"}
+            data-mobile-scroll-allow="true"
+          >
+            <div className={cn("space-y-2 text-sm", codexTool && "p-4")}>
               <label htmlFor={workspaceSelectId} className="block">
                 Coder workspace
               </label>
@@ -173,8 +212,8 @@ export function HiveWorkspacePane({
             </div>
             {workspace?.latest_build.status === "running" ? (
               accountTool ? (
-                !pane.buildId || pane.buildId !== workspace.latest_build.id ? (
-                  <div className="space-y-3">
+                !matchingBuild ? (
+                  <div className={cn("space-y-3", codexTool && "px-4 pb-4")}>
                     <p role="status">Select this workspace’s current build to manage accounts.</p>
                     <Button
                       onClick={() => onWorkspaceChange(workspace.id, workspace.latest_build.id)}
@@ -183,11 +222,20 @@ export function HiveWorkspacePane({
                     </Button>
                   </div>
                 ) : visible ? (
-                  <AccountPanel
-                    key={`${userId}/${workspace.id}/${pane.buildId}`}
-                    workspaceId={workspace.id}
-                    buildId={pane.buildId}
-                  />
+                  codexTool ? (
+                    <CodexAccountPanel
+                      key={`${userId}/${workspace.id}/${workspace.latest_build.id}`}
+                      workspaceId={workspace.id}
+                      buildId={workspace.latest_build.id}
+                      navigation={navigation}
+                    />
+                  ) : (
+                    <ClaudeAccountCard
+                      key={`${userId}/${workspace.id}/${workspace.latest_build.id}`}
+                      workspaceId={workspace.id}
+                      buildId={workspace.latest_build.id}
+                    />
+                  )
                 ) : null
               ) : (
                 <AgentToolsPanel
@@ -199,7 +247,10 @@ export function HiveWorkspacePane({
                 />
               )
             ) : (
-              <p role="status" className="text-sm text-muted-foreground">
+              <p
+                role="status"
+                className={cn("text-sm text-muted-foreground", codexTool && "px-4 pb-4")}
+              >
                 {accountTool
                   ? pane.workspaceId && !workspace
                     ? "The selected workspace is unavailable. Choose an account workspace."
@@ -229,7 +280,7 @@ export function HiveWorkspacePane({
         ) : pane.tool === "diagnostics" ? (
           <Diagnostics visible={visible} highlightedWorkspaceId={pane.workspaceId} />
         ) : (
-          <SettingsWindow userId={userId} />
+          <SettingsWindow userId={userId} navigation={navigation} />
         )}
       </Suspense>
     </TerminalSessionFrame>
