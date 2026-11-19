@@ -125,32 +125,37 @@ def workspace_token():
 
 # The helper is launched once per bridge operation. A short-lived supervisor owns
 # the real CLI process between requests. Its output stays private to the attempt.
-LOGIN_DRIVER = """
-import os, pathlib, signal, subprocess, sys, time
-stage = pathlib.Path(sys.argv[1])
-with (stage / 'prompt').open('xb') as output:
-    child = subprocess.Popen([sys.argv[2], 'auth', 'login', '--hostname', 'github.com',
-                              '--git-protocol', 'https', '--web', '--insecure-storage'],
-                             stdin=subprocess.DEVNULL, stdout=output, stderr=output)
-try:
-    end = time.monotonic() + 900
-    while child.poll() is None and stage.exists() and time.monotonic() < end:
-        time.sleep(0.25)
-finally:
-    if child.poll() is None:
-        child.kill()
-    child.wait()
+def supervise_cli(stage_name):
+    if not re.fullmatch(r"login-[a-z0-9_]{8}", stage_name):
+        return 1
+    stage = state_directory() / stage_name
+    binary, env = cli(stage)
+    with (stage / "prompt").open("xb") as output:
+        child = subprocess.Popen([binary, "auth", "login", "--hostname", "github.com",
+                                  "--git-protocol", "https", "--web", "--insecure-storage"],
+                                 stdin=subprocess.DEVNULL, stdout=output, stderr=output, env=env)
+    try:
+        end = time.monotonic() + 900
+        while child.poll() is None and stage.exists() and time.monotonic() < end:
+            time.sleep(0.25)
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait()
     if stage.exists():
-        (stage / 'done').write_text(str(child.returncode))
-"""
+        (stage / "done").write_text(str(child.returncode))
+        # Commit even if Hive closed during approval. The state lock serializes
+        # this readback with cancellation, a newer attempt, and ordinary polling.
+        github_connection({"action": "status"})
+    return 0
 
 
 def start_cli(directory):
     stage = Path(tempfile.mkdtemp(prefix="login-", dir=directory))
-    binary, env = cli(stage)
     try:
-        child = subprocess.Popen([sys.executable, "-I", "-c", LOGIN_DRIVER, str(stage), binary],
-                                 env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        # Reuse this exact pinned helper (-I -B -c <source> on the bridge).
+        child = subprocess.Popen([sys.executable, *sys.orig_argv[1:], "--supervise-login", stage.name],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
         deadline = time.monotonic() + TIMEOUT
         while child.poll() is None and time.monotonic() < deadline:
@@ -389,4 +394,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--supervise-login":
+        sys.exit(supervise_cli(sys.argv[2]))
     sys.exit(main())
