@@ -233,7 +233,7 @@ export function GitHubConnection({
                     <DialogHeader>
                       <DialogTitle>Disconnect GitHub?</DialogTitle>
                       <DialogDescription>
-                        This removes the GitHub connection from {workspace.name}.
+                        This signs out all saved github.com accounts in {workspace.name}.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

@@ -138,13 +138,21 @@ class ProjectsTests(unittest.TestCase):
         def native_identity():
             hosts = Path.home() / ".config/gh/hosts.yml"
             return hosts.read_text() if hosts.exists() else None
+        accounts = ["prior-account"]
         def run(args, config=None, input_data=None):
             hosts = Path.home() / ".config/gh/hosts.yml"
             if args[1] == "login":
                 hosts.parent.mkdir(parents=True, exist_ok=True)
+                accounts.append("octocat")
                 hosts.write_text("octocat")
+            if args[1] == "status":
+                return subprocess.CompletedProcess(args, 0, stdout="\n".join(accounts).encode())
             if args[1] == "logout":
-                hosts.unlink()
+                accounts.remove(args[-1])
+                if accounts:
+                    hosts.write_text(accounts[-1])
+                else:
+                    hosts.unlink()
             return subprocess.CompletedProcess(args, 0)
         def stage(directory):
             path = Path(tempfile.mkdtemp(prefix="login-", dir=directory))
@@ -156,7 +164,7 @@ class ProjectsTests(unittest.TestCase):
               patch.object(discovery,"start_cli",side_effect=stage),
               patch.object(discovery,"gh_run",side_effect=run),
               patch.object(discovery,"native_identity",side_effect=native_identity),
-              patch.object(discovery,"cli_token",return_value="private-test-token")):
+              patch.object(discovery,"cli_token",side_effect=lambda config=None: "private-test-token" if config or accounts else None)):
             start = action({"action":"start","revision":"initial"})
             self.assertEqual(start["pending"]["code"], "TEST-CODE")
             self.assertNotIn("stage", start["pending"])
@@ -173,6 +181,7 @@ class ProjectsTests(unittest.TestCase):
             restored = action({"action":"cancel","revision":retry["revision"]})
             self.assertEqual(restored["login"],"octocat")
             self.assertIsNone(action({"action":"disconnect","revision":restored["revision"]})["login"])
+            self.assertEqual(accounts, [])
         _, env = discovery.cli()
         self.assertNotIn("GH_TOKEN",env)
         self.assertNotIn("CODER_AGENT_TOKEN",env)

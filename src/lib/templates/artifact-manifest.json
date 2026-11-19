@@ -2,32 +2,32 @@
   "schemaVersion": 1,
   "templates": {
     "ai-dev-k8s": {
-      "contentHash": "cbe53d2532edda84b8dd529d7494f4fcedae926206e46a3eee51c0d24b80f39c",
-      "archiveDigest": "3fc05224d952f135063b32cf6871caef264e315f8c91551b14f96de5a31e99ca",
+      "contentHash": "e9d2d1facd84aa085e94fb19ebe0d172cc4db43da604cc3fa2fbb41f07a6b918",
+      "archiveDigest": "82b35e1eb0d6fb258bdf7b36f1ec02b05d0f65f6a4e73ad27c3a108d01dc8384",
       "archiveBytes": 338432,
       "fileCount": 49
     },
     "browser-testing": {
-      "contentHash": "e52623de9c2081f7f675a5b59dae7f3f8a15614b51ce9adc9472d9566575de28",
-      "archiveDigest": "a287969b1b40f1b1425177900cb94e8d1cfbdd9ad23928c363058a63c2825816",
+      "contentHash": "6f9da3f5536f7e9e7838ea27b269dfabeff951e7ba688c9eb62a8301060b4452",
+      "archiveDigest": "ed9cd615ece0baffd4f021bdedad6e736a80034414bc429b24413260af8b8616",
       "archiveBytes": 333824,
       "fileCount": 49
     },
     "game-dev": {
-      "contentHash": "f20e7104371127990a950ef096be7824234852ceb7668ca6d227d93852e0f0e8",
-      "archiveDigest": "b201259b1f32037e06e01fc51ac88abae9139170890d2095c73d0698df3799b5",
+      "contentHash": "fa634bb98daf43cb73425c87735f979522892ae6b1c8d66c4dac72089736aad2",
+      "archiveDigest": "f2084cd7ff68c0feaa010b1f9c89f8cd4e74de326e9d040e2738dec88e988288",
       "archiveBytes": 334848,
       "fileCount": 49
     },
     "electronics": {
-      "contentHash": "1248662aa5d4f9853a6f678635b2d38429f6f87c63e124c06afd4ce15c57dab6",
-      "archiveDigest": "ae2432f1fbcfcf206cca2778b03d01c545d2e3a2f2b183daeb6dd072bf8d9019",
+      "contentHash": "2ff6b1159016f88ebb2f9d5e6f1d14fc5fde4e3ea20fcef051185c0f5984599e",
+      "archiveDigest": "c44e590d21789f383901e1c3ba6fc145d6ddbee09f1dbbc1dd6f2db30fbe8184",
       "archiveBytes": 334336,
       "fileCount": 49
     },
     "infrastructure": {
-      "contentHash": "e6109013f13cc1d4e457baaf3cde8bdb551a58fb0284a0aade8f6f9912e31a74",
-      "archiveDigest": "ab6790342da4eeffebdb5d427a9b6ec41546f07f60d1bfde53759f18758afd44",
+      "contentHash": "ed5be05f16819868adc02e22b65d068827cd7eb8cbd7afb1b18936609f31f9dc",
+      "archiveDigest": "9bff52208ecb76c96435a6e1ef695820230c1e30ea012104a51c9e125ad48cce",
       "archiveBytes": 334848,
       "fileCount": 49
     }

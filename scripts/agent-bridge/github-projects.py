@@ -239,9 +239,18 @@ def github_connection(action):
                 save_state(directory, state)
             elif matches and kind == "disconnect" and login:
                 (Path.home() / ".config/gh/.hive-workspace-login").touch(mode=0o600)
-                if gh_run(["auth", "logout", "--hostname", "github.com", "--user", login]).returncode:
+                accounts = gh_run(["auth", "status", "--hostname", "github.com", "--json", "hosts",
+                                   "--jq", '.hosts["github.com"][] | .login'])
+                logins = accounts.stdout.decode("utf-8").splitlines()
+                if accounts.returncode or login not in logins or not all(
+                        re.fullmatch(r"[a-zA-Z0-9-]{1,39}", item) for item in logins):
                     raise DiscoveryError("github_unavailable")
-                state.update(login=native_identity(), outcome=None, revision=str(uuid.uuid4()))
+                for item in logins:
+                    if gh_run(["auth", "logout", "--hostname", "github.com", "--user", item]).returncode:
+                        raise DiscoveryError("github_unavailable")
+                if cli_token():
+                    raise DiscoveryError("github_unavailable")
+                state.update(login=None, outcome=None, revision=str(uuid.uuid4()))
                 save_state(directory, state)
         if pending_at_entry and not pending:
             state["login"] = native_identity()
