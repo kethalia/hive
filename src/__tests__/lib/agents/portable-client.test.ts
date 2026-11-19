@@ -140,6 +140,22 @@ function fixture(
   return { transport, client: new AgentBridgeClient(config, transport) };
 }
 describe("portable agent client", () => {
+  it("retains P03 account status on its pinned manifest and withholds discovery", async () => {
+    const { transport } = fixture();
+    const client = new AgentBridgeClient(
+      { ...config, previousManifestSha256: config.manifestSha256, manifestSha256: "c".repeat(64) },
+      transport,
+    );
+    await expect(
+      client.execute({ operation: "codex-account", account: { action: "status" } }),
+    ).resolves.toMatchObject({ state: "signed-out" });
+    transport.mockClear();
+    await expect(
+      client.execute({ operation: "discover-projects", page: 1, perPage: 1 }),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps old runtime operations usable while refusing unsupported management before submission", async () => {
     const old = fixture();
     await expect(
