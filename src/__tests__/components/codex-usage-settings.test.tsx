@@ -85,6 +85,37 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each([
+  "usage",
+  "config",
+] as const)("loads %s once when the initial account refresh finishes", async (section) => {
+  const fetcher = vi.fn().mockResolvedValueOnce(response(section, 5));
+  vi.stubGlobal("fetch", fetcher);
+  const props = {
+    section,
+    workspaceId: "workspace",
+    buildId: "build",
+    lifetimeId,
+    onBusyChange: vi.fn(),
+    onAccountRefresh: vi.fn(),
+  };
+  const view = render(<CodexUsageSettings {...props} disabled generation={4} />);
+  expect(fetcher).not.toHaveBeenCalled();
+  view.rerender(<CodexUsageSettings {...props} disabled={false} generation={5} />);
+  await screen.findByRole(
+    section === "usage" ? "progressbar" : "combobox",
+    section === "usage" ? {} : { name: "Model" },
+  );
+  view.rerender(<CodexUsageSettings {...props} disabled generation={5} />);
+  view.rerender(<CodexUsageSettings {...props} disabled={false} generation={5} />);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(fetcher.mock.calls[0][1].body).request).toEqual({
+    action: section,
+    lifetimeId,
+    generation: 5,
+  });
+});
+
 it("shows native usage, loads settings on selection and saves with the current version and fence", async () => {
   const fetcher = vi
     .fn()

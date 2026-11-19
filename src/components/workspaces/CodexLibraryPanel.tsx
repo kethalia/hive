@@ -150,6 +150,7 @@ export function CodexLibraryPanel({
       setData(result.library);
       if (saving) {
         onGeneration(result.generation);
+        onAccountRefresh();
         if (result.outcome === "unknown")
           setError("The result could not be confirmed. Refresh before making another change.");
         else setNotice("Change saved.");

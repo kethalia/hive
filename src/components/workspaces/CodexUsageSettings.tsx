@@ -49,6 +49,7 @@ export function CodexUsageSettings({
   const [notice, setNotice] = useState("");
   const [needsReadback, setNeedsReadback] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const initialLoadPending = useRef(true);
   const fence = useRef(generation);
   const accountBusy = useRef(disabled);
   const refreshAccount = useRef(onAccountRefresh);
@@ -147,7 +148,12 @@ export function CodexUsageSettings({
     [section, lifetimeId, execute],
   );
   useEffect(() => {
-    void load();
+    if (!disabled && initialLoadPending.current) {
+      initialLoadPending.current = false;
+      void load();
+    }
+  }, [disabled, load]);
+  useEffect(() => {
     const refresh = () => {
       if (document.visibilityState === "visible") void load();
     };
@@ -155,6 +161,7 @@ export function CodexUsageSettings({
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
+      initialLoadPending.current = true;
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);

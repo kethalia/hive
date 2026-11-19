@@ -144,6 +144,66 @@ it("changes the provider workspace from its own tab and keeps the selection visi
   expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute("aria-selected", "true");
 });
 
+it("reconnects with the new account generation after changing a workspace skill", async () => {
+  const account = (generation: number) =>
+    Response.json({
+      scope: "managed-native",
+      lifetimeId,
+      generation,
+      state: "signed-in",
+      pending: null,
+    });
+  const library = (enabled: boolean) =>
+    Response.json({
+      scope: "managed-native",
+      lifetimeId,
+      generation: enabled ? 4 : 5,
+      outcome: enabled ? "read" : "saved",
+      usage: null,
+      config: null,
+      overridden: null,
+      library: {
+        section: "skills",
+        directory: "/workspace",
+        partial: false,
+        nextCursor: null,
+        rows: [
+          {
+            id: "a".repeat(64),
+            revision: "b".repeat(64),
+            name: "Test skill",
+            description: "",
+            enabled,
+            editable: true,
+            scope: "user",
+            pluginId: null,
+          },
+        ],
+      },
+    });
+  fetcher
+    .mockResolvedValueOnce(account(4))
+    .mockResolvedValueOnce(library(true))
+    .mockResolvedValueOnce(library(false))
+    .mockResolvedValueOnce(account(5))
+    .mockResolvedValueOnce(account(6));
+  render(tree());
+  await screen.findByRole("button", { name: "Reconnect" });
+  fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Disable" }));
+  await screen.findByText("Change saved.");
+  fireEvent.click(screen.getByRole("tab", { name: "Connection" }));
+  const reconnect = await screen.findByRole("button", { name: "Reconnect" });
+  await waitFor(() => expect(reconnect).toBeEnabled());
+  fireEvent.click(reconnect);
+  expect(JSON.parse(fetcher.mock.lastCall?.[1].body).request).toEqual({
+    action: "reconnect",
+    lifetimeId,
+    generation: 5,
+  });
+  await waitFor(() => expect(reconnect).toBeEnabled());
+});
+
 it("offers a retry and workspace management after a failed start", async () => {
   start.mockRejectedValueOnce(new Error("Workspace did not start"));
   render(
