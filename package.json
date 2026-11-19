@@ -42,7 +42,7 @@
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare/tsconfig.json",
     "types:cloudflare": "wrangler types deploy/cloudflare/native/env.d.ts --config deploy/cloudflare/native/wrangler.jsonc --env-interface CloudflareBindings --include-runtime false",
     "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test",
-    "test:agent-bridge": "node --test scripts/agent-bridge/*.test.mjs && python3 -B -m unittest scripts/agents/test_workspace_identity_install.py scripts/agents/test_codex_runtime_install.py scripts/agents/test_claude_account_driver.py"
+    "test:agent-bridge": "node --test scripts/agent-bridge/*.test.mjs && python3 -B -m unittest scripts/agents/test_workspace_identity_install.py scripts/agents/test_codex_runtime_install.py scripts/agents/test_claude_account_driver.py scripts/agents/test_github_projects.py"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

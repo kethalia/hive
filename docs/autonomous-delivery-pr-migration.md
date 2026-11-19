@@ -36,7 +36,7 @@ for each increment.
 | P01b | Existing-feature Cloudflare compatibility and application cutover | Large | Build on merged P01 with repository terminals, workspace commands, file helpers and clipboard uploads, native audio and current Codex voice signaling, notifications, credential rotation, template publication and diagnostics. Initialize a fresh production database and independent secrets under the owner's approved legacy-data waiver, validate the hosted preview, then move `hive.kethalia.com` to the existing Worker and retire the Hive application in `k8s-cluster`. | Test each existing feature through its ordinary UI, verify background work after closing the browser, verify fresh schema initialization, scoped permissions and production secret isolation. Coordinate the approved maintenance window so Kubernetes writers stop before fresh Cloudflare sign-in, then verify the production domain/application and complete residual storage retirement. |
 | P02 | [Better Auth and Coder OAuth login](https://github.com/kethalia/hive/pull/452) | Large | Build on merged P01b with Better Auth, the configured Coder host, browser consent, identity-preserving schema changes, credential refresh, revocation, disconnect/reconnect and OAuth-aware API, command, terminal and audio credentials. | Sign in through `coder.kethalia.com`, return to the existing Hive identity, reload, use a terminal, then sign out, disconnect and reconnect. Validate expiry, concurrent refresh and uncertain refresh recovery. |
 | P03 | [Workspace connection bridge and Accounts window](https://github.com/kethalia/hive/pull/453) | Large | Build on P02 with signed workspace operations, versioned bridge installation, exact workspace/build selection, in-app Codex/Claude connection flows matching Creative Studio, and Codex native usage/runtime settings. Separate the account transport from the later managed-task maintenance integration. | Select a workspace, inspect account status, complete each provider's supported sign-in flow and verify saved selection and connection status after reload. Inspect native usage, save a runtime default with version protection and verify readback. |
-| P04 | GitHub repositories as projects | Medium | Build on P03 with authenticated discovery, search, pagination and stable repository identity. Separate repository browsing from managed task execution. | Discover and search repositories through Coder-connected GitHub. Select a repository and inspect its identity. Verify repository browsing preserves the existing checkout inventory. |
+| P04 | [GitHub repositories as projects](https://github.com/kethalia/hive/pull/455) | Medium | Build on P03 with authenticated discovery, search, pagination and stable repository identity. Separate repository browsing from managed task execution. | Discover and search repositories through Coder-connected GitHub. Select a repository and inspect its identity. Verify repository browsing preserves the existing checkout inventory. |
 | P05 | Managed project execution and shared sessions | Extra large | Build on P04 with on-demand checkout preparation, registered sessions, Conversation/Terminal views, guardian authority, manager delegation/progression, source application, acceptance/report persistence, restart/recovery and lifecycle guards. Keep matching host assets, contracts and server checks together. | Submit one small coding task, observe delegation and inspect the same session through both views. Reconnect, exercise a supported interruption/recovery and verify completed results. Check that dirty files and active consumers hold cleanup. |
 | P06 | Delivery window and detailed step reports | Medium | Build on P05 with task/step navigation, report history, difficulty/issues/results, owner scheduling controls and links to the correct manager session. | Track the task, open current and historical reports, pause/resume and return to its manager. Verify desktop/mobile layouts and persisted selection. |
 | P07 | Background execution and notifications | Large | Build on P06 with durable preparation wakes, agent callbacks, completed-step notification dispatch, credential rotation, template publication/logs and remaining Cloudflare transport parity. Complete the paused step-report wake work within this increment. | Close the browser while work prepares and runs, then return to persisted progress. Receive a notification that opens the correct report. Exercise retries, disabled notifications and the enrolled administrative jobs. |
@@ -205,9 +205,15 @@ stable Hive identity, and final sign-out. The
 [production receipt](checks/workspace-accounts/p02-production-acceptance.json)
 records the exact application build and browser instrumentation limitations.
 
-P03 is in progress on `codex/workspace-accounts-p03` from this accepted baseline.
-It adds the independent workspace bridge and native Accounts window. Account
-requests carry the selected workspace build and reject replacement builds before
-submission. Its [acceptance record](checks/workspace-accounts/README.md) tracks
-installed package/image identity and real provider/browser validation.
-P04–P11 continue in the agreed feature order.
+P03 merged through [PR453](https://github.com/kethalia/hive/pull/453) at
+`8dcbc435`. The [P03 acceptance record](checks/workspace-accounts/README.md)
+covers the provider flows. Production OAuth, provider prompts and cancellation
+also passed on an isolated production-configured workspace. The production
+template needs the matching [workspace image digest](https://github.com/kethalia/hive/pull/454)
+for enrollment.
+
+P04 extracts read-only GitHub repository discovery from the epic in
+[PR455](https://github.com/kethalia/hive/pull/455). Its
+[acceptance record](checks/github-project-discovery/README.md) covers workspace
+enrollment, repository identity, pagination and checkout preservation.
+P05 is the next planned slice after P04 merges.
