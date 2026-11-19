@@ -475,6 +475,135 @@ try {
   report.checks.push("background floating resize handles cannot intercept foreground content");
   await floatingContext.close();
 
+  const stripResizeContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await stripResizeContext.addInitScript(() => {
+    const windows = [
+      { id: "settings", kind: "hive", tool: "settings", label: "Settings" },
+      {
+        id: "codex-account",
+        kind: "hive",
+        tool: "codex-account",
+        label: "Codex",
+        workspaceId: "software",
+        buildId: "build-1",
+      },
+    ];
+    localStorage.setItem(
+      "general-workspace:v1:fixture",
+      JSON.stringify({
+        version: 1,
+        activeBoardKey: "strip-resize",
+        boards: [
+          {
+            key: "strip-resize",
+            name: "1",
+            order: 0,
+            windows,
+            activeWindowId: "codex-account",
+            manager: {
+              mode: "strip",
+              scroll: 0,
+              floating: {},
+              columns: windows.map(({ id }) => ({
+                id,
+                windows: [id],
+                width: 0.42,
+                weights: { [id]: 1 },
+                tabbed: false,
+              })),
+            },
+          },
+        ],
+      }),
+    );
+  });
+  const stripResize = await stripResizeContext.newPage();
+  stripResize.on("pageerror", (error) => report.errors.push(error.message));
+  await stripResize.route("**/codex-account", (route) =>
+    route.fulfill({
+      json: {
+        scope: "managed-native",
+        lifetimeId: "00000000-0000-4000-8000-000000000001",
+        generation: 0,
+        state: "signed-out",
+        pending: null,
+      },
+    }),
+  );
+  await stripResize.goto("http://127.0.0.1:8831");
+  const seam = stripResize.getByRole("separator", { name: "Resize adjoining columns" });
+  const outer = stripResize.getByRole("separator", { name: "Resize right edge" });
+  await seam.waitFor();
+  await stripResize.waitForTimeout(200);
+  assert.equal(await seam.count(), 1);
+  assert.equal(await outer.count(), 1);
+  const edges = () =>
+    stripResize.locator("[data-workspace-window-id]").evaluateAll((panes) =>
+      panes.flatMap((pane) => {
+        const box = pane.getBoundingClientRect();
+        return [box.left, box.right];
+      }),
+    );
+  const closeTo = (actual, expected) => {
+    assert(Math.abs(actual - expected) <= 2, `Expected edge ${expected}, got ${actual}`);
+  };
+  for (const delta of [-56, 56]) {
+    const before = await edges();
+    const rect = await seam.boundingBox();
+    const x = rect.x + rect.width / 2 + Math.sign(delta) * 3;
+    const y = rect.y + rect.height / 2;
+    await stripResize.mouse.move(x, y);
+    await stripResize.mouse.down();
+    await stripResize.mouse.move(x + delta, y, { steps: 10 });
+    await stripResize.waitForFunction(
+      ({ before, delta }) =>
+        Math.abs(
+          document
+            .querySelector('[data-workspace-window-id="codex-account"]')
+            .getBoundingClientRect().left -
+            before[2] -
+            delta,
+        ) <= 2,
+      { before, delta },
+      { timeout: 5000 },
+    );
+    const during = await edges();
+    closeTo(during[0], before[0]);
+    closeTo(during[1], before[1] + delta);
+    closeTo(during[2], before[2] + delta);
+    closeTo(during[3], before[3]);
+    await stripResize.mouse.up();
+  }
+  const beforeOuter = await edges();
+  const outerHandle = await outer.boundingBox();
+  const outerGrip = await outer.locator("span").boundingBox();
+  assert(
+    outerGrip.x >= beforeOuter[3] + 2 && outerGrip.x + outerGrip.width <= beforeOuter[3] + 6,
+    JSON.stringify({ outerGrip, beforeOuter }),
+  );
+  const outerX = outerHandle.x + outerHandle.width / 2;
+  const outerY = outerHandle.y + outerHandle.height / 2;
+  await stripResize.mouse.move(outerX, outerY);
+  await stripResize.mouse.down();
+  await stripResize.mouse.move(outerX + 42, outerY, { steps: 8 });
+  await stripResize.mouse.up();
+  await stripResize.waitForFunction(
+    (right) =>
+      Math.abs(
+        document.querySelector('[data-workspace-window-id="codex-account"]').getBoundingClientRect()
+          .right - right,
+      ) <= 2,
+    beforeOuter[3] + 42,
+    { timeout: 5000 },
+  );
+  const afterOuter = await edges();
+  for (const index of [0, 1, 2]) closeTo(afterOuter[index], beforeOuter[index]);
+  await stripResize.screenshot({ path: resolve(evidence, "strip-divider.png") });
+  report.checks.push(
+    "one Strip divider moves both adjoining edges while the outer grip moves only the right edge",
+  );
+  await stripResizeContext.close();
+
   const navigationContext = await browser.newContext({
     viewport: { width: 1200, height: 800 },
     userAgent:

@@ -13,7 +13,7 @@ Reset command palette scrolling when the search changes and explain when the sel
 
 Add a sidebar to Codex and Settings, a focused device-code sign-in, and expandable Hive build details. Manage workspace Codex skills and plugins and browse session history and MCP integrations in Hive.
 
-Extend the Settings and Codex sidebar dividers to the bottom of each pane, add a title-bar toggle, and make the Strip resize gutter target the window on its left.
+Extend the Settings and Codex sidebar dividers to the bottom of each pane and add a title-bar toggle. Give each shared Strip gutter one resize divider that moves both adjoining edges together. Keep the outer grip clear of the window border.
 
 Animate sidebar toggles with reduced-motion support and load larger Codex plugin and integration inventories within dedicated limits.
 

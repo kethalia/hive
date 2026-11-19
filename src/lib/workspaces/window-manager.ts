@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { WORKSPACE_WINDOW_INSET } from "./window-spacing";
 import {
   reconcileWorkspaceWindowLayout,
   splitRatio,
@@ -110,11 +109,12 @@ export interface LayoutDivider {
   max: number;
   extent: number;
   edge?: "start" | "end";
-  /** Horizontal position of a shared gutter within or alongside the hit area. */
+  /** Horizontal position of the grip within its hit area. */
   gripOffsetX?: number;
   target:
     | { kind: "grid"; path: string }
     | { kind: "column"; id: string }
+    | { kind: "column-split"; before: string; after: string; totalFraction: number }
     | { kind: "stack"; id: string; before: string; after: string };
 }
 export interface WindowGeometry {
@@ -208,11 +208,16 @@ export function windowGeometry(
     let cursor = result.left;
     const unpinned = manager.columns.filter((c) => !c.pin);
     const last = unpinned.at(-1);
-    const place = (c: WindowColumn, x: number, w: number) => {
-      const h = Math.max(
+    const minimumWidth = Math.min(MIN_WINDOW_WIDTH, available);
+    const columnWidth = (column: WindowColumn) => Math.max(minimumWidth, column.width * available);
+    const columnHeight = (column: WindowColumn) =>
+      Math.max(
         height,
-        c.tabbed ? MIN_WINDOW_HEIGHT : c.windows.length * MIN_WINDOW_HEIGHT,
+        column.tabbed ? MIN_WINDOW_HEIGHT : column.windows.length * MIN_WINDOW_HEIGHT,
       );
+    const gripWidth = 8;
+    const place = (c: WindowColumn, x: number, w: number) => {
+      const h = columnHeight(c);
       result.height = Math.max(result.height, h);
       const selected = c.windows.includes(active ?? "") ? active : (c.selected ?? c.windows[0]);
       const tabHeight = c.tabbed && showColumnTabs ? 32 : 0;
@@ -246,51 +251,77 @@ export function windowGeometry(
             });
         }
       });
-      // Inside the Strip, the gutter belongs to the window on its left.
-      // Start the last window’s leading hit area just inside its own painted edge.
-      const gripWidth = 8;
-      const gutter = !c.pin && c !== last ? WORKSPACE_WINDOW_INSET : 0;
-      const divider: LayoutDivider = {
+    };
+    const placeEdge = (c: WindowColumn, x: number, w: number, outside = false) => {
+      const leading = c.pin === "right";
+      result.dividers.push({
         id: c.id,
         axis: "width",
         rect: {
-          x: c.pin === "right" ? x : x + w - gripWidth,
+          x: leading ? x : x + w - gripWidth,
           y: 0,
-          width: gripWidth + gutter,
-          height: h,
+          width: gripWidth + (outside ? 7 : 0),
+          height: columnHeight(c),
         },
-        edge: c.pin === "right" ? "start" : "end",
-        gripOffsetX: gutter ? gripWidth : undefined,
+        edge: leading ? "start" : "end",
+        // Keep the mark separated from the pane border, even against the viewport.
+        gripOffsetX: outside ? gripWidth + 4 : leading ? 5 : 3,
         value: w / (c.pin ? width : available),
-        min: c.pin
-          ? Math.max(0.05, Math.min(0.25, 180 / width))
-          : Math.min(MIN_WINDOW_WIDTH, available) / available,
+        min: c.pin ? Math.max(0.05, Math.min(0.25, 180 / width)) : minimumWidth / available,
         max: c.pin ? 0.3 : 1,
-        extent: (c.pin === "right" ? -1 : 1) * (c.pin ? width : available),
+        extent: (leading ? -1 : 1) * (c.pin ? width : available),
         target: { kind: "column", id: c.id },
-      };
-      result.dividers.push(divider);
-      if (!c.pin && c === last)
-        result.dividers.push({
-          ...divider,
-          id: `${c.id}-start`,
-          rect: { ...divider.rect, x: x + (unpinned.length > 1 ? WORKSPACE_WINDOW_INSET : 0) },
-          edge: "start",
-          gripOffsetX: unpinned.length > 1 ? -WORKSPACE_WINDOW_INSET : undefined,
-          extent: -available,
-        });
+      });
     };
-    for (const c of unpinned) {
-      const w = Math.max(Math.min(MIN_WINDOW_WIDTH, available), c.width * available);
+    for (const [index, c] of unpinned.entries()) {
+      const w = columnWidth(c);
       place(c, cursor, w);
       cursor += w;
+      const next = unpinned[index + 1];
+      if (!next) continue;
+      const combinedWidth = w + columnWidth(next);
+      const smallerWidth = Math.max(minimumWidth, combinedWidth - available);
+      const min = smallerWidth / combinedWidth;
+      const max = 1 - min;
+      if (max - min <= Number.EPSILON) continue;
+      result.dividers.push({
+        id: JSON.stringify(["column-split", c.id, next.id]),
+        axis: "width",
+        rect: {
+          x: cursor - gripWidth / 2,
+          y: 0,
+          width: gripWidth,
+          height: Math.min(columnHeight(c), columnHeight(next)),
+        },
+        gripOffsetX: gripWidth / 2,
+        value: w / combinedWidth,
+        min,
+        max,
+        extent: combinedWidth,
+        target: {
+          kind: "column-split",
+          before: c.id,
+          after: next.id,
+          totalFraction: combinedWidth / available,
+        },
+      });
     }
     result.maxScroll = Math.max(0, cursor + result.right - width);
     const scroll = Math.min(manager.scroll, result.maxScroll);
     for (const [id, rect] of result.rects) result.rects.set(id, { ...rect, x: rect.x - scroll });
     for (const divider of result.dividers) divider.rect.x -= scroll;
     for (const tab of result.tabs) tab.rect.x -= scroll;
-    for (const c of pinned) place(c, c.pin === "left" ? 0 : width - result.right, result[c.pin!]);
+    if (last) {
+      const w = columnWidth(last);
+      const end = cursor - scroll;
+      placeEdge(last, end - w, w, end + 7 <= width - result.right);
+    }
+    for (const c of pinned) {
+      const x = c.pin === "left" ? 0 : width - result.right;
+      const w = result[c.pin!];
+      place(c, x, w);
+      placeEdge(c, x, w);
+    }
   }
   for (const [id, r] of Object.entries(manager.floating)) {
     const w = Math.min(width, Math.max(MIN_WINDOW_WIDTH, r.width * width));

@@ -163,40 +163,39 @@ try {
     const lifetime = await page.evaluate(() => structuredClone(window.fixture));
     const pane = (id) => page.locator(`[data-workspace-window-id="${id}"]`);
     await page.getByLabel("b input").focus();
-    const borders = page.getByRole("separator", { name: "Resize width", exact: true });
-    assert.equal(await borders.count(), 3);
+    const shared = page.getByRole("separator", { name: "Resize adjoining columns" });
+    const outer = page.getByRole("separator", { name: "Resize right edge" });
     const initial = await pane("b").boundingBox();
-    const resizeLast = async (dx) => {
-      const border = borders.last();
-      const edge = await border.boundingBox();
-      assert.equal(edge.width, 16);
-      assert.equal(await border.locator("*").count(), 0, "No visible resize grip");
-      assert(
-        edge.height >= initial.height - 2,
-        `Resize along the full border: ${JSON.stringify({ edge, initial })}`,
-      );
-      const point = { x: edge.x + 8, y: edge.y + edge.height * 0.7 };
-      await drag(page, point, { ...point, x: point.x + dx });
-    };
-    await resizeLast(-35);
-    const grown = await pane("b").boundingBox();
-    assert(grown.width > initial.width + 25, "Dragging the final pane's left edge grows it");
-    assert(Math.abs(grown.x + grown.width - (initial.x + initial.width)) < 2);
-    await resizeLast(35);
-    assert(Math.abs((await pane("b").boundingBox()).width - initial.width) < 2);
-    const firstBefore = await pane("a").boundingBox();
-    const firstEdge = await borders.first().boundingBox();
-    const firstPoint = { x: firstEdge.x + 8, y: firstEdge.y + firstEdge.height * 0.7 };
-    await drag(page, firstPoint, { ...firstPoint, x: firstPoint.x + 25 });
-    assert((await pane("a").boundingBox()).width > firstBefore.width + 15);
-    await drag(page, { ...firstPoint, x: firstPoint.x + 25 }, firstPoint);
+    assert.equal(await outer.count(), 1);
+    assert.equal((await outer.boundingBox()).width, 16);
+    if (width === 390) {
+      assert.equal(await shared.count(), 0, "Both columns are at their minimum widths");
+    } else {
+      assert.equal(await shared.count(), 1);
+      const dragSeam = async (dx) => {
+        const edge = await shared.boundingBox();
+        assert.equal(edge.width, 16);
+        assert(edge.height >= initial.height - 2);
+        const point = { x: edge.x + edge.width / 2, y: edge.y + edge.height * 0.7 };
+        await drag(page, point, { ...point, x: point.x + dx });
+      };
+      const firstBefore = await pane("a").boundingBox();
+      await dragSeam(-35);
+      const grown = await pane("b").boundingBox();
+      const firstAfter = await pane("a").boundingBox();
+      assert(Math.abs(grown.x - initial.x + 35) < 2);
+      assert(Math.abs(grown.x + grown.width - initial.x - initial.width) < 2);
+      assert(Math.abs(firstAfter.width - firstBefore.width + 35) < 2);
+      await dragSeam(35);
+      assert(Math.abs((await pane("b").boundingBox()).width - initial.width) < 2);
+    }
     assert.equal((await boardState(page)).activeWindowId, "b");
     assert.equal(
       await page.evaluate(() => document.activeElement?.getAttribute("aria-label")),
       "b input",
     );
     report.checks.push(
-      `${width}: touch border resizing works on first and last Strip panes without grips or keyboard focus loss`,
+      `${width}: touch resize shares the Strip seam when space permits and preserves keyboard focus`,
     );
     const before = await pane("b").boundingBox();
     const cycle = page.getByRole("button", { name: "Cycle width of b", exact: true });
