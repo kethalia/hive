@@ -508,9 +508,7 @@ describe("workspace tool windows", () => {
       waitForAgent: true,
     });
     fireEvent.click(within(claude).getByRole("tab", { name: "Workspace" }));
-    expect(within(claude).getByRole("combobox", { name: "Account workspace" })).toHaveTextContent(
-      "ai-dev-01",
-    );
+    expect(within(claude).getByRole("radio", { name: /ai-dev-01/ })).toBeChecked();
 
     fireEvent.click(within(codex).getByRole("button", { name: "Close Codex" }));
     await waitFor(() =>

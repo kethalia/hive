@@ -89,7 +89,7 @@ it.each([
       .slice(0, 2)
       .map((tab) => tab.textContent),
   ).toEqual(["Workspace", "Connection"]);
-  expect(screen.queryByRole("combobox", { name: "Account workspace" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("group", { name: "Coder workspaces" })).not.toBeInTheDocument();
   expect(fetcher.mock.calls.map(([path]) => path)).toEqual([`/api/workspaces/one/${tool}`]);
   expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
     buildId: "build-one",
@@ -136,10 +136,10 @@ it("changes the provider workspace from its own tab and keeps the selection visi
   await screen.findByRole("region", { name: "Managed Codex account" });
   fireEvent.click(screen.getByRole("tab", { name: "Workspace" }));
   expect(screen.queryByRole("region", { name: "Managed Codex account" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("combobox", { name: "Account workspace" }));
-  const option = await screen.findByRole("option", { name: "Software two · running" });
-  fireEvent.mouseMove(option);
-  fireEvent.click(option);
+  expect(screen.getByRole("radio", { name: "Software one, running" })).toBeChecked();
+  const other = screen.getByRole("radio", { name: "Software two, running" });
+  expect(other).not.toBeChecked();
+  fireEvent.click(other);
   expect(select).toHaveBeenCalledExactlyOnceWith("two", "build-two");
   expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute("aria-selected", "true");
 });

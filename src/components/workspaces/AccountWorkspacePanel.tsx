@@ -13,12 +13,11 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Suspense, useState } from "react";
+import { Suspense, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
-import { WorkspacePicker } from "./WorkspacePicker";
 
 const CodexAccountPanel = dynamic(() =>
   import("./CodexAccountPanel").then((m) => m.CodexAccountPanel),
@@ -64,6 +63,7 @@ export function AccountWorkspacePanel({
   onStartWorkspace: (workspaceId: string) => Promise<void>;
   onWorkspaceChange: (workspaceId: string, buildId: string) => void;
 }) {
+  const radioGroup = useId();
   const [selection, setSelection] = useState<{
     section: Section;
     directory?: { scope: string; sessionId: string };
@@ -110,19 +110,36 @@ export function AccountWorkspacePanel({
       >
         {section === "workspace" ? (
           <div className="space-y-3">
-            <WorkspacePicker
-              label="Account workspace"
-              workspaces={workspaces}
-              selected={workspace?.id}
-              disabled={starting}
-              onSelect={(id) => {
-                const selected = workspaces.find((item) => item.id === id);
-                if (!selected) return;
-                setStartup(null);
-                setSelection({ section: "workspace" });
-                onWorkspaceChange(selected.id, selected.latest_build.id);
-              }}
-            />
+            {workspaces.length > 0 && (
+              <fieldset disabled={starting} className="min-w-0 space-y-2">
+                <legend className="text-sm">Coder workspaces</legend>
+                <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                  {workspaces.map((item) => (
+                    <label
+                      key={item.id}
+                      className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-accent/50 has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-ring has-disabled:cursor-default"
+                    >
+                      <input
+                        type="radio"
+                        name={radioGroup}
+                        aria-label={`${item.name}, ${item.latest_build.status}`}
+                        className="shrink-0 accent-primary"
+                        checked={item.id === workspace?.id}
+                        onChange={() => {
+                          setStartup(null);
+                          setSelection({ section: "workspace" });
+                          onWorkspaceChange(item.id, item.latest_build.id);
+                        }}
+                      />
+                      <span className="min-w-0 flex-1 break-all">{item.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {item.latest_build.status}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             {starting ? (
               <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderCircle
@@ -170,9 +187,9 @@ export function AccountWorkspacePanel({
             ) : !ready ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {!workspace
-                  ? workspaceId && workspaces.length
+                  ? workspaces.length
                     ? "The selected workspace is unavailable. Choose another workspace."
-                    : "Choose a workspace to manage its accounts."
+                    : "No workspaces available."
                   : status === "starting" || status === "pending"
                     ? "Waiting for the workspace to start…"
                     : `Workspace is ${status}. Manage it in Coder workspaces.`}

@@ -19,4 +19,4 @@ Animate sidebar toggles with reduced-motion support and load larger Codex plugin
 
 Remember separate Codex and Claude workspace selections on this browser, and start a stopped workspace directly from either account window.
 
-Move workspace selection and startup into the first tab of each account window.
+List workspaces and their status in the first tab of each account window, where users can switch workspaces or start the selected one.
