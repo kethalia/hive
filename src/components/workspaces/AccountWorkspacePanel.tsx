@@ -12,8 +12,10 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Suspense, useState } from "react";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { CheckingConnection } from "./ConnectionStatus";
 import { useWorkspaceStart, WorkspaceTab } from "./WorkspaceTab";
 
 const CodexAccountPanel = dynamic(() =>
@@ -115,9 +117,13 @@ export function AccountWorkspacePanel({
         ) : visible && workspace && buildId ? (
           <Suspense
             fallback={
-              <p role="status" className="text-muted-foreground">
-                Loading {provider}…
-              </p>
+              section === "connection" ? (
+                <CheckingConnection provider={provider} />
+              ) : (
+                <LoadingStatus>
+                  Loading {codexSections.find((item) => item.id === section)?.label.toLowerCase()}…
+                </LoadingStatus>
+              )
             }
           >
             {provider === "Codex" ? (

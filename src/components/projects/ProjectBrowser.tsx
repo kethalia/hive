@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import {
   type ProjectPage,
   projectErrorCodeSchema,
@@ -31,7 +32,7 @@ interface Snapshot {
   workspaceId: string;
   repositories: RepositoryProject[];
   nextPage: number | null;
-  loading: boolean;
+  loading: "refresh" | "more" | null;
   loaded: boolean;
   error: string | null;
   setup: "workspace" | "account" | null;
@@ -40,7 +41,7 @@ const empty = (workspaceId: string): Snapshot => ({
   workspaceId,
   repositories: [],
   nextPage: null,
-  loading: false,
+  loading: null,
   loaded: false,
   error: null,
   setup: null,
@@ -94,7 +95,7 @@ export function ProjectBrowser({
       controller.current = request;
       setState((previous) => ({
         ...(previous.workspaceId === workspaceId ? previous : empty(workspaceId)),
-        loading: true,
+        loading: page === 1 ? "refresh" : "more",
         error: null,
       }));
       try {
@@ -129,7 +130,7 @@ export function ProjectBrowser({
             workspaceId,
             repositories: [...repositories.values()],
             nextPage,
-            loading: false,
+            loading: null,
             loaded: true,
             error: null,
             setup: null,
@@ -186,14 +187,21 @@ export function ProjectBrowser({
     repository.fullName.toLocaleLowerCase().includes(search),
   );
 
+  if (!snapshot.loaded && !snapshot.error)
+    return <LoadingStatus>Loading repositories…</LoadingStatus>;
   return (
     <section aria-label="GitHub projects" className="space-y-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {snapshot.repositories.length} repositories loaded
         </p>
-        <Button variant="outline" size="sm" disabled={snapshot.loading} onClick={() => void load()}>
-          Refresh
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!!snapshot.loading}
+          onClick={() => void load()}
+        >
+          {snapshot.loading === "refresh" ? "Refreshing…" : "Refresh"}
         </Button>
       </div>
       <label htmlFor={searchId} className="text-sm font-medium">
@@ -205,11 +213,7 @@ export function ProjectBrowser({
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Owner or repository name"
       />
-      {snapshot.loading ? (
-        <p role="status" className="text-sm">
-          Loading repositories…
-        </p>
-      ) : null}
+
       {snapshot.error ? (
         <p role="alert" className="text-sm text-destructive">
           {snapshot.error}
@@ -277,10 +281,10 @@ export function ProjectBrowser({
       {snapshot.nextPage !== null ? (
         <Button
           variant="outline"
-          disabled={snapshot.loading}
+          disabled={!!snapshot.loading}
           onClick={() => void load(snapshot.nextPage ?? 1)}
         >
-          Load more repositories
+          {snapshot.loading === "more" ? "Loading more repositories…" : "Load more repositories"}
         </Button>
       ) : null}
     </section>

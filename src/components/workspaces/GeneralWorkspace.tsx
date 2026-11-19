@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MobileTerminalShell } from "@/components/terminal/MobileTerminalShell";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { GeneralWorkspaceDock } from "@/components/workspaces/GeneralWorkspaceDock";
 import { GeneralWorkspacePane } from "@/components/workspaces/GeneralWorkspacePane";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -635,12 +636,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     global: true,
   });
 
-  if (!loaded)
-    return (
-      <p className="p-4" role="status">
-        Restoring workspace…
-      </p>
-    );
+  if (!loaded) return <LoadingStatus placement="workspace">Restoring workspace…</LoadingStatus>;
   const content = (
     <section
       className="flex h-full min-h-0 flex-col overflow-hidden"

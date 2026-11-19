@@ -122,7 +122,10 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     .mockResolvedValueOnce(Response.json(pending()));
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="selected-build" />);
-  expect(screen.getByText("Checking Claude connection…")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Checking Claude connection…");
+  expect(
+    screen.queryByText(/Connect your Claude account to this workspace/),
+  ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
   expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TemplateDetailClient } from "@/components/templates/TemplateDetailClient";
 import { TemplatesClient } from "@/components/templates/TemplatesClient";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import {
   Select,
   SelectContent,
@@ -28,11 +29,7 @@ export function TemplatesWindow({ userId, template }: { userId: string; template
     }
   }, [selected]);
   if (!query.data && query.isPending)
-    return (
-      <p role="status" className="p-4">
-        Loading templates…
-      </p>
-    );
+    return <LoadingStatus placement="window">Loading templates…</LoadingStatus>;
   if (!query.data)
     return (
       <div className="space-y-3 p-4">

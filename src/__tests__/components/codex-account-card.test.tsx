@@ -178,7 +178,10 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     .mockResolvedValueOnce(Response.json(status()));
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="selected-build" />);
-  expect(screen.getByText("Checking Codex connection…")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Checking Codex connection…");
+  expect(
+    screen.queryByText(/Connect the workspace’s managed Codex account/),
+  ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
   expect(await screen.findByText(/Codex connection is unavailable/)).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();

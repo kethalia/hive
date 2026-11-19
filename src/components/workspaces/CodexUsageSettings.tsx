@@ -3,6 +3,7 @@
 import { Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import {
   Select,
   SelectContent,
@@ -196,6 +197,13 @@ export function CodexUsageSettings({
     onAccountRefresh();
   }
 
+  if (!(section === "usage" ? usage : config) && !error)
+    return (
+      <LoadingStatus>
+        {section === "usage" ? "Loading usage…" : "Loading runtime settings…"}
+      </LoadingStatus>
+    );
+
   const locked = busy || disabled;
   return (
     <div className="@container min-w-0 space-y-4">
@@ -213,11 +221,6 @@ export function CodexUsageSettings({
           Refresh {section === "usage" ? "usage" : "settings"}
         </Button>
       </div>
-      {busy && !(section === "usage" ? usage : config) && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {section === "usage" ? "Loading usage…" : "Updating runtime settings…"}
-        </p>
-      )}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}

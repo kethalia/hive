@@ -150,6 +150,8 @@ export function CodexAccountCard({
     }
   }
 
+  if (checkingConnection) return <CheckingConnection provider="Codex" />;
+
   if (!showConnection)
     return status?.state === "signed-in" ? (
       children?.(status, { refresh: refreshStatus, busy })
@@ -164,7 +166,6 @@ export function CodexAccountCard({
           Connect the workspace’s managed Codex account with your ChatGPT sign-in.
         </p>
       )}
-      {checkingConnection && <CheckingConnection provider="Codex" />}
       {unavailable && !failure && (
         <p role="status" className="text-sm text-muted-foreground">
           Codex connection is unavailable. Check workspace bridge setup and refresh.
@@ -283,22 +284,20 @@ export function CodexAccountCard({
       )}
       {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
         <div className="flex flex-wrap gap-2">
-          {!checkingConnection && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || managementBusy}
-              onClick={refreshStatus}
-            >
-              {status && busy && pendingAction === "status" && (
-                <LoaderCircle
-                  aria-hidden="true"
-                  className="animate-spin motion-reduce:animate-none"
-                />
-              )}
-              Refresh status
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || managementBusy}
+            onClick={refreshStatus}
+          >
+            {status && busy && pendingAction === "status" && (
+              <LoaderCircle
+                aria-hidden="true"
+                className="animate-spin motion-reduce:animate-none"
+              />
+            )}
+            Refresh status
+          </Button>
           {status?.state === "pending" && expired && (
             <Button size="sm" variant="outline" disabled>
               Cancel sign-in

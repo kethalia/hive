@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import { listWorkspacesAction } from "@/lib/actions/workspaces";
 import { getSessionAction } from "@/lib/auth/actions";
 
-export default async function WorkspacesPage() {
+async function WorkspaceContent() {
   const [result, session] = await Promise.all([listWorkspacesAction(), getSessionAction()]);
   if (!session?.data?.user)
     return (
@@ -14,18 +15,18 @@ export default async function WorkspacesPage() {
       </p>
     );
   return (
-    <Suspense
-      fallback={
-        <p role="status" className="p-4">
-          Loading workspace…
-        </p>
-      }
-    >
-      <GeneralWorkspace
-        userId={session.data.user.id}
-        initialWorkspaces={result?.data ?? []}
-        error={result?.serverError}
-      />
+    <GeneralWorkspace
+      userId={session.data.user.id}
+      initialWorkspaces={result?.data ?? []}
+      error={result?.serverError}
+    />
+  );
+}
+
+export default function WorkspacesPage() {
+  return (
+    <Suspense fallback={<LoadingStatus placement="workspace">Restoring workspace…</LoadingStatus>}>
+      <WorkspaceContent />
     </Suspense>
   );
 }

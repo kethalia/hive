@@ -1,12 +1,23 @@
 "use client";
 
 import { BookMarked, Link2, Server } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useState } from "react";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
+import { CheckingConnection } from "@/components/workspaces/ConnectionStatus";
 import { useWorkspaceStart, WorkspaceTab } from "@/components/workspaces/WorkspaceTab";
 import type { CoderWorkspace } from "@/lib/coder/types";
-import { GitHubConnection } from "./GitHubConnection";
-import { ProjectBrowser } from "./ProjectBrowser";
+
+const GitHubConnection = dynamic(
+  () => import("./GitHubConnection").then((m) => m.GitHubConnection),
+  {
+    loading: () => <CheckingConnection provider="GitHub" />,
+  },
+);
+const ProjectBrowser = dynamic(() => import("./ProjectBrowser").then((m) => m.ProjectBrowser), {
+  loading: () => <LoadingStatus>Loading repositories…</LoadingStatus>,
+});
 
 const sections = [
   { id: "workspace", label: "Workspace", icon: <Server /> },

@@ -175,6 +175,8 @@ export function ClaudeAccountCard({
     });
   }
 
+  if (checkingConnection) return <CheckingConnection provider="Claude" />;
+
   return (
     <section className="space-y-4" aria-label="Workspace Claude account" aria-busy={busy}>
       {status?.state !== "pending" && status?.state !== "signed-in" && (
@@ -182,7 +184,6 @@ export function ClaudeAccountCard({
           Connect your Claude account to this workspace.
         </p>
       )}
-      {checkingConnection && <CheckingConnection provider="Claude" />}
       {unavailable && !failure && (
         <p role="status" className="text-sm text-muted-foreground">
           Claude connection is unavailable. Check workspace bridge setup and refresh.
@@ -317,25 +318,20 @@ export function ClaudeAccountCard({
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        {!checkingConnection && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              setFeedback(null);
-              void refresh();
-            }}
-          >
-            {status && busy && pendingAction === "status" && (
-              <LoaderCircle
-                aria-hidden="true"
-                className="animate-spin motion-reduce:animate-none"
-              />
-            )}
-            Refresh status
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            setFeedback(null);
+            void refresh();
+          }}
+        >
+          {status && busy && pendingAction === "status" && (
+            <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+          )}
+          Refresh status
+        </Button>
         {status &&
           status.state !== "busy" &&
           status.state !== "unknown" &&

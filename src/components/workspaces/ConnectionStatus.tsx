@@ -1,16 +1,12 @@
-import { Copy, LoaderCircle } from "lucide-react";
+import { Copy } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 
 export function CheckingConnection({ provider }: { provider: string }) {
-  return (
-    <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-      <LoaderCircle aria-hidden="true" className="size-4 animate-spin motion-reduce:animate-none" />
-      Checking {provider} connection…
-    </p>
-  );
+  return <LoadingStatus>Checking {provider} connection…</LoadingStatus>;
 }
 
 export function ConnectedAccount({

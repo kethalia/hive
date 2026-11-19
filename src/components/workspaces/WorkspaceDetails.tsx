@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import type { CoderWorkspace } from "@/lib/coder/types";
 
 interface BuildSnapshot {
@@ -145,7 +146,7 @@ export function WorkspaceDetails({
             </Button>
           </div>
         ) : !snapshot ? (
-          <p role="status">Loading build logs…</p>
+          <LoadingStatus>Loading build logs…</LoadingStatus>
         ) : !snapshot.logs.length ? (
           <p role="status">No output for this build yet.</p>
         ) : (

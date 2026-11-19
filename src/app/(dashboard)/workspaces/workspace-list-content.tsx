@@ -41,6 +41,7 @@ import {
   ListCardRows,
   ListCardTitle,
 } from "@/components/ui/list-card";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import {
   Select,
   SelectContent,
@@ -592,7 +593,13 @@ export function WorkspaceListContent({
                   data-testid="create-workspace-template"
                 >
                   <SelectValue
-                    placeholder={templatesLoading ? "Loading templates…" : "No templates loaded"}
+                    placeholder={
+                      templatesLoading ? (
+                        <LoadingStatus>Loading templates…</LoadingStatus>
+                      ) : (
+                        "No templates loaded"
+                      )
+                    }
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -621,11 +628,6 @@ export function WorkspaceListContent({
                     {selectedProfile.description}
                   </p>
                 </div>
-              ) : null}
-              {templatesLoading ? (
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Loader2 className="size-3 animate-spin" /> Loading templates…
-                </p>
               ) : null}
               {templatesError ? (
                 <p

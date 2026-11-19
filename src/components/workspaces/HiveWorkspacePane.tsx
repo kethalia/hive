@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Suspense, useId, useState } from "react";
+import { GitHubWindow } from "@/components/projects/GitHubWindow";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
@@ -20,9 +22,6 @@ import { TerminalSessionFrame } from "./TerminalSessionFrame";
 import { WorkspaceDetails, type WorkspaceOperationState } from "./WorkspaceDetails";
 import { WorkspacePicker } from "./WorkspacePicker";
 
-const GitHubWindow = dynamic(() =>
-  import("@/components/projects/GitHubWindow").then((m) => m.GitHubWindow),
-);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -52,12 +51,7 @@ function SettingsWindow({
     staleTime: 30_000,
     retry: false,
   });
-  if (query.isPending)
-    return (
-      <p role="status" className="p-4 text-sm">
-        Loading settings…
-      </p>
-    );
+  if (query.isPending) return <LoadingStatus placement="window">Loading settings…</LoadingStatus>;
   if (query.isError || !query.data)
     return (
       <div className="space-y-3 p-4">
@@ -171,9 +165,7 @@ export function HiveWorkspacePane({
     >
       <Suspense
         fallback={
-          <p role="status" className="p-4 text-sm">
-            Loading {hiveToolLabels[pane.tool].toLowerCase()}…
-          </p>
+          <LoadingStatus placement="window">Loading {hiveToolLabels[pane.tool]}…</LoadingStatus>
         }
       >
         {accountTool ? (
