@@ -15,7 +15,7 @@ The test workspace was `codex/hive-p04-discovery`, with an inactive preview temp
 
 To repeat the check, sign in to the preview as the workspace owner. Open **GitHub** with Cmd/Ctrl+K. The **Connection** tab shows the signed-in Coder user's GitHub status and works while the workspace is stopped. Choose **Connect GitHub** or **Reconnect GitHub**, enter the displayed code on GitHub, and return to Hive for confirmation. Reconnection applies to the GitHub identity Coder uses across that user's workspaces.
 
-In **Repositories**, choose the running enrolled workspace, search by repository name and expand **Repository details**. Search covers the pages loaded in the window. Existing P03 bridges can still serve provider account requests and require the P04 package for discovery.
+In **Workspace**, choose an enrolled workspace and start it if needed. Open **Repositories**, search by repository name and expand **Repository details**. Search covers the pages loaded in the window. Existing P03 bridges can still serve provider account requests and require the P04 package for discovery.
 
 ## GitHub connection acceptance
 

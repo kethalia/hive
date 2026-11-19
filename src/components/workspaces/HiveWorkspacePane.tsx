@@ -186,6 +186,7 @@ export function HiveWorkspacePane({
               userId={userId}
               workspaces={workspaces}
               workspace={projectWorkspace}
+              onStartWorkspace={onStartWorkspace}
               onWorkspaceChange={onWorkspaceChange}
               visible={visible}
               navigation={navigation}

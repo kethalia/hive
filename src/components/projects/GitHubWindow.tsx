@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BookMarked, Link2, RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { BookMarked, Link2, RefreshCw, Server } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
-import { WorkspacePicker } from "@/components/workspaces/WorkspacePicker";
+import { useWorkspaceStart, WorkspaceTab } from "@/components/workspaces/WorkspaceTab";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { ProjectBrowser } from "./ProjectBrowser";
 
@@ -31,6 +31,7 @@ async function connectionRequest<T>(body?: object, signal?: AbortSignal): Promis
   return response.json();
 }
 const sections = [
+  { id: "workspace", label: "Workspace", icon: <Server /> },
   { id: "connection", label: "Connection", icon: <Link2 /> },
   { id: "repositories", label: "Repositories", icon: <BookMarked /> },
 ] as const;
@@ -40,6 +41,7 @@ export function GitHubWindow({
   workspaces,
   workspace,
   onWorkspaceChange,
+  onStartWorkspace,
   visible,
   navigation,
 }: {
@@ -47,11 +49,12 @@ export function GitHubWindow({
   workspaces: CoderWorkspace[];
   workspace?: CoderWorkspace;
   onWorkspaceChange: (id: string) => void;
+  onStartWorkspace: (id: string) => Promise<void>;
   visible: boolean;
   navigation: PanelTabsNavigation;
 }) {
-  const picker = useRef<HTMLDivElement>(null);
-  const [section, setSection] = useState<"connection" | "repositories">("connection");
+  const startup = useWorkspaceStart(workspace, onStartWorkspace);
+  const [section, setSection] = useState<(typeof sections)[number]["id"]>("connection");
   const [pending, setPending] = useState<Attempt | null>(null);
   const [starting, setStarting] = useState(false);
   const [notice, setNotice] = useState("");
@@ -126,31 +129,39 @@ export function GitHubWindow({
       value={section}
       onChange={setSection}
       navigation={navigation}
-      busy={starting || !!pending}
+      busy={starting || !!pending || startup.starting}
     >
-      {section === "repositories" ? (
-        <div ref={picker} className="space-y-4">
-          <WorkspacePicker
-            label="Repository workspace"
-            workspaces={workspaces}
-            selected={workspace?.id}
-            onSelect={onWorkspaceChange}
+      {section === "workspace" ? (
+        <WorkspaceTab
+          workspaces={workspaces}
+          workspace={workspace}
+          starting={startup.starting}
+          startFailed={startup.startFailed}
+          onSelect={(item) => {
+            startup.clear();
+            onWorkspaceChange(item.id);
+          }}
+          onStart={(id) => void startup.start(id)}
+        />
+      ) : section === "repositories" ? (
+        workspace?.latest_build.status === "running" ? (
+          <ProjectBrowser
+            key={workspace.latest_build.id}
+            workspaceId={workspace.id}
+            enabled
+            visible={visible}
+            onSetup={(kind) => {
+              setSection(kind === "account" ? "connection" : "workspace");
+            }}
           />
-          {workspace?.latest_build.status === "running" ? (
-            <ProjectBrowser
-              key={workspace.latest_build.id}
-              workspaceId={workspace.id}
-              enabled
-              visible={visible}
-              onSetup={(kind) => {
-                if (kind === "account") setSection("connection");
-                else picker.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
-              }}
-            />
-          ) : (
+        ) : (
+          <div className="space-y-3">
             <p role="status">Choose a running Coder workspace to browse its GitHub repositories.</p>
-          )}
-        </div>
+            <Button variant="outline" onClick={() => setSection("workspace")}>
+              Review workspace setup
+            </Button>
+          </div>
+        )
       ) : (
         <section className="space-y-4" aria-label="GitHub connection">
           <h2 className="font-semibold">GitHub connection</h2>
