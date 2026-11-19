@@ -17,6 +17,12 @@ To repeat the check, sign in to the preview as the workspace owner. Open **GitHu
 
 In **Repositories**, choose the running enrolled workspace, search by repository name and expand **Repository details**. Search covers the pages loaded in the window. Existing P03 bridges can still serve provider account requests and require the P04 package for discovery.
 
+## GitHub connection acceptance
+
+The hosted preview showed the linked GitHub account while the dedicated repository workspace was stopped. In **Reconnect GitHub**, Hive issued a fresh device code, opened GitHub’s official verification page and waited for the account holder. After approval, Coder accepted the exchange and Hive read back the same GitHub username. The **Repositories** tab then passed search, identity details, loading a second page and refresh. The existing checkout retained its HEAD and uncommitted file.
+
+The initial **Connect GitHub** presentation used a simulated disconnected status against the hosted window to exercise issuance and cancellation while preserving the existing test-account link. Component tests exercised first-time approval and reconnection, including an intermediate pending poll. Route tests covered denied, expired and slowed exchanges, and rejection of attempts from a different session.
+
 ## P03 production check
 
 Production Hive build `e544006d-9940-4c52-ab11-ced82c588f97` accepted the Coder OAuth sign-in. In the isolated production-configured workspace `codex/hive-p03-prod-check`, both Codex and Claude reported signed out, returned their official sign-in prompts and confirmed cancellation. Completing provider consent, reconnect and signed-in usage were outside this production check. [P03 preview acceptance](../workspace-accounts/README.md)
