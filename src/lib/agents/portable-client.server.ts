@@ -43,6 +43,7 @@ export type AgentBridgeClientConfig = {
   profile: "software" | "browser" | "game" | "electronics" | "infrastructure";
   manifestSha256: string;
   previousManifestSha256?: string;
+  previousGitHubManifestSha256?: string;
   helperSha256: string;
 };
 export type AgentBridgeTransport = (
@@ -200,7 +201,8 @@ export class AgentBridgeClient {
         { proof, ...unsigned } = identity;
       if (
         (data.manifestSha256 !== this.config.manifestSha256 &&
-          data.manifestSha256 !== this.config.previousManifestSha256) ||
+          data.manifestSha256 !== this.config.previousManifestSha256 &&
+          data.manifestSha256 !== this.config.previousGitHubManifestSha256) ||
         data.configDigest !==
           digest({ ...this.config, manifestSha256: data.manifestSha256 }, data.environment) ||
         publicKey.asymmetricKeyType !== "ed25519" ||
@@ -222,7 +224,9 @@ export class AgentBridgeClient {
         throw new AgentBridgeError("unsupported");
       if (
         ["discover-projects", "github-connection"].includes(parsed.operation) &&
-        data.manifestSha256 !== this.config.manifestSha256
+        data.manifestSha256 !== this.config.manifestSha256 &&
+        (data.manifestSha256 !== this.config.previousGitHubManifestSha256 ||
+          (parsed.operation === "github-connection" && parsed.connection.action === "disconnect"))
       )
         throw new AgentBridgeError("unsupported");
       const next = packet(this.config, parsed, identity.lifetimeId);

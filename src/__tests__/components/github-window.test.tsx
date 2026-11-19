@@ -63,6 +63,12 @@ it.each([
   expect(await screen.findByText("TEST-CODE")).toBeInTheDocument();
   expect(screen.queryByText("@new-account")).not.toBeInTheDocument();
   expect(await screen.findByText("@new-account", {}, { timeout: 5000 })).toBeVisible();
+  const details = screen.getByRole("region", { name: "GitHub connection details" });
+  const card = details.querySelector("dl");
+  expect(card).toHaveClass("border");
+  expect(card).toContainElement(screen.getByText("@new-account"));
+  expect(screen.getByRole("heading", { name: "GitHub connection" }).closest(".border")).toBeNull();
+  expect(screen.getByText("Connected").closest(".border")).not.toBe(card);
   expect(checks).toBe(2);
 });
 
@@ -117,4 +123,35 @@ it("uses the Workspace tab to switch repositories to another workspace or start 
   fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
   expect(onStartWorkspace).toHaveBeenCalledWith("two");
   await screen.findByRole("button", { name: "Start workspace" });
+});
+
+it("offers workspace selection when the running helper cannot manage GitHub", async () => {
+  const workspace = {
+    id: "one",
+    name: "First",
+    latest_build: { id: "build-one", status: "running" },
+  } as CoderWorkspace;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ error: "unsupported_schema" }, { status: 502 })),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <GitHubWindow
+        userId="test"
+        workspaces={[workspace]}
+        workspace={workspace}
+        onWorkspaceChange={() => {}}
+        onStartWorkspace={async () => {}}
+        visible
+        navigation={{ id: "github", collapsed: false }}
+      />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Update the workspace template for First",
+  );
+  expect(screen.queryByText("Checking GitHub connection…")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Choose workspace" }));
+  expect(screen.getByRole("radio", { name: "First, running" })).toBeChecked();
 });

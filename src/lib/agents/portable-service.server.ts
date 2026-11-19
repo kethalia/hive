@@ -30,6 +30,7 @@ type Pin = {
   profile: AgentBridgeClientConfig["profile"];
   manifestSha256: string;
   previousManifestSha256?: string;
+  previousGitHubManifestSha256?: string;
   helperSha256: string;
 };
 export type AgentBridgeServiceConfig = {
@@ -135,6 +136,7 @@ export class AgentBridgeService {
         manifestSha256: pin.manifestSha256,
         helperSha256: pin.helperSha256,
         previousManifestSha256: pin.previousManifestSha256,
+        previousGitHubManifestSha256: pin.previousGitHubManifestSha256,
       };
       const client = new AgentBridgeClient(config, this.deps.transport(coder, before.binding));
       const result = await client.execute(

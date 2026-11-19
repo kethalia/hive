@@ -15,6 +15,10 @@ const pin = z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
+    previousGitHubManifestSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     helperSha256: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();

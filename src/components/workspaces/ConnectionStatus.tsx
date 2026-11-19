@@ -21,15 +21,12 @@ export function ConnectedAccount({
   plan?: string | null;
 }) {
   return (
-    <section
-      aria-label={`${provider} connection details`}
-      className="min-w-0 space-y-4 rounded-md border p-4 text-sm"
-    >
+    <section aria-label={`${provider} connection details`} className="min-w-0 space-y-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">{provider} connection</h2>
         <Badge>Connected</Badge>
       </div>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 rounded-md border p-4">
         <dt className="text-muted-foreground">Workspace</dt>
         <dd className="text-right [overflow-wrap:anywhere]">{workspace}</dd>
         {account && (

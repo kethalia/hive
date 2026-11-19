@@ -83,6 +83,7 @@ export function GitHubWindow({
         <GitHubConnection
           key={workspace.id + workspace.latest_build.id}
           workspace={workspace}
+          onChooseWorkspace={() => setSection("workspace")}
           userId={userId}
           visible={visible}
         />

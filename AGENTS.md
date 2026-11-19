@@ -20,6 +20,8 @@
   Preserve the last confirmed identity during a refresh and use one loading indicator per operation.
 - Reuse the workspace list and connection-state components across provider windows. Show the
   credential scope and the actions supported by that provider.
+- Place the connection heading and status tag on one row above the bordered details. Align labels
+  left and values right inside the card, with connection actions below it.
 
 ### Loading states
 

@@ -25,22 +25,26 @@ import type { CoderWorkspace } from "@/lib/coder/types";
 import { projectErrorCodeSchema, projectErrorMessages } from "@/lib/projects/contracts";
 import { type GitHubStatus, githubStatusSchema } from "@/lib/projects/github-connection";
 
+class WorkspaceUpdateRequired extends Error {}
+
 type Action = "status" | "start" | "cancel" | "disconnect" | "poll";
 export function GitHubConnection({
   workspace,
   userId,
   visible,
+  onChooseWorkspace,
 }: {
   workspace: CoderWorkspace;
   userId: string;
   visible: boolean;
+  onChooseWorkspace: () => void;
 }) {
   const client = useQueryClient();
   const workspaceId = workspace.id;
   const buildId = workspace.latest_build.id;
   const key = ["github-connection", userId, workspaceId, buildId];
   const [busy, setBusy] = useState<Action | null>(null);
-  const [failure, setFailure] = useState("");
+  const [failure, setFailure] = useState<Error | null>(null);
   const [disconnect, setDisconnect] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now);
   const lock = useRef(false);
@@ -62,6 +66,11 @@ export function GitHubConnection({
     const value = await r.json();
     if (!r.ok) {
       const code = projectErrorCodeSchema.safeParse(value.error);
+      if (code.success && code.data === "unsupported_schema") {
+        throw new WorkspaceUpdateRequired(
+          `Update the workspace template for ${workspace.name} to use this GitHub feature, or choose another workspace.`,
+        );
+      }
       throw new Error(
         code.success
           ? projectErrorMessages[code.data]
@@ -76,7 +85,18 @@ export function GitHubConnection({
       const previous = client.getQueryData<GitHubStatus>(queryKey);
       return previous?.pending
         ? request("poll", previous.revision, signal)
-        : request("status", undefined, signal);
+        : request(
+            "status",
+            undefined,
+            AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
+          ).catch((error) => {
+            if (error instanceof Error && error.name === "TimeoutError") {
+              throw new Error(
+                `Checking GitHub in ${workspace.name} timed out. Refresh to try again.`,
+              );
+            }
+            throw error;
+          });
     },
     enabled: visible && !busy,
     retry: false,
@@ -96,7 +116,7 @@ export function GitHubConnection({
     if (lock.current) return;
     lock.current = true;
     setBusy(action);
-    setFailure("");
+    setFailure(null);
     try {
       await client.cancelQueries({ queryKey: key, exact: true });
       const next = await request(action, revision);
@@ -109,8 +129,8 @@ export function GitHubConnection({
       if (mounted.current)
         setFailure(
           error instanceof Error
-            ? error.message
-            : "Could not confirm the operation. Refresh status.",
+            ? error
+            : new Error("Could not confirm the operation. Refresh status."),
         );
     } finally {
       lock.current = false;
@@ -120,14 +140,15 @@ export function GitHubConnection({
       }
     }
   }
-  const message = failure || error?.message;
+  const problem = failure ?? error;
+  const message = problem?.message;
   const refreshButton = (
     <Button
       size="sm"
       variant="outline"
       disabled={isFetching || !!busy}
       onClick={() => {
-        setFailure("");
+        setFailure(null);
         void refetch();
       }}
     >
@@ -258,7 +279,15 @@ export function GitHubConnection({
             </div>
           </>
         ))}
-      {(!data || pending) && message && refreshButton}
+      {problem instanceof WorkspaceUpdateRequired && (
+        <Button size="sm" variant="outline" onClick={onChooseWorkspace}>
+          Choose workspace
+        </Button>
+      )}
+      {(!data || pending) &&
+        message &&
+        !(problem instanceof WorkspaceUpdateRequired) &&
+        refreshButton}
     </section>
   );
 }

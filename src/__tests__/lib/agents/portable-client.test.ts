@@ -119,7 +119,9 @@ function fixture(
                   state: "signed-out",
                   pending: null,
                 }
-              : { message: "tracking installed" };
+              : claims.request.operation === "github-connection"
+                ? { revision: "initial", login: "octocat", pending: null, outcome: null }
+                : { message: "tracking installed" };
     const result = {
       schemaVersion: 1,
       requestId: claims.jti,
@@ -152,6 +154,29 @@ describe("portable agent client", () => {
     transport.mockClear();
     await expect(
       client.execute({ operation: "discover-projects", page: 1, perPage: 1 }),
+    ).rejects.toMatchObject({ code: "unsupported" });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads an explicitly pinned GitHub helper but requires the current helper for disconnect", async () => {
+    const { transport } = fixture();
+    const client = new AgentBridgeClient(
+      {
+        ...config,
+        previousGitHubManifestSha256: config.manifestSha256,
+        manifestSha256: "c".repeat(64),
+      },
+      transport,
+    );
+    await expect(
+      client.execute({ operation: "github-connection", connection: { action: "status" } }),
+    ).resolves.toMatchObject({ login: "octocat" });
+    transport.mockClear();
+    await expect(
+      client.execute({
+        operation: "github-connection",
+        connection: { action: "disconnect", revision: "initial" },
+      }),
     ).rejects.toMatchObject({ code: "unsupported" });
     expect(transport).toHaveBeenCalledTimes(1);
   });
