@@ -1,10 +1,9 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -14,15 +13,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { AccountChallengeExpiry } from "@/components/workspaces/AccountChallengeExpiry";
 import {
   CheckingConnection,
   ConnectedAccount,
   ConnectionProblem,
-  DeviceCode,
   DisconnectedAccount,
   RefreshConnectionButton,
 } from "@/components/workspaces/ConnectionStatus";
+import { DeviceSignIn } from "@/components/workspaces/PendingSignIn";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { projectErrorCodeSchema, projectErrorMessages } from "@/lib/projects/contracts";
 import { type GitHubStatus, githubStatusSchema } from "@/lib/projects/github-connection";
@@ -169,43 +167,16 @@ export function GitHubConnection({
       )}
       {data &&
         (pending ? (
-          <div className="mx-auto max-w-md space-y-4 text-center">
-            {now < pending.expiresAt && (
-              <>
-                <p className="text-sm text-muted-foreground">Enter this code on GitHub.</p>
-                <DeviceCode
-                  code={pending.code}
-                  expiresAt={pending.expiresAt}
-                  onExpired={() => void refetch()}
-                  disabled={!!busy}
-                />
-              </>
-            )}
-            <AccountChallengeExpiry
-              expiresAt={pending.expiresAt}
-              remaining={Math.max(0, Math.ceil((pending.expiresAt - now) / 1000))}
-            />
-            <div className="flex flex-wrap gap-2">
-              {now < pending.expiresAt && (
-                <a
-                  className={buttonVariants({ size: "sm" })}
-                  href="https://github.com/login/device"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  Open GitHub <ExternalLink aria-hidden />
-                </a>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!!busy}
-                onClick={() => void change("cancel", data.revision)}
-              >
-                Cancel sign-in
-              </Button>
-            </div>
-          </div>
+          <DeviceSignIn
+            provider="GitHub"
+            challenge={{ code: pending.code, url: "https://github.com/login/device" }}
+            expiresAt={pending.expiresAt}
+            remaining={Math.max(0, Math.ceil((pending.expiresAt - now) / 1000))}
+            cancelDisabled={!!busy}
+            cancelling={busy === "cancel"}
+            onCancel={() => void change("cancel", data.revision)}
+            onExpired={() => void refetch()}
+          />
         ) : (
           <>
             {data.login ? (

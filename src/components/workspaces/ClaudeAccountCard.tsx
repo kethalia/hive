@@ -1,9 +1,8 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,6 @@ import {
   useWorkspaceAccountConnection,
 } from "@/hooks/useWorkspaceAccountConnection";
 import { claudeAccountStatusSchema } from "@/lib/agents/claude-account-contracts";
-import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
 import {
   CheckingConnection,
   ConnectedAccount,
@@ -27,6 +25,7 @@ import {
   DisconnectedAccount,
   RefreshConnectionButton,
 } from "./ConnectionStatus";
+import { PendingSignIn, SignInLink } from "./PendingSignIn";
 
 export function ClaudeAccountCard({
   workspaceId,
@@ -74,7 +73,6 @@ export function ClaudeAccountCard({
     generation: number;
   } | null>(null);
   const codeId = useId();
-  const codeHintId = useId();
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
@@ -228,175 +226,176 @@ export function ClaudeAccountCard({
                 : "Use your Claude sign-in in this workspace."}
         </DisconnectedAccount>
       )}
-      {status?.state === "pending" && (
-        <div className="space-y-3">
-          {status.pending && expiresIn !== null && (
-            <AccountChallengeExpiry expiresAt={status.pending.expiresAt} remaining={expiresIn} />
-          )}
-          {expired ? (
-            <p role="status" className="text-sm">
-              The sign-in window expired. Refresh status to continue.
-            </p>
-          ) : status.pending ? (
-            <>
-              <h3 className="text-sm font-medium">Sign in to Claude</h3>
-              <a
-                ref={continueLink}
-                href={status.pending.verificationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(event) => {
-                  if (status.pending && status.pending.expiresAt <= Date.now()) {
-                    event.preventDefault();
-                    void refresh();
-                  }
-                }}
-                className={buttonVariants({ size: "sm" })}
-              >
-                Open official Claude sign-in
-                <ExternalLink aria-hidden="true" className="size-4" />
-              </a>
-              {status.pending.codeSubmitted ? (
-                <p role="status" className="text-sm">
-                  Code submitted. Waiting for the official CLI to finish.
-                </p>
-              ) : (
-                <form
-                  className="space-y-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    submitCode();
-                  }}
-                >
-                  <label htmlFor={codeId} className="block text-sm">
-                    One-time sign-in code
-                  </label>
-                  <Input
-                    id={codeId}
-                    type="password"
-                    value={code}
-                    maxLength={2048}
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    aria-describedby={codeHintId}
-                    disabled={blocked || codeLocked}
-                    onChange={(event) => setInput({ attempt, code: event.target.value })}
-                  />
-                  <p id={codeHintId} className="text-xs text-muted-foreground">
-                    Paste the one-time code from Claude after completing sign-in.
-                  </p>
+      {status?.state === "pending" &&
+        (status.pending ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitCode();
+            }}
+          >
+            <PendingSignIn
+              instructions={
+                expired || status.pending.codeSubmitted
+                  ? undefined
+                  : "Open Claude, then paste the code here."
+              }
+              expiresAt={status.pending.expiresAt}
+              remaining={expiresIn ?? 0}
+              primaryAction={
+                !expired && !status.pending.codeSubmitted ? (
                   <Button
                     type="submit"
                     size="sm"
                     disabled={blocked || codeLocked || !/^[!-~]{1,2048}$/.test(code)}
                   >
-                    Submit code once
+                    Submit code
                   </Button>
-                  {codeLocked && (
-                    <p role="status" className="text-sm">
-                      Code submission is awaiting confirmation. Refresh status to check its
-                      progress.
-                    </p>
-                  )}
-                </form>
+                ) : undefined
+              }
+              cancelDisabled={blocked || expired}
+              cancelling={pendingAction === "cancel"}
+              onCancel={() => void mutate("cancel")}
+            >
+              {expired ? null : status.pending.codeSubmitted ? (
+                <p role="status" className="text-sm">
+                  Code submitted. Waiting for Claude.
+                </p>
+              ) : (
+                <>
+                  <div className="[&>a]:w-full">
+                    <SignInLink
+                      ref={continueLink}
+                      provider="Claude"
+                      href={status.pending.verificationUrl}
+                      expiresAt={status.pending.expiresAt}
+                      onExpired={() => void refresh()}
+                    />
+                  </div>
+                  <div className="space-y-2 text-left">
+                    <label htmlFor={codeId} className="block text-sm">
+                      One-time sign-in code
+                    </label>
+                    <Input
+                      id={codeId}
+                      type="password"
+                      value={code}
+                      maxLength={2048}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      disabled={blocked || codeLocked}
+                      onChange={(event) => setInput({ attempt, code: event.target.value })}
+                    />
+                    {codeLocked && (
+                      <p role="status" className="text-sm">
+                        Code submission is awaiting confirmation. Refresh status to check its
+                        progress.
+                      </p>
+                    )}
+                  </div>
+                </>
               )}
-            </>
-          ) : (
-            <p role="status" className="text-sm">
+            </PendingSignIn>
+          </form>
+        ) : (
+          <PendingSignIn
+            cancelDisabled={blocked}
+            cancelling={pendingAction === "cancel"}
+            onCancel={() => void mutate("cancel")}
+          >
+            <p role="status" className="text-sm text-muted-foreground">
               Getting Claude sign-in ready…
             </p>
-          )}
+          </PendingSignIn>
+        ))}
+      {(status?.state !== "pending" ||
+        expired ||
+        failure ||
+        codeLocked ||
+        disconnect?.scope === scope ||
+        !status.pending ||
+        status.pending.codeSubmitted) && (
+        <div className="flex flex-wrap gap-2">
+          <RefreshConnectionButton
+            disabled={busy}
+            refreshing={busy && pendingAction === "status"}
+            onClick={() => {
+              setFeedback(null);
+              void refresh();
+            }}
+          />
+          {status &&
+            status.state !== "busy" &&
+            status.state !== "unknown" &&
+            status.state !== "pending" &&
+            !failure && (
+              <Button
+                ref={connectButton}
+                variant={status.state === "signed-in" ? "outline" : "default"}
+                size="sm"
+                disabled={blocked}
+                onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
+              >
+                {pendingAction === "connect" || pendingAction === "reconnect"
+                  ? "Starting…"
+                  : status.state === "signed-in"
+                    ? "Reconnect"
+                    : "Connect Claude"}
+              </Button>
+            )}
+          <Dialog
+            open={disconnect?.scope === scope}
+            onOpenChange={(open) => {
+              if (!busy)
+                setDisconnect(
+                  open && status?.state === "signed-in"
+                    ? { scope, lifetimeId: status.lifetimeId, generation: status.generation }
+                    : null,
+                );
+            }}
+          >
+            {status?.state === "signed-in" && (
+              <DialogTrigger render={<Button size="sm" variant="destructive" disabled={blocked} />}>
+                Disconnect
+              </DialogTrigger>
+            )}
+            <DialogContent
+              showCloseButton={!busy}
+              finalFocus={() =>
+                status?.state === "signed-in" ? true : (connectButton.current ?? false)
+              }
+            >
+              <DialogHeader>
+                <DialogTitle>Disconnect Claude?</DialogTitle>
+                <DialogDescription>
+                  This signs Claude out of {workspaceName}. Active Claude work may be interrupted.
+                  You can reconnect when you’re ready.
+                </DialogDescription>
+              </DialogHeader>
+              {disconnectStale && (
+                <p role="alert" className="text-sm">
+                  The account connection changed. Close this dialog and refresh status before
+                  disconnecting.
+                </p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" disabled={busy} onClick={() => setDisconnect(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={blocked || disconnectStale}
+                  onClick={() => void mutate("disconnect")}
+                >
+                  {pendingAction === "disconnect" ? "Disconnecting…" : "Disconnect Claude"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        <RefreshConnectionButton
-          disabled={busy}
-          refreshing={busy && pendingAction === "status"}
-          onClick={() => {
-            setFeedback(null);
-            void refresh();
-          }}
-        />
-        {status &&
-          status.state !== "busy" &&
-          status.state !== "unknown" &&
-          !failure &&
-          (status.state === "pending" ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={blocked || expired}
-              onClick={() => void mutate("cancel")}
-            >
-              {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
-            </Button>
-          ) : (
-            <Button
-              ref={connectButton}
-              variant={status.state === "signed-in" ? "outline" : "default"}
-              size="sm"
-              disabled={blocked}
-              onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
-            >
-              {pendingAction === "connect" || pendingAction === "reconnect"
-                ? "Starting…"
-                : status.state === "signed-in"
-                  ? "Reconnect"
-                  : "Connect Claude"}
-            </Button>
-          ))}
-        <Dialog
-          open={disconnect?.scope === scope}
-          onOpenChange={(open) => {
-            if (!busy)
-              setDisconnect(
-                open && status?.state === "signed-in"
-                  ? { scope, lifetimeId: status.lifetimeId, generation: status.generation }
-                  : null,
-              );
-          }}
-        >
-          {status?.state === "signed-in" && (
-            <DialogTrigger render={<Button size="sm" variant="destructive" disabled={blocked} />}>
-              Disconnect
-            </DialogTrigger>
-          )}
-          <DialogContent
-            showCloseButton={!busy}
-            finalFocus={() =>
-              status?.state === "signed-in" ? true : (connectButton.current ?? false)
-            }
-          >
-            <DialogHeader>
-              <DialogTitle>Disconnect Claude?</DialogTitle>
-              <DialogDescription>
-                This signs Claude out of {workspaceName}. Active Claude work may be interrupted. You
-                can reconnect when you’re ready.
-              </DialogDescription>
-            </DialogHeader>
-            {disconnectStale && (
-              <p role="alert" className="text-sm">
-                The account connection changed. Close this dialog and refresh status before
-                disconnecting.
-              </p>
-            )}
-            <DialogFooter>
-              <Button variant="outline" disabled={busy} onClick={() => setDisconnect(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={blocked || disconnectStale}
-                onClick={() => void mutate("disconnect")}
-              >
-                {pendingAction === "disconnect" ? "Disconnecting…" : "Disconnect Claude"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
     </section>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -21,15 +20,14 @@ import {
   type CodexAccountStatus,
   codexAccountStatusSchema,
 } from "@/lib/agents/codex-account-contracts";
-import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
 import {
   CheckingConnection,
   ConnectedAccount,
   ConnectionProblem,
-  DeviceCode,
   DisconnectedAccount,
   RefreshConnectionButton,
 } from "./ConnectionStatus";
+import { DeviceSignIn } from "./PendingSignIn";
 
 export function CodexAccountCard({
   workspaceId,
@@ -206,71 +204,24 @@ export function CodexAccountCard({
                 : "Use your ChatGPT sign-in in this workspace."}
         </DisconnectedAccount>
       )}
-      {status?.state === "pending" && (
-        <div className="mx-auto max-w-md space-y-4 text-center">
-          {expired ? (
-            <>
-              {status.pending && (
-                <AccountChallengeExpiry expiresAt={status.pending.expiresAt} remaining={0} />
-              )}
-              <p role="status" className="text-sm">
-                The sign-in window expired. Refresh status to continue.
-              </p>
-            </>
-          ) : status.pending ? (
-            <>
-              <p className="text-sm text-muted-foreground">Enter this code on OpenAI.</p>
-              <DeviceCode
-                code={status.pending.userCode}
-                expiresAt={status.pending.expiresAt}
-                disabled={blocked}
-                onExpired={refreshStatus}
-              />
-              {expiresIn !== null && (
-                <div className="flex items-center gap-2 before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
-                  <AccountChallengeExpiry
-                    expiresAt={status.pending.expiresAt}
-                    remaining={expiresIn}
-                  />
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  ref={continueLink}
-                  href={status.pending.verificationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(event) => {
-                    if (status.pending && status.pending.expiresAt <= Date.now()) {
-                      event.preventDefault();
-                      void refresh();
-                    }
-                  }}
-                  className={buttonVariants({
-                    size: "sm",
-                    className: "h-auto min-h-10 flex-1 whitespace-normal py-2",
-                  })}
-                >
-                  Open OpenAI
-                  <ExternalLink aria-hidden="true" className="size-4" />
-                </a>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={blocked}
-                  onClick={() => void mutate("cancel")}
-                >
-                  {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <p role="status" className="text-sm">
-              Getting Codex sign-in ready…
-            </p>
-          )}
-        </div>
-      )}
+      {status?.state === "pending" &&
+        (status.pending ? (
+          <DeviceSignIn
+            provider="OpenAI"
+            challenge={{ code: status.pending.userCode, url: status.pending.verificationUrl }}
+            expiresAt={status.pending.expiresAt}
+            remaining={expiresIn ?? 0}
+            cancelDisabled={blocked || expired}
+            cancelling={pendingAction === "cancel"}
+            onCancel={() => void mutate("cancel")}
+            onExpired={refreshStatus}
+            linkRef={continueLink}
+          />
+        ) : (
+          <p role="status" className="text-sm text-muted-foreground">
+            Getting Codex sign-in ready…
+          </p>
+        ))}
       {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
         <div className="flex flex-wrap gap-2">
           <RefreshConnectionButton
@@ -278,11 +229,6 @@ export function CodexAccountCard({
             refreshing={busy && pendingAction === "status"}
             onClick={refreshStatus}
           />
-          {status?.state === "pending" && expired && (
-            <Button size="sm" variant="outline" disabled>
-              Cancel sign-in
-            </Button>
-          )}
           {status &&
             status.state !== "busy" &&
             status.state !== "unknown" &&
