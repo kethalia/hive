@@ -100,7 +100,7 @@ async function snapshot(schema: string, baseline: 7 | 11 = 7) {
   }
   return result;
 }
-suite("twelve-migration cutover and runtime permissions", () => {
+suite("thirteen-migration cutover and runtime permissions", () => {
   it("fresh + seeded seven/eleven-migration upgrades preserve bytes and enforce runtime/constraint boundaries", async () => {
     const identity = JSON.parse(
       await sql(
@@ -124,7 +124,7 @@ suite("twelve-migration cutover and runtime permissions", () => {
       const names = (await readdir(resolve(root, "packages/db/prisma/migrations")))
         .filter((name) => name !== "migration_lock.toml")
         .sort();
-      expect(names).toHaveLength(12);
+      expect(names).toHaveLength(13);
       await mkdir(join(temp, "migrations"));
       await cp(schemaPath, join(temp, "schema.prisma"));
       await cp(

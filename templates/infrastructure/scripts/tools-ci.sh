@@ -39,13 +39,17 @@ install_if_missing() {
 # persistent home without requiring root or privilege escalation.
 mkdir -p "$HOME/.local/bin" "$HOME/.local/libexec"
 # shellcheck disable=SC2016 # The command is intentionally evaluated after Terraform rendering.
-install_if_missing "GitHub CLI" "" "$HOME/.local/libexec/gh" '
+gh_executable="$HOME/.local/libexec/gh"
+if [ -d /etc/hive-github ]; then
+  gh_executable="$HOME/.local/libexec/gh-app-client"
+fi
+install_if_missing "GitHub CLI" "" "$gh_executable" '
   GH_VERSION=2.96.0 &&
   GH_ARCHIVE="gh_$${GH_VERSION}_linux_amd64.tar.gz" &&
   curl -fsSLo "/tmp/$${GH_ARCHIVE}" "https://github.com/cli/cli/releases/download/v$${GH_VERSION}/$${GH_ARCHIVE}" &&
   printf "%s  %s\n" "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60" "/tmp/$${GH_ARCHIVE}" | sha256sum --check --status &&
   tar -xzf "/tmp/$${GH_ARCHIVE}" -C /tmp &&
-  install -m 0755 "/tmp/gh_$${GH_VERSION}_linux_amd64/bin/gh" "$HOME/.local/libexec/gh" &&
+  install -m 0755 "/tmp/gh_$${GH_VERSION}_linux_amd64/bin/gh" "$gh_executable" &&
   rm -rf "/tmp/$${GH_ARCHIVE}" "/tmp/gh_$${GH_VERSION}_linux_amd64"
 '
 
@@ -54,6 +58,12 @@ printf '%s' "${github_cli_script_b64}" | base64 -d > "$HOME/.local/bin/gh"
 chmod +x "$HOME/.local/bin/gh"
 printf '%s' "${github_credential_script_b64}" | base64 -d > "$HOME/.local/bin/coder-github-credential"
 chmod +x "$HOME/.local/bin/coder-github-credential"
+printf '%s' "${github_app_helper_b64}" | base64 -d > "$HOME/.local/libexec/hive-github-app"
+chmod +x "$HOME/.local/libexec/hive-github-app"
+if [ -d /etc/hive-github ]; then
+  ln -sf "$HOME/.local/bin/gh" "$HOME/.local/libexec/gh"
+  configure_git_global --replace-all credential.https://github.com.useHttpPath true
+fi
 configure_git_global --replace-all credential.https://github.com.helper "$HOME/.local/bin/coder-github-credential"
 
 printf '%s' "${clone_repositories_script_b64}" | base64 -d > "$HOME/clone-repositories.sh"
@@ -83,6 +93,9 @@ if [ "$HIVE_WORKSPACE_PROFILE" = "software" ]; then
   printf '%s' "${workspace_lifecycle_script_b64}" | base64 -d > "$workspace_helper"
   chmod 755 "$workspace_helper"
   mv -fT -- "$workspace_helper" "$HOME/.local/bin/hive-workspace"
+fi
+if [ -d /etc/hive-github ]; then
+  exit 0
 fi
 export GH_TOKEN="${github_token}"
 "$HOME/clone-repositories.sh"

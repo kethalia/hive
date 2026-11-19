@@ -63,11 +63,11 @@ test("only the software profile provisions owner login and bypasses specialist c
     const login = tf.split('module "coder-login" {')[1].split("\n}")[0];
     assert.match(
       login,
-      /count\s*=\s*local\.profile\.id == "software" \? data\.coder_workspace\.me\.start_count : 0/,
+      /count\s*=\s*local\.profile\.id == "software" && !var\.hive_scoped_github \? data\.coder_workspace\.me\.start_count : 0/,
     );
     assert.match(
       tf,
-      /command\s*=\s*\["sh", "-c", local\.profile\.id == "software" \? coder_agent\.main\.init_script : templatefile/,
+      /command\s*=\s*\["sh", "-c", var\.hive_scoped_github \? templatefile[\s\S]+?\}\) : local\.profile\.id == "software" \? coder_agent\.main\.init_script : templatefile/,
     );
     assert.equal(
       readFileSync(`templates/${name}/scripts/coder-credential-cleanup.py`, "utf8"),

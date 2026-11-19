@@ -34,7 +34,7 @@
     "alias": "https://codex-github-projects-p04-hive.b00ste.workers.dev",
     "databaseName": "hive_workspace_accounts_preview",
     "databaseRole": "hive_accounts_runtime",
-    "schemaMigrations": 12,
+    "schemaMigrations": 13,
     "coderOAuthEnabled": true,
     "workspaceAccounts": true,
     "projectDiscovery": true

@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+if [ -d /etc/hive-github ]; then
+  exec "$HOME/.local/libexec/hive-github-app" cli "$@"
+fi
+
 real_gh="${GH_REAL_BIN:-$HOME/.local/libexec/gh}"
 if [ ! -x "$real_gh" ]; then
   printf 'GitHub CLI binary not found: %s\n' "$real_gh" >&2

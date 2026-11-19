@@ -29,10 +29,12 @@ type Action = "status" | "start" | "cancel" | "disconnect" | "poll";
 export function GitHubConnection({
   workspace,
   userId,
+  onManage,
   visible,
 }: {
   workspace: CoderWorkspace;
   userId: string;
+  onManage: () => void;
   visible: boolean;
 }) {
   const client = useQueryClient();
@@ -68,6 +70,14 @@ export function GitHubConnection({
           : "Could not check the workspace GitHub connection. Refresh to try again.",
       );
     }
+    if (action === "status" && value?.managed === true)
+      return {
+        managed: true as const,
+        revision: "initial",
+        login: null,
+        pending: null,
+        outcome: null,
+      };
     return githubStatusSchema.parse(value);
   }
   const { data, error, refetch, isFetching } = useQuery({
@@ -134,6 +144,18 @@ export function GitHubConnection({
       Refresh status
     </Button>
   );
+  if (data && "managed" in data)
+    return (
+      <section className="space-y-4">
+        <h2 className="font-semibold">GitHub App</h2>
+        <p>
+          Repository access for {workspace.name} is managed through its GitHub App installation.
+        </p>
+        <Button variant="outline" onClick={onManage}>
+          Manage permissions
+        </Button>
+      </section>
+    );
   return (
     <section
       className="space-y-4"
