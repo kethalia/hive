@@ -503,7 +503,10 @@ describe("workspace tool windows", () => {
     expect(
       await within(codex).findByText("Loaded Codex account for second/started-build"),
     ).toBeVisible();
-    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({ workspaceId: "second" });
+    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: "second",
+      waitForAgent: true,
+    });
     expect(within(claude).getByRole("combobox", { name: "Account workspace" })).toHaveTextContent(
       "ai-dev-01",
     );

@@ -420,11 +420,15 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     new Map<string, Promise<{ buildId: string; workspaces: CoderWorkspace[] }>>(),
   );
   const startAndRefresh = useCallback(
-    (workspaceId: string) => {
-      const pending = starts.current.get(workspaceId);
+    (workspaceId: string, waitForAgent = false) => {
+      const key = `${workspaceId}:${waitForAgent}`;
+      const pending = starts.current.get(key);
       if (pending) return pending;
       const start = (async () => {
-        const result = await startWorkspaceAction({ workspaceId });
+        const result = await startWorkspaceAction({
+          workspaceId,
+          ...(waitForAgent ? { waitForAgent: true } : {}),
+        });
         if (!result?.data) {
           void workspaceQuery.refresh().catch(() => {});
           throw new Error(result?.serverError ?? "Could not start workspace.");
@@ -432,8 +436,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         const workspaces = await workspaceQuery.refresh();
         window.dispatchEvent(new Event("hive:discovery-refresh"));
         return { buildId: result.data.buildId, workspaces };
-      })().finally(() => starts.current.delete(workspaceId));
-      starts.current.set(workspaceId, start);
+      })().finally(() => starts.current.delete(key));
+      starts.current.set(key, start);
       return start;
     },
     [workspaceQuery.refresh],
@@ -699,7 +703,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                   onClose={() => closeWindow(b.key, pane.id)}
                   onCycleWidth={onCycleWidth}
                   onStartWorkspace={async (workspaceId) => {
-                    const { buildId, workspaces } = await startAndRefresh(workspaceId);
+                    const { buildId, workspaces } = await startAndRefresh(workspaceId, true);
                     const latest = workspaces.find((w) => w.id === workspaceId)?.latest_build;
                     if (latest?.status !== "running" || latest.id !== buildId)
                       throw new Error("The workspace build changed before Hive could open it.");

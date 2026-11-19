@@ -84,6 +84,7 @@ export interface WorkspaceAgent {
   id: string;
   name: string;
   status: WorkspaceAgentStatus;
+  lifecycle_state?: string;
 }
 
 /** A resource provisioned by a workspace build (compute, volume, etc.). */
