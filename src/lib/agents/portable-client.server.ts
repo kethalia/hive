@@ -225,8 +225,7 @@ export class AgentBridgeClient {
       if (
         ["discover-projects", "github-connection"].includes(parsed.operation) &&
         data.manifestSha256 !== this.config.manifestSha256 &&
-        (data.manifestSha256 !== this.config.previousGitHubManifestSha256 ||
-          (parsed.operation === "github-connection" && parsed.connection.action === "disconnect"))
+        data.manifestSha256 !== this.config.previousGitHubManifestSha256
       )
         throw new AgentBridgeError("unsupported");
       const next = packet(this.config, parsed, identity.lifetimeId);

@@ -32,6 +32,10 @@ export const CLAUDE_RELEASES = Object.freeze({
     size: 371429904,
     sha256: "b6b3647d981130dc44fc670846ae97b6cde531ffb667cf9c4d17cfcafb38cb37",
   },
+  "2.1.328": {
+    size: 373019152,
+    sha256: "a982d38030b97e750848add2cbb2df6d9a70d5544a22ca9b216a349ba25865e8",
+  },
 });
 const verified = new Map();
 export function verifyClaudeExecutable(home) {

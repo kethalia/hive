@@ -158,7 +158,7 @@ describe("portable agent client", () => {
     expect(transport).toHaveBeenCalledTimes(1);
   });
 
-  it("reads an explicitly pinned GitHub helper but requires the current helper for disconnect", async () => {
+  it("preserves GitHub operations on an explicitly compatible previous helper", async () => {
     const { transport } = fixture();
     const client = new AgentBridgeClient(
       {
@@ -177,8 +177,8 @@ describe("portable agent client", () => {
         operation: "github-connection",
         connection: { action: "disconnect", revision: "initial" },
       }),
-    ).rejects.toMatchObject({ code: "unsupported" });
-    expect(transport).toHaveBeenCalledTimes(1);
+    ).resolves.toMatchObject({ revision: "initial" });
+    expect(transport).toHaveBeenCalledTimes(2);
   });
 
   it("keeps old runtime operations usable while refusing unsupported management before submission", async () => {
