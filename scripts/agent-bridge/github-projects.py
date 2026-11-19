@@ -5,10 +5,16 @@ Protocol: stdin {schemaVersion:1,page?:1,perPage?:100}; stdout one JSON result.
 Pagination is explicit. Search belongs over the caller's owner-scoped page cache,
 not GitHub's public repository search. No request may choose an API origin/provider.
 
-Sources: https://coder.com/docs/reference/cli/external-auth/access-token
+Sources: https://cli.github.com/manual/gh_auth_login
 https://docs.github.com/en/rest/repos/repos#list-repositories-for-the-authenticated-user
 Invoked by the signed workspace bridge.
 """
+import fcntl
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import uuid
 import json
 import os
 import re
@@ -50,59 +56,195 @@ def request_parameters(value):
     return page, per_page
 
 
-def agent_token():
-    token = os.environ.get("CODER_AGENT_TOKEN", "")
-    path = os.environ.get("CODER_AGENT_TOKEN_FILE")
-    if path:
-        try:
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            with os.fdopen(fd, "rb") as stream:
-                info = os.fstat(fd)
-                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
-                        info.st_mode & 0o077 or info.st_uid not in (0, os.getuid())):
-                    raise DiscoveryError("workspace_agent_required")
-                data = stream.read(TOKEN_LIMIT + 1)
-                file_token = data.decode("ascii").strip()
-                if len(data) > TOKEN_LIMIT or (token and token != file_token):
-                    raise DiscoveryError("workspace_agent_required")
-                token = file_token
-        except (OSError, UnicodeError):
-            raise DiscoveryError("workspace_agent_required") from None
-    if not re.fullmatch(r"[!-~]{1,4096}", token):
+def state_directory():
+    workspace = os.environ["HIVE_GITHUB_WORKSPACE"]
+    if not re.fullmatch(r"[a-f0-9-]{36}", workspace):
         raise DiscoveryError("workspace_agent_required")
-    return token
+    directory = Path.home() / ".local/state/hive/github" / workspace
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = directory.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise DiscoveryError("workspace_agent_required")
+    return directory
 
 
-def external_token():
-    # Match the bootstrap-verified Coder origin. Only the workspace agent's
-    # external-auth endpoint can supply this owner's GitHub connection.
-    origin = os.environ.get("HIVE_CODER_ORIGIN", "")
-    if (not re.fullmatch(r"https://[a-z0-9.-]+(?::[0-9]+)?", origin) or
-            origin != os.environ.get("CODER_AGENT_URL", "").rstrip("/")):
-        raise DiscoveryError("workspace_agent_required")
-    request = urllib.request.Request(
-        origin + "/api/v2/workspaceagents/me/external-auth?id=github",
-        headers={"Coder-Session-Token": agent_token(), "Accept": "application/json"},
-    )
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+def read_state(directory):
     try:
-        with opener.open(request, timeout=TIMEOUT) as response:
-            raw = response.read(16385)
-            if len(raw) > 16384:
-                raise DiscoveryError("external_auth_invalid_response")
-            result = json.loads(raw)
-    except (TimeoutError, urllib.error.URLError):
-        raise DiscoveryError("external_auth_unavailable") from None
-    except (UnicodeError, ValueError):
-        raise DiscoveryError("external_auth_invalid_response") from None
-    if not isinstance(result, dict):
-        raise DiscoveryError("external_auth_invalid_response")
-    if result.get("url"):
-        raise DiscoveryError("github_auth_required")
-    token = result.get("access_token")
-    if not isinstance(token, str) or len(token) > TOKEN_LIMIT or not re.fullmatch(r"[A-Za-z0-9._~+/-]+=*", token):
-        raise DiscoveryError("external_auth_invalid_response")
+        with (directory / "connection.json").open() as stream:
+            return json.load(stream)
+    except FileNotFoundError:
+        return {"revision": "initial"}
+
+
+def save_state(directory, state):
+    with tempfile.NamedTemporaryFile(mode="w", dir=directory, delete=False) as stream:
+        try:
+            json.dump(state, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+            os.replace(stream.name, directory / "connection.json")
+        finally:
+            Path(stream.name).unlink(missing_ok=True)
+
+
+def cli(config=None):
+    binary = Path.home() / ".local/libexec/gh"
+    if not binary.is_file():
+        binary = shutil.which("gh", path="/usr/local/bin:/usr/bin:/bin")
+    if not binary:
+        raise DiscoveryError("workspace_agent_required")
+    env = {"HOME": str(Path.home()), "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": "C",
+           "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "BROWSER": "/bin/true"}
+    if config:
+        env["GH_CONFIG_DIR"] = str(config)
+    return str(binary), env
+
+
+def gh_run(args, config=None, input_data=None):
+    binary, env = cli(config)
+    return subprocess.run([binary, *args], env=env, input=input_data or b"",
+                          capture_output=True, timeout=TIMEOUT)
+
+
+def cli_token(config=None):
+    result = gh_run(["auth", "token", "--hostname", "github.com"], config)
+    if result.returncode:
+        return None
+    token = result.stdout.strip().decode("ascii")
+    if not re.fullmatch(r"[A-Za-z0-9._~-]{1,4096}", token):
+        raise DiscoveryError("github_invalid_response")
     return token
+
+
+def workspace_token():
+    token = cli_token()
+    if not token:
+        raise DiscoveryError("github_auth_required")
+    return token
+
+
+# The helper is launched once per bridge operation. A short-lived supervisor owns
+# the real CLI process between requests. Its output stays private to the attempt.
+LOGIN_DRIVER = """
+import os, pathlib, signal, subprocess, sys, time
+stage = pathlib.Path(sys.argv[1])
+with (stage / 'prompt').open('xb') as output:
+    child = subprocess.Popen([sys.argv[2], 'auth', 'login', '--hostname', 'github.com',
+                              '--git-protocol', 'https', '--web', '--insecure-storage'],
+                             stdin=subprocess.DEVNULL, stdout=output, stderr=output)
+try:
+    end = time.monotonic() + 900
+    while child.poll() is None and stage.exists() and time.monotonic() < end:
+        time.sleep(0.25)
+finally:
+    if child.poll() is None:
+        child.kill()
+    child.wait()
+    if stage.exists():
+        (stage / 'done').write_text(str(child.returncode))
+"""
+
+
+def start_cli(directory):
+    stage = Path(tempfile.mkdtemp(prefix="login-", dir=directory))
+    binary, env = cli(stage)
+    try:
+        child = subprocess.Popen([sys.executable, "-I", "-c", LOGIN_DRIVER, str(stage), binary],
+                                 env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+        deadline = time.monotonic() + TIMEOUT
+        while child.poll() is None and time.monotonic() < deadline:
+            prompt = stage / "prompt"
+            if prompt.exists():
+                with prompt.open("rb") as stream:
+                    text = stream.read(4096)
+                match = re.search(rb"one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b", text)
+                if match and b"https://github.com/login/device" in text:
+                    return {"stage": stage.name, "code": match[1].decode(),
+                            "expiresAt": int(time.time() * 1000) + 900000, "interval": 3}
+            time.sleep(0.1)
+        raise DiscoveryError("github_unavailable")
+    except BaseException:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+
+def native_identity():
+    token = cli_token()
+    if not token:
+        return None
+    try:
+        identity, _ = github_json(token, "/user")
+    except DiscoveryError as error:
+        if str(error) == "github_auth_required":
+            return None
+        raise
+    login = identity.get("login")
+    if not isinstance(login, str) or not re.fullmatch(r"[a-zA-Z0-9-]{1,39}", login):
+        raise DiscoveryError("github_invalid_response")
+    return login
+
+
+def github_connection(action):
+    directory = state_directory()
+    with (directory / "connection.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        state = read_state(directory)
+        pending = state.get("pending")
+        pending_at_entry = bool(pending)
+        kind = action["action"]
+        matches = action.get("revision") == state["revision"]
+        if pending:
+            stage = directory / pending["stage"]
+            if not re.fullmatch(r"login-[a-z0-9_]{8}", stage.name):
+                raise DiscoveryError("github_invalid_response")
+            finished = stage / "done"
+            outcome = None
+            if pending["expiresAt"] <= time.time() * 1000:
+                outcome = "expired"
+            elif kind == "cancel" and matches:
+                outcome = "cancelled"
+            elif finished.exists() and kind in ("status", "poll"):
+                if finished.read_text() == "0":
+                    token = cli_token(stage)
+                    if not token or gh_run(["auth", "login", "--hostname", "github.com", "--with-token"],
+                                           input_data=token.encode()).returncode:
+                        raise DiscoveryError("github_unavailable")
+                    # Terminal gh and Git follow the native login after the first approval.
+                    (Path.home() / ".config/gh/.hive-workspace-login").touch(mode=0o600)
+                    outcome = "approved"
+                else:
+                    outcome = "failed"
+            if outcome:
+                state.pop("pending")
+                state.update(outcome=outcome if outcome in ("expired","failed") else None,
+                             revision=str(uuid.uuid4()))
+                save_state(directory, state)
+                shutil.rmtree(stage, ignore_errors=True)
+                pending = None
+        else:
+            login = native_identity()
+            if login != state.get("login"):
+                state.update(login=login, revision=str(uuid.uuid4()))
+                save_state(directory, state)
+                matches = False
+            if matches and kind == "start":
+                pending = start_cli(directory)
+                state.update(pending=pending, outcome=None, revision=str(uuid.uuid4()))
+                save_state(directory, state)
+            elif matches and kind == "disconnect" and login:
+                (Path.home() / ".config/gh/.hive-workspace-login").touch(mode=0o600)
+                if gh_run(["auth", "logout", "--hostname", "github.com", "--user", login]).returncode:
+                    raise DiscoveryError("github_unavailable")
+                state.update(login=native_identity(), outcome=None, revision=str(uuid.uuid4()))
+                save_state(directory, state)
+        if pending_at_entry and not pending:
+            state["login"] = native_identity()
+            save_state(directory, state)
+        return {"revision": state["revision"], "login": state.get("login"),
+                "outcome": state.get("outcome"),
+                "pending": ({k: pending[k] for k in ("code", "expiresAt", "interval")}
+                            if pending else None)}
 
 
 def repository(record):
@@ -210,7 +352,7 @@ def github_json(token, path):
 
 def discover(value):
     page, per_page = request_parameters(value)
-    token = external_token()
+    token = workspace_token()
     # Capture identity and repositories using exactly the same token. A reconnect
     # cannot silently append a different account's repositories to a cached page.
     identity, _ = github_json(token, "/user")
@@ -235,7 +377,7 @@ def main():
         if len(raw) > REQUEST_LIMIT:
             raise DiscoveryError("request_too_large")
         value = json.loads(raw)
-        result = discover(value)
+        result = github_connection(value["connection"]) if "connection" in value else discover(value)
         status = 0
     except DiscoveryError as error:
         result, status = {"schemaVersion": 1, "error": str(error)}, 1

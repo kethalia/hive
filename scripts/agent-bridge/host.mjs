@@ -17,6 +17,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OPS = [
   "discover-projects",
+  "github-connection",
   "claude-account",
   "rename-terminal-session",
   "kill-terminal-session",
@@ -96,6 +97,16 @@ function operationValid(v) {
     typeof name === "string" &&
     /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name) &&
     !name.startsWith("git-clone-");
+  if (v.operation === "github-connection") {
+    const a = v.connection;
+    if (!exact(v, ["operation", "connection"]) || !a) return false;
+    if (a.action === "status") return exact(a, ["action"]);
+    if (a.revision !== "initial" && !UUID.test(a.revision)) return false;
+    return (
+      ["start", "cancel", "disconnect", "poll"].includes(a.action) &&
+      exact(a, ["action", "revision"])
+    );
+  }
   if (v.operation === "discover-projects")
     return (
       exact(v, ["operation", "page", "perPage"]) &&
@@ -311,7 +322,7 @@ export function createAgentBridge(config, deps = {}) {
           ...request,
           ...(request.operation === "install" ? { source: source.toString("utf8") } : {}),
         };
-        if (request.operation === "discover-projects") {
+        if (["discover-projects", "github-connection"].includes(request.operation)) {
           const directory = dirname(helper);
           const manifest = JSON.parse(
             pinnedSource(join(directory, "manifest.json"), config.manifestSha256, 4096),
@@ -321,7 +332,10 @@ export function createAgentBridge(config, deps = {}) {
             manifest.files["github-projects.py"],
             65536,
           );
-          payload = { schemaVersion: 1, page: request.page, perPage: request.perPage };
+          payload =
+            request.operation === "github-connection"
+              ? { connection: request.connection }
+              : { schemaVersion: 1, page: request.page, perPage: request.perPage };
         }
         if (request.operation === "install-notifications") {
           const directory = dirname(helper);
@@ -377,10 +391,9 @@ export function createAgentBridge(config, deps = {}) {
             LANG: "C.UTF-8",
             HIVE_WORKSPACE_PROFILE: config.profile,
             ...environment,
-            ...(request.operation === "discover-projects"
+            ...(["discover-projects", "github-connection"].includes(request.operation)
               ? {
-                  ...deps.discoveryEnvironment,
-                  HIVE_CODER_ORIGIN: config.binding.coderOrigin,
+                  HIVE_GITHUB_WORKSPACE: config.binding.workspaceId,
                   PATH: "/usr/local/bin:/usr/bin:/bin",
                 }
               : {}),
@@ -418,7 +431,7 @@ export function createAgentBridge(config, deps = {}) {
           if (ended) return;
           const result = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           if (
-            request.operation === "discover-projects" &&
+            ["discover-projects", "github-connection"].includes(request.operation) &&
             (code === 0 || (code === 1 && exact(result, ["schemaVersion", "error"])))
           )
             return done(null, result);

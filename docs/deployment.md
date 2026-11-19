@@ -120,6 +120,15 @@ deployment or the File Browser/KasmVNC binaries. Current automatic cookie scope,
 duplicate-cookie handling, and general CSRF protections remain separate follow-up
 work; origin isolation does not replace those controls.
 
+## GitHub connections in workspace windows
+
+Use a workspace build with the pinned project-discovery helper and GitHub CLI. Hive runs
+`gh auth login --web` in the selected workspace, then activates the approved identity for
+the workspace CLI. The GitHub window and repository discovery use that same identity.
+Reconnect stages the new sign-in separately to preserve the current account until approval.
+Disconnect runs `gh auth logout` for the displayed GitHub identity. Coder separately
+manages the external-auth integration used for provisioning.
+
 ## Git clone discovery and clone terminals
 
 The Git sidebar and clone terminal flow share one runtime contract: the web service, terminal proxy, and Coder agent runtime must agree on `HIVE_PROJECTS_ROOT`. The value must be an absolute POSIX path. The default value is `/home/coder`, so discovery is not limited to a strict `projects` directory; it finds Git repositories anywhere under that workspace home root while skipping noisy/sensitive hidden directories and known build-output folders.

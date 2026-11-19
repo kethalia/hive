@@ -37,7 +37,7 @@ class ProjectsTests(unittest.TestCase):
     def discover(self, payload, link="", request=None):
         opener = unittest.mock.Mock()
         opener.open.side_effect = [Response({"id": 123}), Response(payload, link)]
-        with patch.object(discovery, "external_token", return_value="private-test-token"), patch.object(
+        with patch.object(discovery, "workspace_token", return_value="private-test-token"), patch.object(
             discovery.urllib.request, "build_opener", return_value=opener
         ):
             result = discovery.discover(request or {"schemaVersion": 1})
@@ -68,7 +68,7 @@ class ProjectsTests(unittest.TestCase):
     def test_identity_and_repositories_share_one_captured_token_and_revoke_atomically(self):
         opener = unittest.mock.Mock()
         opener.open.side_effect = [Response({"id": 123}), Response([repo()])]
-        with patch.object(discovery, "external_token", return_value="same-private-token") as token, patch.object(
+        with patch.object(discovery, "workspace_token", return_value="same-private-token") as token, patch.object(
             discovery.urllib.request, "build_opener", return_value=opener
         ):
             self.assertEqual(discovery.discover({"schemaVersion": 1})["providerAccountId"], "123")
@@ -76,7 +76,7 @@ class ProjectsTests(unittest.TestCase):
         self.assertEqual([call.args[0].get_header("Authorization") for call in opener.open.call_args_list], ["Bearer same-private-token"] * 2)
         self.assertEqual(opener.open.call_args_list[0].args[0].full_url, "https://api.github.com/user")
         opener.open.side_effect = [Response({"id": 123}), urllib.error.HTTPError("https://api.github.com/user/repos", 401, "private-token", {}, io.BytesIO())]
-        with patch.object(discovery, "external_token", return_value="same-private-token"), patch.object(
+        with patch.object(discovery, "workspace_token", return_value="same-private-token"), patch.object(
             discovery.urllib.request, "build_opener", return_value=opener
         ), self.assertRaisesRegex(discovery.DiscoveryError, "^github_auth_required$"):
             discovery.discover({"schemaVersion": 1})
@@ -107,7 +107,7 @@ class ProjectsTests(unittest.TestCase):
                       {"schemaVersion": 1, "provider": "other"}, {"schemaVersion": 1, "page": 0},
                       {"schemaVersion": 1, "page": True}, {"schemaVersion": 1, "page": 10001},
                       {"schemaVersion": 1, "perPage": 101}]:
-            with self.subTest(value=value), patch.object(discovery, "external_token") as token:
+            with self.subTest(value=value), patch.object(discovery, "workspace_token") as token:
                 with self.assertRaises(discovery.DiscoveryError):
                     discovery.discover(value)
                 token.assert_not_called()
@@ -128,28 +128,54 @@ class ProjectsTests(unittest.TestCase):
             error = urllib.error.HTTPError("https://secret.invalid", status, "private-token", headers, io.BytesIO(b"secret"))
             opener = unittest.mock.Mock()
             opener.open.side_effect = error
-            with self.subTest(status=status), patch.object(discovery, "external_token", return_value="secret"), patch.object(
+            with self.subTest(status=status), patch.object(discovery, "workspace_token", return_value="secret"), patch.object(
                 discovery.urllib.request, "build_opener", return_value=opener
             ), self.assertRaisesRegex(discovery.DiscoveryError, f"^{code}$"):
                 discovery.discover({"schemaVersion": 1})
 
-    def test_agent_auth_uses_only_bound_origin_and_fixed_provider(self):
-        env = {"CODER_AGENT_URL": "https://coder.test", "HIVE_CODER_ORIGIN": "https://coder.test",
-               "CODER_AGENT_TOKEN": "test-agent", "CODER_SESSION_TOKEN": "ignored"}
-        opener = unittest.mock.Mock()
-        with patch.dict(os.environ, env, clear=True), patch.object(discovery.urllib.request, "build_opener", return_value=opener):
-            opener.open.return_value = Response({"access_token": "test-github"})
-            self.assertEqual(discovery.external_token(), "test-github")
-            req = opener.open.call_args.args[0]
-            self.assertEqual(req.full_url, "https://coder.test/api/v2/workspaceagents/me/external-auth?id=github")
-            self.assertEqual(req.get_header("Coder-session-token"), "test-agent")
-            opener.open.return_value = Response({"url": "https://coder.test/auth"})
-            with self.assertRaisesRegex(discovery.DiscoveryError, "github_auth_required"):
-                discovery.external_token()
-            del os.environ["CODER_AGENT_TOKEN"]
-            with self.assertRaisesRegex(discovery.DiscoveryError, "workspace_agent_required"):
-                discovery.external_token()
-            self.assertEqual(opener.open.call_count, 2)
+    def test_device_connections_are_isolated_and_reconnect_preserves_previous_login(self):
+        # Simulate native gh's private config independently in two workspace homes.
+        def native_identity():
+            hosts = Path.home() / ".config/gh/hosts.yml"
+            return hosts.read_text() if hosts.exists() else None
+        def run(args, config=None, input_data=None):
+            hosts = Path.home() / ".config/gh/hosts.yml"
+            if args[1] == "login":
+                hosts.parent.mkdir(parents=True, exist_ok=True)
+                hosts.write_text("octocat")
+            if args[1] == "logout":
+                hosts.unlink()
+            return subprocess.CompletedProcess(args, 0)
+        def stage(directory):
+            path = Path(tempfile.mkdtemp(prefix="login-", dir=directory))
+            return {"stage":path.name, "code":"TEST-CODE","expiresAt":9999999999999,"interval":3}
+        action = discovery.github_connection
+        with (tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as other,
+              patch.dict(os.environ, {"HOME":home, "HIVE_GITHUB_WORKSPACE":"0"*36,
+                                      "GH_TOKEN":"inherited", "CODER_AGENT_TOKEN":"global"}),
+              patch.object(discovery,"start_cli",side_effect=stage),
+              patch.object(discovery,"gh_run",side_effect=run),
+              patch.object(discovery,"native_identity",side_effect=native_identity),
+              patch.object(discovery,"cli_token",return_value="private-test-token")):
+            start = action({"action":"start","revision":"initial"})
+            self.assertEqual(start["pending"]["code"], "TEST-CODE")
+            self.assertNotIn("stage", start["pending"])
+            path = next(discovery.state_directory().glob("login-*"))
+            (path / "done").write_text("0")
+            connected = action({"action":"poll","revision":start["revision"]})
+            self.assertEqual(connected["login"], "octocat")
+            self.assertNotIn("private-test-token", json.dumps(connected))
+            retry = action({"action":"start","revision":connected["revision"]})
+            with patch.dict(os.environ, {"HOME":other, "HIVE_GITHUB_WORKSPACE":"1"*36}):
+                self.assertIsNone(action({"action":"status"})["login"])
+            stale = action({"action":"disconnect","revision":connected["revision"]})
+            self.assertEqual(stale["revision"],retry["revision"])
+            restored = action({"action":"cancel","revision":retry["revision"]})
+            self.assertEqual(restored["login"],"octocat")
+            self.assertIsNone(action({"action":"disconnect","revision":restored["revision"]})["login"])
+        _, env = discovery.cli()
+        self.assertNotIn("GH_TOKEN",env)
+        self.assertNotIn("CODER_AGENT_TOKEN",env)
 
     def test_main_returns_only_sanitized_structured_errors(self):
         output = io.StringIO()

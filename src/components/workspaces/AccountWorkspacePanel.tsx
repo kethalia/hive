@@ -123,6 +123,7 @@ export function AccountWorkspacePanel({
             {provider === "Codex" ? (
               <CodexAccountPanel
                 key={scope}
+                workspaceName={workspace.name}
                 workspaceId={workspace.id}
                 buildId={buildId}
                 section={section}
@@ -137,7 +138,12 @@ export function AccountWorkspacePanel({
                 onWorkspaceSkills={() => setSelection({ section: "skills" })}
               />
             ) : (
-              <ClaudeAccountCard key={scope} workspaceId={workspace.id} buildId={buildId} />
+              <ClaudeAccountCard
+                key={scope}
+                workspaceName={workspace.name}
+                workspaceId={workspace.id}
+                buildId={buildId}
+              />
             )}
           </Suspense>
         ) : null}

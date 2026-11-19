@@ -64,6 +64,7 @@ const MUTATIONS = new Set([
 ]);
 const isMutation = (request: AgentOperation) =>
   MUTATIONS.has(request.operation) ||
+  (request.operation === "github-connection" && request.connection.action !== "status") ||
   (request.operation === "codex-management" && request.management.action.startsWith("save-"));
 function packet(
   config: AgentBridgeClientConfig,
@@ -220,7 +221,7 @@ export class AgentBridgeClient {
       )
         throw new AgentBridgeError("unsupported");
       if (
-        parsed.operation === "discover-projects" &&
+        ["discover-projects", "github-connection"].includes(parsed.operation) &&
         data.manifestSha256 !== this.config.manifestSha256
       )
         throw new AgentBridgeError("unsupported");

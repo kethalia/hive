@@ -2,7 +2,7 @@
 
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,12 +20,15 @@ import {
 } from "@/hooks/useWorkspaceAccountConnection";
 import { claudeAccountStatusSchema } from "@/lib/agents/claude-account-contracts";
 import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
+import { CheckingConnection, ConnectedAccount, DisconnectedAccount } from "./ConnectionStatus";
 
 export function ClaudeAccountCard({
   workspaceId,
+  workspaceName = workspaceId,
   buildId,
 }: {
   workspaceId: string;
+  workspaceName?: string;
   buildId: string;
 }) {
   const {
@@ -130,23 +133,18 @@ export function ClaudeAccountCard({
     if (action === "disconnect")
       setDisconnect((current) => (current?.scope === scope ? null : current));
     if (!next) return;
-    if (action === "disconnect") {
-      if (next.state === "signed-out") setFeedback({ scope, notice: "Claude disconnected." });
-    }
+    if (action === "disconnect" && next.state === "signed-out")
+      toast.success("Claude disconnected.");
     if (action === "cancel") {
-      setFeedback({
-        scope,
-        notice:
-          next.state === "signed-in"
-            ? "Claude sign-in completed before cancellation."
-            : next.state === "cancelled"
-              ? "Claude sign-in cancelled."
-              : next.state === "expired"
-                ? "The Claude sign-in window expired."
-                : next.state === "signed-out"
-                  ? "Claude sign-in ended."
-                  : "Cancellation has not been confirmed. Refresh status to check its progress.",
-      });
+      if (next.state === "signed-in")
+        toast.message("Claude sign-in completed before cancellation.");
+      else if (next.state === "cancelled" || next.state === "signed-out")
+        toast.message("Claude sign-in cancelled.");
+      else if (next.state !== "expired")
+        setFeedback({
+          scope,
+          notice: "Cancellation has not been confirmed. Refresh status to check its progress.",
+        });
     }
   }
 
@@ -178,26 +176,13 @@ export function ClaudeAccountCard({
   }
 
   return (
-    <section
-      className="space-y-4 rounded-md border p-4"
-      aria-label="Workspace Claude account"
-      aria-busy={busy}
-    >
-      {status?.state === "signed-in" && <Badge>Connected</Badge>}
+    <section className="space-y-4" aria-label="Workspace Claude account" aria-busy={busy}>
       {status?.state !== "pending" && status?.state !== "signed-in" && (
         <p className="text-sm text-muted-foreground">
           Connect your Claude account to this workspace.
         </p>
       )}
-      {checkingConnection && (
-        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle
-            aria-hidden="true"
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
-          Checking Claude connection…
-        </p>
-      )}
+      {checkingConnection && <CheckingConnection provider="Claude" />}
       {unavailable && !failure && (
         <p role="status" className="text-sm text-muted-foreground">
           Claude connection is unavailable. Check workspace bridge setup and refresh.
@@ -221,11 +206,12 @@ export function ClaudeAccountCard({
         </p>
       )}
       {status?.state === "signed-in" && (
-        <p role="status" className="text-sm">
-          {status.account?.email || status.account?.plan
-            ? `${status.account.email ?? "Workspace Claude account"}${status.account.plan ? ` · ${status.account.plan}` : ""}`
-            : "The workspace’s Claude account is connected."}
-        </p>
+        <ConnectedAccount
+          provider="Claude"
+          workspace={workspaceName}
+          account={status.account?.email}
+          plan={status.account?.plan}
+        />
       )}
       {status?.state === "busy" && (
         <p role="status" className="text-sm">
@@ -238,18 +224,15 @@ export function ClaudeAccountCard({
         </p>
       )}
       {status && !["signed-in", "pending", "busy", "unknown"].includes(status.state) && (
-        <div className="space-y-1 rounded-md border border-dashed p-4 text-sm" role="status">
-          <p className="font-medium">No Claude account connected</p>
-          <p className="text-muted-foreground">
-            {status.state === "expired"
-              ? "The sign-in window expired. Start again for a new code."
-              : status.state === "failed"
-                ? "Sign-in did not complete. You can try again."
-                : status.state === "cancelled"
-                  ? "Sign-in was cancelled. You can connect when you’re ready."
-                  : "Your connection will appear here after sign-in."}
-          </p>
-        </div>
+        <DisconnectedAccount provider="Claude">
+          {status.state === "expired"
+            ? "The sign-in window expired. Start again for a new code."
+            : status.state === "failed"
+              ? "Sign-in did not complete. You can try again."
+              : status.state === "cancelled"
+                ? "Sign-in was cancelled. You can connect when you’re ready."
+                : "Your connection will appear here after sign-in."}
+        </DisconnectedAccount>
       )}
       {status?.state === "pending" && (
         <div className="space-y-3">
@@ -369,6 +352,7 @@ export function ClaudeAccountCard({
           ) : (
             <Button
               ref={connectButton}
+              variant={status.state === "signed-in" ? "outline" : "default"}
               size="sm"
               disabled={blocked}
               onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
@@ -392,7 +376,7 @@ export function ClaudeAccountCard({
           }}
         >
           {status?.state === "signed-in" && (
-            <DialogTrigger render={<Button size="sm" variant="outline" disabled={blocked} />}>
+            <DialogTrigger render={<Button size="sm" variant="destructive" disabled={blocked} />}>
               Disconnect
             </DialogTrigger>
           )}
@@ -405,8 +389,8 @@ export function ClaudeAccountCard({
             <DialogHeader>
               <DialogTitle>Disconnect Claude?</DialogTitle>
               <DialogDescription>
-                This signs the workspace’s Claude account out. Active Claude work may be
-                interrupted. You can reconnect when you’re ready.
+                This signs Claude out of {workspaceName}. Active Claude work may be interrupted. You
+                can reconnect when you’re ready.
               </DialogDescription>
             </DialogHeader>
             {disconnectStale && (

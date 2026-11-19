@@ -108,13 +108,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     check(process.argv.length === 2);
     const { config, configFileSha256 } = readAgentStartup();
-    const discoveryEnvironment = {};
     for (const name of ["CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"]) {
-      if (process.env[name]) discoveryEnvironment[name] = process.env[name];
       delete process.env[name];
     }
     const bridge = createAgentBridge(config, {
-      discoveryEnvironment,
       helperPath: join(config.packageDirectory, "agent-tools.py"),
       configFileSha256,
       environment: config.environment,

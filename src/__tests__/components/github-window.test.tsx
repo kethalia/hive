@@ -15,30 +15,32 @@ it.each([
   false,
   true,
 ])("waits for a new device approval before reporting success (initial connection %s)", async (initial) => {
-  let connected = initial,
-    checks = 0;
+  let checks = 0;
+  const workspace = {
+    id: "one",
+    name: "First",
+    latest_build: { id: "build-one", status: "running" },
+  } as CoderWorkspace;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (_url, options) => {
-      const action = options.body && JSON.parse(options.body).action;
-      if (!action)
-        return Response.json({
-          connected,
-          login: connected ? "octocat" : null,
-          authorizeUrl: null,
-        });
-      if (action === "start")
-        return Response.json({
-          attempt: "test-attempt",
-          userCode: "TEST-CODE",
-          verificationUrl: "https://github.com/login/device",
-          interval: 0.1,
-          expiresAt: Date.now() + 10000,
-        });
-      checks++;
-      if (checks === 1) return Response.json({ state: "pending" });
-      connected = true;
-      return Response.json({ state: "approved" });
+      const body = JSON.parse(options.body);
+      expect(body.workspaceId).toBe("one");
+      expect(body.buildId).toBe("build-one");
+      const result = {
+        revision: "3dc64f73-d2c0-4143-8705-b1bc99ac6bbc",
+        outcome: null,
+        login: initial ? "octocat" : null,
+        pending: null,
+      };
+      if (body.action === "status") return Response.json(result);
+      if (body.action === "poll" && ++checks === 2)
+        return Response.json({ ...result, login: "new-account" });
+      return Response.json({
+        ...result,
+        login: null,
+        pending: { code: "TEST-CODE", interval: 1, expiresAt: Date.now() + 10000 },
+      });
     }),
   );
   const client = new QueryClient();
@@ -46,7 +48,8 @@ it.each([
     <QueryClientProvider client={client}>
       <GitHubWindow
         userId="test"
-        workspaces={[]}
+        workspaces={[workspace]}
+        workspace={workspace}
         onWorkspaceChange={() => {}}
         onStartWorkspace={async () => {}}
         visible
@@ -55,12 +58,11 @@ it.each([
     </QueryClientProvider>,
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: initial ? "Reconnect GitHub" : "Connect GitHub" }),
+    await screen.findByRole("button", { name: initial ? "Reconnect" : "Connect GitHub" }),
   );
   expect(await screen.findByText("TEST-CODE")).toBeInTheDocument();
-  expect(screen.queryByText("GitHub sign-in complete.")).not.toBeInTheDocument();
-  expect(await screen.findByText("GitHub sign-in complete.")).toBeInTheDocument();
-  expect(await screen.findByText("Connected as @octocat")).toBeInTheDocument();
+  expect(screen.queryByText("@new-account")).not.toBeInTheDocument();
+  expect(await screen.findByText("@new-account", {}, { timeout: 5000 })).toBeVisible();
   expect(checks).toBe(2);
 });
 
@@ -107,9 +109,10 @@ it("uses the Workspace tab to switch repositories to another workspace or start 
   fireEvent.click(await screen.findByRole("button", { name: "Review workspace setup" }));
   expect(screen.getByRole("radio", { name: "First, running" })).toBeChecked();
   fireEvent.click(screen.getByRole("radio", { name: "Second, stopped" }));
-  fireEvent.click(screen.getByRole("tab", { name: "Repositories" }));
-  expect(screen.getByRole("status")).toHaveTextContent("Choose a running Coder workspace");
-  fireEvent.click(screen.getByRole("button", { name: "Review workspace setup" }));
+  expect(screen.getByRole("tab", { name: "Repositories" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   expect(screen.getByRole("radio", { name: "Second, stopped" })).toBeChecked();
   fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
   expect(onStartWorkspace).toHaveBeenCalledWith("two");

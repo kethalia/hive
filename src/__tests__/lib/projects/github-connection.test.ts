@@ -1,113 +1,60 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET, POST } from "@/app/api/github/connection/route";
+import { afterEach, expect, it, vi } from "vitest";
+import { POST } from "@/app/api/github/connection/route";
 
-const mocks = vi.hoisted(() => ({
-  session: vi.fn(),
-  client: vi.fn(),
-  status: vi.fn(),
-  start: vi.fn(),
-  poll: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ session: vi.fn(), execute: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: mocks.session }));
-vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: mocks.client }));
+vi.mock("@/lib/agents/portable-config.server", () => ({
+  createProjectDiscoveryService: () => ({ execute: mocks.execute }),
+}));
 const origin = "https://hive.example";
-const url = `${origin}/api/github/connection`;
-const post = (body: object, from = origin) =>
-  POST(
-    new Request(url, {
+const scope = {
+  workspaceId: "96201ae7-9ec5-4c35-9372-94d197afef81",
+  buildId: "1a6e2eea-7708-4ed9-8a62-6e0305ccff82",
+};
+function post(body: object, source = origin) {
+  vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "true");
+  vi.stubEnv("HIVE_PUBLIC_ORIGIN", origin);
+  return POST(
+    new Request(`${origin}/api/github/connection`, {
       method: "POST",
-      headers: { origin: from, "content-type": "application/json" },
+      headers: { origin: source, "content-type": "application/json" },
       body: JSON.stringify(body),
     }),
   );
-describe("GitHub connection for the signed-in Coder user", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    vi.stubEnv("HIVE_PROJECT_DISCOVERY_ENABLED", "true");
-    vi.stubEnv("HIVE_PUBLIC_ORIGIN", origin);
-    vi.stubEnv("ENCRYPTION_KEY", "ab".repeat(32));
-    mocks.session.mockResolvedValue({ user: { id: "owner" }, session: { id: "session1" } });
-    mocks.client.mockResolvedValue({
-      getGitHubConnection: mocks.status,
-      startGitHubDeviceFlow: mocks.start,
-      exchangeGitHubDeviceCode: mocks.poll,
-      getBaseUrl: () => "https://coder.example",
-    });
-    mocks.start.mockResolvedValue({
-      verification_uri: "https://github.com/login/device",
-      user_code: "AAAA-BBBB",
-      device_code: "private-device-secret",
-      interval: 5,
-      expires_in: 600,
-    });
+}
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetAllMocks();
+});
+it("binds device sign-in to the authenticated owner, selected workspace and build", async () => {
+  mocks.session.mockResolvedValue({ user: { id: "hive", coderUserId: "coder" } });
+  mocks.execute.mockResolvedValue({
+    revision: "initial",
+    login: null,
+    pending: null,
+    outcome: null,
   });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.useRealTimers();
-  });
-  it.each([
-    true,
-    false,
-  ])("only exposes current connection metadata (connected=%s)", async (connected) => {
-    mocks.status.mockResolvedValue({
-      authenticated: connected,
-      device: true,
-      user: { login: "octocat" },
-      access_token: "private",
-    });
-    const r = await GET(new Request(url));
-    expect(await r.json()).toEqual({
-      connected,
-      login: connected ? "octocat" : null,
-      authorizeUrl: null,
-    });
-    expect(r.headers.get("cache-control")).toContain("no-store");
-    expect(mocks.client).toHaveBeenCalledWith("owner", expect.anything());
-  });
-  it("offers the Coder authorization URL for browser OAuth", async () => {
-    mocks.status.mockResolvedValue({ authenticated: true, device: false });
-    expect((await (await GET(new Request(url))).json()).authorizeUrl).toBe(
-      "https://coder.example/external-auth/github/callback",
-    );
-  });
-  it.each([
-    "pending",
-    "slow_down",
-    "denied",
-    "expired",
-    "approved",
-  ])("relays the exchange outcome %s", async (state) => {
-    const pending = await (await post({ action: "start" })).json();
-    expect(JSON.stringify(pending)).not.toContain("private-device-secret");
-    mocks.poll.mockResolvedValue(state);
-    expect(await (await post({ action: "poll", attempt: pending.attempt })).json()).toEqual({
-      state,
-    });
-    expect(mocks.poll).toHaveBeenCalledWith("private-device-secret");
-  });
-  it("rejects an expired attempt and an attempt from a different session", async () => {
-    vi.useFakeTimers();
-    const pending = await (await post({ action: "start" })).json();
-    mocks.session.mockResolvedValueOnce({ user: { id: "owner" }, session: { id: "other" } });
-    expect((await post({ action: "poll", attempt: pending.attempt })).status).toBe(403);
-    vi.setSystemTime(pending.expiresAt);
-    expect(await (await post({ action: "poll", attempt: pending.attempt })).json()).toEqual({
-      state: "expired",
-    });
-    expect(mocks.poll).not.toHaveBeenCalled();
-  });
-  it("rejects unsolicited mutations, forged attempts and an untrusted provider URL", async () => {
-    expect((await post({ action: "start" }, "https://elsewhere.example")).status).toBe(403);
-    expect((await post({ action: "poll", attempt: "wrong" })).status).toBe(400);
-    mocks.start.mockResolvedValue({
-      verification_uri: "https://elsewhere.example",
-      device_code: "secret",
-      user_code: "ABCD-EFGH",
-      interval: 5,
-      expires_in: 900,
-    });
-    expect((await post({ action: "start" })).status).toBe(502);
-    mocks.session.mockResolvedValue(null);
-    expect((await post({ action: "start" })).status).toBe(401);
-  });
+  const response = await post({ ...scope, action: "start", revision: "initial" });
+  expect(response.status).toBe(200);
+  expect(mocks.execute).toHaveBeenCalledWith(
+    { hiveUserId: "hive", coderUserId: "coder" },
+    scope.workspaceId,
+    {
+      operation: "github-connection",
+      connection: { action: "start", revision: "initial" },
+    },
+    expect.anything(),
+    scope.buildId,
+  );
+  expect(response.headers.get("cache-control")).toContain("no-store");
+});
+it("rejects unsigned origins, missing sessions, unscoped actions and supplied client identifiers", async () => {
+  expect((await post({ ...scope, action: "status" }, "https://other.example")).status).toBe(403);
+  expect((await post({ ...scope, action: "status" })).status).toBe(401);
+  mocks.session.mockResolvedValue({ user: { id: "hive", coderUserId: "coder" } });
+  expect((await post({ action: "status" })).status).toBe(400);
+  expect(
+    (await post({ ...scope, action: "start", revision: "initial", clientId: "injected" })).status,
+  ).toBe(400);
+  expect(mocks.execute).not.toHaveBeenCalled();
 });

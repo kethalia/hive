@@ -107,7 +107,7 @@ export const projectErrorMessages: Record<ProjectErrorCode, string> = {
   external_auth_timeout: "GitHub sign-in check timed out. Try again.",
   external_auth_invalid_response: "Could not verify the workspace GitHub connection.",
   external_auth_unavailable: "Could not check the workspace GitHub connection.",
-  github_auth_required: "Connect or reconnect GitHub in Coder, then refresh.",
+  github_auth_required: "Connect or reconnect GitHub in this workspace, then refresh.",
   github_invalid_response: "GitHub returned an invalid repository list.",
   github_invalid_pagination: "GitHub returned invalid pagination. Refresh to try again.",
   pagination_limit_reached: "Repository page limit reached.",
@@ -115,7 +115,8 @@ export const projectErrorMessages: Record<ProjectErrorCode, string> = {
   github_timeout: "GitHub timed out. Try again.",
   github_unavailable: "Could not load GitHub repositories. Try again.",
   github_rate_limited: "GitHub rate limit reached. Wait before trying again.",
-  github_permission_denied: "GitHub access was denied. Check your connection in Coder.",
+  github_permission_denied:
+    "GitHub access was denied. Check the GitHub connection in this workspace.",
   github_redirect_rejected: "GitHub returned an unexpected redirect.",
   discovery_unavailable: "Could not discover repositories. Try again.",
   workspace_forbidden: "Select a workspace you own.",

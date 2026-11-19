@@ -59,6 +59,7 @@ const MUTATIONS = new Set([
 ]);
 const isMutation = (request: AgentOperation) =>
   MUTATIONS.has(request.operation) ||
+  (request.operation === "github-connection" && request.connection.action !== "status") ||
   (request.operation === "codex-management" && request.management.action.startsWith("save-"));
 /** Request-local authority: resolve the exact owner-only agent app before and
  * after each operation. No mutation is retried on an uncertain result. */
@@ -83,7 +84,8 @@ export class AgentBridgeService {
       const parsed = agentOperationSchema.parse(request);
       if (
         parsed.operation === "identity" ||
-        (parsed.operation === "discover-projects") !== Boolean(this.config.discoveryOnly) ||
+        ["discover-projects", "github-connection"].includes(parsed.operation) !==
+          Boolean(this.config.discoveryOnly) ||
         (this.config.accountProvider !== undefined &&
           (!["codex", "claude"].includes(this.config.accountProvider) ||
             (parsed.operation !== `${this.config.accountProvider}-account` &&
@@ -95,7 +97,9 @@ export class AgentBridgeService {
       )
         throw new Error();
       if (
-        ["codex-account", "claude-account", "codex-management"].includes(parsed.operation) &&
+        ["codex-account", "claude-account", "codex-management", "github-connection"].includes(
+          parsed.operation,
+        ) &&
         !expectedBuildId
       )
         throw new Error("Selected workspace build is required.");

@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), message: vi.fn(), error: vi.fn() } }));
+
 import { afterEach, expect, it, vi } from "vitest";
 import { ClaudeAccountCard } from "@/components/workspaces/ClaudeAccountCard";
 
@@ -18,6 +22,7 @@ const pending = (generation = 1, codeSubmitted = false) => ({
 });
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -245,7 +250,9 @@ it("reports a completed Claude sign-in when cancellation loses the race", async 
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="build" />);
   fireEvent.click(await screen.findByRole("button", { name: "Cancel sign-in" }));
-  expect(await screen.findByText("Claude sign-in completed before cancellation.")).toBeVisible();
+  await waitFor(() =>
+    expect(toast.message).toHaveBeenCalledWith("Claude sign-in completed before cancellation."),
+  );
   expect(screen.getByText("Connected")).toBeVisible();
 });
 

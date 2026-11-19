@@ -92,38 +92,6 @@ export class CoderClient {
     return this.baseUrl;
   }
 
-  async getGitHubConnection() {
-    return this.request<unknown>("/api/v2/external-auth/github");
-  }
-
-  async startGitHubDeviceFlow() {
-    return this.request<unknown>("/api/v2/external-auth/github/device");
-  }
-
-  async exchangeGitHubDeviceCode(deviceCode: string) {
-    const response = await fetchCoderApi(
-      new URL("/api/v2/external-auth/github/device", this.baseUrl),
-      {
-        method: "POST",
-        headers: {
-          ...coderCredentialHeaders(this.sessionToken, this.credentialSource),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ device_code: deviceCode }),
-        signal: this.requestSignal(AbortSignal.timeout(15_000)),
-      },
-    );
-    if (response.status === 204) return "approved";
-    if (response.status === 400) {
-      const { detail } = await response.json();
-      if (detail === "authorization_pending") return "pending";
-      if (detail === "slow_down") return "slow_down";
-      if (detail === "access_denied") return "denied";
-      if (detail === "expired_token") return "expired";
-    }
-    throw new Error("GitHub authorization exchange failed");
-  }
-
   async getApplicationsHost(): Promise<string> {
     const response = await this.request<unknown>("/api/v2/applications/host", {
       signal: AbortSignal.timeout(APPLICATIONS_HOST_TIMEOUT_MS),
