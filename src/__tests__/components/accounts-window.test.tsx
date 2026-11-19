@@ -83,6 +83,13 @@ it.each([
   view.rerender(tree("one", "build-one", { tool }));
   expect(await screen.findByRole("region", { name: own })).toBeVisible();
   expect(screen.queryByRole("region", { name: other })).not.toBeInTheDocument();
+  expect(
+    screen
+      .getAllByRole("tab")
+      .slice(0, 2)
+      .map((tab) => tab.textContent),
+  ).toEqual(["Workspace", "Connection"]);
+  expect(screen.queryByRole("combobox", { name: "Account workspace" })).not.toBeInTheDocument();
   expect(fetcher.mock.calls.map(([path]) => path)).toEqual([`/api/workspaces/one/${tool}`]);
   expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({
     buildId: "build-one",
@@ -96,7 +103,6 @@ it("explains disabled Claude connections in the Claude window", async () => {
   fetcher.mockResolvedValue(new Response(null, { status: 404 }));
   render(tree("one", "build-one", { tool: "claude-account" }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
-  expect(screen.getByRole("combobox", { name: "Account workspace" })).toBeVisible();
   expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
 });
@@ -111,6 +117,11 @@ it.each([
       scope === "old-build" ? "old-build" : "build-one",
     ),
   );
+  expect(await screen.findByRole("tab", { name: "Workspace" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByRole("tab", { name: "Connection" })).toHaveAttribute("aria-disabled", "true");
   expect(fetcher).not.toHaveBeenCalled();
   expect(screen.queryByRole("region", { name: "Managed Codex account" })).not.toBeInTheDocument();
   if (scope === "old-build") {
@@ -120,14 +131,17 @@ it.each([
   }
 });
 
-it("uses the existing workspace selector and returns the selected current build without confirmation", async () => {
+it("changes the provider workspace from its own tab and keeps the selection visible", async () => {
   render(tree());
   await screen.findByRole("region", { name: "Managed Codex account" });
+  fireEvent.click(screen.getByRole("tab", { name: "Workspace" }));
+  expect(screen.queryByRole("region", { name: "Managed Codex account" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("combobox", { name: "Account workspace" }));
   const option = await screen.findByRole("option", { name: "Software two · running" });
   fireEvent.mouseMove(option);
   fireEvent.click(option);
   expect(select).toHaveBeenCalledExactlyOnceWith("two", "build-two");
+  expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute("aria-selected", "true");
 });
 
 it("offers a retry and workspace management after a failed start", async () => {
@@ -143,7 +157,7 @@ it("offers a retry and workspace management after a failed start", async () => {
       ],
     }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Start workspace" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not open Software one");
   expect(screen.getByRole("button", { name: "Coder workspaces" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));

@@ -2,35 +2,22 @@
 
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
-import { LoaderCircle, PanelLeftClose, PanelLeftOpen, Play } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Suspense, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
-import { cn } from "@/lib/utils";
 import {
   type GeneralWindow,
   hiveToolLabels,
   isAccountTool,
-  requestHiveWindow,
 } from "@/lib/workspaces/general-workspace";
+import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
+import { WorkspacePicker } from "./WorkspacePicker";
 
-const CodexAccountPanel = dynamic(() =>
-  import("./CodexAccountPanel").then((m) => m.CodexAccountPanel),
-);
-const ClaudeAccountCard = dynamic(() =>
-  import("./ClaudeAccountCard").then((m) => m.ClaudeAccountCard),
-);
 const AgentToolsPanel = dynamic(() => import("./AgentToolsPanel").then((m) => m.AgentToolsPanel));
 const WorkspaceListContent = dynamic(() =>
   import("@/app/(dashboard)/workspaces/workspace-list-content").then((m) => m.WorkspaceListContent),
@@ -107,35 +94,17 @@ export function HiveWorkspacePane({
   onWorkspaceChange,
   onOpenSession,
 }: Props) {
-  const workspaceSelectId = useId();
   const navigationId = useId();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [startup, setStartup] = useState<{ id: string; pending: boolean } | null>(null);
   const navigation = { id: navigationId, collapsed: sidebarCollapsed };
   const accountTool = isAccountTool(pane.tool);
-  const codexTool = pane.tool === "codex-account";
-  const selectedWorkspace = workspaces.find((w) => w.id === pane.workspaceId);
-  const workspace =
-    accountTool && pane.workspaceId
-      ? selectedWorkspace
-      : (selectedWorkspace ??
+  const agentWorkspace =
+    pane.tool === "agents"
+      ? (workspaces.find((w) => w.id === pane.workspaceId) ??
         workspaces.find((w) => w.latest_build.status === "running") ??
-        workspaces[0]);
-  const status = workspace?.latest_build.status;
-  const starting = startup?.id === workspace?.id && startup?.pending === true;
-  const startFailed = startup?.id === workspace?.id && startup?.pending === false;
-  const workspaceReady = status === "running";
-  const matchingBuild = pane.buildId && pane.buildId === workspace?.latest_build.id;
-  const hasSidebar = pane.tool === "settings" || (codexTool && workspaceReady && matchingBuild);
-  async function startSelectedWorkspace(id: string) {
-    setStartup({ id, pending: true });
-    try {
-      await onStartWorkspace(id);
-      setStartup(null);
-    } catch {
-      setStartup({ id, pending: false });
-    }
-  }
+        workspaces[0])
+      : undefined;
+  const hasSidebar = pane.tool === "settings" || accountTool;
   return (
     <TerminalSessionFrame
       label={hiveToolLabels[pane.tool]}
@@ -184,144 +153,37 @@ export function HiveWorkspacePane({
           </p>
         }
       >
-        {pane.tool === "agents" || accountTool ? (
-          <div
-            className={codexTool ? "flex min-h-full flex-col" : "space-y-4 p-4"}
-            data-mobile-scroll-allow="true"
-          >
-            <div className={cn("space-y-2 text-sm", codexTool && "p-4")}>
-              <label htmlFor={workspaceSelectId} className={accountTool ? "sr-only" : "block"}>
-                Coder workspace
-              </label>
-              <Select
-                value={workspace?.id ?? null}
-                onValueChange={(value) => {
-                  if (value) {
-                    setStartup(null);
-                    onWorkspaceChange(
-                      value,
-                      accountTool
-                        ? workspaces.find((w) => w.id === value)?.latest_build.id
-                        : undefined,
-                    );
-                  }
-                }}
-                disabled={!workspaces.length || starting}
-                items={workspaces.map((w) => ({
-                  value: w.id,
-                  label: `${w.name} · ${w.latest_build.status}`,
-                }))}
-              >
-                <SelectTrigger
-                  id={workspaceSelectId}
-                  aria-label={accountTool ? "Account workspace" : "Agent workspace"}
-                  size={accountTool ? "sm" : "default"}
-                  className={accountTool ? "max-w-full" : "w-full"}
-                >
-                  <SelectValue
-                    className={accountTool ? "min-w-0 truncate" : undefined}
-                    placeholder={
-                      workspaces.length ? "Choose a workspace" : "No workspaces available"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name} · {w.latest_build.status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {accountTool && starting ? (
-              <p
-                role="status"
-                className={cn(
-                  "flex items-center gap-2 text-sm text-muted-foreground",
-                  codexTool && "px-4 pb-4",
-                )}
-              >
-                <LoaderCircle
-                  className="size-4 animate-spin motion-reduce:animate-none"
-                  aria-hidden
-                />
-                Starting {workspace?.name}…
-              </p>
-            ) : accountTool && workspace && (status === "stopped" || startFailed) ? (
-              <div className={cn("space-y-3", codexTool && "px-4 pb-4")}>
-                {startFailed && (
-                  <p role="alert" className="text-sm text-destructive">
-                    Could not open {workspace.name}.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {(status === "stopped" || status === "running") && (
-                    <Button onClick={() => void startSelectedWorkspace(workspace.id)}>
-                      <Play aria-hidden />
-                      {status === "running" ? "Retry" : "Start workspace"}
-                    </Button>
-                  )}
-                  {startFailed && (
-                    <Button
-                      variant="outline"
-                      onClick={() => requestHiveWindow({ tool: "workspaces" })}
-                    >
-                      Coder workspaces
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ) : workspace && workspaceReady ? (
-              accountTool ? (
-                !matchingBuild ? (
-                  <div className={cn("space-y-3", codexTool && "px-4 pb-4")}>
-                    <p role="status">Select this workspace’s current build to manage accounts.</p>
-                    <Button
-                      onClick={() => onWorkspaceChange(workspace.id, workspace.latest_build.id)}
-                    >
-                      Use current build
-                    </Button>
-                  </div>
-                ) : visible ? (
-                  codexTool ? (
-                    <CodexAccountPanel
-                      key={`${userId}/${workspace.id}/${workspace.latest_build.id}`}
-                      workspaceId={workspace.id}
-                      buildId={workspace.latest_build.id}
-                      navigation={navigation}
-                    />
-                  ) : (
-                    <ClaudeAccountCard
-                      key={`${userId}/${workspace.id}/${workspace.latest_build.id}`}
-                      workspaceId={workspace.id}
-                      buildId={workspace.latest_build.id}
-                    />
-                  )
-                ) : null
-              ) : (
-                <AgentToolsPanel
-                  key={`${workspace.id}:${workspace.latest_build.id}`}
-                  workspaceId={workspace.id}
-                  buildId={workspace.latest_build.id}
-                  open={visible}
-                  onOpenSession={(sessionName) => onOpenSession(workspace.id, sessionName)}
-                />
-              )
+        {accountTool ? (
+          <AccountWorkspacePanel
+            provider={pane.tool === "codex-account" ? "Codex" : "Claude"}
+            userId={userId}
+            workspaces={workspaces}
+            workspaceId={pane.workspaceId}
+            buildId={pane.buildId}
+            navigation={navigation}
+            visible={visible}
+            onStartWorkspace={onStartWorkspace}
+            onWorkspaceChange={onWorkspaceChange}
+          />
+        ) : pane.tool === "agents" ? (
+          <div className="space-y-4 p-4" data-mobile-scroll-allow="true">
+            <WorkspacePicker
+              label="Agent workspace"
+              workspaces={workspaces}
+              selected={agentWorkspace?.id}
+              onSelect={onWorkspaceChange}
+            />
+            {agentWorkspace?.latest_build.status === "running" ? (
+              <AgentToolsPanel
+                key={`${agentWorkspace.id}:${agentWorkspace.latest_build.id}`}
+                workspaceId={agentWorkspace.id}
+                buildId={agentWorkspace.latest_build.id}
+                open={visible}
+                onOpenSession={(sessionName) => onOpenSession(agentWorkspace.id, sessionName)}
+              />
             ) : (
-              <p
-                role="status"
-                className={cn("text-sm text-muted-foreground", codexTool && "px-4 pb-4")}
-              >
-                {accountTool
-                  ? pane.workspaceId && !workspace
-                    ? "The selected workspace is unavailable. Choose another workspace."
-                    : status === "starting" || status === "pending"
-                      ? "Waiting for the workspace to start…"
-                      : workspace
-                        ? `Workspace is ${status}. Manage it in Coder workspaces.`
-                        : "Choose a workspace to manage its accounts."
-                  : "Start a Coder workspace to view its agent conversations."}
+              <p role="status" className="text-sm text-muted-foreground">
+                Start a Coder workspace to view its agent conversations.
               </p>
             )}
           </div>

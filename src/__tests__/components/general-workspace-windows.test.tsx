@@ -498,7 +498,7 @@ describe("workspace tool windows", () => {
     expect(await within(claude).findByText("Loaded Claude account")).toBeVisible();
     act(() => requestHiveWindow({ tool: "codex-account", workspaceId: stopped.id }));
     const codex = await screen.findByTestId("hive-window-codex-account");
-    fireEvent.click(within(codex).getByRole("button", { name: "Start workspace" }));
+    fireEvent.click(await within(codex).findByRole("button", { name: "Start workspace" }));
     expect(within(codex).getByRole("status")).toHaveTextContent("Starting ai-dev-02");
     expect(
       await within(codex).findByText("Loaded Codex account for second/started-build"),
@@ -507,6 +507,7 @@ describe("workspace tool windows", () => {
       workspaceId: "second",
       waitForAgent: true,
     });
+    fireEvent.click(within(claude).getByRole("tab", { name: "Workspace" }));
     expect(within(claude).getByRole("combobox", { name: "Account workspace" })).toHaveTextContent(
       "ai-dev-01",
     );

@@ -18,3 +18,5 @@ Extend the Settings and Codex sidebar dividers to the bottom of each pane and ad
 Animate sidebar toggles with reduced-motion support and load larger Codex plugin and integration inventories within dedicated limits.
 
 Remember separate Codex and Claude workspace selections on this browser, and start a stopped workspace directly from either account window.
+
+Move workspace selection and startup into the first tab of each account window.
