@@ -29,11 +29,12 @@ export async function GET(request: Request, context: { params: Promise<{ workspa
     return Response.json(
       {
         workspace: toPublicWorkspace(workspace),
-        logs: logs.slice(-250).map(({ id, output, stage, created_at }) => ({
+        logs: logs.slice(-250).map(({ id, output, stage, created_at, log_level }) => ({
           id,
           output: output.slice(0, 4096),
           stage,
           created_at,
+          log_level,
         })),
       },
       { headers },

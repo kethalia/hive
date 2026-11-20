@@ -12,6 +12,7 @@ vi.mock("@/components/workspaces/TerminalSessionFrame", () => ({
 }));
 
 import { HiveWorkspacePane } from "@/components/workspaces/HiveWorkspacePane";
+import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
 import type { CoderWorkspace } from "@/lib/coder/types";
 
 const lifetimeId = "00000000-0000-4000-8000-000000000001";
@@ -37,6 +38,7 @@ function tree(
   options: {
     workspaces?: CoderWorkspace[];
     visible?: boolean;
+    operation?: WorkspaceOperationState;
     userId?: string;
     tool?: "codex-account" | "claude-account";
   } = {},
@@ -56,6 +58,7 @@ function tree(
       active
       visible={options.visible ?? true}
       launchRequest={0}
+      operations={options.operation ? { [workspaceId]: options.operation } : undefined}
       onActivate={() => {}}
       onClose={() => {}}
       onStartWorkspace={start}
@@ -221,23 +224,20 @@ it("reconnects with the new account generation after changing a workspace skill"
 });
 
 it("offers a retry and workspace management after a failed start", async () => {
-  start.mockRejectedValueOnce(new Error("Workspace did not start"));
-  render(
-    tree("one", "build-one", {
-      tool: "claude-account",
-      workspaces: [
-        {
-          ...workspaces[0],
-          latest_build: { ...workspaces[0].latest_build, status: "stopped" },
-        },
-      ],
-    }),
-  );
-  fireEvent.click(await screen.findByRole("button", { name: "Start workspace" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not open Software one");
+  const stopped = {
+    ...workspaces[0],
+    latest_build: { ...workspaces[0].latest_build, status: "stopped" as const },
+  };
+  const props = { tool: "claude-account" as const, workspaces: [stopped] };
+  const view = render(tree("one", "build-one", props));
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  view.rerender(tree("one", "build-one", { ...props, operation: { failed: "start" } }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not open Software one");
   expect(screen.getByRole("button", { name: "Coder workspaces" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  view.rerender(tree("one", "build-one", { ...props, operation: { pending: "start" } }));
+  expect(screen.getByRole("status")).toHaveTextContent("Starting Software one");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   expect(start.mock.calls).toEqual([["one"], ["one"]]);
   expect(fetcher).not.toHaveBeenCalled();
 });

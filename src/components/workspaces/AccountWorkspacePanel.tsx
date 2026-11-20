@@ -16,7 +16,8 @@ import { LoadingStatus } from "@/components/ui/loading-status";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { CheckingConnection } from "./ConnectionStatus";
-import { useWorkspaceStart, WorkspaceTab } from "./WorkspaceTab";
+import type { WorkspaceOperationState } from "./WorkspaceDetails";
+import { WorkspaceTab } from "./WorkspaceTab";
 
 const CodexAccountPanel = dynamic(() =>
   import("./CodexAccountPanel").then((m) => m.CodexAccountPanel),
@@ -45,8 +46,9 @@ export function AccountWorkspacePanel({
   provider,
   userId,
   workspaces,
-  workspaceId,
+  workspace,
   buildId,
+  operation,
   navigation,
   visible,
   onStartWorkspace,
@@ -55,11 +57,12 @@ export function AccountWorkspacePanel({
   provider: "Codex" | "Claude";
   userId: string;
   workspaces: CoderWorkspace[];
-  workspaceId?: string;
+  workspace?: CoderWorkspace;
   buildId?: string;
+  operation?: WorkspaceOperationState;
   navigation: PanelTabsNavigation;
   visible: boolean;
-  onStartWorkspace: (workspaceId: string) => Promise<void>;
+  onStartWorkspace: (workspaceId: string) => void;
   onWorkspaceChange: (workspaceId: string, buildId: string) => void;
 }) {
   const [selection, setSelection] = useState<{
@@ -69,17 +72,13 @@ export function AccountWorkspacePanel({
     section: "connection",
   });
   const [managementBusy, setManagementBusy] = useState(false);
-  const workspace = workspaceId
-    ? workspaces.find((item) => item.id === workspaceId)
-    : (workspaces.find((item) => item.latest_build.status === "running") ?? workspaces[0]);
   const status = workspace?.latest_build.status;
-  const startup = useWorkspaceStart(workspace, onStartWorkspace);
   const ready =
     !!workspace &&
     status === "running" &&
     buildId === workspace.latest_build.id &&
-    !startup.starting &&
-    !startup.startFailed;
+    !operation?.pending &&
+    operation?.failed !== "start";
   const section = ready ? selection.section : "workspace";
   const scope = `${userId}/${workspace?.id ?? ""}/${buildId ?? ""}`;
 
@@ -97,14 +96,15 @@ export function AccountWorkspacePanel({
           <WorkspaceTab
             workspaces={workspaces}
             workspace={workspace}
-            starting={startup.starting}
-            startFailed={startup.startFailed}
+            operation={operation}
             onSelect={(item) => {
-              startup.clear();
               setSelection({ section: "workspace" });
               onWorkspaceChange(item.id, item.latest_build.id);
             }}
-            onStart={(id) => void startup.start(id, () => setSelection({ section: "connection" }))}
+            onStart={(id) => {
+              setSelection({ section: "connection" });
+              onStartWorkspace(id);
+            }}
             onUseCurrentBuild={
               workspace && !ready
                 ? () => {

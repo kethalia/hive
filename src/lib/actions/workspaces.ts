@@ -98,9 +98,12 @@ export const startWorkspaceAction = authActionClient
 
     let buildId = workspace.latest_build.id;
     if (status === "stopped") {
-      await client.startWorkspace(workspace.id);
+      const started = await client.startWorkspace(workspace.id);
       const running = await client.waitForBuild(workspace.id, "running");
-      buildId = running.latest_build.id;
+      if (running.latest_build.id !== started.id) {
+        throw new Error("The workspace build changed while it was starting.");
+      }
+      buildId = started.id;
     }
     if (parsedInput.waitForAgent) {
       const deadline = Date.now() + 60_000;

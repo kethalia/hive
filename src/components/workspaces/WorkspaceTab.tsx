@@ -1,57 +1,36 @@
 "use client";
 
-import { LoaderCircle, Play } from "lucide-react";
-import { useId, useState } from "react";
+import { Play } from "lucide-react";
+import { useId } from "react";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
-
-export function useWorkspaceStart(
-  workspace: CoderWorkspace | undefined,
-  onStart: (id: string) => Promise<void>,
-) {
-  const [startup, setStartup] = useState<{ id: string; pending: boolean } | null>(null);
-  async function start(id: string, onSuccess?: () => void) {
-    setStartup({ id, pending: true });
-    try {
-      await onStart(id);
-      setStartup(null);
-      onSuccess?.();
-    } catch {
-      setStartup({ id, pending: false });
-    }
-  }
-  return {
-    starting: startup?.id === workspace?.id && startup?.pending === true,
-    startFailed: startup?.id === workspace?.id && startup?.pending === false,
-    clear: () => setStartup(null),
-    start,
-  };
-}
+import type { WorkspaceOperationState } from "./WorkspaceDetails";
 
 export function WorkspaceTab({
   workspaces,
   workspace,
-  starting,
-  startFailed,
+  operation,
   onSelect,
   onStart,
   onUseCurrentBuild,
 }: {
   workspaces: CoderWorkspace[];
   workspace?: CoderWorkspace;
-  starting: boolean;
-  startFailed: boolean;
+  operation?: WorkspaceOperationState;
   onSelect: (workspace: CoderWorkspace) => void;
   onStart: (id: string) => void;
   onUseCurrentBuild?: () => void;
 }) {
   const radioGroup = useId();
   const status = workspace?.latest_build.status;
+  const startFailed = operation?.failed === "start";
+  const starting = operation?.pending === "start" || status === "pending" || status === "starting";
   return (
     <div className="space-y-3">
       {workspaces.length > 0 && (
-        <fieldset disabled={starting} className="min-w-0 space-y-2">
+        <fieldset disabled={!!operation?.pending} className="min-w-0 space-y-2">
           <legend className="text-sm">Coder workspaces</legend>
           <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
             {workspaces.map((item) => (
@@ -78,11 +57,14 @@ export function WorkspaceTab({
           </div>
         </fieldset>
       )}
-      {starting ? (
-        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-          Starting {workspace?.name}…
-        </p>
+      {workspace && starting ? (
+        <LoadingStatus>
+          {status === "running"
+            ? `Finishing workspace startup for ${workspace.name}…`
+            : `Starting ${workspace.name}…`}
+        </LoadingStatus>
+      ) : operation?.pending === "stop" ? (
+        <LoadingStatus>Stopping {workspace?.name}…</LoadingStatus>
       ) : workspace && (status === "stopped" || startFailed) ? (
         <>
           {startFailed && (
@@ -115,9 +97,7 @@ export function WorkspaceTab({
             ? workspaces.length
               ? "The selected workspace is unavailable. Choose another workspace."
               : "No workspaces available."
-            : status === "starting" || status === "pending"
-              ? "Waiting for the workspace to start…"
-              : `Workspace is ${status}. Manage it in Coder workspaces.`}
+            : `Workspace is ${status}. Manage it in Coder workspaces.`}
         </p>
       ) : null}
     </div>

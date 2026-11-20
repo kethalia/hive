@@ -6,7 +6,8 @@ import { useState } from "react";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import { CheckingConnection } from "@/components/workspaces/ConnectionStatus";
-import { useWorkspaceStart, WorkspaceTab } from "@/components/workspaces/WorkspaceTab";
+import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
+import { WorkspaceTab } from "@/components/workspaces/WorkspaceTab";
 import type { CoderWorkspace } from "@/lib/coder/types";
 
 const GitHubConnection = dynamic(
@@ -29,6 +30,7 @@ export function GitHubWindow({
   userId,
   workspaces,
   workspace,
+  operation,
   onWorkspaceChange,
   onStartWorkspace,
   visible,
@@ -37,15 +39,17 @@ export function GitHubWindow({
   userId: string;
   workspaces: CoderWorkspace[];
   workspace?: CoderWorkspace;
+  operation?: WorkspaceOperationState;
   onWorkspaceChange: (id: string) => void;
-  onStartWorkspace: (id: string) => Promise<void>;
+  onStartWorkspace: (id: string) => void;
   visible: boolean;
   navigation: PanelTabsNavigation;
 }) {
-  const startup = useWorkspaceStart(workspace, onStartWorkspace);
   const [selection, setSection] = useState<(typeof sections)[number]["id"]>("connection");
   const ready =
-    workspace?.latest_build.status === "running" && !startup.starting && !startup.startFailed;
+    workspace?.latest_build.status === "running" &&
+    !operation?.pending &&
+    operation?.failed !== "start";
   const section = ready ? selection : "workspace";
   return (
     <PanelTabs
@@ -60,14 +64,15 @@ export function GitHubWindow({
         <WorkspaceTab
           workspaces={workspaces}
           workspace={workspace}
-          starting={startup.starting}
-          startFailed={startup.startFailed}
+          operation={operation}
           onSelect={(item) => {
-            startup.clear();
             setSection("workspace");
             onWorkspaceChange(item.id);
           }}
-          onStart={(id) => void startup.start(id, () => setSection("connection"))}
+          onStart={(id) => {
+            setSection("connection");
+            onStartWorkspace(id);
+          }}
         />
       ) : workspace && section === "repositories" ? (
         <ProjectBrowser

@@ -48,3 +48,14 @@
   action that initiated it. Clear stale content immediately when authorization or identity fails.
 - Check slow initial loads, background refresh, and error recovery when changing a window.
   Compare equivalent provider panels side by side for matching placement and a single indicator.
+
+### Workspace windows
+
+- Read start and stop progress from the shared operation for the selected Coder workspace.
+  Keep Connection and other workspace actions gated through agent readiness when a provider is in use.
+  After a Hive-initiated start, move provider windows still bound to that workspace onto the verified
+  build. Keep explicit confirmation for account windows that encounter an unrelated build change.
+- Put workspace lifecycle status in the Workspace Details title bar. Use a window subtitle only
+  when it identifies a scope the title does not already convey.
+- Keep log timestamps aligned separately from output. Preserve line breaks and scroll position
+  during refresh. Label the log source and put filtering and export controls in the log toolbar.

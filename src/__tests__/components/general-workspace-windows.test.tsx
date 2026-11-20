@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "../helpers/discovery";
@@ -36,6 +37,11 @@ vi.mock("@/components/workspaces/CodexAccountPanel", () => ({
 }));
 vi.mock("@/components/workspaces/ClaudeAccountCard", () => ({
   ClaudeAccountCard: () => <p>Loaded Claude account</p>,
+}));
+vi.mock("@/components/projects/GitHubConnection", () => ({
+  GitHubConnection: ({ workspace }: { workspace: CoderWorkspace }) => (
+    <p>Loaded GitHub account for {workspace.latest_build.id}</p>
+  ),
 }));
 vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
@@ -86,6 +92,7 @@ vi.mock("@/components/workspaces/GeneralWorkspacePane", () => ({
   },
 }));
 
+import { RuntimeConfigProvider } from "@/components/runtime-config-provider";
 import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
@@ -463,6 +470,114 @@ describe("workspace tool windows", () => {
       await screen.findByText("The Accounts workspace or build selection is invalid."),
     ).toBeVisible();
     expect(screen.queryByTestId("hive-window-codex-account")).not.toBeInTheDocument();
+  });
+
+  it("shares startup and the verified build across all windows using the same workspace", async () => {
+    const stopped = {
+      ...workspaces[0],
+      latest_build: {
+        id: "stopped-build",
+        status: "stopped" as const,
+        job: { status: "succeeded", error: "" },
+      },
+    };
+    const running = {
+      ...stopped,
+      latest_build: { ...stopped.latest_build, id: "started-build", status: "running" as const },
+    };
+    const lines = [
+      {
+        id: 1,
+        stage: "Preparing",
+        output: "Provisioner ready",
+        created_at: "2026-11-20T01:00:00.120Z",
+      },
+      {
+        id: 2,
+        stage: "Starting",
+        output: "Agent starting",
+        created_at: "2026-11-20T01:00:01.200Z",
+      },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ workspace: running, logs: lines })),
+    );
+    let finishStart!: (result: Awaited<ReturnType<typeof startWorkspaceAction>>) => void;
+    vi.mocked(startWorkspaceAction).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishStart = resolve;
+        }),
+    );
+    vi.mocked(listWorkspacesAction).mockResolvedValue({ data: [running] });
+
+    let cache!: QueryClient;
+    function Canvas() {
+      cache = useQueryClient();
+      return <GeneralWorkspace userId="user" initialWorkspaces={[stopped]} />;
+    }
+    render(
+      <RuntimeConfigProvider config={{ projectDiscoveryEnabled: true, terminalWsUrl: "" }}>
+        <KeybindingProvider>
+          <Canvas />
+        </KeybindingProvider>
+      </RuntimeConfigProvider>,
+    );
+    await screen.findByRole("textbox", { name: "Terminal input" });
+    const providers = ["claude-account", "codex-account", "projects"] as const;
+    for (const tool of providers) act(() => requestHiveWindow({ tool, workspaceId: stopped.id }));
+    const windows = providers.map((tool) => within(screen.getByTestId(`hive-window-${tool}`)));
+    fireEvent.click(windows[2].getByRole("button", { name: "Start workspace" }));
+    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: stopped.id,
+      waitForAgent: true,
+    });
+    for (const pane of windows) {
+      expect(pane.getByRole("status")).toHaveTextContent("Starting ai-dev-01");
+      expect(pane.queryByRole("button", { name: "Start workspace" })).toBeNull();
+      expect(pane.getByRole("tab", { name: "Connection" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+
+    act(() => cache.setQueryData(["discovery", "workspaces", "", ""], [running]));
+    for (const pane of windows) {
+      expect(await pane.findByText("Finishing workspace startup for ai-dev-01…")).toBeVisible();
+      expect(pane.queryByRole("button", { name: "Use current build" })).toBeNull();
+    }
+    const details = within(screen.getByTestId("hive-window-workspace-details"));
+    const header = within(details.getByTestId("hive-window-workspace-details-header"));
+    expect(await header.findByText("Finishing startup…")).toBeVisible();
+    expect(header.queryByText("Hive")).toBeNull();
+
+    await act(async () =>
+      finishStart({
+        data: { workspaceId: running.id, buildId: running.latest_build.id, status: "running" },
+      }),
+    );
+    expect(await windows[0].findByText("Loaded Claude account")).toBeVisible();
+    expect(
+      await windows[1].findByText("Loaded Codex account for software/started-build"),
+    ).toBeVisible();
+    expect(await windows[2].findByText("Loaded GitHub account for started-build")).toBeVisible();
+    expect(header.getByRole("status")).toHaveTextContent("running");
+    expect(details.getByRole("button", { name: "Stop workspace" })).toBeEnabled();
+    const logList = details.getByRole("list", { name: "Latest build output" });
+    expect(logList.querySelector("time")).toHaveAttribute("datetime", lines[0].created_at);
+    expect(logList).toHaveTextContent(lines[0].output);
+    fireEvent.change(details.getByRole("combobox", { name: "Build log stage" }), {
+      target: { value: "Starting" },
+    });
+    await waitFor(() => {
+      const filtered = details.getByRole("list", { name: "Latest build output" });
+      expect(filtered).toHaveTextContent(lines[1].output);
+      expect(filtered).not.toHaveTextContent(lines[0].output);
+    });
+    for (const tool of providers)
+      expect(screen.queryByTestId(`hive-window-${tool}-subtitle`)).toBeNull();
+    vi.mocked(listWorkspacesAction).mockReset();
   });
 
   it("starts the chosen workspace in place and remembers individual provider selections", async () => {

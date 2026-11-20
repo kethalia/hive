@@ -4,7 +4,7 @@ import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { useQuery } from "@tanstack/react-query";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import dynamic from "next/dynamic";
-import { Suspense, useId, useState } from "react";
+import { type ReactNode, Suspense, useId, useState } from "react";
 import { GitHubWindow } from "@/components/projects/GitHubWindow";
 import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
@@ -69,13 +69,13 @@ interface Props {
   active: boolean;
   visible: boolean;
   launchRequest: number;
-  operation?: WorkspaceOperationState;
+  operations?: Record<string, WorkspaceOperationState>;
   onLifecycle?: (id: string, action: "start" | "stop") => void;
   dragHandleListeners?: DraggableSyntheticListeners;
   onActivate: () => void;
   onClose: () => void;
   onCycleWidth?: () => void;
-  onStartWorkspace: (workspaceId: string) => Promise<void>;
+  onStartWorkspace: (workspaceId: string) => void;
   onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
   onOpenSession: (workspaceId: string, sessionName: string) => void;
 }
@@ -87,7 +87,7 @@ export function HiveWorkspacePane({
   active,
   visible,
   launchRequest,
-  operation,
+  operations,
   onLifecycle,
   dragHandleListeners,
   onActivate,
@@ -98,16 +98,17 @@ export function HiveWorkspacePane({
   onOpenSession,
 }: Props) {
   const { projectDiscoveryEnabled } = useRuntimeConfig();
-  const projectWorkspace =
-    pane.tool !== "projects"
-      ? undefined
-      : pane.workspaceId
+  const accountTool = isAccountTool(pane.tool);
+  const providerWorkspace =
+    accountTool || pane.tool === "projects"
+      ? pane.workspaceId
         ? workspaces.find((w) => w.id === pane.workspaceId)
-        : (workspaces.find((w) => w.latest_build.status === "running") ?? workspaces[0]);
+        : (workspaces.find((w) => w.latest_build.status === "running") ?? workspaces[0])
+      : undefined;
+  const providerOperation = providerWorkspace ? operations?.[providerWorkspace.id] : undefined;
   const navigationId = useId();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigation = { id: navigationId, collapsed: sidebarCollapsed };
-  const accountTool = isAccountTool(pane.tool);
   const agentWorkspace =
     pane.tool === "agents"
       ? (workspaces.find((w) => w.id === pane.workspaceId) ??
@@ -118,17 +119,18 @@ export function HiveWorkspacePane({
     pane.tool === "workspace-details"
       ? workspaces.find((w) => w.id === pane.workspaceId)
       : undefined;
+  const detailOperation = detailWorkspace ? operations?.[detailWorkspace.id] : undefined;
   const hasSidebar =
     pane.tool === "settings" ||
     (pane.tool === "projects" && !!projectDiscoveryEnabled) ||
     accountTool;
-  return (
+  const renderWindow = (status: ReactNode, detailBody: ReactNode) => (
     <TerminalSessionFrame
       label={detailWorkspace?.name ?? hiveToolLabels[pane.tool]}
       subtitle={
         pane.tool === "logs" && pane.workspaceId
           ? `${workspaces.find((w) => w.id === pane.workspaceId)?.name ?? pane.workspaceId}${pane.sessionName ? ` · ${pane.sessionName}` : ""}`
-          : "Hive"
+          : undefined
       }
       active={active && visible}
       className="h-full"
@@ -140,24 +142,28 @@ export function HiveWorkspacePane({
       onClose={onClose}
       onCycleWidth={onCycleWidth}
       headerActions={
-        hasSidebar && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-            aria-expanded={!sidebarCollapsed}
-            aria-controls={navigationId}
-            title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen aria-hidden="true" />
-            ) : (
-              <PanelLeftClose aria-hidden="true" />
-            )}
-          </Button>
+        status ? (
+          <div className="shrink-0 px-2">{status}</div>
+        ) : (
+          hasSidebar && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              aria-expanded={!sidebarCollapsed}
+              aria-controls={navigationId}
+              title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen aria-hidden="true" />
+              ) : (
+                <PanelLeftClose aria-hidden="true" />
+              )}
+            </Button>
+          )
         )
       }
       closeLabel={`Close ${hiveToolLabels[pane.tool]}`}
@@ -173,8 +179,9 @@ export function HiveWorkspacePane({
             provider={pane.tool === "codex-account" ? "Codex" : "Claude"}
             userId={userId}
             workspaces={workspaces}
-            workspaceId={pane.workspaceId}
+            workspace={providerWorkspace}
             buildId={pane.buildId}
+            operation={providerOperation}
             navigation={navigation}
             visible={visible}
             onStartWorkspace={onStartWorkspace}
@@ -186,7 +193,8 @@ export function HiveWorkspacePane({
               key={userId}
               userId={userId}
               workspaces={workspaces}
-              workspace={projectWorkspace}
+              workspace={providerWorkspace}
+              operation={providerOperation}
               onStartWorkspace={onStartWorkspace}
               onWorkspaceChange={onWorkspaceChange}
               visible={visible}
@@ -218,21 +226,11 @@ export function HiveWorkspacePane({
             )}
           </div>
         ) : pane.tool === "workspace-details" ? (
-          detailWorkspace && onLifecycle ? (
-            <WorkspaceDetails
-              key={detailWorkspace.id}
-              workspace={detailWorkspace}
-              userId={userId}
-              visible={visible}
-              operation={operation}
-              onStart={() => onLifecycle(detailWorkspace.id, "start")}
-              onStop={() => onLifecycle(detailWorkspace.id, "stop")}
-            />
-          ) : (
+          (detailBody ?? (
             <p role="status" className="p-4">
               This workspace is unavailable.
             </p>
-          )
+          ))
         ) : pane.tool === "workspaces" ? (
           <WorkspaceListContent
             workspaces={workspaces}
@@ -259,5 +257,19 @@ export function HiveWorkspacePane({
         )}
       </Suspense>
     </TerminalSessionFrame>
+  );
+  return detailWorkspace && onLifecycle ? (
+    <WorkspaceDetails
+      key={detailWorkspace.id}
+      workspace={detailWorkspace}
+      userId={userId}
+      visible={visible}
+      operation={detailOperation}
+      onStart={() => onLifecycle(detailWorkspace.id, "start")}
+      onStop={() => onLifecycle(detailWorkspace.id, "stop")}
+      renderWindow={renderWindow}
+    />
+  ) : (
+    renderWindow(null, null)
   );
 }
