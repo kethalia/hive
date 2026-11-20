@@ -70,6 +70,19 @@ describe("Coder OAuth callback registration for native Previews", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("keeps the latest callback within Coder's registration limit", async () => {
+    vi.stubEnv("HIVE_NATIVE_MODE", "preview");
+    vi.stubEnv("HIVE_PREVIEW_CODER_REGISTRATION_TOKEN", "preview-registration-token");
+    const callbacks = Array.from(
+      { length: 32 },
+      (_, index) => `https://branch-${index}.hive-preview.kethalia.com/api/auth/callback/coder`,
+    );
+    const { db, fetch } = fixture(callbacks);
+    await registerCoderPreviewCallback(config, db, signal);
+    const redirects = JSON.parse(fetch.mock.calls[1][1].body).redirect_uris;
+    expect(redirects).toEqual([callbackUrl, ...callbacks.slice(0, 31)]);
+  });
+
   it("rejects an origin outside the Cloudflare preview domain before calling Coder", async () => {
     vi.stubEnv("HIVE_NATIVE_MODE", "preview");
     vi.stubEnv("HIVE_PREVIEW_CODER_REGISTRATION_TOKEN", "preview-registration-token");

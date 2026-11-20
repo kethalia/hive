@@ -30,7 +30,10 @@ Workers Builds uses the repository root and runs `pnpm build:cloudflare`.
 Production runs `pnpm exec wrangler deploy --config deploy/cloudflare/native/wrangler.jsonc`.
 Preview Builds uses the same Worker and runs
 `pnpm exec wrangler preview --config deploy/cloudflare/native/wrangler.jsonc --name "$WORKERS_CI_BRANCH"`.
-Cloudflare creates a Preview for each branch it builds. The `previews` block
+Cloudflare creates a Preview for each branch it builds. The Preview Build
+command is copied when Cloudflare creates a branch Preview. When migrating an
+existing Worker from the previous Hive deploy script, update previews that still
+have the old command once. The `previews` block
 inherited from `main` supplies the non-production database, runtime role and other
 default bindings. Native runtime admission validates the database and role before
 serving requests or running background work.
@@ -39,9 +42,9 @@ Use the branch's stable `*.hive-preview.kethalia.com` URL. The Worker derives th
 request origin from that hostname and redirects `workers.dev` page loads to the
 matching custom domain. Coder sign-in adds the exact callback to a single Preview
 OAuth application through Coder Dynamic Client Registration, with its own
-client secret and registration token. New entries replace the least recently used
-entries when Coder's callback list reaches its limit. Subsequent sign-ins
-register the callback again if it was removed.
+client secret and registration token. The app keeps up to 32 registered callbacks. When the list fills up, adding a
+callback replaces the oldest entry, and starting sign-in on an existing callback
+moves it to the front. A later sign-in registers a callback again if it was removed.
 
 Provision the Preview Base secrets
 `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`, `AUTH_SERVICE_SECRET`,
