@@ -118,7 +118,7 @@ export function BuildLogTabs({
           <DropdownMenuContent className="w-max max-w-64">
             <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
               {hidden.map((stage) => (
-                <DropdownMenuRadioItem key={stage} value={stage} className="break-all">
+                <DropdownMenuRadioItem key={stage} value={stage} closeOnClick className="break-all">
                   {stageLabel(stage)}
                 </DropdownMenuRadioItem>
               ))}

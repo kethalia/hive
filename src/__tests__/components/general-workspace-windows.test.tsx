@@ -124,6 +124,7 @@ beforeEach(() => {
     "ResizeObserver",
     class {
       observe() {}
+      unobserve() {}
       disconnect() {}
     },
   );
@@ -575,6 +576,18 @@ describe("workspace tool windows", () => {
       expect(filtered).toHaveTextContent(lines[1].output);
       expect(filtered).not.toHaveTextContent(lines[0].output);
     });
+    const stages = details.getByRole("tablist", { name: "Build log stages" });
+    const row = stages.parentElement!;
+    vi.spyOn(row, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 125, 32));
+    for (const item of row.firstElementChild!.children) {
+      vi.spyOn(item, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 60, 32));
+    }
+    fireEvent.click(details.getByRole("tab", { name: "All logs" }));
+    const more = details.getByRole("button", { name: "More log stages" });
+    fireEvent.click(more);
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Starting" }));
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(details.getByRole("tab", { name: "Starting" })).toHaveAttribute("aria-selected", "true");
     for (const tool of providers)
       expect(screen.queryByTestId(`hive-window-${tool}-subtitle`)).toBeNull();
     vi.mocked(listWorkspacesAction).mockReset();
