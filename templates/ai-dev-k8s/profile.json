@@ -2,7 +2,7 @@
   "id": "software",
   "label": "Development & orchestration",
   "description": "Persistent repository development, delivery, and specialist workspace coordination.",
-  "image": "ghcr.io/kethalia/hive-base@sha256:dbd5df42e84015515c8f0f0231606ef9e79bdec2bc84c67e79e4d71f4c11ce0c",
+  "image": "ghcr.io/kethalia/hive-base@sha256:1b3fe81e7a0fd14cf11d28efe0170e22a597601e72f34624873d2e275ac4f12d",
   "image_variant": "cli",
   "capabilities": {
     "browser": false,
