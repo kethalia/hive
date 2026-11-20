@@ -136,7 +136,7 @@ export async function handleCoderAuth(request: Request) {
     } catch (error) {
       const known =
         error instanceof Error &&
-        /^coder_preview_callback_(?:configuration|metadata|(?:database|read|update)(?:_[1-5][0-9]{2}|_P[0-9]{4})?)$/.test(
+        /^coder_preview_callback_(?:configuration|(?:metadata|database|read|update)(?:_[1-5][0-9]{2}|_P[0-9]{4}|_deadline|_transport)?)$/.test(
           error.message,
         );
       return unavailable(known ? error.message : "coder_preview_callback_unavailable");

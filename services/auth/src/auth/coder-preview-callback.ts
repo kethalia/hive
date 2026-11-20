@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@hive/db";
+import { boundedCoderJson } from "./bounded-coder-json";
 import { fetchCoderApi } from "./coder-fetch";
 import { type CoderOAuthConfig, isCoderOAuthPreview } from "./coder-oauth-config";
 
@@ -21,16 +22,26 @@ export async function registerCoderPreviewCallback(
     `/oauth2/clients/${encodeURIComponent(config.clientId)}`,
     config.coderOrigin,
   );
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const requestOptions: RequestInit = {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    redirect: "manual",
+    credentials: "omit",
+    cache: "no-store",
+    signal: AbortSignal.any([signal, AbortSignal.timeout(8_000)]),
+  };
   // Coder replaces the list on every update. Serialize the read and write across Previews.
   let stage = "database";
   try {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${endpoint.href}, 0))`;
       stage = "read";
-      const response = await fetchCoderApi(endpoint.href, { headers, redirect: "error", signal });
-      if (!response.ok) throw Error(`coder_preview_callback_read_${response.status}`);
-      const registration = await response.json();
+      const response = await fetchCoderApi(endpoint.href, requestOptions);
+      if (!response.ok || response.redirected) {
+        await response.body?.cancel();
+        throw Error(`coder_preview_callback_read_${response.status}`);
+      }
+      stage = "metadata";
+      const registration = await boundedCoderJson(response, requestOptions.signal ?? signal);
       const redirects: unknown = registration.redirect_uris;
       if (
         registration.client_id !== config.clientId ||
@@ -47,10 +58,8 @@ export async function registerCoderPreviewCallback(
 
       stage = "update";
       const update = await fetchCoderApi(endpoint.href, {
+        ...requestOptions,
         method: "PUT",
-        headers,
-        redirect: "error",
-        signal,
         body: JSON.stringify({
           client_name: registration.client_name,
           redirect_uris: [
@@ -64,13 +73,18 @@ export async function registerCoderPreviewCallback(
         }),
       });
       await update.body?.cancel();
-      if (!update.ok) throw Error(`coder_preview_callback_update_${update.status}`);
+      if (!update.ok || update.redirected)
+        throw Error(`coder_preview_callback_update_${update.status}`);
     });
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("coder_preview_callback_")) throw error;
     const cause = error as { code?: unknown; errorCode?: unknown };
     const code = cause?.code ?? cause?.errorCode;
-    const suffix = typeof code === "string" && /^P[0-9]{4}$/.test(code) ? `_${code}` : "";
+    let suffix = typeof code === "string" && /^P[0-9]{4}$/.test(code) ? `_${code}` : "";
+    if (error instanceof Error && /(?:timeout|abort|deadline)/i.test(error.name))
+      suffix = "_deadline";
+    else if (error instanceof TypeError && /(?:network|fetch|redirect|socket)/i.test(error.message))
+      suffix = "_transport";
     throw Error(`coder_preview_callback_${stage}${suffix}`);
   }
 }
