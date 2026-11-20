@@ -6,57 +6,24 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CODER_OAUTH_POPUP_MESSAGE } from "@/lib/auth/coder-oauth-popup";
+import { coderOAuthPopupCss, coderOAuthPopupPanel } from "@/lib/auth/coder-oauth-popup-view";
 
 function showCoderPopupLoading(document: Document) {
   document.title = "Connecting to Coder · Hive";
   document.documentElement.lang = "en";
 
-  // The initial about:blank document has none of Hive's styles or fonts.
   const viewport = document.createElement("meta");
   viewport.name = "viewport";
   viewport.content = "width=device-width, initial-scale=1";
   const styles = document.createElement("style");
-  styles.textContent = `
-    :root { color-scheme: dark; background: #070a08; color: #dcffe3; font-family: ui-monospace, monospace; }
-    body {
-      box-sizing: border-box; margin: 0; min-height: 100vh; padding: 1rem;
-      display: grid; place-items: center;
-      background-image: linear-gradient(#8dff9d0a 1px, transparent 1px),
-                        linear-gradient(90deg, #8dff9d0a 1px, transparent 1px);
-      background-size: 2rem 2rem;
-    }
-    main {
-      box-sizing: border-box; width: min(100%, 22rem); padding: 1.5rem;
-      display: flex; align-items: center; gap: 1rem;
-      border: 1px solid #8dff9d40; background: #0d130f;
-      box-shadow: 0 0 3rem #8dff9d12;
-    }
-    main > span {
-      display: grid; flex: 0 0 2.25rem; height: 2.25rem; place-items: center;
-      border: 1px solid #8dff9d66; background: #8dff9d1a; color: #8dff9d;
-      font-size: 0.875rem;
-    }
-    p { margin: 0; font-size: 0.9375rem; line-height: 1.5; }
-    p::before {
-      content: ""; display: inline-block; width: 0.75em; height: 0.75em;
-      margin-inline-end: 0.65em; border: 1.5px solid #8dff9d;
-      border-right-color: transparent; border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(1turn); } }
-    @media (prefers-reduced-motion: reduce) { p::before { animation: none; } }
-  `;
+  styles.textContent = coderOAuthPopupCss;
   document.head.append(viewport, styles);
 
   const panel = document.createElement("main");
-  const mark = document.createElement("span");
-  mark.setAttribute("aria-hidden", "true");
-  mark.textContent = "H_";
-  const status = document.createElement("p");
-  status.setAttribute("role", "status");
-  status.textContent = "Connecting to Coder…";
-  panel.append(mark, status);
-  document.body?.replaceChildren(panel);
+  panel.className = "coder-oauth-popup";
+  panel.innerHTML = coderOAuthPopupPanel("connecting");
+  document.body.style.margin = "0";
+  document.body.replaceChildren(panel);
 }
 
 async function readCoderSession(signal: AbortSignal): Promise<string | null> {

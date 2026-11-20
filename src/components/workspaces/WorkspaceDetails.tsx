@@ -1,13 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Download, TerminalSquare } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Copy, Download } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { CoderWorkspace, WorkspaceBuildLog, WorkspaceBuildStatus } from "@/lib/coder/types";
+
+import { BuildLogTabs } from "./BuildLogTabs";
 
 interface BuildSnapshot {
   workspace: CoderWorkspace;
@@ -203,7 +206,10 @@ function BuildLogViewer({
   visible: boolean;
 }) {
   const [stage, setStage] = useState("");
-  const stages = [...new Set(lines.map((line) => line.stage).filter(Boolean))];
+  const stages = useMemo(
+    () => ["", ...new Set(lines.map((line) => line.stage).filter(Boolean))],
+    [lines],
+  );
   const activeStage = stages.includes(stage) ? stage : "";
   const filtered = activeStage ? lines.filter((line) => line.stage === activeStage) : lines;
   const list = useRef<HTMLOListElement>(null);
@@ -238,30 +244,19 @@ function BuildLogViewer({
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  function changeStage(stage: string) {
+    follow.current = true;
+    setStage(stage);
+  }
+
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-border bg-black">
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/20 px-2 py-1">
-        <div className="flex min-w-0 items-center gap-2 text-xs">
-          <TerminalSquare aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          {stages.length > 1 ? (
-            <select
-              aria-label="Build log stage"
-              className="min-w-0 rounded-sm bg-background px-1 py-1 text-foreground"
-              value={activeStage}
-              onChange={(event) => {
-                follow.current = true;
-                setStage(event.currentTarget.value);
-              }}
-            >
-              <option value="">All logs</option>
-              {stages.map((stage) => (
-                <option key={stage}>{stage}</option>
-              ))}
-            </select>
-          ) : (
-            <span>All logs</span>
-          )}
-        </div>
+    <Tabs
+      value={activeStage}
+      onValueChange={changeStage}
+      className="min-w-0 gap-0 overflow-hidden rounded-md border border-border bg-black"
+    >
+      <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-2 py-1">
+        <BuildLogTabs stages={stages} value={activeStage} onChange={changeStage} />
         <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
@@ -287,50 +282,52 @@ function BuildLogViewer({
           </Button>
         </div>
       </div>
-      {filtered.length ? (
-        <ol
-          ref={list}
-          onScroll={(event) => {
-            const element = event.currentTarget;
-            follow.current = element.scrollHeight - element.clientHeight - element.scrollTop < 8;
-          }}
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: The log viewport must be keyboard scrollable.
-          tabIndex={0}
-          aria-label="Latest build output"
-          className="max-h-80 overflow-y-auto overscroll-contain px-2 py-1.5 font-mono text-xs focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          {filtered.map((line, index) => (
-            <li
-              key={line.id}
-              className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 px-1 py-0.5 leading-5 hover:bg-muted/25"
-            >
-              <time
-                dateTime={line.created_at}
-                className="self-start text-muted-foreground tabular-nums"
+      <TabsContent value={activeStage}>
+        {filtered.length ? (
+          <ol
+            ref={list}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              follow.current = element.scrollHeight - element.clientHeight - element.scrollTop < 8;
+            }}
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: The log viewport must be keyboard scrollable.
+            tabIndex={0}
+            aria-label="Latest build output"
+            className="max-h-80 overflow-y-auto overscroll-contain px-2 py-1.5 font-mono text-xs focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            {filtered.map((line, index) => (
+              <li
+                key={line.id}
+                className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 px-1 py-0.5 leading-5 hover:bg-muted/25"
               >
-                {logTime.format(new Date(line.created_at))}
-              </time>
-              <div className="min-w-0 border-l border-border pl-2">
-                {!activeStage && line.stage && line.stage !== filtered[index - 1]?.stage && (
-                  <div className="font-medium text-muted-foreground [overflow-wrap:anywhere]">
-                    {line.stage}
-                  </div>
-                )}
-                <div
-                  className="whitespace-pre-wrap [overflow-wrap:anywhere] data-[level=error]:text-destructive data-[level=warn]:text-yellow-300"
-                  data-level={line.log_level}
+                <time
+                  dateTime={line.created_at}
+                  className="self-start text-muted-foreground tabular-nums"
                 >
-                  {line.output}
+                  {logTime.format(new Date(line.created_at))}
+                </time>
+                <div className="min-w-0 border-l border-border pl-2">
+                  {!activeStage && line.stage && line.stage !== filtered[index - 1]?.stage && (
+                    <div className="font-medium text-muted-foreground [overflow-wrap:anywhere]">
+                      {line.stage}
+                    </div>
+                  )}
+                  <div
+                    className="whitespace-pre-wrap [overflow-wrap:anywhere] data-[level=error]:text-destructive data-[level=warn]:text-yellow-300"
+                    data-level={line.log_level}
+                  >
+                    {line.output}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p role="status" className="px-3 py-4 text-sm text-muted-foreground">
-          No output for this build yet.
-        </p>
-      )}
-    </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p role="status" className="px-3 py-4 text-sm text-muted-foreground">
+            No output for this build yet.
+          </p>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }

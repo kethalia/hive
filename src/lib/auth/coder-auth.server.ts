@@ -4,6 +4,7 @@ import {
   CODER_OAUTH_POPUP_MESSAGE,
   validCoderOAuthPopupAttempt,
 } from "@/lib/auth/coder-oauth-popup";
+import { coderOAuthPopupCss, coderOAuthPopupPanel } from "@/lib/auth/coder-oauth-popup-view";
 import {
   CODER_HOST_COOKIE,
   coderFrameConfiguredUrls,
@@ -39,20 +40,10 @@ function popupCompletionHtml(attempt: string, origin: string, success: boolean):
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Coder sign-in · Hive</title>
-    <style>
-      body { margin: 0; background: #080f0b; color: #c5e4cc; font-family: ui-monospace, monospace; }
-      main { max-width: 28rem; margin: 12vh auto; padding: 2rem; }
-      h1 { font-size: 1.4rem; line-height: 1.4; }
-      p { line-height: 1.6; }
-      a { color: #8dff9d; }
-    </style>
+    <style>${coderOAuthPopupCss}</style>
   </head>
-  <body>
-    <main>
-      <h1>${success ? "Finishing sign-in to Hive…" : "Coder sign-in did not complete."}</h1>
-      <p>Return to your original Hive window to continue.</p>
-      <p><a href="/workspaces">Open Hive</a></p>
-    </main>
+  <body style="margin: 0">
+    <main class="coder-oauth-popup">${coderOAuthPopupPanel(success ? "finishing" : "failed")}</main>
     <script>
       if (window.opener) {
         window.opener.postMessage(${message}, ${targetOrigin});

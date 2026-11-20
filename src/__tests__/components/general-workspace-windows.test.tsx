@@ -567,9 +567,9 @@ describe("workspace tool windows", () => {
     const logList = details.getByRole("list", { name: "Latest build output" });
     expect(logList.querySelector("time")).toHaveAttribute("datetime", lines[0].created_at);
     expect(logList).toHaveTextContent(lines[0].output);
-    fireEvent.change(details.getByRole("combobox", { name: "Build log stage" }), {
-      target: { value: "Starting" },
-    });
+    expect(details.getByRole("tab", { name: "All logs" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(details.getByRole("tab", { name: "Starting" }));
+    expect(details.getByRole("tab", { name: "Starting" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => {
       const filtered = details.getByRole("list", { name: "Latest build output" });
       expect(filtered).toHaveTextContent(lines[1].output);
