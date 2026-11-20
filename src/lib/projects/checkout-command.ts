@@ -88,15 +88,27 @@ def process_uses(path, process):
                 raise ProjectError("cleanup_unverified")
             time.sleep(0.05)
 
-def in_use(path):
-    for process in pathlib.Path("/proc").iterdir():
+def in_use(path, proc_root=pathlib.Path("/proc")):
+    for process in proc_root.iterdir():
         if process.name.isdecimal() and process_uses(path, process):
             return True
-    for line in pathlib.Path("/proc/self/mountinfo").read_text().splitlines():
+    for line in (proc_root / "self/mountinfo").read_text().splitlines():
         mount = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), line.split()[4])
         if mount == str(path) or mount.startswith(str(path) + "/"):
             return True
     return False
+
+def audio_environment(session):
+    helper = shutil.which("hive-audio")
+    if not helper:
+        return []
+    try:
+        pulse = run([helper, "prepare", "--", session], timeout=8).decode().strip()
+    except (OSError, ProjectError, subprocess.TimeoutExpired, UnicodeError):
+        return []
+    if not re.fullmatch(r"unix:/[^\r\n\x00]+", pulse):
+        return []
+    return ["-e", "PULSE_SERVER=" + pulse]
 
 # Runs inside tmux so dependency progress and errors stay visible across browser disconnects.
 LAUNCH = """
@@ -108,7 +120,7 @@ def prepare():
     if not manifest.is_file() or manifest.is_symlink():
         return
     commands = {
-        "pnpm": (("pnpm-lock.yaml",), ["install", "--frozen-lockfile", "--ignore-scripts"]),
+        "pnpm": (("pnpm-lock.yaml",), ["install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"]),
         "npm": (("package-lock.json", "npm-shrinkwrap.json"), ["ci", "--ignore-scripts"]),
         "yarn": (("yarn.lock",), ["install", "--immutable", "--mode=skip-build"]),
         "bun": (("bun.lock", "bun.lockb"), ["install", "--frozen-lockfile", "--ignore-scripts"]),
@@ -219,7 +231,8 @@ def main(spec):
                 codex = shutil.which("codex")
                 require(codex, "codex_unavailable")
                 run([*tmux, "new-session", "-d", "-s", session, "-c", str(checkout),
-                     shlex.join([sys.executable, "-c", LAUNCH, codex])], code="codex_unavailable")
+                     *audio_environment(session), shlex.join([sys.executable, "-c", LAUNCH, codex])],
+                    code="codex_unavailable")
             return {"status": "opened", "sessionName": session, "fullName": name}
         require(not active and not in_use(project), "checkout_in_use")
         require(git(checkout, ["worktree", "list", "--porcelain"], gh, env).count(b"worktree ") == 1,
