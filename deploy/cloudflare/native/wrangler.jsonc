@@ -71,7 +71,7 @@
       "HIVE_TERMINAL_PASTE_ENABLED": "true",
       "HIVE_CODEX_VOICE_ENABLED": "true",
       "HIVE_CODER_OAUTH_ENABLED": "true",
-      "CODER_OAUTH_CLIENT_ID": "c2a37063-bab2-42f2-b3ee-1fbe39c29cbb",
+      "CODER_OAUTH_CLIENT_ID": "19b56565-b28a-410e-a705-fab916f87a16",
       "HIVE_CODEX_ACCOUNTS_ENABLED": "true",
       "HIVE_CLAUDE_ACCOUNTS_ENABLED": "true",
       "HIVE_AGENT_TOOLS_TRANSPORT": "workspace-app",

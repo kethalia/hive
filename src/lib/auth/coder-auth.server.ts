@@ -59,12 +59,22 @@ export async function handleCoderAuth(request: Request) {
   const url = new URL(request.url);
   if (!coderOAuthEnabled() || allowed.get(url.pathname) !== request.method)
     return Response.json({ error: "Not found" }, { status: 404 });
-  const config = getCoderOAuthConfig();
   const privateHeaders = {
     "Cache-Control": "private, no-store",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
   };
+  const unavailable = () =>
+    Response.json(
+      { error: "Coder sign-in is temporarily unavailable" },
+      { status: 503, headers: privateHeaders },
+    );
+  let config: ReturnType<typeof getCoderOAuthConfig>;
+  try {
+    config = getCoderOAuthConfig();
+  } catch {
+    return unavailable();
+  }
   if (
     url.origin !== config.publicOrigin ||
     (request.method === "POST" &&
@@ -124,10 +134,7 @@ export async function handleCoderAuth(request: Request) {
     try {
       await registerCoderPreviewCallback(config, db, signal);
     } catch {
-      return Response.json(
-        { error: "Coder sign-in is temporarily unavailable" },
-        { status: 503, headers: privateHeaders },
-      );
+      return unavailable();
     }
   }
   const auth = createCoderAuth(db, { signal });
