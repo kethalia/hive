@@ -2,6 +2,7 @@ import { resolveGitCloneTerminalAction } from "@/lib/actions/git-clones";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import type { CloneTreeNode, CloneTreeRepositoryNode } from "@/lib/git/clone-tree";
+import { isProjectSessionName } from "@/lib/projects/session-name";
 import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 
 export function repositories(nodes: readonly CloneTreeNode[]): CloneTreeRepositoryNode[] {
@@ -15,6 +16,8 @@ export function terminalNameError(name: string): string | null {
   if (!SAFE_IDENTIFIER_RE.test(name)) return "Use letters, numbers, dots, underscores, or hyphens.";
   if (isCloneTerminalSessionName(name))
     return "The git-clone- prefix is reserved for repository terminals.";
+  if (isProjectSessionName(name))
+    return "The hive-project- prefix is reserved for Codex project sessions.";
   return null;
 }
 

@@ -1,4 +1,5 @@
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
+import { isProjectSessionName } from "@/lib/projects/session-name";
 
 export interface TmuxSession {
   name: string;
@@ -26,5 +27,7 @@ export function parseTmuxSessions(stdout: string): TmuxSession[] {
 }
 
 export function filterGenericTmuxSessions(sessions: readonly TmuxSession[]): TmuxSession[] {
-  return sessions.filter((session) => !isCloneTerminalSessionName(session.name));
+  return sessions.filter(
+    (session) => !isCloneTerminalSessionName(session.name) && !isProjectSessionName(session.name),
+  );
 }

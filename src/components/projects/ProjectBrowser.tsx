@@ -27,6 +27,8 @@ interface ProjectBrowserProps {
   enabled?: boolean;
   visible?: boolean;
   onSelectProject?: (project: RepositoryProject, providerAccountId: string) => void;
+  onCleanupProject?: (project: RepositoryProject, providerAccountId: string) => void;
+  projectActionsDisabled?: boolean;
   onSetup?: (kind: "workspace" | "account") => void;
 }
 interface Snapshot {
@@ -87,6 +89,8 @@ export function ProjectBrowser({
   enabled = false,
   visible = true,
   onSelectProject,
+  onCleanupProject,
+  projectActionsDisabled,
   onSetup,
 }: ProjectBrowserProps) {
   const [state, setState] = useState<Snapshot>(() => empty(workspaceId));
@@ -255,6 +259,8 @@ export function ProjectBrowser({
                 <Button
                   variant="link"
                   className="h-auto p-0"
+                  aria-label={`Open ${repository.fullName} in Codex`}
+                  disabled={projectActionsDisabled}
                   onClick={() => {
                     if (account.current) onSelectProject(repository, account.current);
                   }}
@@ -290,6 +296,19 @@ export function ProjectBrowser({
                 <dt>Default branch</dt>
                 <dd className="break-all">{repository.defaultBranch}</dd>
               </dl>
+              {onCleanupProject && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  disabled={projectActionsDisabled}
+                  onClick={() => {
+                    if (account.current) onCleanupProject(repository, account.current);
+                  }}
+                >
+                  Clean up checkout
+                </Button>
+              )}
             </details>
           </li>
         ))}

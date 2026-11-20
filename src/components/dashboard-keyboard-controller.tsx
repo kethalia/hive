@@ -156,6 +156,13 @@ export function DashboardKeyboardController() {
           ...(projectDiscoveryEnabled
             ? ([
                 [
+                  "managed-projects",
+                  "Projects",
+                  "Open GitHub repositories in Codex",
+                  undefined,
+                  ["Browse projects", "Open repository", "Clean up checkout"],
+                ],
+                [
                   "projects",
                   "GitHub",
                   "Manage your connection and browse repositories",
@@ -264,7 +271,9 @@ export function DashboardKeyboardController() {
             ? items.filter((item) => !item.id.startsWith("start-workspace:"))
             : items,
         searchPlaceholder: `Search ${group.toLowerCase()}…`,
-        loadingText: ["Terminals", "Projects", "Files", "VS Code", "Logs"].includes(group)
+        loadingText: ["Terminals", "Projects", "Checkouts", "Files", "VS Code", "Logs"].includes(
+          group,
+        )
           ? source?.loadingText
           : undefined,
         emptyText: `No matching ${group.toLowerCase()}.`,

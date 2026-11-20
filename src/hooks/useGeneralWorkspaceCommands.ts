@@ -2,6 +2,7 @@
 
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import type {
   CommandPaletteAction,
   CommandPalettePage,
@@ -35,6 +36,8 @@ export function useGeneralWorkspaceCommands({
   additionalActions?: CommandPaletteAction[];
 }) {
   const client = useQueryClient();
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
+  const checkoutGroup = projectDiscoveryEnabled ? "Checkouts" : "Projects";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { pages: creationPages, beginCreation } = useWindowCreationPages({
@@ -231,7 +234,7 @@ export function useGeneralWorkspaceCommands({
             id: `repository:${workspace.id}:${repository.cloneSessionKey}`,
             label: repository.label,
             description: `${workspace.name} · ${repository.relativePath}`,
-            group: "Projects",
+            group: checkoutGroup,
             value: `${repository.label} ${repository.relativePath} ${workspace.name}`,
             rightLabel: "Open terminal",
             icon: "terminal",
@@ -352,18 +355,18 @@ export function useGeneralWorkspaceCommands({
       ...resultsByWorkspace.filter((action) => action.group === "Terminals"),
       {
         id: "new-project",
-        label: "New project",
+        label: projectDiscoveryEnabled ? "Clone repository" : "New project",
         aliases: ["clone repository", "new repository", "create project", "clone"],
         description: "Clone a GitHub organization/repository",
-        group: "Projects",
+        group: checkoutGroup,
         value: "new project clone github repository",
         icon: "plus",
         disabled: busy,
         onSelect: () => beginCreation("project"),
       },
-      ...resultsByWorkspace.filter((action) => action.group === "Projects"),
+      ...resultsByWorkspace.filter((action) => action.group === checkoutGroup),
       ...resultsByWorkspace.filter(
-        (action) => action.group !== "Terminals" && action.group !== "Projects",
+        (action) => action.group !== "Terminals" && action.group !== checkoutGroup,
       ),
     ];
   }, [
@@ -377,6 +380,8 @@ export function useGeneralWorkspaceCommands({
     onError,
     retryWorkspace,
     beginCreation,
+    checkoutGroup,
+    projectDiscoveryEnabled,
   ]);
 
   useEffect(

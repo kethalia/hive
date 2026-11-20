@@ -44,6 +44,7 @@ import {
   hiveWindowRequestSchema,
   importLegacyWorkspaceBoards,
   isAccountTool,
+  isWorkspaceProviderTool,
   MAX_GENERAL_BOARDS,
   MAX_GENERAL_WINDOWS,
   moveGeneralWindowToAdjacentBoard,
@@ -91,9 +92,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       poll: state.boards.some(
         (b) =>
           b.key === state.activeBoardKey &&
-          b.windows.some(
-            (w) => w.kind === "hive" && (isAccountTool(w.tool) || w.tool === "projects"),
-          ),
+          b.windows.some((w) => w.kind === "hive" && isWorkspaceProviderTool(w.tool)),
       ),
     },
   );
@@ -436,7 +435,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             (pane): pane is Extract<GeneralPane, { kind: "hive" }> & { id: string } =>
               pane.kind === "hive" &&
               (pane.workspaceId ?? fallbackWorkspaceId) === workspaceId &&
-              (isAccountTool(pane.tool) || pane.tool === "projects"),
+              isWorkspaceProviderTool(pane.tool),
           );
       };
       const selectedBuilds = new Map(
@@ -787,7 +786,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                     void changeWorkspaceStatus(workspaceId, "start", true).catch(() => {});
                   }}
                   onWorkspaceChange={selectWorkspace}
-                  onOpenSession={(workspaceId, sessionName) => {
+                  onOpenSession={(workspaceId, sessionName, label) => {
                     const current = stateRef.current;
                     const existingBoard = current.boards.find((b) =>
                       b.windows.some(
@@ -807,7 +806,12 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                     else if (sessionName.startsWith("git-clone-"))
                       void notification.open(workspaceId, sessionName);
                     else
-                      openPane({ kind: "terminal", workspaceId, sessionName, label: sessionName });
+                      openPane({
+                        kind: "terminal",
+                        workspaceId,
+                        sessionName,
+                        label: label ?? sessionName,
+                      });
                   }}
                 />
               );
