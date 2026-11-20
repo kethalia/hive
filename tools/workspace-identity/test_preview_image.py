@@ -31,7 +31,7 @@ class PreviewImageTests(unittest.TestCase):
             "EXPECTED_SOURCE_SHA": SOURCE,
             "GITHUB_SHA": SOURCE,
             "GITHUB_REPOSITORY": "kethalia/hive",
-            "GITHUB_REF": "refs/heads/codex/workspace-accounts-p03",
+            "GITHUB_REF": "refs/heads/codex/github-projects-p04",
             "PREVIEW_VARIANT": variant,
             "EXPECTED_LOCAL_IMAGE_ID": CONFIG_DIGEST,
         }

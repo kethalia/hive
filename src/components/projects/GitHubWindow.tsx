@@ -1,0 +1,98 @@
+"use client";
+
+import { BookMarked, Link2, Server } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useState } from "react";
+import { LoadingStatus } from "@/components/ui/loading-status";
+import { PanelTabs, type PanelTabsNavigation } from "@/components/ui/panel-tabs";
+import { CheckingConnection } from "@/components/workspaces/ConnectionStatus";
+import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
+import { WorkspaceTab } from "@/components/workspaces/WorkspaceTab";
+import type { CoderWorkspace } from "@/lib/coder/types";
+
+const GitHubConnection = dynamic(
+  () => import("./GitHubConnection").then((m) => m.GitHubConnection),
+  {
+    loading: () => <CheckingConnection provider="GitHub" />,
+  },
+);
+const ProjectBrowser = dynamic(() => import("./ProjectBrowser").then((m) => m.ProjectBrowser), {
+  loading: () => <LoadingStatus>Loading repositories…</LoadingStatus>,
+});
+
+const sections = [
+  { id: "workspace", label: "Workspace", icon: <Server /> },
+  { id: "connection", label: "Connection", icon: <Link2 /> },
+  { id: "repositories", label: "Repositories", icon: <BookMarked /> },
+] as const;
+
+export function GitHubWindow({
+  userId,
+  workspaces,
+  workspace,
+  operation,
+  onWorkspaceChange,
+  onStartWorkspace,
+  visible,
+  navigation,
+}: {
+  userId: string;
+  workspaces: CoderWorkspace[];
+  workspace?: CoderWorkspace;
+  operation?: WorkspaceOperationState;
+  onWorkspaceChange: (id: string) => void;
+  onStartWorkspace: (id: string) => void;
+  visible: boolean;
+  navigation: PanelTabsNavigation;
+}) {
+  const [selection, setSection] = useState<(typeof sections)[number]["id"]>("connection");
+  const ready =
+    workspace?.latest_build.status === "running" &&
+    !operation?.pending &&
+    operation?.failed !== "start";
+  const section = ready ? selection : "workspace";
+  return (
+    <PanelTabs
+      label="GitHub"
+      items={sections}
+      value={section}
+      onChange={setSection}
+      navigation={navigation}
+      busy={!ready}
+    >
+      {section === "workspace" ? (
+        <WorkspaceTab
+          workspaces={workspaces}
+          workspace={workspace}
+          operation={operation}
+          onSelect={(item) => {
+            setSection("workspace");
+            onWorkspaceChange(item.id);
+          }}
+          onStart={(id) => {
+            setSection("connection");
+            onStartWorkspace(id);
+          }}
+        />
+      ) : workspace && section === "repositories" ? (
+        <ProjectBrowser
+          key={workspace.latest_build.id}
+          workspaceId={workspace.id}
+          enabled
+          visible={visible}
+          onSetup={(kind) => {
+            setSection(kind === "account" ? "connection" : "workspace");
+          }}
+        />
+      ) : workspace ? (
+        <GitHubConnection
+          key={workspace.id + workspace.latest_build.id}
+          workspace={workspace}
+          onChooseWorkspace={() => setSection("workspace")}
+          userId={userId}
+          visible={visible}
+        />
+      ) : null}
+    </PanelTabs>
+  );
+}

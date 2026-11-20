@@ -84,6 +84,7 @@ export function readAgentStartup(
     exact(manifest, ["schemaVersion", "files"]) &&
       manifest.schemaVersion === 1 &&
       exact(manifest.files, [
+        "github-projects.py",
         "agent-host.mjs",
         "codex-account.mjs",
         "claude-account.mjs",
@@ -107,6 +108,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     check(process.argv.length === 2);
     const { config, configFileSha256 } = readAgentStartup();
+    for (const name of ["CODER_AGENT_TOKEN", "CODER_AGENT_TOKEN_FILE", "CODER_AGENT_URL"]) {
+      delete process.env[name];
+    }
     const bridge = createAgentBridge(config, {
       helperPath: join(config.packageDirectory, "agent-tools.py"),
       configFileSha256,

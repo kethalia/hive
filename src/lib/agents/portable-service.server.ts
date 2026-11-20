@@ -29,6 +29,8 @@ type Pin = {
   templateId: string;
   profile: AgentBridgeClientConfig["profile"];
   manifestSha256: string;
+  previousManifestSha256?: string;
+  previousGitHubManifestSha256?: string;
   helperSha256: string;
 };
 export type AgentBridgeServiceConfig = {
@@ -38,6 +40,7 @@ export type AgentBridgeServiceConfig = {
   pins: Pin[];
   cookieDomains: string[];
   home: string;
+  discoveryOnly?: boolean;
   accountProvider?: "codex" | "claude";
 };
 export type AgentBridgeServiceDependencies = {
@@ -57,6 +60,7 @@ const MUTATIONS = new Set([
 ]);
 const isMutation = (request: AgentOperation) =>
   MUTATIONS.has(request.operation) ||
+  (request.operation === "github-connection" && request.connection.action !== "status") ||
   (request.operation === "codex-management" && request.management.action.startsWith("save-"));
 /** Request-local authority: resolve the exact owner-only agent app before and
  * after each operation. No mutation is retried on an uncertain result. */
@@ -81,6 +85,8 @@ export class AgentBridgeService {
       const parsed = agentOperationSchema.parse(request);
       if (
         parsed.operation === "identity" ||
+        ["discover-projects", "github-connection"].includes(parsed.operation) !==
+          Boolean(this.config.discoveryOnly) ||
         (this.config.accountProvider !== undefined &&
           (!["codex", "claude"].includes(this.config.accountProvider) ||
             (parsed.operation !== `${this.config.accountProvider}-account` &&
@@ -92,7 +98,9 @@ export class AgentBridgeService {
       )
         throw new Error();
       if (
-        ["codex-account", "claude-account", "codex-management"].includes(parsed.operation) &&
+        ["codex-account", "claude-account", "codex-management", "github-connection"].includes(
+          parsed.operation,
+        ) &&
         !expectedBuildId
       )
         throw new Error("Selected workspace build is required.");
@@ -127,6 +135,8 @@ export class AgentBridgeService {
         profile: pin.profile,
         manifestSha256: pin.manifestSha256,
         helperSha256: pin.helperSha256,
+        previousManifestSha256: pin.previousManifestSha256,
+        previousGitHubManifestSha256: pin.previousGitHubManifestSha256,
       };
       const client = new AgentBridgeClient(config, this.deps.transport(coder, before.binding));
       const result = await client.execute(

@@ -1,0 +1,278 @@
+"use client";
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  CheckingConnection,
+  ConnectedAccount,
+  ConnectionProblem,
+  DisconnectedAccount,
+  RefreshConnectionButton,
+} from "@/components/workspaces/ConnectionStatus";
+import { DeviceSignIn } from "@/components/workspaces/PendingSignIn";
+import type { CoderWorkspace } from "@/lib/coder/types";
+import { DiscoveryError, isDiscoveryDenied } from "@/lib/discovery/types";
+import { projectErrorCodeSchema, projectErrorMessages } from "@/lib/projects/contracts";
+import { type GitHubStatus, githubStatusSchema } from "@/lib/projects/github-connection";
+
+class WorkspaceUpdateRequired extends Error {}
+
+type Action = "status" | "start" | "cancel" | "disconnect" | "poll";
+export function GitHubConnection({
+  workspace,
+  userId,
+  visible,
+  onChooseWorkspace,
+}: {
+  workspace: CoderWorkspace;
+  userId: string;
+  visible: boolean;
+  onChooseWorkspace: () => void;
+}) {
+  const client = useQueryClient();
+  const workspaceId = workspace.id;
+  const buildId = workspace.latest_build.id;
+  const key = ["github-connection", userId, workspaceId, buildId];
+  const [busy, setBusy] = useState<Action | null>(null);
+  const [failure, setFailure] = useState<Error | null>(null);
+  const [disconnect, setDisconnect] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now);
+  const lock = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  async function request(action: Action, revision?: string, signal?: AbortSignal) {
+    const r = await fetch("/api/github/connection", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, buildId, action, revision }),
+      signal,
+    });
+    if (r.redirected || !r.ok) {
+      const status = r.redirected ? 401 : r.status;
+      const unavailable = "Could not check the workspace GitHub connection. Refresh to try again.";
+      const problem = new DiscoveryError(
+        status === 401 ? "Sign in to Hive to check the workspace GitHub connection." : unavailable,
+        status,
+      );
+      if (isDiscoveryDenied(problem)) {
+        signal?.throwIfAborted();
+        // Discard the identity and pending revision so retry can only request fresh status.
+        client.setQueryData<GitHubStatus | null>(key, null);
+        if (mounted.current) setDisconnect(null);
+        throw problem;
+      }
+      const value = await r.json().catch(() => null);
+      const code = projectErrorCodeSchema.safeParse(value?.error);
+      if (code.success && code.data === "unsupported_schema") {
+        throw new WorkspaceUpdateRequired(
+          `Update the workspace template for ${workspace.name} to use this GitHub feature, or choose another workspace.`,
+        );
+      }
+      throw code.success ? new DiscoveryError(projectErrorMessages[code.data], status) : problem;
+    }
+    return githubStatusSchema.parse(await r.json());
+  }
+  const { data, error, refetch, isFetching } = useQuery<GitHubStatus | null>({
+    queryKey: key,
+    queryFn: ({ signal, queryKey }) => {
+      const previous = client.getQueryData<GitHubStatus | null>(queryKey);
+      return previous?.pending
+        ? request("poll", previous.revision, signal)
+        : request(
+            "status",
+            undefined,
+            AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
+          ).catch((error) => {
+            if (error instanceof Error && error.name === "TimeoutError") {
+              throw new Error(
+                `Checking GitHub in ${workspace.name} timed out. Refresh to try again.`,
+              );
+            }
+            throw error;
+          });
+    },
+    enabled: visible && !busy,
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) =>
+      query.state.data?.pending ? query.state.data.pending.interval * 1000 : false,
+  });
+  const pending = data?.pending;
+  const expiresAt = pending?.expiresAt;
+  useEffect(() => {
+    if (!expiresAt || !visible) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt, visible]);
+  async function change(action: "start" | "cancel" | "disconnect", revision: string) {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(action);
+    setFailure(null);
+    try {
+      await client.cancelQueries({ queryKey: key, exact: true });
+      const next = await request(action, revision);
+      client.setQueryData(key, next);
+      if (mounted.current && action === "cancel" && !next.pending && !next.outcome)
+        toast.message("GitHub sign-in ended.");
+      if (mounted.current && action === "disconnect" && !next.login && !next.pending)
+        toast.success("GitHub disconnected.");
+    } catch (error) {
+      if (mounted.current)
+        setFailure(
+          error instanceof Error
+            ? error
+            : new Error("Could not confirm the operation. Refresh status."),
+        );
+    } finally {
+      lock.current = false;
+      if (mounted.current) {
+        setBusy(null);
+        setDisconnect(null);
+      }
+    }
+  }
+  const problem = data && isDiscoveryDenied(failure) ? error : (failure ?? error);
+  const message = problem?.message;
+  const refreshButton = (
+    <RefreshConnectionButton
+      disabled={!!busy}
+      refreshing={isFetching}
+      onClick={() => {
+        setFailure(null);
+        void refetch();
+      }}
+    />
+  );
+  return (
+    <section
+      className="space-y-4"
+      aria-label="Workspace GitHub connection"
+      aria-busy={!!busy || isFetching}
+    >
+      {!data && !message && <CheckingConnection provider="GitHub" />}
+      {message && (
+        <ConnectionProblem provider="GitHub">
+          {message}
+          {data && !pending && " Showing the last confirmed account status."}
+        </ConnectionProblem>
+      )}
+      {data &&
+        (pending ? (
+          <DeviceSignIn
+            provider="GitHub"
+            challenge={{ code: pending.code, url: "https://github.com/login/device" }}
+            expiresAt={pending.expiresAt}
+            remaining={Math.max(0, Math.ceil((pending.expiresAt - now) / 1000))}
+            cancelDisabled={!!busy}
+            cancelling={busy === "cancel"}
+            onCancel={() => void change("cancel", data.revision)}
+            onExpired={() => void refetch()}
+          />
+        ) : (
+          <>
+            {data.login ? (
+              <ConnectedAccount
+                provider="GitHub"
+                workspace={workspace.name}
+                account={`@${data.login}`}
+              />
+            ) : (
+              <DisconnectedAccount provider="GitHub">
+                {data.outcome === "expired"
+                  ? "The sign-in code expired. Start again for a new code."
+                  : data.outcome === "failed"
+                    ? "Sign-in did not complete. You can try again."
+                    : "Sign in to browse repositories in this workspace."}
+              </DisconnectedAccount>
+            )}
+            {data.login && data.outcome && (
+              <p role="status" className="text-sm">
+                {data.outcome === "expired"
+                  ? "The sign-in code expired. Start again for a new code."
+                  : "GitHub sign-in did not complete. You can try again."}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {refreshButton}
+              <Button
+                size="sm"
+                variant={data.login ? "outline" : "default"}
+                disabled={!!busy || !!message}
+                onClick={() => void change("start", data.revision)}
+              >
+                {busy === "start" ? "Starting…" : data.login ? "Reconnect" : "Connect GitHub"}
+              </Button>
+              {data.login && (
+                <Dialog
+                  open={disconnect !== null}
+                  onOpenChange={(open) => {
+                    if (!busy) setDisconnect(open ? data.revision : null);
+                  }}
+                >
+                  <DialogTrigger
+                    render={
+                      <Button size="sm" variant="destructive" disabled={!!busy || !!message} />
+                    }
+                  >
+                    Disconnect
+                  </DialogTrigger>
+                  <DialogContent showCloseButton={!busy}>
+                    <DialogHeader>
+                      <DialogTitle>Disconnect GitHub?</DialogTitle>
+                      <DialogDescription>
+                        This signs out all saved github.com accounts in {workspace.name}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        disabled={!!busy}
+                        onClick={() => setDisconnect(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        disabled={!!busy || disconnect !== data.revision}
+                        onClick={() => disconnect && void change("disconnect", disconnect)}
+                      >
+                        Disconnect GitHub
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </>
+        ))}
+      {problem instanceof WorkspaceUpdateRequired && (
+        <Button size="sm" variant="outline" onClick={onChooseWorkspace}>
+          Choose workspace
+        </Button>
+      )}
+      {(!data || pending) &&
+        message &&
+        !(problem instanceof WorkspaceUpdateRequired) &&
+        refreshButton}
+    </section>
+  );
+}

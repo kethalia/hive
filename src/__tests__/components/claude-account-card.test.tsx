@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), message: vi.fn(), error: vi.fn() } }));
+
 import { afterEach, expect, it, vi } from "vitest";
 import { ClaudeAccountCard } from "@/components/workspaces/ClaudeAccountCard";
 
@@ -18,6 +22,7 @@ const pending = (generation = 1, codeSubmitted = false) => ({
 });
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -30,13 +35,13 @@ it("shows only the CLI's official link and submits one fenced code without retai
   render(
     <ClaudeAccountCard workspaceId="workspace" buildId="22222222-2222-4222-8222-222222222222" />,
   );
-  expect(await screen.findByRole("link", { name: "Open official Claude sign-in" })).toHaveAttribute(
+  expect(await screen.findByRole("link", { name: "Open Claude" })).toHaveAttribute(
     "href",
     "https://claude.com/cai/oauth/authorize?state=fixture",
   );
   const field = screen.getByLabelText("One-time sign-in code");
   fireEvent.change(field, { target: { value: "PRIVATE_CODE#STATE" } });
-  fireEvent.click(screen.getByRole("button", { name: "Submit code once" }));
+  fireEvent.click(screen.getByRole("button", { name: "Submit code" }));
   expect(field).toHaveValue("");
   expect(await screen.findByText(/Code submitted/)).toBeVisible();
   expect(JSON.parse(fetcher.mock.calls[1][1].body).request).toEqual({
@@ -61,9 +66,7 @@ it("workspace changes immediately hide old URL/code/fence while a new read is pe
   view.rerender(
     <ClaudeAccountCard workspaceId="new" buildId="22222222-2222-4222-8222-222222222222" />,
   );
-  expect(
-    screen.queryByRole("link", { name: "Open official Claude sign-in" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open Claude" })).not.toBeInTheDocument();
   expect(screen.queryByLabelText("One-time sign-in code")).not.toBeInTheDocument();
   expect(fetcher.mock.calls[1][0]).toContain("/new/");
   expect(JSON.parse(fetcher.mock.calls[1][1].body).request).toEqual({ action: "status" });
@@ -79,11 +82,11 @@ it("lost code ACK clears the input and requires status instead of replay", async
   );
   const field = await screen.findByLabelText("One-time sign-in code");
   fireEvent.change(field, { target: { value: "PRIVATE_CODE#STATE" } });
-  fireEvent.click(screen.getByRole("button", { name: "Submit code once" }));
+  fireEvent.click(screen.getByRole("button", { name: "Submit code" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("outcome is unknown");
   expect(field).toHaveValue("");
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-  expect(screen.getByRole("button", { name: "Submit code once" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Submit code" })).toBeDisabled();
 });
 
 it("isolates the one-time code and account fence when the selected build changes", async () => {
@@ -117,9 +120,14 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     .mockResolvedValueOnce(Response.json(pending()));
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="selected-build" />);
-  expect(screen.getByText("Checking Claude connection…")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Checking Claude connection…");
+  expect(
+    screen.queryByText(/Connect your Claude account to this workspace/),
+  ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
-  expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Could not verify Claude connection" }),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await screen.findByRole("button", { name: "Cancel sign-in" });
@@ -135,7 +143,7 @@ it("distinguishes an unavailable status read from an uncertain account mutation"
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="selected-build" />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Account status unavailable. Check workspace bridge setup and refresh.",
+    "Check the workspace bridge setup, then refresh status.",
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
@@ -163,12 +171,12 @@ it("keeps a code attempt locked after unknown ACK and a readback that still awai
   const field = await screen.findByLabelText("One-time sign-in code");
   expect(field).toHaveAttribute("type", "password");
   fireEvent.change(field, { target: { value: "SECRET_CODE#STATE" } });
-  fireEvent.submit(screen.getByRole("button", { name: "Submit code once" }).closest("form")!);
+  fireEvent.submit(screen.getByRole("button", { name: "Submit code" }).closest("form")!);
   await screen.findByRole("alert");
   expect(field).toHaveValue("");
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(screen.getByRole("button", { name: "Submit code once" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Submit code" })).toBeDisabled();
   expect(screen.getByLabelText("One-time sign-in code")).toBeDisabled();
   expect(fetcher.mock.calls.map(([, request]) => JSON.parse(request.body).request.action)).toEqual([
     "status",
@@ -178,7 +186,8 @@ it("keeps a code attempt locked after unknown ACK and a readback that still awai
   expect(screen.queryByText("SECRET_CODE#STATE")).not.toBeInTheDocument();
 });
 
-it("clears typed code when a refreshed response replaces the challenge", async () => {
+it("clears typed code when a background status check replaces the challenge", async () => {
+  vi.useFakeTimers();
   const first = pending(1);
   const second = {
     ...pending(2),
@@ -193,17 +202,16 @@ it("clears typed code when a refreshed response replaces the challenge", async (
     .mockResolvedValueOnce(Response.json(second));
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="build" />);
-  fireEvent.change(await screen.findByLabelText("One-time sign-in code"), {
-    target: { value: "OLD_SECRET#STATE" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-  await waitFor(() =>
-    expect(screen.getByRole("link", { name: "Open official Claude sign-in" })).toHaveAttribute(
-      "href",
-      second.pending.verificationUrl,
-    ),
+  await act(async () => {});
+  const field = screen.getByLabelText("One-time sign-in code");
+  fireEvent.change(field, { target: { value: "OLD_SECRET#STATE" } });
+  expect(screen.queryByRole("button", { name: "Refresh status" })).not.toBeInTheDocument();
+  await act(async () => vi.advanceTimersByTimeAsync(3000));
+  expect(screen.getByRole("link", { name: "Open Claude" })).toHaveAttribute(
+    "href",
+    second.pending.verificationUrl,
   );
-  expect(screen.getByLabelText("One-time sign-in code")).toHaveValue("");
+  expect(field).toHaveValue("");
 });
 
 it("hides expired Claude credentials until status readback permits a fresh sign-in", async () => {
@@ -225,9 +233,7 @@ it("hides expired Claude credentials until status readback permits a fresh sign-
   render(<ClaudeAccountCard workspaceId="workspace" buildId="build" />);
   await screen.findByText("Code expired");
   expect(screen.queryByLabelText("One-time sign-in code")).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("link", { name: "Open official Claude sign-in" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Open Claude" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Cancel sign-in" })).toBeDisabled();
   await act(async () => reply(Response.json({ ...pending(2), state: "expired", pending: null })));
   expect(await screen.findByRole("button", { name: "Connect Claude" })).toBeEnabled();
@@ -245,7 +251,9 @@ it("reports a completed Claude sign-in when cancellation loses the race", async 
   vi.stubGlobal("fetch", fetcher);
   render(<ClaudeAccountCard workspaceId="workspace" buildId="build" />);
   fireEvent.click(await screen.findByRole("button", { name: "Cancel sign-in" }));
-  expect(await screen.findByText("Claude sign-in completed before cancellation.")).toBeVisible();
+  await waitFor(() =>
+    expect(toast.message).toHaveBeenCalledWith("Claude sign-in completed before cancellation."),
+  );
   expect(screen.getByText("Connected")).toBeVisible();
 });
 
@@ -286,7 +294,7 @@ it("checks wall-clock expiry before sending a code after timer throttling", asyn
   fireEvent.change(field, { target: { value: "EXPIRED_SECRET#STATE" } });
   vi.setSystemTime(now + 6000);
   await act(async () =>
-    fireEvent.submit(screen.getByRole("button", { name: "Submit code once" }).closest("form")!),
+    fireEvent.submit(screen.getByRole("button", { name: "Submit code" }).closest("form")!),
   );
   expect(fetcher.mock.calls.map(([, request]) => JSON.parse(request.body).request.action)).toEqual([
     "status",

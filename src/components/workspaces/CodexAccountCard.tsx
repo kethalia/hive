@@ -1,9 +1,8 @@
 "use client";
 
-import { Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -21,16 +20,25 @@ import {
   type CodexAccountStatus,
   codexAccountStatusSchema,
 } from "@/lib/agents/codex-account-contracts";
-import { AccountChallengeExpiry } from "./AccountChallengeExpiry";
+import {
+  CheckingConnection,
+  ConnectedAccount,
+  ConnectionProblem,
+  DisconnectedAccount,
+  RefreshConnectionButton,
+} from "./ConnectionStatus";
+import { DeviceSignIn } from "./PendingSignIn";
 
 export function CodexAccountCard({
   workspaceId,
+  workspaceName = workspaceId,
   buildId,
   managementBusy = false,
   showConnection = true,
   children,
 }: {
   workspaceId: string;
+  workspaceName?: string;
   buildId: string;
   managementBusy?: boolean;
   showConnection?: boolean;
@@ -61,7 +69,6 @@ export function CodexAccountCard({
   const [feedback, setFeedback] = useState<{
     scope: string;
     notice?: string;
-    error?: string;
   } | null>(null);
   const [disconnect, setDisconnect] = useState<{
     scope: string;
@@ -71,6 +78,7 @@ export function CodexAccountCard({
   const connectButton = useRef<HTMLButtonElement>(null);
   const continueLink = useRef<HTMLAnchorElement>(null);
   const nextFocus = useRef<{ scope: string; target: "connect" | "challenge" } | null>(null);
+  const checkingConnection = !status && !failure && !unavailable;
   const blocked = busy || managementBusy || Boolean(failure);
   const disconnectStale = Boolean(
     disconnect &&
@@ -80,7 +88,6 @@ export function CodexAccountCard({
         status?.state !== "signed-in"),
   );
   const notice = feedback?.scope === scope ? feedback.notice : undefined;
-  const copyError = feedback?.scope === scope ? feedback.error : undefined;
   const refreshStatus = useCallback(() => {
     setFeedback(null);
     void refresh();
@@ -129,40 +136,21 @@ export function CodexAccountCard({
     if (action === "disconnect")
       setDisconnect((current) => (current?.scope === scope ? null : current));
     if (!next) return;
-    if (action === "disconnect") {
-      if (next.state === "signed-out") setFeedback({ scope, notice: "Codex disconnected." });
-    }
+    if (action === "disconnect" && next.state === "signed-out")
+      toast.success("Codex disconnected.");
     if (action === "cancel") {
-      setFeedback({
-        scope,
-        notice:
-          next.state === "signed-in"
-            ? "Codex sign-in completed before cancellation."
-            : next.state === "cancelled"
-              ? "Codex sign-in cancelled."
-              : next.state === "expired"
-                ? "The Codex sign-in window expired."
-                : next.state === "signed-out"
-                  ? "Codex sign-in ended."
-                  : "Cancellation has not been confirmed. Refresh status to check its progress.",
-      });
+      if (next.state === "signed-in") toast.message("Codex sign-in completed before cancellation.");
+      else if (next.state === "cancelled" || next.state === "signed-out")
+        toast.message("Codex sign-in cancelled.");
+      else if (next.state !== "expired")
+        setFeedback({
+          scope,
+          notice: "Cancellation has not been confirmed. Refresh status to check its progress.",
+        });
     }
   }
 
-  async function copyCode() {
-    if (!status?.pending || blocked || expired) return;
-    if (status.pending.expiresAt <= Date.now()) {
-      void refresh();
-      return;
-    }
-    setFeedback(null);
-    try {
-      await navigator.clipboard.writeText(status.pending.userCode);
-      setFeedback({ scope, notice: "Sign-in code copied." });
-    } catch {
-      setFeedback({ scope, error: "Copy failed. Select and copy the code above." });
-    }
-  }
+  if (checkingConnection) return <CheckingConnection provider="Codex" />;
 
   if (!showConnection)
     return status?.state === "signed-in" ? (
@@ -173,42 +161,16 @@ export function CodexAccountCard({
 
   return (
     <section className="space-y-4" aria-label="Managed Codex account" aria-busy={busy}>
-      {status?.state === "signed-in" && <Badge>Connected</Badge>}
-      {status?.state !== "pending" && status?.state !== "signed-in" && (
-        <p className="text-sm text-muted-foreground">
-          Connect the workspace’s managed Codex account with your ChatGPT sign-in.
-        </p>
-      )}
-      {!status && (busy || (!failure && !unavailable)) && (
-        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle
-            aria-hidden="true"
-            className="size-4 animate-spin motion-reduce:animate-none"
-          />
-          Checking Codex connection…
-        </p>
-      )}
       {unavailable && !failure && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Codex connection is unavailable. Check workspace bridge setup and refresh.
-        </p>
+        <ConnectionProblem provider="Codex">
+          This connection is unavailable in this Hive deployment.
+        </ConnectionProblem>
       )}
       {failure && (
-        <div className="space-y-1">
-          <p role="alert" className="text-sm text-destructive">
-            {accountStatusErrorMessage(failure)}
-          </p>
-          {status && (
-            <p className="text-sm text-muted-foreground">
-              Showing the last confirmed account status.
-            </p>
-          )}
-        </div>
-      )}
-      {copyError && (
-        <p role="alert" className="text-sm text-destructive">
-          {copyError}
-        </p>
+        <ConnectionProblem provider="Codex">
+          {accountStatusErrorMessage(failure)}
+          {status && " Showing the last confirmed account status."}
+        </ConnectionProblem>
       )}
       {notice && (
         <p role="status" className="text-sm">
@@ -216,131 +178,57 @@ export function CodexAccountCard({
         </p>
       )}
       {status?.state === "signed-in" && (
-        <p role="status" className="text-sm">
-          {status.account?.email || status.account?.plan
-            ? `${status.account.email ?? "Workspace Codex account"}${status.account.plan ? ` · ${status.account.plan}` : ""}`
-            : "The workspace’s managed Codex account is connected."}
-        </p>
+        <ConnectedAccount
+          provider="Codex"
+          workspace={workspaceName}
+          account={status.account?.email}
+          plan={status.account?.plan}
+        />
       )}
       {status?.state === "busy" && (
         <p role="status" className="text-sm">
           Codex is using these credentials. Refresh status after it closes.
         </p>
       )}
-      {status?.state === "unknown" && (
-        <p role="status" className="text-sm">
-          Codex account status could not be confirmed. Refresh status to continue.
-        </p>
+      {status?.state === "unknown" && !failure && (
+        <ConnectionProblem provider="Codex">Refresh status to try again.</ConnectionProblem>
       )}
       {status && !["signed-in", "pending", "busy", "unknown"].includes(status.state) && (
-        <div className="space-y-1 rounded-md border border-dashed p-4 text-sm" role="status">
-          <p className="font-medium">No Codex account connected</p>
-          <p className="text-muted-foreground">
-            {status.state === "expired"
-              ? "The sign-in window expired. Start again for a new code."
-              : status.state === "failed"
-                ? "Sign-in did not complete. You can try again."
-                : status.state === "cancelled"
-                  ? "Sign-in was cancelled. You can connect when you’re ready."
-                  : "Your connection will appear here after sign-in."}
+        <DisconnectedAccount provider="Codex">
+          {status.state === "expired"
+            ? "The sign-in window expired. Start again for a new code."
+            : status.state === "failed"
+              ? "Sign-in did not complete. You can try again."
+              : status.state === "cancelled"
+                ? "Sign-in was cancelled. You can connect when you’re ready."
+                : "Use your ChatGPT sign-in in this workspace."}
+        </DisconnectedAccount>
+      )}
+      {status?.state === "pending" &&
+        (status.pending ? (
+          <DeviceSignIn
+            provider="OpenAI"
+            challenge={{ code: status.pending.userCode, url: status.pending.verificationUrl }}
+            expiresAt={status.pending.expiresAt}
+            remaining={expiresIn ?? 0}
+            cancelDisabled={blocked || expired}
+            cancelling={pendingAction === "cancel"}
+            onCancel={() => void mutate("cancel")}
+            onExpired={refreshStatus}
+            linkRef={continueLink}
+          />
+        ) : (
+          <p role="status" className="text-sm text-muted-foreground">
+            Getting Codex sign-in ready…
           </p>
-        </div>
-      )}
-      {status?.state === "pending" && (
-        <div className="mx-auto max-w-md space-y-4 text-center">
-          {expired ? (
-            <>
-              {status.pending && (
-                <AccountChallengeExpiry expiresAt={status.pending.expiresAt} remaining={0} />
-              )}
-              <p role="status" className="text-sm">
-                The sign-in window expired. Refresh status to continue.
-              </p>
-            </>
-          ) : status.pending ? (
-            <>
-              <p className="text-sm text-muted-foreground">Enter this code on OpenAI.</p>
-              <div className="relative flex flex-wrap items-center justify-center gap-1 rounded-md border bg-muted/50 p-2 @lg:p-3">
-                <code className="min-w-0 select-all break-all font-mono text-xl font-semibold tracking-wide @lg:text-3xl">
-                  {status.pending.userCode}
-                </code>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="Copy code"
-                  title="Copy code"
-                  disabled={blocked}
-                  onClick={() => void copyCode()}
-                >
-                  <Copy aria-hidden="true" />
-                </Button>
-              </div>
-              {expiresIn !== null && (
-                <div className="flex items-center gap-2 before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
-                  <AccountChallengeExpiry
-                    expiresAt={status.pending.expiresAt}
-                    remaining={expiresIn}
-                  />
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <a
-                  ref={continueLink}
-                  href={status.pending.verificationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(event) => {
-                    if (status.pending && status.pending.expiresAt <= Date.now()) {
-                      event.preventDefault();
-                      void refresh();
-                    }
-                  }}
-                  className={buttonVariants({
-                    size: "sm",
-                    className: "h-auto min-h-10 flex-1 whitespace-normal py-2",
-                  })}
-                >
-                  Open OpenAI
-                  <ExternalLink aria-hidden="true" className="size-4" />
-                </a>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={blocked}
-                  onClick={() => void mutate("cancel")}
-                >
-                  {pendingAction === "cancel" ? "Cancelling…" : "Cancel sign-in"}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <p role="status" className="text-sm">
-              Getting Codex sign-in ready…
-            </p>
-          )}
-        </div>
-      )}
+        ))}
       {(status?.state !== "pending" || expired || Boolean(failure) || !status.pending) && (
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+          <RefreshConnectionButton
             disabled={busy || managementBusy}
+            refreshing={busy && pendingAction === "status"}
             onClick={refreshStatus}
-          >
-            {busy && pendingAction === "status" && (
-              <LoaderCircle
-                aria-hidden="true"
-                className="animate-spin motion-reduce:animate-none"
-              />
-            )}
-            Refresh status
-          </Button>
-          {status?.state === "pending" && expired && (
-            <Button size="sm" variant="outline" disabled>
-              Cancel sign-in
-            </Button>
-          )}
+          />
           {status &&
             status.state !== "busy" &&
             status.state !== "unknown" &&
@@ -348,6 +236,7 @@ export function CodexAccountCard({
             status.state !== "pending" && (
               <Button
                 ref={connectButton}
+                variant={status.state === "signed-in" ? "outline" : "default"}
                 size="sm"
                 disabled={blocked}
                 onClick={() => void mutate(status.state === "signed-in" ? "reconnect" : "connect")}
@@ -371,7 +260,7 @@ export function CodexAccountCard({
             }}
           >
             {status?.state === "signed-in" && (
-              <DialogTrigger render={<Button size="sm" variant="outline" disabled={blocked} />}>
+              <DialogTrigger render={<Button size="sm" variant="destructive" disabled={blocked} />}>
                 Disconnect
               </DialogTrigger>
             )}
@@ -384,8 +273,8 @@ export function CodexAccountCard({
               <DialogHeader>
                 <DialogTitle>Disconnect Codex?</DialogTitle>
                 <DialogDescription>
-                  This signs the workspace’s managed Codex account out. Active Codex work may be
-                  interrupted. You can reconnect when you’re ready.
+                  This signs Codex out of {workspaceName}. Active Codex work may be interrupted. You
+                  can reconnect when you’re ready.
                 </DialogDescription>
               </DialogHeader>
               {disconnectStale && (

@@ -495,7 +495,7 @@ test("OAuth preview redirects only safe alias loads to its exact canonical origi
 });
 
 test("Accounts preview enforces its dedicated bridge configuration and current package pins", () => {
-  const accountsBranch = "codex/workspace-accounts-p03";
+  const accountsBranch = "codex/github-projects-p04";
   const accounts = profiles[accountsBranch];
   assert.equal(deploymentPlan("preview", accountsBranch, config, profiles).origin, accounts.origin);
   assert.equal(accounts.schemaMigrations, 12);

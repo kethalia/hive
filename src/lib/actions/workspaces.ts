@@ -5,6 +5,7 @@ import { SESSION_MAX_AGE_SECONDS } from "@hive/auth";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { usesSecureSessionCookies } from "@/lib/auth/session-cookie";
+import type { CoderClient } from "@/lib/coder/client";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
 import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
@@ -84,6 +85,26 @@ function assertWorkspaceOwner(workspace: CoderWorkspace, username: string) {
   }
 }
 
+async function waitForWorkspaceAgent(client: CoderClient, workspaceId: string, buildId: string) {
+  const deadline = Date.now() + 60_000;
+  do {
+    const resources = await client.getWorkspaceResources(workspaceId, buildId);
+    const agents = resources.flatMap((resource) => resource.agents ?? []);
+    if (
+      agents.some(
+        (agent) =>
+          agent.status === "connected" &&
+          agent.lifecycle_state !== "created" &&
+          agent.lifecycle_state !== "starting",
+      )
+    )
+      return;
+    if (!agents.length) break;
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  } while (Date.now() < deadline);
+  throw new Error("The workspace agent is still getting ready. Try again in a moment.");
+}
+
 export const startWorkspaceAction = authActionClient
   .inputSchema(workspaceLifecycleSchema.extend({ waitForAgent: z.boolean().optional() }))
   .action(async ({ parsedInput, ctx }) => {
@@ -98,30 +119,28 @@ export const startWorkspaceAction = authActionClient
 
     let buildId = workspace.latest_build.id;
     if (status === "stopped") {
-      await client.startWorkspace(workspace.id);
+      const started = await client.startWorkspace(workspace.id);
       const running = await client.waitForBuild(workspace.id, "running");
-      buildId = running.latest_build.id;
+      if (running.latest_build.id !== started.id) {
+        throw new Error("The workspace build changed while it was starting.");
+      }
+      buildId = started.id;
     }
-    if (parsedInput.waitForAgent) {
-      const deadline = Date.now() + 60_000;
-      do {
-        const resources = await client.getWorkspaceResources(workspace.id, buildId);
-        const agents = resources.flatMap((resource) => resource.agents ?? []);
-        if (
-          agents.some(
-            (agent) =>
-              agent.status === "connected" &&
-              agent.lifecycle_state !== "created" &&
-              agent.lifecycle_state !== "starting",
-          )
-        )
-          return { workspaceId: workspace.id, buildId, status: "running" as const };
-        if (!agents.length) break;
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-      } while (Date.now() < deadline);
-      throw new Error("The workspace agent is still getting ready. Try again in a moment.");
-    }
+    if (parsedInput.waitForAgent) await waitForWorkspaceAgent(client, workspace.id, buildId);
     return { workspaceId: workspace.id, buildId, status: "running" as const };
+  });
+
+export const waitForWorkspaceAgentAction = authActionClient
+  .inputSchema(workspaceLifecycleSchema.extend({ buildId: z.string().trim().min(1) }))
+  .action(async ({ parsedInput, ctx }) => {
+    const client = await getCoderClientForUser(ctx.user.id);
+    const workspace = await client.getWorkspace(parsedInput.workspaceId);
+    assertWorkspaceOwner(workspace, ctx.user.username);
+    const { id: buildId, status } = workspace.latest_build;
+    if (status !== "running" || buildId !== parsedInput.buildId)
+      throw new Error("The workspace build changed before Hive could open it.");
+    await waitForWorkspaceAgent(client, workspace.id, buildId);
+    return { buildId };
   });
 
 export const stopWorkspaceAction = authActionClient

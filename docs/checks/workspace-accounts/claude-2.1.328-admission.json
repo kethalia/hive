@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-19T22:28:59.238688+00:00",
+  "version": "2.1.328",
+  "platform": "linux-x64",
+  "release": {
+    "binary": "claude",
+    "checksum": "a982d38030b97e750848add2cbb2df6d9a70d5544a22ca9b216a349ba25865e8",
+    "size": 373019152
+  },
+  "manifestUrl": "https://downloads.claude.ai/claude-code-releases/2.1.328/manifest.json",
+  "manifestSignatureUrl": "https://downloads.claude.ai/claude-code-releases/2.1.328/manifest.json.sig",
+  "vendorKeyUrl": "https://downloads.claude.ai/keys/claude-code.asc",
+  "verifiedFingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+  "manifestSha256": "b94760a7ad96de4998334fd15149d6d9df5fa964c94b6990edf402f8a7562ca8",
+  "signatureSha256": "fa1a071bfe582b1ac8775c9fe19365873d58b038124b75259048f8fa691cc82c",
+  "workspace": {
+    "name": "codex/hive-p04-discovery",
+    "id": "d5d345ba-88fa-4ac1-aae9-03f0063ef54e",
+    "buildId": "aa6b6107-3e4e-4159-949c-e0829014303c"
+  },
+  "installedExecutable": {
+    "size": 373019152,
+    "sha256": "a982d38030b97e750848add2cbb2df6d9a70d5544a22ca9b216a349ba25865e8",
+    "uid": 1000,
+    "mode": "0755",
+    "linkCount": 1
+  },
+  "protocol": {
+    "driverSha256": "3c652eb1d348d1cadf9a07638597e5b958414949cc42ffe583a49293eb6cb465",
+    "isolatedHomeAndConfig": true,
+    "initialStatus": "signed-out",
+    "officialPrompt": true,
+    "cancelStatus": "canceled",
+    "finalStatus": "signed-out",
+    "authorizationCodeSubmitted": false
+  }
+}

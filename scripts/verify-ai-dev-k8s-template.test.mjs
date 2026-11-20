@@ -662,7 +662,7 @@ function verifyBaseImageRollout() {
   );
   assert.ok(workflow.includes('smoke-test.sh "$image" "$PREVIEW_VARIANT"'));
 
-  assert.match(workflow, /refs\/heads\/codex\/workspace-accounts-p03/);
+  assert.match(workflow, /refs\/heads\/codex\/github-projects-p04/);
   assert.match(workflow, /EXPECTED_SOURCE_SHA.*GITHUB_SHA/);
   assert.match(workflow, /workspace-identity=\.\/tools\/workspace-identity/);
   assert.match(workflow, /template-runtime=\.\/templates\/ai-dev-k8s/);

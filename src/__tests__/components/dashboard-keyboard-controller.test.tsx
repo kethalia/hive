@@ -241,8 +241,8 @@ describe("DashboardKeyboardController", () => {
 
     for (const label of [
       "Agents",
-      "Codex account",
-      "Claude account",
+      "Codex",
+      "Claude",
       "Settings",
       "Diagnostics",
       "Logs",
@@ -252,9 +252,9 @@ describe("DashboardKeyboardController", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Settings"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=settings");
-    fireEvent.click(screen.getByText("Codex account"));
+    fireEvent.click(screen.getByText("Codex"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=codex-account");
-    fireEvent.click(screen.getByText("Claude account"));
+    fireEvent.click(screen.getByText("Claude"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=claude-account");
     fireEvent.click(screen.getByText("Launch Coder workspace"));
     expect(mockRouterPush).toHaveBeenCalledWith("/workspaces?panel=workspaces&launch=1");
@@ -337,6 +337,7 @@ describe("DashboardKeyboardController", () => {
       onOpenPane: vi.fn(),
       onError: vi.fn(),
       onStart: vi.fn(),
+      onStop: vi.fn(),
     };
     function WorkspaceCommands({ mode, shortcuts }: Pick<WindowManager, "mode" | "shortcuts">) {
       const additionalActions = useWindowManagerCommands(

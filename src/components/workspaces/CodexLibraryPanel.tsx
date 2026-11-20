@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import {
   type CodexLibrary,
   type CodexLibrarySection,
@@ -182,6 +183,8 @@ export function CodexLibraryPanel({
     }
   });
 
+  if (!data && !error) return <LoadingStatus>Loading {section}…</LoadingStatus>;
+
   const locked = disabled || busy !== undefined;
   const matching = (name: string, description = "") =>
     `${name} ${description}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
@@ -276,11 +279,6 @@ export function CodexLibraryPanel({
             </Button>
           )}
         </form>
-      )}
-      {!data && busy && (
-        <p role="status" className="text-muted-foreground">
-          Loading {section}…
-        </p>
       )}
       {error && (
         <p role="alert" className="text-destructive">

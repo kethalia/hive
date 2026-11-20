@@ -31,8 +31,9 @@ the original selection. Select a running
 workspace and its exact build. Codex and Claude cards display connection feedback and support official sign-in,
 absolute expiry countdown, cancellation, reconnect and confirmed disconnect.
 Codex supports copying its device code and displays verified account metadata when
-the native runtime supplies it. A workspace rebuild holds
-account controls until the current build is explicitly selected.
+the native runtime supplies it. A start initiated in Hive advances open provider windows still
+bound to that workspace after Hive verifies the new running build and agent. Other build changes
+hold account controls until the current build is explicitly selected.
 
 The signed-in Codex card also contains Usage and Runtime settings. Native usage
 reports include supported limits, credits and token summaries. Settings cover the

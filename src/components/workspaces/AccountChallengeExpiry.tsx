@@ -13,7 +13,7 @@ export function AccountChallengeExpiry({
   const date = new Date(expiresAt);
   const dateTime = Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
   return (
-    <p className="text-sm text-muted-foreground">
+    <p className="flex items-center gap-2 text-sm text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
       <time role="timer" aria-live="off" dateTime={dateTime} className="tabular-nums">
         {remaining > 0 ? `Expires in ${minutes}:${seconds}` : "Code expired"}
       </time>

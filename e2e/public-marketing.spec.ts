@@ -25,7 +25,7 @@ test.describe("public marketing and auth boundary", () => {
 
     await page.getByRole("link", { name: "Open console" }).click();
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole("heading", { name: "Connect your Coder" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Hive" })).toBeVisible();
   });
 
   test("keeps private dashboard routes behind authentication", async ({ page }) => {

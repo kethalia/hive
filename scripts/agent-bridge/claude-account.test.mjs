@@ -196,3 +196,28 @@ test("real private PTY driver bounds official commands, one-use input and child 
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+for (const version of ["2.1.328", "2.1.329"]) {
+  test(`Claude ${version} admission matches the signed release and isolated driver probe`, async () => {
+    const receipt = JSON.parse(
+      await readFile(
+        new URL(
+          `../../docs/checks/workspace-accounts/claude-${version}-admission.json`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(receipt.version, version);
+    assert.equal(receipt.platform, "linux-x64");
+    assert.equal(receipt.verifiedFingerprint, "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE");
+    const { size, checksum } = receipt.release;
+    assert.deepEqual(CLAUDE_RELEASES[receipt.version], { size, sha256: checksum });
+    assert.equal(receipt.installedExecutable.sha256, checksum);
+    assert.equal(receipt.installedExecutable.size, size);
+    assert.equal(receipt.protocol.initialStatus, "signed-out");
+    assert.equal(receipt.protocol.officialPrompt, true);
+    assert.equal(receipt.protocol.cancelStatus, "canceled");
+    assert.equal(receipt.protocol.finalStatus, "signed-out");
+  });
+}

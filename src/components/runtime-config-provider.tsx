@@ -34,8 +34,14 @@ export function useRuntimeConfig(): RuntimeConfig {
   const codexVoiceEnabled = providedConfig
     ? providedConfig.codexVoiceEnabled
     : getClientRuntimeConfig().codexVoiceEnabled;
+  const projectDiscoveryEnabled = (providedConfig ?? getClientRuntimeConfig())
+    .projectDiscoveryEnabled;
   return useMemo(
-    () => ({ terminalWsUrl, ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}) }),
-    [terminalWsUrl, codexVoiceEnabled],
+    () => ({
+      terminalWsUrl,
+      ...(projectDiscoveryEnabled ? { projectDiscoveryEnabled } : {}),
+      ...(codexVoiceEnabled ? { codexVoiceEnabled } : {}),
+    }),
+    [terminalWsUrl, codexVoiceEnabled, projectDiscoveryEnabled],
   );
 }

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-11-19T22:30:37.191944+00:00",
+  "version": "2.1.329",
+  "platform": "linux-x64",
+  "release": {
+    "binary": "claude",
+    "checksum": "30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d",
+    "size": 377545232
+  },
+  "manifestUrl": "https://downloads.claude.ai/claude-code-releases/2.1.329/manifest.json",
+  "manifestSignatureUrl": "https://downloads.claude.ai/claude-code-releases/2.1.329/manifest.json.sig",
+  "vendorKeyUrl": "https://downloads.claude.ai/keys/claude-code.asc",
+  "verifiedFingerprint": "31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE",
+  "manifestSha256": "7d2293210d31ab8af6ee0c3f7bbef503ea96ab2115f7fbcfc9382f84a6240742",
+  "signatureSha256": "f29fa33fd8ff289cfb6b31479360b1b663dbdeacf829645dfb14a65035d5952e",
+  "installedExecutable": {
+    "size": 377545232,
+    "sha256": "30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d",
+    "uid": 1000,
+    "mode": "0755",
+    "linkCount": 1
+  },
+  "protocol": {
+    "driverSha256": "3c652eb1d348d1cadf9a07638597e5b958414949cc42ffe583a49293eb6cb465",
+    "initialStatus": "signed-out",
+    "officialPrompt": true,
+    "cancelStatus": "canceled",
+    "finalStatus": "signed-out",
+    "isolatedHomeAndConfig": true,
+    "authorizationCodeSubmitted": false
+  },
+  "verificationScope": "Downloaded the exact official Linux x64 executable in a temporary directory. Matched the signed release metadata and tested the existing PTY driver in an isolated home and config."
+}

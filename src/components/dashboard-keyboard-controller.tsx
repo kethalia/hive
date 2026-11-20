@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import {
   CommandPalette,
   type CommandPaletteAction,
@@ -34,6 +35,7 @@ const DIAGNOSTICS_KEYS = ["ctrl+shift+3", "cmd+shift+3"] as const;
 
 export function DashboardKeyboardController() {
   const router = useRouter();
+  const { projectDiscoveryEnabled } = useRuntimeConfig();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -151,16 +153,27 @@ export function DashboardKeyboardController() {
             WORKSPACE_AGENTS_KEYS,
             ["assistants", "conversations", "codex", "claude"],
           ],
+          ...(projectDiscoveryEnabled
+            ? ([
+                [
+                  "projects",
+                  "GitHub",
+                  "Manage your connection and browse repositories",
+                  undefined,
+                  ["Browse GitHub repositories", "GitHub connection", "Reconnect GitHub"],
+                ],
+              ] as const)
+            : []),
           [
             "codex-account",
-            "Codex account",
+            "Codex",
             "Connect Codex and manage usage and runtime settings",
             undefined,
             ["accounts", "connections", "sign in"],
           ],
           [
             "claude-account",
-            "Claude account",
+            "Claude",
             "Connect Claude in a workspace",
             undefined,
             ["accounts", "connections", "sign in"],
@@ -229,7 +242,7 @@ export function DashboardKeyboardController() {
         onSelect: toggleFullscreen,
       },
     ],
-    [source?.actions, openTool, fullscreen, toggleFullscreen],
+    [source?.actions, openTool, fullscreen, toggleFullscreen, projectDiscoveryEnabled],
   );
   const launcher = useMemo(() => {
     const groups = new Map<string, CommandPaletteAction[]>();
@@ -246,7 +259,10 @@ export function DashboardKeyboardController() {
       const title = group === "Terminals" ? "Terminal" : group;
       pages[id] = {
         title,
-        actions: items,
+        actions:
+          group === "Workspaces"
+            ? items.filter((item) => !item.id.startsWith("start-workspace:"))
+            : items,
         searchPlaceholder: `Search ${group.toLowerCase()}…`,
         loadingText: ["Terminals", "Projects", "Files", "VS Code", "Logs"].includes(group)
           ? source?.loadingText

@@ -8,6 +8,7 @@ import { CodexUsageSettings } from "./CodexUsageSettings";
 
 export function CodexAccountPanel({
   workspaceId,
+  workspaceName,
   buildId,
   section,
   directorySession,
@@ -17,6 +18,7 @@ export function CodexAccountPanel({
   onWorkspaceSkills,
 }: {
   workspaceId: string;
+  workspaceName?: string;
   buildId: string;
   section: CodexAccountSection;
   directorySession?: string;
@@ -28,6 +30,7 @@ export function CodexAccountPanel({
   const [generation, setGeneration] = useState<{ lifetimeId: string; value: number }>();
   return (
     <CodexAccountCard
+      workspaceName={workspaceName}
       workspaceId={workspaceId}
       buildId={buildId}
       managementBusy={managementBusy}

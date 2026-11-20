@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), message: vi.fn(), error: vi.fn() } }));
+
 import { afterEach, expect, it, vi } from "vitest";
 import { CodexAccountCard } from "@/components/workspaces/CodexAccountCard";
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -173,9 +178,14 @@ it("keeps loading and unavailable feedback visible until status can be refreshed
     .mockResolvedValueOnce(Response.json(status()));
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="selected-build" />);
-  expect(screen.getByText("Checking Codex connection…")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Checking Codex connection…");
+  expect(
+    screen.queryByText(/Connect the workspace’s managed Codex account/),
+  ).not.toBeInTheDocument();
   await act(async () => respond(new Response(null, { status: 404 })));
-  expect(await screen.findByText(/Codex connection is unavailable/)).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Could not verify Codex connection" }),
+  ).toBeVisible();
   expect(screen.queryByRole("button", { name: "Connect Codex" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
   await screen.findByRole("button", { name: "Connect Codex" });
@@ -201,7 +211,7 @@ it("distinguishes an unavailable status read from an uncertain account mutation"
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="selected-build" />);
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Account status unavailable. Check workspace bridge setup and refresh.",
+    "Check the workspace bridge setup, then refresh status.",
   );
   expect(fetcher).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
@@ -234,10 +244,13 @@ it("copies the official device code and reports clipboard failure without replay
     vi.stubGlobal("fetch", fetcher);
     render(<CodexAccountCard workspaceId="workspace" buildId="build" />);
     fireEvent.click(await screen.findByRole("button", { name: "Copy code" }));
-    expect(await screen.findByText("Sign-in code copied.")).toBeVisible();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Sign-in code copied."));
+    expect(screen.queryByText("Sign-in code copied.")).not.toBeInTheDocument();
     expect(writeText).toHaveBeenCalledWith("COPY-1234");
     fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Copy failed");
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Copy failed")),
+    );
     expect(fetcher).toHaveBeenCalledTimes(1);
   } finally {
     if (previous) Object.defineProperty(navigator, "clipboard", previous);
@@ -296,7 +309,9 @@ it("reports sign-in winning a cancellation race and keeps the connected account"
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="build" />);
   fireEvent.click(await screen.findByRole("button", { name: "Cancel sign-in" }));
-  expect(await screen.findByText("Codex sign-in completed before cancellation.")).toBeVisible();
+  await waitFor(() =>
+    expect(toast.message).toHaveBeenCalledWith("Codex sign-in completed before cancellation."),
+  );
   expect(screen.getByText("Connected")).toBeVisible();
   expect(screen.queryByText("Codex sign-in cancelled.")).not.toBeInTheDocument();
 });
@@ -319,7 +334,7 @@ it("captures the disconnect fence and disables confirmation when status changes"
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
   fireEvent.click(await screen.findByRole("button", { name: "Disconnect Codex" }));
-  await screen.findByText("Codex disconnected.");
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Codex disconnected."));
   expect(JSON.parse(fetcher.mock.calls[2][1].body).request).toEqual({
     action: "disconnect",
     lifetimeId,
@@ -383,11 +398,10 @@ it("shows sanitized account identity when present and preserves legacy signed-in
     .mockResolvedValueOnce(Response.json(status("signed-in", 2)));
   vi.stubGlobal("fetch", fetcher);
   render(<CodexAccountCard workspaceId="workspace" buildId="build" />);
-  expect(await screen.findByText("writer@example.test · plus")).toBeVisible();
+  expect(await screen.findByText("writer@example.test")).toBeVisible();
+  expect(screen.getByText("plus")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-  expect(
-    await screen.findByText("The workspace’s managed Codex account is connected."),
-  ).toBeVisible();
+  expect(await screen.findByRole("region", { name: "Codex connection details" })).toBeVisible();
 });
 
 it("allows cancellation during a slow background poll and ignores its late response", async () => {
@@ -420,7 +434,7 @@ it("allows cancellation during a slow background poll and ignores its late respo
   fireEvent.click(screen.getByRole("button", { name: "Cancel sign-in" }));
   await act(async () => {});
   expect(fetcher.mock.calls[1][1].signal.aborted).toBe(true);
-  expect(screen.getByText("Codex sign-in cancelled.")).toBeVisible();
+  expect(toast.message).toHaveBeenCalledWith("Codex sign-in cancelled.");
   await act(async () => latePoll(Response.json(status("signed-in", 99))));
   expect(screen.queryByText("Connected")).not.toBeInTheDocument();
   expect(fetcher.mock.calls.map(([, request]) => JSON.parse(request.body).request.action)).toEqual([

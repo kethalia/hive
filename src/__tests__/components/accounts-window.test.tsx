@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ vi.mock("@/components/workspaces/TerminalSessionFrame", () => ({
 }));
 
 import { HiveWorkspacePane } from "@/components/workspaces/HiveWorkspacePane";
+import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
 import type { CoderWorkspace } from "@/lib/coder/types";
 
 const lifetimeId = "00000000-0000-4000-8000-000000000001";
@@ -37,6 +38,7 @@ function tree(
   options: {
     workspaces?: CoderWorkspace[];
     visible?: boolean;
+    operation?: WorkspaceOperationState;
     userId?: string;
     tool?: "codex-account" | "claude-account";
   } = {},
@@ -56,6 +58,7 @@ function tree(
       active
       visible={options.visible ?? true}
       launchRequest={0}
+      operations={options.operation ? { [workspaceId]: options.operation } : undefined}
       onActivate={() => {}}
       onClose={() => {}}
       onStartWorkspace={start}
@@ -75,13 +78,23 @@ afterEach(() => {
 });
 
 it.each([
-  ["codex-account", "Managed Codex account", "Workspace Claude account"],
-  ["claude-account", "Workspace Claude account", "Managed Codex account"],
-] as const)("loads only the %s provider for the selected visible workspace", async (tool, own, other) => {
+  ["codex-account", "Managed Codex account", "Workspace Claude account", "Codex"],
+  ["claude-account", "Workspace Claude account", "Managed Codex account", "Claude"],
+] as const)("loads only the %s provider for the selected visible workspace", async (tool, own, other, provider) => {
   const view = render(tree("one", "build-one", { tool, visible: false }));
   expect(fetcher).not.toHaveBeenCalled();
   view.rerender(tree("one", "build-one", { tool }));
-  expect(await screen.findByRole("region", { name: own })).toBeVisible();
+  const panel = await screen.findByRole("region", { name: own });
+  const heading = within(panel).getByRole("heading", { name: `No ${provider} account connected` });
+  const state = within(panel).getByRole("status");
+  expect(panel.firstElementChild).toBe(state);
+  expect(state.firstElementChild).toBe(heading);
+  expect(state.children).toHaveLength(2);
+  expect(
+    within(panel)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual(["Refresh status", `Connect ${provider}`]);
   expect(screen.queryByRole("region", { name: other })).not.toBeInTheDocument();
   expect(
     screen
@@ -103,7 +116,13 @@ it("explains disabled Claude connections in the Claude window", async () => {
   fetcher.mockResolvedValue(new Response(null, { status: 404 }));
   render(tree("one", "build-one", { tool: "claude-account" }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
-  expect(await screen.findByText(/Claude connection is unavailable/)).toBeVisible();
+  const heading = await screen.findByRole("heading", {
+    name: "Could not verify Claude connection",
+  });
+  const alert = screen.getByRole("alert");
+  expect(alert.parentElement?.firstElementChild).toBe(alert);
+  expect(alert.firstElementChild).toBe(heading);
+  expect(alert.children).toHaveLength(2);
   expect(screen.queryByRole("button", { name: "Connect Claude" })).not.toBeInTheDocument();
 });
 
@@ -205,23 +224,20 @@ it("reconnects with the new account generation after changing a workspace skill"
 });
 
 it("offers a retry and workspace management after a failed start", async () => {
-  start.mockRejectedValueOnce(new Error("Workspace did not start"));
-  render(
-    tree("one", "build-one", {
-      tool: "claude-account",
-      workspaces: [
-        {
-          ...workspaces[0],
-          latest_build: { ...workspaces[0].latest_build, status: "stopped" },
-        },
-      ],
-    }),
-  );
-  fireEvent.click(await screen.findByRole("button", { name: "Start workspace" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not open Software one");
+  const stopped = {
+    ...workspaces[0],
+    latest_build: { ...workspaces[0].latest_build, status: "stopped" as const },
+  };
+  const props = { tool: "claude-account" as const, workspaces: [stopped] };
+  const view = render(tree("one", "build-one", props));
+  fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
+  view.rerender(tree("one", "build-one", { ...props, operation: { failed: "start" } }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not open Software one");
   expect(screen.getByRole("button", { name: "Coder workspaces" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Start workspace" }));
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  view.rerender(tree("one", "build-one", { ...props, operation: { pending: "start" } }));
+  expect(screen.getByRole("status")).toHaveTextContent("Starting Software one");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   expect(start.mock.calls).toEqual([["one"], ["one"]]);
   expect(fetcher).not.toHaveBeenCalled();
 });

@@ -269,6 +269,7 @@ test("fixed notification capability installs pinned assets through stdin and ref
       Buffer.from("// Pinned account fixture, not invoked by notification tests\n"),
     ],
     ["claude-account.mjs", Buffer.from("// pinned Claude fixture\n")],
+    ["github-projects.py", await readFile(new URL("./github-projects.py", import.meta.url))],
     ["claude-account-driver.py", Buffer.from("# pinned Claude driver fixture\n")],
     ["agent-start.mjs", await readFile(new URL("./start.mjs", import.meta.url))],
     ["install-codex-runtime.py", Buffer.from("# pinned runtime installer fixture\n")],

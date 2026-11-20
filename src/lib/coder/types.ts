@@ -16,6 +16,14 @@ export type WorkspaceBuildStatus =
   | "canceled"
   | "failed";
 
+export interface WorkspaceBuildLog {
+  id: number;
+  output: string;
+  stage: string;
+  created_at: string;
+  log_level?: "debug" | "error" | "info" | "trace" | "warn";
+}
+
 /** Workspace object returned by the Coder API */
 export interface CoderWorkspace {
   id: string;

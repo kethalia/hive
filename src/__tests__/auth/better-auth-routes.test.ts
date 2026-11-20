@@ -242,6 +242,9 @@ describe("public Better Auth Coder routes", () => {
       { type: CODER_OAUTH_POPUP_MESSAGE, attempt, success: true },
       origin,
     );
+    expect(html).toContain('<main class="coder-oauth-popup">');
+    expect(html).toContain('class="coder-oauth-popup-mark" aria-hidden="true">H_');
+    expect(html).toContain('role="status" data-pending><span>Finishing sign-in to Hive…');
     expect(html).toContain('<a href="/workspaces">Open Hive</a>');
     expect(html).not.toMatch(/private-|framework-cookie|_next\/|<script src/);
   });
@@ -282,6 +285,9 @@ describe("public Better Auth Coder routes", () => {
       { type: CODER_OAUTH_POPUP_MESSAGE, attempt, success: false },
       origin,
     );
+    expect(html).toContain('<main class="coder-oauth-popup">');
+    expect(html).toContain('class="coder-oauth-popup-mark" aria-hidden="true">H_');
+    expect(html).toContain('role="alert"><span>Coder sign-in did not complete.');
     expect(html).not.toMatch(/private-|provider-detail|alert\(/);
     expect(mocks.session).not.toHaveBeenCalled();
   });

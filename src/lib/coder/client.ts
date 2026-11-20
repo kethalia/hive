@@ -17,6 +17,7 @@ import type {
   LoginResult,
   ValidateInstanceResult,
   WaitForBuildOptions,
+  WorkspaceBuildLog,
   WorkspaceBuildStatus,
   WorkspaceResource,
 } from "./types";
@@ -205,6 +206,12 @@ export class CoderClient {
     return this.request<ListWorkspacesResponse>(`/api/v2/workspaces${query}`);
   }
 
+  getWorkspaceBuildLogs(buildId: string, after: number) {
+    return this.request<WorkspaceBuildLog[]>(
+      `/api/v2/workspacebuilds/${encodeURIComponent(buildId)}/logs?after=${after}`,
+    );
+  }
+
   /** Trigger a stop build for a workspace. */
   async stopWorkspace(workspaceId: string): Promise<void> {
     console.log(`[coder] Stopping workspace ${workspaceId}`);
@@ -215,9 +222,9 @@ export class CoderClient {
   }
 
   /** Trigger a start build for a workspace. */
-  async startWorkspace(workspaceId: string): Promise<void> {
+  async startWorkspace(workspaceId: string): Promise<{ id: string }> {
     console.log(`[coder] Starting workspace ${workspaceId}`);
-    await this.request(`/api/v2/workspaces/${workspaceId}/builds`, {
+    return this.request<{ id: string }>(`/api/v2/workspaces/${workspaceId}/builds`, {
       method: "POST",
       body: JSON.stringify({ transition: "start" }),
     });

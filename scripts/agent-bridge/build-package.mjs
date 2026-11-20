@@ -28,6 +28,10 @@ export async function agentPackage(root = defaultRoot) {
     minify: true,
   });
   const files = new Map([
+    [
+      "github-projects.py",
+      await readFile(resolve(root, "scripts/agent-bridge/github-projects.py")),
+    ],
     ["claude-account.mjs", Buffer.from(claude.outputFiles[0].contents)],
     [
       "claude-account-driver.py",

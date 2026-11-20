@@ -264,6 +264,13 @@ export function GeneralWorkspacePane({
   };
   const capabilities = workspaceTemplateCapabilities(workspace?.template_name ?? "");
   const actions: WorkspacePaneAction[] = [
+    {
+      id: "workspace",
+      label: "Open workspace details",
+      icon: "activate",
+      onSelect: () =>
+        requestHiveWindow({ tool: "workspace-details", workspaceId: pane.workspaceId }),
+    },
     ...(pane.kind === "terminal"
       ? [
           {

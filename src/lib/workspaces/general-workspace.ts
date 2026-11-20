@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   isExpectedCloneSessionKey,
   isSafeCloneRelativePath,
@@ -27,11 +28,13 @@ export const HIVE_WINDOW_OPEN_EVENT = "hive:window-open";
 export const hiveToolSchema = z
   .enum([
     "agents",
+    "projects",
     "accounts",
     "codex-account",
     "claude-account",
     "diagnostics",
     "settings",
+    "workspace-details",
     "workspaces",
     "templates",
     "logs",
@@ -42,16 +45,24 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   templates: "Templates",
   logs: "Logs",
   agents: "Agents",
+  projects: "GitHub",
   "codex-account": "Codex",
   "claude-account": "Claude",
   diagnostics: "Diagnostics",
   settings: "Settings",
   workspaces: "Coder workspaces",
+  "workspace-details": "Workspace",
 };
 type AccountTool = "codex-account" | "claude-account";
 export function isAccountTool(tool: HiveTool): tool is AccountTool {
   return tool === "codex-account" || tool === "claude-account";
 }
+export function defaultProviderWorkspace(workspaces: CoderWorkspace[]) {
+  return (
+    workspaces.find((workspace) => workspace.latest_build.status === "running") ?? workspaces[0]
+  );
+}
+
 export const hiveWindowRequestSchema = z.object({
   tool: hiveToolSchema,
   workspaceId: z.string().trim().min(1).max(200).optional(),
@@ -121,7 +132,9 @@ const hive = z
     label: z.string().min(1).max(512),
   })
   .transform((pane) =>
-    isAccountTool(pane.tool) ? { ...pane, label: hiveToolLabels[pane.tool] } : pane,
+    isAccountTool(pane.tool) || pane.tool === "projects"
+      ? { ...pane, label: hiveToolLabels[pane.tool] }
+      : pane,
   );
 export const generalPaneSchema = z.union([terminal, app, hive]);
 export type GeneralPane = z.infer<typeof generalPaneSchema>;
@@ -152,7 +165,7 @@ export function emptyGeneralWorkspace(): GeneralWorkspaceState {
   };
 }
 export function generalPaneIdentity(pane: GeneralPane) {
-  if (pane.kind === "hive") return JSON.stringify(["hive", pane.tool]);
+  if (pane.kind === "hive") return hiveWindowIdentity(pane);
   return JSON.stringify([
     pane.workspaceId,
     pane.kind,
@@ -224,15 +237,23 @@ export function addGeneralWindow(
     ),
   };
 }
-/** Built-in tools have one window across all workspaces. Reopening reveals it in place. */
+function hiveWindowIdentity(request: HiveWindowRequest) {
+  return JSON.stringify(
+    request.tool === "workspace-details"
+      ? ["hive", request.tool, request.workspaceId]
+      : ["hive", request.tool],
+  );
+}
+
+/** Reopening a tool reveals its existing window, including workspace-specific details. */
 export function openHiveWindow(
   state: GeneralWorkspaceState,
   request: HiveWindowRequest,
   id: string,
 ): GeneralWorkspaceState {
-  const board = state.boards.find((b) =>
-    b.windows.some((w) => w.kind === "hive" && w.tool === request.tool),
-  );
+  const matches = (w: GeneralWindow) =>
+    w.kind === "hive" && hiveWindowIdentity(w) === hiveWindowIdentity(request);
+  const board = state.boards.find((b) => b.windows.some(matches));
   if (!board) {
     const saved =
       isAccountTool(request.tool) && !request.workspaceId
@@ -252,7 +273,7 @@ export function openHiveWindow(
       id,
     );
   }
-  const existing = board.windows.find((w) => w.kind === "hive" && w.tool === request.tool);
+  const existing = board.windows.find(matches);
   if (!existing) return state;
   return {
     ...state,

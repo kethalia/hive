@@ -16,6 +16,8 @@ import { createCodexAccountManager, validManagementRequest } from "./codex-accou
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KEY = /^(codex|claude)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const OPS = [
+  "discover-projects",
+  "github-connection",
   "claude-account",
   "rename-terminal-session",
   "kill-terminal-session",
@@ -95,6 +97,26 @@ function operationValid(v) {
     typeof name === "string" &&
     /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name) &&
     !name.startsWith("git-clone-");
+  if (v.operation === "github-connection") {
+    const a = v.connection;
+    if (!exact(v, ["operation", "connection"]) || !a) return false;
+    if (a.action === "status") return exact(a, ["action"]);
+    if (a.revision !== "initial" && !UUID.test(a.revision)) return false;
+    return (
+      ["start", "cancel", "disconnect", "poll"].includes(a.action) &&
+      exact(a, ["action", "revision"])
+    );
+  }
+  if (v.operation === "discover-projects")
+    return (
+      exact(v, ["operation", "page", "perPage"]) &&
+      Number.isInteger(v.page) &&
+      v.page >= 1 &&
+      v.page <= 10000 &&
+      Number.isInteger(v.perPage) &&
+      v.perPage >= 1 &&
+      v.perPage <= 100
+    );
   if (v.operation === "rename-terminal-session")
     return (
       exact(v, ["operation", "oldName", "newName"]) &&
@@ -300,12 +322,28 @@ export function createAgentBridge(config, deps = {}) {
           ...request,
           ...(request.operation === "install" ? { source: source.toString("utf8") } : {}),
         };
+        if (["discover-projects", "github-connection"].includes(request.operation)) {
+          const directory = dirname(helper);
+          const manifest = JSON.parse(
+            pinnedSource(join(directory, "manifest.json"), config.manifestSha256, 4096),
+          );
+          source = pinnedSource(
+            join(directory, "github-projects.py"),
+            manifest.files["github-projects.py"],
+            65536,
+          );
+          payload =
+            request.operation === "github-connection"
+              ? { connection: request.connection }
+              : { schemaVersion: 1, page: request.page, perPage: request.perPage };
+        }
         if (request.operation === "install-notifications") {
           const directory = dirname(helper);
           const manifest = JSON.parse(
             pinnedSource(join(directory, "manifest.json"), config.manifestSha256, 4096),
           );
           const names = [
+            "github-projects.py",
             "agent-host.mjs",
             "codex-account.mjs",
             "claude-account.mjs",
@@ -353,6 +391,12 @@ export function createAgentBridge(config, deps = {}) {
             LANG: "C.UTF-8",
             HIVE_WORKSPACE_PROFILE: config.profile,
             ...environment,
+            ...(["discover-projects", "github-connection"].includes(request.operation)
+              ? {
+                  HIVE_GITHUB_WORKSPACE: config.binding.workspaceId,
+                  PATH: "/usr/local/bin:/usr/bin:/bin",
+                }
+              : {}),
           },
           detached: true,
         },
@@ -384,9 +428,15 @@ export function createAgentBridge(config, deps = {}) {
       });
       child.on("close", (code) => {
         try {
-          if (code !== 0 || ended) return done(new Error());
+          if (ended) return;
           const result = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-          if (!exact(result, ["ok", "data"]) || result.ok !== true) return done(new Error());
+          if (
+            ["discover-projects", "github-connection"].includes(request.operation) &&
+            (code === 0 || (code === 1 && exact(result, ["schemaVersion", "error"])))
+          )
+            return done(null, result);
+          if (code !== 0 || !exact(result, ["ok", "data"]) || result.ok !== true)
+            return done(new Error());
           done(null, result.data);
         } catch {
           done(new Error());
