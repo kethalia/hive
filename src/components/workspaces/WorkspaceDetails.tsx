@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import type { CoderWorkspace, WorkspaceBuildLog, WorkspaceBuildStatus } from "@/lib/coder/types";
+import { DiscoveryError, isDiscoveryDenied } from "@/lib/discovery/types";
 
 import { BuildLogTabs } from "./BuildLogTabs";
 
@@ -67,23 +68,39 @@ function useWorkspaceBuildLogs(
     queryKey: ["workspace-build-logs", userId, workspaceId],
     enabled: visible,
     queryFn: async ({ client, queryKey, signal }): Promise<BuildSnapshot> => {
-      const previous = client.getQueryData<BuildSnapshot>(queryKey);
+      const denied = isDiscoveryDenied(client.getQueryState(queryKey)?.error);
+      const previous = denied ? undefined : client.getQueryData<BuildSnapshot>(queryKey);
       const params = new URLSearchParams();
       if (previous) {
         params.set("build", previous.workspace.latest_build.id);
         params.set("after", String(previous.logs.at(-1)?.id ?? 0));
       }
-      const response = await fetch(
-        `/api/workspaces/${encodeURIComponent(workspaceId)}/build-logs?${params}`,
-        { signal, cache: "no-store" },
-      );
-      if (!response.ok) throw new Error("Build logs unavailable.");
-      const next: BuildSnapshot = await response.json();
-      if (previous?.workspace.latest_build.id === next.workspace.latest_build.id) {
-        const cursor = previous.logs.at(-1)?.id ?? 0;
-        next.logs = [...previous.logs, ...next.logs.filter((line) => line.id > cursor)].slice(-250);
+      try {
+        const response = await fetch(
+          `/api/workspaces/${encodeURIComponent(workspaceId)}/build-logs?${params}`,
+          { signal, cache: "no-store" },
+        );
+        if (response.redirected) throw new DiscoveryError("Build logs unavailable.", 401);
+        if (!response.ok) throw new DiscoveryError("Build logs unavailable.", response.status);
+        const next: BuildSnapshot = await response.json();
+        if (previous?.workspace.latest_build.id === next.workspace.latest_build.id) {
+          const cursor = previous.logs.at(-1)?.id ?? 0;
+          next.logs = [...previous.logs, ...next.logs.filter((line) => line.id > cursor)].slice(
+            -250,
+          );
+        }
+        return next;
+      } catch (error) {
+        // Require a successful read before showing logs again after access is denied.
+        if (denied && !isDiscoveryDenied(error)) {
+          throw new DiscoveryError(
+            "Build logs unavailable.",
+            error instanceof DiscoveryError ? error.status : 0,
+            true,
+          );
+        }
+        throw error;
       }
-      return next;
     },
     retry: false,
     refetchInterval: (query) => {
@@ -102,7 +119,7 @@ function useWorkspaceBuildLogs(
     if (visible && lastOperation.current && !pending) void refetch();
     lastOperation.current = pending;
   }, [visible, pending, refetch]);
-  const snapshot = query.isError ? undefined : query.data;
+  const snapshot = isDiscoveryDenied(query.error) ? undefined : query.data;
   return { snapshot, failed: query.isError, retry: refetch };
 }
 
@@ -172,18 +189,7 @@ export function WorkspaceDetails({
       )}
       <section aria-label="Build logs" className="space-y-2">
         <h2 className="font-semibold">Build logs</h2>
-        {logs.failed ? (
-          <div className="space-y-2">
-            <p role="alert" className="text-sm text-destructive">
-              Could not load build logs.
-            </p>
-            <Button variant="outline" onClick={() => void logs.retry()}>
-              Retry
-            </Button>
-          </div>
-        ) : !logs.snapshot ? (
-          <LoadingStatus>Loading build logs…</LoadingStatus>
-        ) : (
+        {logs.snapshot && (
           <BuildLogViewer
             key={build.id}
             lines={logs.snapshot.logs}
@@ -191,6 +197,19 @@ export function WorkspaceDetails({
             visible={visible}
           />
         )}
+        {logs.failed && (
+          <div className="space-y-2">
+            <p role="alert" className="text-sm text-destructive">
+              {logs.snapshot
+                ? "Could not refresh build logs. Showing the last confirmed output."
+                : "Could not load build logs."}
+            </p>
+            <Button variant="outline" onClick={() => void logs.retry()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {!logs.failed && !logs.snapshot && <LoadingStatus>Loading build logs…</LoadingStatus>}
       </section>
     </div>,
   );

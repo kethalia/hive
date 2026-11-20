@@ -41,6 +41,13 @@ it("requires a session and workspace ownership before accessing build output", a
   expect(mocks.logs).not.toHaveBeenCalled();
 });
 it.each([
+  401, 403, 404, 502,
+])("distinguishes Coder HTTP %s from access-preserving failures", async (status) => {
+  mocks.workspace.mockRejectedValueOnce(new Error(`[coder] Request failed: ${status} Upstream`));
+  expect((await read()).status).toBe(status);
+  expect(mocks.logs).not.toHaveBeenCalled();
+});
+it.each([
   ["build", 17],
   ["previous-build", 0],
 ])("reads only the current build and resets stale cursors (%s)", async (build, after) => {

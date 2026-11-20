@@ -55,6 +55,9 @@ async function fetchRepositoryPage(workspaceId: string, page: number, signal: Ab
     cache: "no-store",
     signal,
   });
+  if (response.redirected) {
+    throw new ProjectBrowserError("Sign in to refresh repositories.", "workspace", true);
+  }
   const value: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const code = projectErrorCodeSchema.safeParse(

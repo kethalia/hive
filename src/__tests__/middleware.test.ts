@@ -199,8 +199,11 @@ describe("proxy", async () => {
   });
 });
 
-it("lets discovery routes return their own JSON authentication errors instead of login HTML", async () => {
-  const response = await proxy(new NextRequest("https://hive.example/api/discovery/workspaces"));
+it.each([
+  "/api/discovery/workspaces",
+  "/api/projects",
+])("lets %s return its own JSON authentication errors", async (path) => {
+  const response = await proxy(new NextRequest(`https://hive.example${path}`));
   expect(response.headers.get("location")).toBeNull();
   expect(response.headers.get("x-middleware-next")).toBe("1");
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { discoveryErrorStatus } from "@/lib/discovery/error-status";
 import { toPublicWorkspace } from "@/lib/workspaces/public-workspace";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +40,8 @@ export async function GET(request: Request, context: { params: Promise<{ workspa
       },
       { headers },
     );
-  } catch {
-    return Response.json({}, { status: 502, headers });
+  } catch (error) {
+    const status = discoveryErrorStatus(error instanceof Error ? error.message : "");
+    return Response.json({}, { status: status === 503 ? 502 : status, headers });
   }
 }

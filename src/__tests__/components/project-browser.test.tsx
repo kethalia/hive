@@ -129,6 +129,11 @@ describe("project browser", () => {
     [() => response({ error: "github_auth_required" }, 401), "Connect or reconnect GitHub"],
     [() => response({ error: "github_permission_denied" }, 502), "GitHub access was denied"],
     [() => new Response("Not authenticated", { status: 401 }), "Could not load repositories"],
+    [
+      () =>
+        Object.defineProperty(new Response("<html>Sign in</html>"), "redirected", { value: true }),
+      "Sign in to refresh repositories",
+    ],
     [() => response({ ...page(2), providerAccountId: "456" }), "GitHub account changed"],
   ] as const)("clears every page when a later refresh response loses the original identity", async (failure, message) => {
     vi.mocked(fetch)
