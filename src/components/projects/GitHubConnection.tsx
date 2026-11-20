@@ -22,6 +22,7 @@ import {
 } from "@/components/workspaces/ConnectionStatus";
 import { DeviceSignIn } from "@/components/workspaces/PendingSignIn";
 import type { CoderWorkspace } from "@/lib/coder/types";
+import { DiscoveryError, isDiscoveryDenied } from "@/lib/discovery/types";
 import { projectErrorCodeSchema, projectErrorMessages } from "@/lib/projects/contracts";
 import { type GitHubStatus, githubStatusSchema } from "@/lib/projects/github-connection";
 
@@ -63,26 +64,35 @@ export function GitHubConnection({
       body: JSON.stringify({ workspaceId, buildId, action, revision }),
       signal,
     });
-    const value = await r.json();
-    if (!r.ok) {
-      const code = projectErrorCodeSchema.safeParse(value.error);
+    if (r.redirected || !r.ok) {
+      const status = r.redirected ? 401 : r.status;
+      const unavailable = "Could not check the workspace GitHub connection. Refresh to try again.";
+      const problem = new DiscoveryError(
+        status === 401 ? "Sign in to Hive to check the workspace GitHub connection." : unavailable,
+        status,
+      );
+      if (isDiscoveryDenied(problem)) {
+        signal?.throwIfAborted();
+        // Discard the identity and pending revision so retry can only request fresh status.
+        client.setQueryData<GitHubStatus | null>(key, null);
+        if (mounted.current) setDisconnect(null);
+        throw problem;
+      }
+      const value = await r.json().catch(() => null);
+      const code = projectErrorCodeSchema.safeParse(value?.error);
       if (code.success && code.data === "unsupported_schema") {
         throw new WorkspaceUpdateRequired(
           `Update the workspace template for ${workspace.name} to use this GitHub feature, or choose another workspace.`,
         );
       }
-      throw new Error(
-        code.success
-          ? projectErrorMessages[code.data]
-          : "Could not check the workspace GitHub connection. Refresh to try again.",
-      );
+      throw code.success ? new DiscoveryError(projectErrorMessages[code.data], status) : problem;
     }
-    return githubStatusSchema.parse(value);
+    return githubStatusSchema.parse(await r.json());
   }
-  const { data, error, refetch, isFetching } = useQuery({
+  const { data, error, refetch, isFetching } = useQuery<GitHubStatus | null>({
     queryKey: key,
     queryFn: ({ signal, queryKey }) => {
-      const previous = client.getQueryData<GitHubStatus>(queryKey);
+      const previous = client.getQueryData<GitHubStatus | null>(queryKey);
       return previous?.pending
         ? request("poll", previous.revision, signal)
         : request(
@@ -140,7 +150,7 @@ export function GitHubConnection({
       }
     }
   }
-  const problem = failure ?? error;
+  const problem = data && isDiscoveryDenied(failure) ? error : (failure ?? error);
   const message = problem?.message;
   const refreshButton = (
     <RefreshConnectionButton
