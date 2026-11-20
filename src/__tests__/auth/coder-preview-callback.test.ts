@@ -33,8 +33,8 @@ function fixture(redirects: string[]) {
   vi.stubGlobal("fetch", fetch);
   const lock = vi.fn();
   const db = {
-    $transaction: (work: (tx: { $queryRaw: typeof lock }) => Promise<void>) =>
-      work({ $queryRaw: lock }),
+    $transaction: (work: (tx: { $executeRaw: typeof lock }) => Promise<void>) =>
+      work({ $executeRaw: lock }),
   } as unknown as PrismaClient;
   return { db, fetch, lock };
 }
@@ -93,7 +93,7 @@ describe("Coder OAuth callback registration for native Previews", () => {
         db,
         signal,
       ),
-    ).rejects.toThrow("coder_preview_callback");
+    ).rejects.toThrow("coder_preview_callback_configuration");
     expect(fetch).not.toHaveBeenCalled();
   });
 });

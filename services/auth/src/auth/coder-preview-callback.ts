@@ -14,7 +14,8 @@ export async function registerCoderPreviewCallback(
 ): Promise<void> {
   if (!isCoderOAuthPreview()) return;
   const token = process.env.HIVE_PREVIEW_CODER_REGISTRATION_TOKEN;
-  if (!token || !previewCallback.test(config.callbackUrl)) throw Error("coder_preview_callback");
+  if (!token || !previewCallback.test(config.callbackUrl))
+    throw Error("coder_preview_callback_configuration");
 
   const endpoint = new URL(
     `/oauth2/clients/${encodeURIComponent(config.clientId)}`,
@@ -23,9 +24,9 @@ export async function registerCoderPreviewCallback(
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   // Coder replaces the list on every update. Serialize the read and write across Previews.
   await db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${endpoint.href}))::text`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${endpoint.href}, 0))`;
     const response = await fetchCoderApi(endpoint, { headers, redirect: "error", signal });
-    if (!response.ok) throw Error("coder_preview_callback");
+    if (!response.ok) throw Error(`coder_preview_callback_read_${response.status}`);
     const registration = await response.json();
     const redirects: unknown = registration.redirect_uris;
     if (
@@ -33,7 +34,7 @@ export async function registerCoderPreviewCallback(
       !Array.isArray(redirects) ||
       !redirects.every((uri) => typeof uri === "string" && previewCallback.test(uri))
     )
-      throw Error("coder_preview_callback");
+      throw Error("coder_preview_callback_metadata");
 
     if (
       redirects.includes(config.callbackUrl) &&
@@ -59,6 +60,6 @@ export async function registerCoderPreviewCallback(
       }),
     });
     await update.body?.cancel();
-    if (!update.ok) throw Error("coder_preview_callback");
+    if (!update.ok) throw Error(`coder_preview_callback_update_${update.status}`);
   });
 }
