@@ -16,6 +16,7 @@ class ProjectBrowserError extends Error {
   constructor(
     message: string,
     readonly setup: "workspace" | "account" = "workspace",
+    readonly deniesCachedData = false,
   ) {
     super(message);
   }
@@ -54,16 +55,21 @@ async function fetchRepositoryPage(workspaceId: string, page: number, signal: Ab
     cache: "no-store",
     signal,
   });
-  const value: unknown = await response.json();
+  const value: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const code = projectErrorCodeSchema.safeParse(
       value && typeof value === "object" && "error" in value ? value.error : null,
     );
+    const reconnect =
+      code.success && ["github_auth_required", "github_permission_denied"].includes(code.data);
     throw new ProjectBrowserError(
       code.success
         ? projectErrorMessages[code.data]
         : "Could not load repositories. Refresh to try again.",
-      code.success && code.data === "github_auth_required" ? "account" : "workspace",
+      reconnect ? "account" : "workspace",
+      reconnect ||
+        [401, 403, 404, 409].includes(response.status) ||
+        (code.success && ["workspace_forbidden", "discovery_disabled"].includes(code.data)),
     );
   }
   const result = projectPageSchema.parse(value);
@@ -110,6 +116,7 @@ export function ProjectBrowser({
             throw new ProjectBrowserError(
               "GitHub account changed. Refresh to load its repositories.",
               "account",
+              true,
             );
           expectedAccount = result.providerAccountId;
           for (const repository of result.repositories)
@@ -138,16 +145,21 @@ export function ProjectBrowser({
         });
       } catch (error) {
         if (request.signal.aborted) return;
-        loadedPages.current = 0;
-        account.current = null;
-        // Revoke all visible/cached metadata on authorization, transport, or schema failure.
-        setState({
-          ...empty(workspaceId),
-          setup: error instanceof ProjectBrowserError ? error.setup : "workspace",
-          error:
-            error instanceof ProjectBrowserError
-              ? error.message
-              : "Could not load repositories. Refresh to try again.",
+        const problem = error instanceof ProjectBrowserError ? error : null;
+        const message = problem?.message ?? "Could not load repositories. Refresh to try again.";
+        if (problem?.deniesCachedData) {
+          loadedPages.current = 0;
+          account.current = null;
+        }
+        setState((previous) => {
+          const confirmed =
+            previous.workspaceId === workspaceId && previous.loaded && !problem?.deniesCachedData;
+          return {
+            ...(confirmed ? previous : empty(workspaceId)),
+            loading: null,
+            setup: confirmed ? null : (problem?.setup ?? "workspace"),
+            error: message,
+          };
         });
       } finally {
         if (controller.current === request) controller.current = null;
@@ -217,6 +229,7 @@ export function ProjectBrowser({
       {snapshot.error ? (
         <p role="alert" className="text-sm text-destructive">
           {snapshot.error}
+          {snapshot.loaded && " Showing the last confirmed repositories."}
         </p>
       ) : null}
       {snapshot.error && onSetup ? (

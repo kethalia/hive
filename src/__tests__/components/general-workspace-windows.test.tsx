@@ -473,6 +473,43 @@ describe("workspace tool windows", () => {
     expect(screen.queryByTestId("hive-window-codex-account")).not.toBeInTheDocument();
   });
 
+  it("waits for the agent when starting GitHub’s default workspace from Workspace Details", async () => {
+    const stopped = {
+      ...workspaces[0],
+      latest_build: { ...workspaces[0].latest_build, status: "stopped" as const },
+    };
+    const running = workspaces[0];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ workspace: stopped, logs: [] })),
+    );
+    vi.mocked(startWorkspaceAction).mockResolvedValueOnce({
+      data: { workspaceId: stopped.id, buildId: running.latest_build.id, status: "running" },
+    });
+    vi.mocked(listWorkspacesAction).mockResolvedValue({ data: [running] });
+
+    render(
+      <RuntimeConfigProvider config={{ projectDiscoveryEnabled: true, terminalWsUrl: "" }}>
+        <KeybindingProvider>
+          <GeneralWorkspace userId="user" initialWorkspaces={[stopped]} />
+        </KeybindingProvider>
+      </RuntimeConfigProvider>,
+    );
+    await screen.findByRole("textbox", { name: "Terminal input" });
+    act(() => requestHiveWindow({ tool: "projects" }));
+    const github = within(screen.getByTestId("hive-window-projects"));
+    expect(github.getByRole("radio", { name: "ai-dev-01, stopped" })).toBeChecked();
+    act(() => requestHiveWindow({ tool: "workspace-details", workspaceId: stopped.id }));
+    const details = within(screen.getByTestId("hive-window-workspace-details"));
+    fireEvent.click(details.getByRole("button", { name: "Start workspace" }));
+    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: stopped.id,
+      waitForAgent: true,
+    });
+    expect(await github.findByText("Loaded GitHub account for build-1")).toBeVisible();
+    vi.mocked(listWorkspacesAction).mockReset();
+  });
+
   it("shares startup and the verified build across all windows using the same workspace", async () => {
     const stopped = {
       ...workspaces[0],

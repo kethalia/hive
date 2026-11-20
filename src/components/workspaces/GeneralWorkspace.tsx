@@ -25,6 +25,7 @@ import type { GeneralBoard } from "@/lib/workspaces/general-workspace";
 import {
   addGeneralFileWindow,
   addGeneralWindow,
+  defaultProviderWorkspace,
   emptyGeneralWorkspace,
   GENERAL_WORKSPACE_OPEN_EVENT,
   type GeneralPane,
@@ -296,10 +297,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             isAccountTool(request.tool) &&
             (request.workspaceId || (!existing && !current.accountWorkspaces?.[request.tool]))
               ? (workspaces.find((workspace) => workspace.id === request.workspaceId) ??
-                (!request.workspaceId
-                  ? (workspaces.find((workspace) => workspace.latest_build.status === "running") ??
-                    workspaces[0])
-                  : undefined))
+                (!request.workspaceId ? defaultProviderWorkspace(workspaces) : undefined))
               : undefined;
           const next = openHiveWindow(
             current,
@@ -426,12 +424,13 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     async (workspaceId: string, operation: "start" | "stop", fromProvider = false) => {
       if (pendingOperations.current.has(workspaceId)) return;
       pendingOperations.current.add(workspaceId);
+      const fallbackWorkspaceId = defaultProviderWorkspace(workspaces)?.id;
       const providerWindows = stateRef.current.boards
         .flatMap((board) => board.windows)
         .filter(
           (pane): pane is Extract<GeneralPane, { kind: "hive" }> & { id: string } =>
             pane.kind === "hive" &&
-            pane.workspaceId === workspaceId &&
+            (pane.workspaceId ?? fallbackWorkspaceId) === workspaceId &&
             (isAccountTool(pane.tool) || pane.tool === "projects"),
         );
       const waitForAgent = fromProvider || providerWindows.length > 0;
@@ -486,7 +485,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
         pendingOperations.current.delete(workspaceId);
       }
     },
-    [openHiveTool, update, workspaceQuery.refresh],
+    [openHiveTool, update, workspaces, workspaceQuery.refresh],
   );
   const start = useCallback(
     async (id: string) => {

@@ -13,6 +13,7 @@ import type { PanelTabsNavigation } from "@/components/ui/panel-tabs";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { fetchSettingsWindow } from "@/lib/settings/window-client";
 import {
+  defaultProviderWorkspace,
   type GeneralWindow,
   hiveToolLabels,
   isAccountTool,
@@ -103,7 +104,7 @@ export function HiveWorkspacePane({
     accountTool || pane.tool === "projects"
       ? pane.workspaceId
         ? workspaces.find((w) => w.id === pane.workspaceId)
-        : (workspaces.find((w) => w.latest_build.status === "running") ?? workspaces[0])
+        : defaultProviderWorkspace(workspaces)
       : undefined;
   const providerOperation = providerWorkspace ? operations?.[providerWorkspace.id] : undefined;
   const navigationId = useId();

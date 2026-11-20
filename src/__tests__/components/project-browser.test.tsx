@@ -95,8 +95,40 @@ describe("project browser", () => {
     expect(screen.queryByRole("link", { name: "owner/hive" })).not.toBeInTheDocument();
   });
 
+  it("retains confirmed pages, search, and pagination when a background refresh fails", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response(page(1, 2)))
+      .mockResolvedValueOnce(response(page(2, 3, "second", "43")))
+      .mockResolvedValueOnce(response(page(1, 2, "unconfirmed")))
+      .mockResolvedValueOnce(response({ error: "github_rate_limited" }, 502))
+      .mockResolvedValueOnce(response(page(1, 2, "new-first")))
+      .mockResolvedValueOnce(response(page(2, 3, "second-renamed", "43")));
+    render(<ProjectBrowser workspaceId="workspace-1" enabled />);
+    fireEvent.click(await screen.findByRole("button", { name: "Load more repositories" }));
+    await screen.findByRole("link", { name: "owner/second" });
+    const search = screen.getByLabelText("Search loaded repositories");
+    fireEvent.change(search, { target: { value: "second" } });
+    fireEvent.focus(window);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Showing the last confirmed repositories",
+    );
+    expect(search).toHaveValue("second");
+    expect(screen.getByRole("link", { name: "owner/second" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Load more repositories" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByRole("link", { name: "owner/second-renamed" })).toBeVisible();
+    expect(fetch).toHaveBeenCalledTimes(6);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getByRole("link", { name: "owner/new-first" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "owner/unconfirmed" })).not.toBeInTheDocument();
+  });
+
   it.each([
     [() => response({ error: "github_auth_required" }, 401), "Connect or reconnect GitHub"],
+    [() => response({ error: "github_permission_denied" }, 502), "GitHub access was denied"],
+    [() => new Response("Not authenticated", { status: 401 }), "Could not load repositories"],
     [() => response({ ...page(2), providerAccountId: "456" }), "GitHub account changed"],
   ] as const)("clears every page when a later refresh response loses the original identity", async (failure, message) => {
     vi.mocked(fetch)

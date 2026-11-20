@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   isExpectedCloneSessionKey,
   isSafeCloneRelativePath,
@@ -56,6 +57,12 @@ type AccountTool = "codex-account" | "claude-account";
 export function isAccountTool(tool: HiveTool): tool is AccountTool {
   return tool === "codex-account" || tool === "claude-account";
 }
+export function defaultProviderWorkspace(workspaces: CoderWorkspace[]) {
+  return (
+    workspaces.find((workspace) => workspace.latest_build.status === "running") ?? workspaces[0]
+  );
+}
+
 export const hiveWindowRequestSchema = z.object({
   tool: hiveToolSchema,
   workspaceId: z.string().trim().min(1).max(200).optional(),
