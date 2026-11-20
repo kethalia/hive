@@ -212,8 +212,12 @@ also passed on an isolated production-configured workspace. The production
 template needs the matching [workspace image digest](https://github.com/kethalia/hive/pull/454)
 for enrollment.
 
-P04 extracts read-only GitHub repository discovery from the epic in
-[PR455](https://github.com/kethalia/hive/pull/455). Its
+P04 merged through [PR455](https://github.com/kethalia/hive/pull/455) at
+`7554a838`. Its
 [acceptance record](checks/github-project-discovery/README.md) covers workspace
 enrollment, repository identity, pagination and checkout preservation.
-P05 is the next planned slice after P04 merges.
+
+P05 starts with the [interactive Projects workflow](https://github.com/kethalia/hive/pull/457).
+Select an available GitHub repository to prepare a checkout, install supported
+dependencies, and open Codex in the repository. End the session and publish or
+preserve the work before requesting checkout cleanup.
