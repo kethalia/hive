@@ -15,7 +15,11 @@ import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { useWindowManagerCommands } from "@/hooks/useWindowManagerCommands";
 import { useWorkspaceNotifications } from "@/hooks/useWorkspaceNotifications";
-import { startWorkspaceAction, stopWorkspaceAction } from "@/lib/actions/workspaces";
+import {
+  startWorkspaceAction,
+  stopWorkspaceAction,
+  waitForWorkspaceAgentAction,
+} from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { useDiscovery } from "@/lib/discovery/queries";
 import { MANAGE_WORKSPACES_KEYS, WORKSPACE_AGENTS_KEYS } from "@/lib/keyboard-shortcuts";
@@ -424,17 +428,23 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     async (workspaceId: string, operation: "start" | "stop", fromProvider = false) => {
       if (pendingOperations.current.has(workspaceId)) return;
       pendingOperations.current.add(workspaceId);
-      const fallbackWorkspaceId = defaultProviderWorkspace(workspaces)?.id;
-      const providerWindows = stateRef.current.boards
-        .flatMap((board) => board.windows)
-        .filter(
-          (pane): pane is Extract<GeneralPane, { kind: "hive" }> & { id: string } =>
-            pane.kind === "hive" &&
-            (pane.workspaceId ?? fallbackWorkspaceId) === workspaceId &&
-            (isAccountTool(pane.tool) || pane.tool === "projects"),
-        );
-      const waitForAgent = fromProvider || providerWindows.length > 0;
-      const selectedBuilds = new Map(providerWindows.map((pane) => [pane.id, pane.buildId]));
+      const providerWindows = (available: CoderWorkspace[]) => {
+        const fallbackWorkspaceId = defaultProviderWorkspace(available)?.id;
+        return stateRef.current.boards
+          .flatMap((board) => board.windows)
+          .filter(
+            (pane): pane is Extract<GeneralPane, { kind: "hive" }> & { id: string } =>
+              pane.kind === "hive" &&
+              (pane.workspaceId ?? fallbackWorkspaceId) === workspaceId &&
+              (isAccountTool(pane.tool) || pane.tool === "projects"),
+          );
+      };
+      const selectedBuilds = new Map(
+        providerWindows(workspaces).map((pane) => [pane.id, pane.buildId]),
+      );
+      const previousBuildId = workspaces.find((workspace) => workspace.id === workspaceId)
+        ?.latest_build.id;
+      const waitForAgent = fromProvider || selectedBuilds.size > 0;
       setOperations((current) => ({ ...current, [workspaceId]: { pending: operation } }));
       try {
         openHiveTool({ tool: "workspace-details", workspaceId });
@@ -447,29 +457,39 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             : await stopWorkspaceAction({ workspaceId });
         if (!result?.data)
           throw new Error(result?.serverError ?? `Could not ${operation} workspace.`);
-        const refreshed = await workspaceQuery.refresh();
-        if (operation === "start" && waitForAgent) {
-          const latest = refreshed.find((workspace) => workspace.id === workspaceId)?.latest_build;
+        let refreshed = await workspaceQuery.refresh();
+        // Inspect the current windows before clearing the shared startup state.
+        const needsAgentCheck =
+          operation === "start" && !waitForAgent && providerWindows(refreshed).length > 0;
+        if (operation === "start" && (waitForAgent || needsAgentCheck)) {
           const buildId = "buildId" in result.data ? result.data.buildId : undefined;
-          if (!buildId || latest?.status !== "running" || latest.id !== buildId)
-            throw new Error("The workspace build changed before Hive could open it.");
-          if (selectedBuilds.size) {
-            update((current) => ({
-              ...current,
-              boards: current.boards.map((board) => ({
-                ...board,
-                windows: board.windows.map((pane) =>
-                  pane.kind === "hive" &&
-                  isAccountTool(pane.tool) &&
-                  pane.workspaceId === workspaceId &&
-                  selectedBuilds.has(pane.id) &&
-                  selectedBuilds.get(pane.id) === pane.buildId
-                    ? { ...pane, buildId }
-                    : pane,
-                ),
-              })),
-            }));
+          if (!buildId) throw new Error("The workspace build changed before Hive could open it.");
+          if (needsAgentCheck) {
+            const readiness = await waitForWorkspaceAgentAction({ workspaceId, buildId });
+            if (readiness?.data?.buildId !== buildId)
+              throw new Error(
+                readiness?.serverError ?? "Could not verify workspace agent readiness.",
+              );
+            refreshed = await workspaceQuery.refresh();
           }
+          const latest = refreshed.find((workspace) => workspace.id === workspaceId)?.latest_build;
+          if (latest?.status !== "running" || latest.id !== buildId)
+            throw new Error("The workspace build changed before Hive could open it.");
+          update((current) => ({
+            ...current,
+            boards: current.boards.map((board) => ({
+              ...board,
+              windows: board.windows.map((pane) =>
+                pane.kind === "hive" &&
+                isAccountTool(pane.tool) &&
+                pane.workspaceId === workspaceId &&
+                pane.buildId ===
+                  (selectedBuilds.has(pane.id) ? selectedBuilds.get(pane.id) : previousBuildId)
+                  ? { ...pane, buildId }
+                  : pane,
+              ),
+            })),
+          }));
         }
         window.dispatchEvent(new Event("hive:discovery-refresh"));
         setOperations((current) => ({ ...current, [workspaceId]: {} }));

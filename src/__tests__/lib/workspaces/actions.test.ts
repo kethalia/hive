@@ -465,6 +465,33 @@ describe("workspace server actions", () => {
     ]);
   });
 
+  it("checks a late provider's agent on the requested running build without starting a build", async () => {
+    const { waitForWorkspaceAgentAction } = await import("@/lib/actions/workspaces");
+    mockGetWorkspace.mockResolvedValue({
+      id: "ws-1",
+      owner_name: "testuser",
+      latest_build: { id: "running-build", status: "running" },
+    });
+    mockGetWorkspaceResources.mockResolvedValueOnce([
+      { agents: [{ status: "connected", lifecycle_state: "ready" }] },
+    ]);
+    const changed = await waitForWorkspaceAgentAction({
+      workspaceId: "ws-1",
+      buildId: "old-build",
+    });
+    expect(changed?.serverError).toMatch(/workspace build changed/i);
+    expect(mockGetWorkspaceResources).not.toHaveBeenCalled();
+
+    const ready = await waitForWorkspaceAgentAction({
+      workspaceId: "ws-1",
+      buildId: "running-build",
+    });
+    expect(ready?.data).toEqual({ buildId: "running-build" });
+    expect(mockGetWorkspaceResources).toHaveBeenCalledExactlyOnceWith("ws-1", "running-build");
+    expect(mockStartWorkspace).not.toHaveBeenCalled();
+    mockGetWorkspace.mockReset();
+  });
+
   it("stopWorkspaceAction stops an owned running workspace and waits until stopped", async () => {
     mockGetWorkspace.mockResolvedValueOnce({
       id: "ws-1",

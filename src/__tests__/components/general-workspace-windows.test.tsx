@@ -67,6 +67,7 @@ vi.mock("@/hooks/use-pwa-mode", () => ({ usePwaMode: () => "browser" }));
 vi.mock("@/lib/actions/workspaces", () => ({
   listWorkspacesAction: vi.fn(),
   startWorkspaceAction: vi.fn(),
+  waitForWorkspaceAgentAction: vi.fn(),
 }));
 const navigation = vi.hoisted(() => ({
   search: new URLSearchParams(),
@@ -97,7 +98,11 @@ import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
-import { listWorkspacesAction, startWorkspaceAction } from "@/lib/actions/workspaces";
+import {
+  listWorkspacesAction,
+  startWorkspaceAction,
+  waitForWorkspaceAgentAction,
+} from "@/lib/actions/workspaces";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   emptyGeneralWorkspace,
@@ -507,6 +512,90 @@ describe("workspace tool windows", () => {
       waitForAgent: true,
     });
     expect(await github.findByText("Loaded GitHub account for build-1")).toBeVisible();
+    vi.mocked(listWorkspacesAction).mockReset();
+  });
+
+  it("waits for readiness before opening provider connections that join an in-flight start", async () => {
+    const running = workspaces[0];
+    const stopped = {
+      ...running,
+      latest_build: { ...running.latest_build, id: "stopped-build", status: "stopped" as const },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ workspace: stopped, logs: [] })),
+    );
+    vi.mocked(listWorkspacesAction).mockResolvedValue({ data: [running] });
+    let finishStart!: (result: Awaited<ReturnType<typeof startWorkspaceAction>>) => void;
+    let finishReadiness!: (result: Awaited<ReturnType<typeof waitForWorkspaceAgentAction>>) => void;
+    vi.mocked(startWorkspaceAction).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishStart = resolve;
+        }),
+    );
+    vi.mocked(waitForWorkspaceAgentAction).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishReadiness = resolve;
+        }),
+    );
+
+    render(
+      <RuntimeConfigProvider config={{ projectDiscoveryEnabled: true, terminalWsUrl: "" }}>
+        <KeybindingProvider>
+          <GeneralWorkspace userId="user" initialWorkspaces={[stopped]} />
+        </KeybindingProvider>
+      </RuntimeConfigProvider>,
+    );
+    await screen.findByRole("textbox", { name: "Terminal input" });
+    act(() => requestHiveWindow({ tool: "workspace-details", workspaceId: stopped.id }));
+    const details = within(screen.getByTestId("hive-window-workspace-details"));
+    fireEvent.click(details.getByRole("button", { name: "Start workspace" }));
+    expect(startWorkspaceAction).toHaveBeenCalledExactlyOnceWith({ workspaceId: stopped.id });
+
+    act(() => requestHiveWindow({ tool: "projects" }));
+    act(() => requestHiveWindow({ tool: "codex-account", workspaceId: stopped.id }));
+    act(() =>
+      requestHiveWindow({
+        tool: "claude-account",
+        workspaceId: stopped.id,
+        buildId: "unrelated-build",
+      }),
+    );
+    const github = within(screen.getByTestId("hive-window-projects"));
+    const codex = within(screen.getByTestId("hive-window-codex-account"));
+    const claude = within(screen.getByTestId("hive-window-claude-account"));
+    expect(github.getByRole("tab", { name: "Connection" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    const buildId = running.latest_build.id;
+    await act(async () =>
+      finishStart({ data: { workspaceId: stopped.id, buildId, status: "running" } }),
+    );
+    expect(waitForWorkspaceAgentAction).toHaveBeenCalledExactlyOnceWith({
+      workspaceId: stopped.id,
+      buildId,
+    });
+    for (const provider of [github, codex, claude]) {
+      expect(await provider.findByText("Finishing workspace startup for ai-dev-01…")).toBeVisible();
+      expect(provider.getByRole("tab", { name: "Connection" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+    expect(github.getByRole("tab", { name: "Repositories" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await act(async () => finishReadiness({ data: { buildId } }));
+    expect(await github.findByText("Loaded GitHub account for build-1")).toBeVisible();
+    expect(await codex.findByText("Loaded Codex account for software/build-1")).toBeVisible();
+    expect(claude.getByRole("button", { name: "Use current build" })).toBeEnabled();
+    expect(startWorkspaceAction).toHaveBeenCalledTimes(1);
     vi.mocked(listWorkspacesAction).mockReset();
   });
 
