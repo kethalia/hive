@@ -19,6 +19,7 @@ import {
 } from "../../../services/auth/src/auth/coder-oauth-config";
 import { getUsableCoderCredential } from "../../../services/auth/src/auth/coder-oauth-credentials";
 import { coderOAuthApplicationsHost } from "../../../services/auth/src/auth/coder-oauth-provider";
+import { registerCoderPreviewCallback } from "../../../services/auth/src/auth/coder-preview-callback";
 import { appendClearSessionCookieHeaders } from "./session-cookie";
 
 const allowed = new Map([
@@ -118,7 +119,18 @@ export async function handleCoderAuth(request: Request) {
       );
     }
   }
-  const auth = createCoderAuth(getDb(), { signal });
+  const db = getDb();
+  if (request.method === "POST" && url.pathname.endsWith("/social")) {
+    try {
+      await registerCoderPreviewCallback(config, db, signal);
+    } catch {
+      return Response.json(
+        { error: "Coder sign-in is temporarily unavailable" },
+        { status: 503, headers: privateHeaders },
+      );
+    }
+  }
+  const auth = createCoderAuth(db, { signal });
   const response = await auth.handler(request);
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(privateHeaders)) headers.set(name, value);

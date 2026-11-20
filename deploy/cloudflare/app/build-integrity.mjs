@@ -30,7 +30,6 @@ const sourcePaths = [
   "next.config.ts",
   "open-next.config.ts",
   "tsconfig.json",
-  "deploy/cloudflare/native/preview-profiles.json",
   ".gitignore",
 ];
 

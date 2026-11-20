@@ -38,10 +38,10 @@
     "ci:release": "changeset tag",
     "build:cloudflare": "pnpm --filter @hive/db db:generate:cloudflare && node deploy/cloudflare/app/build.mjs",
     "preview:cloudflare": "node deploy/cloudflare/app/preview.mjs",
-    "deploy:cloudflare:preview": "node deploy/cloudflare/native/deploy.mjs preview",
+    "deploy:cloudflare:preview": "wrangler preview --config deploy/cloudflare/native/wrangler.jsonc",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare/tsconfig.json",
     "types:cloudflare": "wrangler types deploy/cloudflare/native/env.d.ts --config deploy/cloudflare/native/wrangler.jsonc --env-interface CloudflareBindings --include-runtime false",
-    "test:cloudflare": "node --test deploy/cloudflare/native/deploy.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test",
+    "test:cloudflare": "node --test deploy/cloudflare/native/composition.test.mjs scripts/build-artifacts.test.mjs deploy/cloudflare/app/portable-actions-build.test.mjs deploy/cloudflare/native/background-wake.workerd.test.mjs deploy/cloudflare/native/template-publication.workerd.test.mjs deploy/cloudflare/app/build-integrity.test.mjs && pnpm --filter @hive/db test",
     "test:agent-bridge": "node --test scripts/agent-bridge/*.test.mjs && python3 -B -m unittest scripts/agents/test_workspace_identity_install.py scripts/agents/test_codex_runtime_install.py scripts/agents/test_claude_account_driver.py scripts/agents/test_github_projects.py"
   },
   "dependencies": {

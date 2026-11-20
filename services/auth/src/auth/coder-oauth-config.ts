@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 export type CoderOAuthConfig = {
   coderOrigin: string;
   publicOrigin: string;
@@ -6,6 +7,10 @@ export type CoderOAuthConfig = {
   callbackUrl: string;
   secret: string;
 };
+
+export function isCoderOAuthPreview(env: Record<string, string | undefined> = process.env) {
+  return env.HIVE_NATIVE_MODE === "preview";
+}
 
 export function coderOAuthEnabled() {
   return process.env.HIVE_CODER_OAUTH_ENABLED === "true";
@@ -26,9 +31,12 @@ function origin(value: string | undefined) {
 
 export function getCoderOAuthConfig(): CoderOAuthConfig {
   const coderOrigin = origin(process.env.CODER_URL);
-  const publicOrigin = origin(process.env.HIVE_PUBLIC_ORIGIN);
+  const publicOrigin = origin(getHivePublicOrigin());
   const clientId = process.env.CODER_OAUTH_CLIENT_ID ?? "";
-  const clientSecret = process.env.CODER_OAUTH_CLIENT_SECRET ?? "";
+  const clientSecret =
+    (isCoderOAuthPreview()
+      ? process.env.HIVE_PREVIEW_CODER_OAUTH_CLIENT_SECRET
+      : process.env.CODER_OAUTH_CLIENT_SECRET) ?? "";
   const secret = process.env.COOKIE_SECRET ?? "";
   if (!clientId || clientId.length > 256 || !clientSecret || secret.length < 32)
     throw Error("coder_oauth_configuration");

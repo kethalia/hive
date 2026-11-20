@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getRequestSession } from "@/lib/auth/session";
 import { connectWorkspaceCodex } from "@/lib/codex/voice-connection";
 import type { VoiceRpc } from "@/lib/codex/voice-rpc";
@@ -15,7 +16,7 @@ function hasAllowedOrigin(request: Request): boolean {
   // Reverse proxies can replace the request URL's hostname. Forwarded headers
   // authorize signaling only when they match an explicitly configured origin.
   const configured = [
-    process.env.HIVE_PUBLIC_ORIGIN ?? "",
+    getHivePublicOrigin() ?? "",
     ...(process.env.HIVE_VOICE_ALLOWED_ORIGINS ?? "").split(","),
   ]
     .map((value) => value.trim())

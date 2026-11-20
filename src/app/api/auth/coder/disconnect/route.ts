@@ -1,4 +1,5 @@
 import { coderAuthCookieName } from "@hive/auth";
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getRequestSession } from "@/lib/auth/session";
 import { appendClearSessionCookieHeaders } from "@/lib/auth/session-cookie";
 import { CODER_HOST_COOKIE } from "@/lib/security/content-security-policy";
@@ -8,7 +9,7 @@ export async function POST(request: Request) {
   if (process.env.HIVE_CODER_OAUTH_ENABLED !== "true")
     return Response.json({ error: "Not found" }, { status: 404 });
   if (
-    request.headers.get("Origin") !== process.env.HIVE_PUBLIC_ORIGIN ||
+    request.headers.get("Origin") !== getHivePublicOrigin() ||
     request.headers.get("Sec-Fetch-Site") === "cross-site"
   )
     return Response.json({ error: "Origin rejected" }, { status: 403 });

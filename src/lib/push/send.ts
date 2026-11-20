@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getDb } from "@hive/db";
 import webpush from "web-push";
 import { getVapidKeys } from "@/lib/push/vapid";
@@ -15,7 +16,7 @@ export async function sendPushToUser(
   try {
     keys = await getVapidKeys();
     // Apple rejects local-only VAPID subjects such as noreply@hive.local.
-    subject = process.env.VAPID_SUBJECT?.trim() || process.env.HIVE_PUBLIC_ORIGIN?.trim() || "";
+    subject = process.env.VAPID_SUBJECT?.trim() || getHivePublicOrigin()?.trim() || "";
     if (!subject) throw new Error("Set HIVE_PUBLIC_ORIGIN or VAPID_SUBJECT for push delivery");
     if (process.env.HIVE_RUNTIME_TARGET !== "cloudflare")
       webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);

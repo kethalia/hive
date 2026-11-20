@@ -105,10 +105,9 @@ validates it.
 ### Use the existing deployment integration
 
 Continue using the single `hive` Worker and repository-connected Workers Builds.
-The current deployment script pins the epic branch and its OAuth origin. P01 must
-establish an explicit per-increment branch/origin/feature configuration that the
-existing deployment integration can validate. P02 registers the matching Coder
-OAuth callback for its preview.
+Cloudflare uses the shared Preview settings on `main` for connected branch
+builds. Hive registers the exact Coder OAuth callback automatically when users
+sign in to a Preview. See the [Cloudflare runtime guide](../deploy/cloudflare/native/README.md).
 
 Give each test deployment matching source, database schema, host/package pins and
 enabled capabilities. Verify the provider's actual preview origin and deployed

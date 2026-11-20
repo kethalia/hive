@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
 import { publicationBody } from "@/lib/templates/publication-io";
@@ -30,7 +31,7 @@ async function workspaceAccountRoute(
       ? process.env.HIVE_CODEX_ACCOUNTS_ENABLED
       : process.env.HIVE_CLAUDE_ACCOUNTS_ENABLED;
   if (flag !== "true") return new Response(null, { status: 404, headers });
-  const origin = process.env.HIVE_PUBLIC_ORIGIN;
+  const origin = getHivePublicOrigin();
   const target = new URL(request.url);
   if (
     !origin ||

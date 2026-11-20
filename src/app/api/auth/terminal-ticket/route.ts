@@ -1,4 +1,5 @@
 import { createTerminalTicket, isLoopbackHostname, verifyCloneTerminalProof } from "@hive/auth";
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getRequestSession } from "@/lib/auth/session";
 import { resolveTerminalWsUrl, serverTerminalWsUrl } from "@/lib/runtime-config";
@@ -32,7 +33,7 @@ export async function POST(request: Request): Promise<Response> {
     if (cloudflare && process.env.HIVE_GENERIC_TERMINAL_ENABLED !== "true")
       return response(404, { error: "Terminal transport unavailable" });
     // Forwarded headers alone are not authority for minting a browser credential.
-    const origin = new URL(process.env.HIVE_PUBLIC_ORIGIN || request.url).origin;
+    const origin = new URL(getHivePublicOrigin() || request.url).origin;
     if (request.headers.get("origin") !== origin)
       return response(403, { error: "Origin rejected" });
     const configured = serverTerminalWsUrl();

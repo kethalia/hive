@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getDb } from "@hive/db";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
@@ -13,7 +14,7 @@ const headers = { "Cache-Control": "private, no-store" };
 export async function cloudflareNotificationSourcesRoute(request: Request) {
   const url = new URL(request.url);
   if (
-    url.origin !== process.env.HIVE_PUBLIC_ORIGIN ||
+    url.origin !== getHivePublicOrigin() ||
     request.headers.get("Origin") !== url.origin ||
     request.url.includes("?") ||
     request.headers.get("Sec-Fetch-Site") === "cross-site"

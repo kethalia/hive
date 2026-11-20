@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getRequestSession } from "@/lib/auth/session";
 
 const headers = {
@@ -9,7 +10,7 @@ const headers = {
 export async function GET(request: Request) {
   if (process.env.HIVE_CODER_OAUTH_ENABLED !== "true")
     return Response.json({ error: "Not found" }, { status: 404, headers });
-  const origin = process.env.HIVE_PUBLIC_ORIGIN;
+  const origin = getHivePublicOrigin();
   const suppliedOrigin = request.headers.get("Origin");
   if (
     new URL(request.url).origin !== origin ||

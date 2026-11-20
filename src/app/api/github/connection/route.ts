@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { z } from "zod";
 import { AgentBridgeError } from "@/lib/agents/portable-client.server";
 import { createProjectDiscoveryService } from "@/lib/agents/portable-config.server";
@@ -22,7 +23,7 @@ const command = z.union([
 
 export async function POST(request: Request) {
   if (process.env.HIVE_PROJECT_DISCOVERY_ENABLED !== "true") return json({}, 404);
-  const origin = process.env.HIVE_PUBLIC_ORIGIN;
+  const origin = getHivePublicOrigin();
   if (
     !origin ||
     new URL(request.url).origin !== origin ||

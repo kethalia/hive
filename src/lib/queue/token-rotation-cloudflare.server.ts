@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { encrypt, TOKEN_LIFETIME_SECONDS, tryDecrypt } from "@hive/auth";
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import type { Prisma, PrismaClient } from "@hive/db";
 import { z } from "zod";
 import { fetchCoderApi } from "@/lib/coder/fetch";
@@ -260,7 +261,7 @@ export async function dispatchLegacyTokenRotation(
         tx,
         ownerId,
         payload,
-        process.env.VAPID_SUBJECT?.trim() || process.env.HIVE_PUBLIC_ORIGIN?.trim() || "",
+        process.env.VAPID_SUBJECT?.trim() || getHivePublicOrigin()?.trim() || "",
         warningSignal,
         warningDeadline,
       ));
