@@ -53,7 +53,7 @@ describe("Coder OAuth callback registration for native Previews", () => {
     expect(lock).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledTimes(2);
     const [endpoint, update] = fetch.mock.calls[1];
-    expect(endpoint.href).toBe("https://coder.kethalia.com/oauth2/clients/preview-client");
+    expect(endpoint).toBe("https://coder.kethalia.com/oauth2/clients/preview-client");
     expect(update.method).toBe("PUT");
     expect(JSON.parse(update.body).redirect_uris).toEqual([callbackUrl, oldCallback]);
   });

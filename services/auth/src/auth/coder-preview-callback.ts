@@ -23,43 +23,54 @@ export async function registerCoderPreviewCallback(
   );
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   // Coder replaces the list on every update. Serialize the read and write across Previews.
-  await db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${endpoint.href}, 0))`;
-    const response = await fetchCoderApi(endpoint, { headers, redirect: "error", signal });
-    if (!response.ok) throw Error(`coder_preview_callback_read_${response.status}`);
-    const registration = await response.json();
-    const redirects: unknown = registration.redirect_uris;
-    if (
-      registration.client_id !== config.clientId ||
-      !Array.isArray(redirects) ||
-      !redirects.every((uri) => typeof uri === "string" && previewCallback.test(uri))
-    )
-      throw Error("coder_preview_callback_metadata");
+  let stage = "database";
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${endpoint.href}, 0))`;
+      stage = "read";
+      const response = await fetchCoderApi(endpoint.href, { headers, redirect: "error", signal });
+      if (!response.ok) throw Error(`coder_preview_callback_read_${response.status}`);
+      const registration = await response.json();
+      const redirects: unknown = registration.redirect_uris;
+      if (
+        registration.client_id !== config.clientId ||
+        !Array.isArray(redirects) ||
+        !redirects.every((uri) => typeof uri === "string" && previewCallback.test(uri))
+      )
+        throw Error("coder_preview_callback_metadata");
 
-    if (
-      redirects.includes(config.callbackUrl) &&
-      (redirects.length < MAX_CODER_REDIRECTS || redirects[0] === config.callbackUrl)
-    )
-      return;
+      if (
+        redirects.includes(config.callbackUrl) &&
+        (redirects.length < MAX_CODER_REDIRECTS || redirects[0] === config.callbackUrl)
+      )
+        return;
 
-    const update = await fetchCoderApi(endpoint, {
-      method: "PUT",
-      headers,
-      redirect: "error",
-      signal,
-      body: JSON.stringify({
-        client_name: registration.client_name,
-        redirect_uris: [
-          config.callbackUrl,
-          ...redirects.filter((uri) => uri !== config.callbackUrl),
-        ].slice(0, MAX_CODER_REDIRECTS),
-        token_endpoint_auth_method: registration.token_endpoint_auth_method,
-        grant_types: registration.grant_types,
-        response_types: registration.response_types,
-        scope: registration.scope,
-      }),
+      stage = "update";
+      const update = await fetchCoderApi(endpoint.href, {
+        method: "PUT",
+        headers,
+        redirect: "error",
+        signal,
+        body: JSON.stringify({
+          client_name: registration.client_name,
+          redirect_uris: [
+            config.callbackUrl,
+            ...redirects.filter((uri) => uri !== config.callbackUrl),
+          ].slice(0, MAX_CODER_REDIRECTS),
+          token_endpoint_auth_method: registration.token_endpoint_auth_method,
+          grant_types: registration.grant_types,
+          response_types: registration.response_types,
+          scope: registration.scope,
+        }),
+      });
+      await update.body?.cancel();
+      if (!update.ok) throw Error(`coder_preview_callback_update_${update.status}`);
     });
-    await update.body?.cancel();
-    if (!update.ok) throw Error(`coder_preview_callback_update_${update.status}`);
-  });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("coder_preview_callback_")) throw error;
+    const cause = error as { code?: unknown; errorCode?: unknown };
+    const code = cause?.code ?? cause?.errorCode;
+    const suffix = typeof code === "string" && /^P[0-9]{4}$/.test(code) ? `_${code}` : "";
+    throw Error(`coder_preview_callback_${stage}${suffix}`);
+  }
 }
