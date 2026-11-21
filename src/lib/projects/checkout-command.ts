@@ -67,8 +67,16 @@ def main(spec):
     home = pathlib.Path.home().resolve(strict=True)
     name, url, gh, env = resolve(home, account, repository)
     owner, repository_name = name.split("/")
+    checkout = home / "projects" / owner / repository_name
+    projects_root = pathlib.Path(spec["projectsRoot"]).resolve()
+    try:
+        relative_path = checkout.relative_to(projects_root)
+    except ValueError:
+        raise ProjectError("checkout_outside_root") from None
+    require(relative_path.parts, "checkout_outside_root")
+
     clone_missing = spec["cloneMissing"]
-    missing = {"fullName": name, "checkout": "missing"}
+    missing = {"checkout": "missing"}
     parent = home
     for part in ("projects", owner):
         parent = parent / part
@@ -78,7 +86,6 @@ def main(spec):
             return missing
         require(not parent.is_symlink() and parent.is_dir(), "checkout_unavailable")
 
-    checkout = parent / repository_name
     directory = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         try:
@@ -112,7 +119,7 @@ def main(spec):
     finally:
         os.close(directory)
 
-    return {"fullName": name}
+    return {"fullName": name, "relativePath": relative_path.as_posix()}
 
 if __name__ == "__main__":
     try:
@@ -124,4 +131,4 @@ if __name__ == "__main__":
     print(json.dumps(response))
 `;
 
-export const projectCheckoutCommand = `python3 -c '${projectCheckoutScript.replaceAll("'", "'\\''")}'`;
+export const projectCheckoutCommand = `python3 -I -c '${projectCheckoutScript.replaceAll("'", "'\\''")}'`;

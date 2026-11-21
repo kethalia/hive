@@ -39,7 +39,7 @@ function git(cwd: string, ...args: string[]) {
   return execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function prepare(cloneMissing = true) {
+function prepare(cloneMissing = true, projectsRoot = root) {
   const harness = `
 import json, os, pathlib, sys
 scope = {"__name__": "fixture"}
@@ -56,14 +56,23 @@ def fixture_git(cwd, args, gh, env, timeout=12, code="checkout_unavailable"):
     return result
 scope["git"] = fixture_git
 try:
-    print(json.dumps(scope["main"]({"providerAccountId": "12", "repositoryId": "34", "cloneMissing": json.loads(sys.argv[4])})))
+    print(json.dumps(scope["main"]({"providerAccountId": "12", "repositoryId": "34", "cloneMissing": json.loads(sys.argv[4]), "projectsRoot": sys.argv[5]})))
 except scope["ProjectError"] as error:
     print(json.dumps({"error": str(error)}))
 `;
   return JSON.parse(
     execFileSync(
       "python3",
-      ["-c", harness, projectCheckoutScript, root, remote, String(cloneMissing)],
+      [
+        "-I",
+        "-c",
+        harness,
+        projectCheckoutScript,
+        root,
+        remote,
+        String(cloneMissing),
+        projectsRoot,
+      ],
       {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
@@ -73,6 +82,7 @@ except scope["ProjectError"] as error:
 }
 
 it("passes the fixed program through the workspace shell and rejects unsafe identifiers", () => {
+  expect(projectCheckoutCommand).toMatch(/^python3 -I -c /);
   const result = execFileSync("bash", ["-c", projectCheckoutCommand], {
     input: JSON.stringify({ providerAccountId: "12", repositoryId: "../outside" }),
     encoding: "utf8",
@@ -82,13 +92,13 @@ it("passes the fixed program through the workspace shell and rejects unsafe iden
 
 it("clones to the owner/repository directory and preserves local changes on reopen", () => {
   const checkout = join(root, "projects", "owner", "repo");
-  expect(prepare(false)).toEqual({ fullName: "owner/repo", checkout: "missing" });
+  expect(prepare(false)).toEqual({ checkout: "missing" });
   expect(existsSync(checkout)).toBe(false);
-  expect(prepare()).toEqual({ fullName: "owner/repo" });
+  expect(prepare()).toEqual({ fullName: "owner/repo", relativePath: "projects/owner/repo" });
   expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("project\n");
   git(checkout, "remote", "set-url", "origin", "git@github.com:Owner/Repo.git");
   writeFileSync(join(checkout, "README.md"), "local changes\n");
-  expect(prepare(false)).toEqual({ fullName: "owner/repo" });
+  expect(prepare(false)).toEqual({ fullName: "owner/repo", relativePath: "projects/owner/repo" });
   expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("local changes\n");
   git(checkout, "remote", "set-url", "origin", "git@github.com:owner/other.git");
   expect(prepare()).toEqual({ error: "checkout_unavailable" });
@@ -103,4 +113,20 @@ it("preserves an existing folder and refuses a symlinked owner directory", () =>
   rmSync(parent, { recursive: true });
   symlinkSync(remote, parent, "dir");
   expect(prepare()).toEqual({ error: "checkout_unavailable" });
+});
+
+it("keeps the checkout location and reports its path relative to the configured root", () => {
+  expect(prepare(true, remote)).toEqual({ error: "checkout_outside_root" });
+  expect(existsSync(join(root, "projects"))).toBe(false);
+  expect(prepare(true, join(root, "projects"))).toEqual({
+    fullName: "owner/repo",
+    relativePath: "owner/repo",
+  });
+  expect(prepare(false, join(root, "projects", "owner"))).toEqual({
+    fullName: "owner/repo",
+    relativePath: "repo",
+  });
+  expect(readFileSync(join(root, "projects", "owner", "repo", "README.md"), "utf8")).toBe(
+    "project\n",
+  );
 });

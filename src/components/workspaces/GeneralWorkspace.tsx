@@ -330,12 +330,11 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           if (!clone?.data || "checkout" in clone.data)
             throw new Error(clone?.serverError ?? "Could not clone the project.");
           terminal = clone.data;
-          logs = [...logs, `Checkout ready at ~/${terminal.relativePath}.`];
+          logs = [...logs, `Checkout ready at ~/projects/${terminal.label}.`];
         } else {
-          logs = [...logs, `Using the existing checkout at ~/${terminal.relativePath}.`];
+          logs = [...logs, `Using the existing checkout at ~/projects/${terminal.label}.`];
         }
-        // If the repository was renamed while the palette was open, reuse any window
-        // already pointing at the current path instead of opening a duplicate terminal.
+        // Reuse a terminal only after verifying the repository's current checkout identity.
         const existing = stateRef.current.boards
           .flatMap((b) => b.windows)
           .find(
@@ -373,13 +372,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       };
       const existing = stateRef.current.boards
         .flatMap((b) => b.windows)
-        .find(
-          (w) =>
-            generalPaneIdentity(w) === generalPaneIdentity(pending) ||
-            (w.kind === "terminal" &&
-              w.workspaceId === project.workspaceId &&
-              w.relativePath === `projects/${project.fullName}`),
-        );
+        .find((w) => generalPaneIdentity(w) === generalPaneIdentity(pending));
       if (existing) {
         openPane(existing);
         if (existing.kind === "project-launch" && existing.error)
