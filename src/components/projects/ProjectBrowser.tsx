@@ -5,34 +5,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { useProjectRepositories } from "@/hooks/useProjectRepositories";
+import type { RepositoryProject } from "@/lib/projects/contracts";
+
+type SelectProject = (repository: RepositoryProject, providerAccountId: string) => void;
 
 export function ProjectBrowser({
   workspaceId,
   enabled = false,
   visible = true,
   onSetup,
+  onSelectProject,
 }: {
   workspaceId: string;
   enabled?: boolean;
   visible?: boolean;
   onSetup?: (kind: "workspace" | "account") => void;
+  onSelectProject?: SelectProject;
 }) {
   if (!enabled)
     return <p className="p-4 text-sm text-muted-foreground">Project discovery is not enabled.</p>;
   if (!visible) return null;
-  return <RepositoryBrowser key={workspaceId} workspaceId={workspaceId} onSetup={onSetup} />;
+  return (
+    <RepositoryBrowser
+      key={workspaceId}
+      workspaceId={workspaceId}
+      onSetup={onSetup}
+      onSelectProject={onSelectProject}
+    />
+  );
 }
 
 function RepositoryBrowser({
   workspaceId,
   onSetup,
+  onSelectProject,
 }: {
   workspaceId: string;
   onSetup?: (kind: "workspace" | "account") => void;
+  onSelectProject?: SelectProject;
 }) {
   const { snapshot, load } = useProjectRepositories(workspaceId, true);
   const [query, setQuery] = useState("");
   const searchId = useId();
+  const accountId = snapshot.providerAccountId;
   const search = query.trim().toLocaleLowerCase();
   const repositories = snapshot.repositories.filter((repository) =>
     repository.fullName.toLocaleLowerCase().includes(search),
@@ -87,14 +102,25 @@ function RepositoryBrowser({
         {repositories.map((repository) => (
           <li key={repository.providerRepositoryId} className="rounded-md border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <a
-                className="break-all font-medium underline"
-                href={repository.htmlUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {repository.fullName}
-              </a>
+              {onSelectProject && accountId ? (
+                <Button
+                  variant="link"
+                  className="h-auto whitespace-normal break-all p-0 text-left"
+                  disabled={!!snapshot.error || repository.permissions.pull !== true}
+                  onClick={() => onSelectProject(repository, accountId)}
+                >
+                  {repository.fullName}
+                </Button>
+              ) : (
+                <a
+                  className="break-all font-medium underline"
+                  href={repository.htmlUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {repository.fullName}
+                </a>
+              )}
               <span className="text-xs text-muted-foreground">
                 {repository.archived ? "Archived" : repository.private ? "Private" : "Public"}
               </span>

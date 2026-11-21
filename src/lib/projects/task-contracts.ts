@@ -1,0 +1,163 @@
+import { z } from "zod";
+export const projectPhaseSchema = z.enum([
+  "awaitingTask",
+  "preparing",
+  "awaitingRegistration",
+  "awaitingFirstPrompt",
+  "running",
+  "blocked",
+]);
+export const projectTaskFailureStageSchema = z.enum([
+  "owner",
+  "project",
+  "policy",
+  "guardian",
+  "guardian_config",
+  "guardian_resolve",
+  "guardian_identity_transport",
+  "guardian_identity_validation",
+  "guardian_identity_schema",
+  "guardian_identity_liveness",
+  "guardian_identity_future",
+  "guardian_identity_expired",
+  "guardian_identity_bounds",
+  "guardian_identity_nonce",
+  "guardian_identity_pins",
+  "guardian_identity_signature",
+  "guardian_identity_config",
+  "guardian_identity_process",
+  "guardian_runtime_reservation",
+  "guardian_bootstrap",
+  "guardian_enrollment_confirmation",
+  "host_start",
+  "host_status",
+  "intent_read",
+  "status_write",
+]);
+export const projectTaskStartSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    requestId: z.string().uuid(),
+    expectedRevision: z.string().regex(/^[a-f0-9]{40}$/),
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .refine(
+        (v) =>
+          ![...v].some((c) => {
+            const n = c.charCodeAt(0);
+            return (n < 32 && ![9, 10, 13].includes(n)) || n === 127;
+          }),
+      )
+      .refine((v) => new TextEncoder().encode(v).length <= 32768),
+  })
+  .strict();
+export const projectTaskReadSchema = z
+  .object({
+    workspaceId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    requestId: z.string().uuid(),
+  })
+  .strict();
+export const projectTaskStatusSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    projectId: z.string().uuid(),
+    taskId: z.string().uuid(),
+    phase: projectPhaseSchema,
+    nativeThreadId: z
+      .string()
+      .regex(/^[A-Za-z0-9_.:-]{1,160}$/)
+      .nullable(),
+    terminalSessionName: z
+      .string()
+      .regex(/^project-[a-f0-9]{24}$/)
+      .nullable(),
+    reason: z
+      .enum([
+        "github_auth_required",
+        "repository_identity_changed",
+        "checkout_busy",
+        "checkout_unavailable",
+        "revision_unavailable",
+        "model_unavailable",
+        "native_unavailable",
+        "registration_unavailable",
+        "prompt_submission_uncertain",
+        "task_identity_conflict",
+        "preparation_timeout",
+      ])
+      .nullable(),
+    failureStage: projectTaskFailureStageSchema.optional(),
+  })
+  .strict();
+export type ProjectTaskStatus = z.infer<typeof projectTaskStatusSchema>;
+
+export const preparationFailureMessages: Record<
+  z.infer<typeof projectTaskFailureStageSchema>,
+  string
+> = {
+  owner: "The account check could not be completed. Your request is preserved.",
+  project: "The project check could not be completed. Your request is preserved.",
+  policy: "The project settings check could not be completed. Your request is preserved.",
+  guardian: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_config: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_resolve: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_transport:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_validation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_schema:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_liveness:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_future:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_expired:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_bounds:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_nonce:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_pins:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_signature:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_config:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_identity_process:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_runtime_reservation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_bootstrap: "The workspace connection could not be confirmed. Your request is preserved.",
+  guardian_enrollment_confirmation:
+    "The workspace connection could not be confirmed. Your request is preserved.",
+  host_start: "The task start could not be confirmed. Your request is preserved.",
+  host_status: "The task status could not be confirmed. Your request is preserved.",
+  intent_read: "The saved request could not be read. Your request is preserved.",
+  status_write: "The task update could not be confirmed. Your request is preserved.",
+};
+
+export const preparationReasonMessages: Record<NonNullable<ProjectTaskStatus["reason"]>, string> = {
+  github_auth_required: "Reconnect GitHub in your Coder account before retrying preparation.",
+  repository_identity_changed:
+    "Repository access or ownership changed. Reopen the project to verify access.",
+  checkout_busy: "The project checkout is already in use. Resolve its active work before retrying.",
+  checkout_unavailable:
+    "The workspace could not prepare the checkout. Inspect the workspace before retrying.",
+  revision_unavailable:
+    "The requested revision is unavailable. Reopen the project to select current source.",
+  model_unavailable:
+    "The configured model is unavailable for this workspace account. Check its Codex sign-in and model access.",
+  native_unavailable:
+    "Codex could not be reached in the workspace. Check its connection and sign-in.",
+  registration_unavailable:
+    "The workspace could not establish its Hive connection. Check the workspace host configuration.",
+  prompt_submission_uncertain:
+    "The task may already have started. Inspect the existing conversation before taking further action.",
+  task_identity_conflict:
+    "This project already has another task or a different accepted request. Inspect its existing work.",
+  preparation_timeout:
+    "Preparation stopped making progress. Inspect the workspace before retrying.",
+};
