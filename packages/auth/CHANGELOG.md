@@ -1,5 +1,25 @@
 # @hive/auth
 
+## 1.1.0
+
+### Minor Changes
+
+- 37c5529: Use Better Auth for browser sign-in through the configured Coder OAuth application. Preserve Hive user identities, encrypt provider credentials, serialize rotating refreshes, and support local sign-out and Coder disconnect. Propagate OAuth bearer credentials through workspace APIs, commands, terminals, audio, and template publication.
+
+  Apply the additive Coder OAuth migration and scoped runtime grants, then configure the Coder OAuth client secret before enabling this release. Existing users complete a one-time Coder consent flow.
+
+  Open Coder consent in a separate browser window. Serve a self-contained HTML callback and keep the window open until Hive verifies its browser session. Recover through serialized same-origin session checks when popup notifications are lost or the user closes the window after consent. Preserve typed browser-navigation responses for existing callback flows.
+
+  Keep a visible workspace-loading state after successful popup sign-in until navigation completes, with a disabled button and accessible progress feedback.
+
+  Fade command-palette results beneath the directional scroll arrows and preserve keyboard selection when scrolling moves rows under a stationary pointer. Mouse movement and clicks retain selection support.
+
+  Resolve current OAuth credentials through the auth service for every Node terminal keepalive, including rotating tokens and revoked-session handling. Bind the refresh to the authenticated terminal session and configured Coder host.
+
+### Patch Changes
+
+- a8ea438: Serve Hive previews from the existing Cloudflare Worker with request-scoped Neon database access, in-process authentication, portable workspace/settings reads and ordinary terminal transport.
+
 ## 1.0.4
 
 ### Patch Changes
