@@ -134,7 +134,7 @@ describe("GeneralWorkspacePane connections", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Could not clone the repository.");
     expect(logs).toHaveTextContent("Could not clone the repository.");
-    fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetryProject).toHaveBeenCalledOnce();
   });
 
