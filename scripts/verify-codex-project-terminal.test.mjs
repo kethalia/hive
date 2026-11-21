@@ -189,7 +189,7 @@ test("real stdlib PTY attaches existing tmux session and client disconnect prese
   const module = resolve("templates/ai-dev-k8s/scripts/codex-project-terminal.py");
   const script = `import importlib.util,os,sys\ns=importlib.util.spec_from_file_location('terminal',${JSON.stringify(module)})\nm=importlib.util.module_from_spec(s);s.loader.exec_module(m)\nm.resolve_project=lambda _:(['/usr/bin/tmux','-S',${JSON.stringify(socket)},'attach-session','-t','fixture'],{'PATH':'/usr/bin:/bin','TERM':'xterm-256color','LANG':'C.UTF-8'})\nsys.argv=['fixture','fixed-project']\nm.main()\n`;
   const f = await fixture(t, () =>
-    spawn("/usr/bin/python3", ["-c", script], { stdio: ["pipe", "pipe", "ignore"] }),
+    spawn("/usr/bin/python3", ["-I", "-B", "-c", script], { stdio: ["pipe", "pipe", "ignore"] }),
   );
   const s = await authenticate(f);
   let text = "";
