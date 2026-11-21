@@ -8,7 +8,7 @@ import { createCloneSessionKey, createSafeCloneTerminalSessionName } from "@/lib
 import { projectCheckoutCommand } from "@/lib/projects/checkout-command";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
-import type { GeneralPane } from "@/lib/workspaces/general-workspace";
+import type { TerminalPane } from "@/lib/workspaces/general-workspace";
 
 const githubId = z.string().regex(/^[1-9][0-9]{0,19}$/);
 const input = z
@@ -17,6 +17,7 @@ const input = z
     buildId: z.string().uuid(),
     repositoryId: githubId,
     providerAccountId: githubId,
+    cloneMissing: z.boolean(),
   })
   .strict();
 const errors = {
@@ -33,13 +34,14 @@ const reply = z.union([
       .string()
       .regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/)
       .refine((name) => !name.endsWith("/.") && !name.endsWith("/..")),
+    checkout: z.literal("missing").optional(),
   }),
   z.object({ error: z.string() }),
 ]);
 
 export const openProjectTerminalAction = authActionClient
   .inputSchema(input)
-  .action(async ({ ctx, parsedInput }): Promise<GeneralPane> => {
+  .action(async ({ ctx, parsedInput }): Promise<TerminalPane | { checkout: "missing" }> => {
     if (process.env.HIVE_PROJECT_DISCOVERY_ENABLED !== "true")
       throw new Error("Projects are unavailable on this Hive deployment.");
     const { workspaceId, buildId } = parsedInput;
@@ -69,12 +71,12 @@ export const openProjectTerminalAction = authActionClient
       },
     );
     if (execution.exitCode !== 0)
-      throw new Error("Could not confirm the workspace operation. Retry from Projects.");
+      throw new Error("Could not confirm the workspace operation. Try again.");
     let value: unknown;
     try {
       value = JSON.parse(execution.stdout);
     } catch {
-      throw new Error("Could not confirm the workspace operation. Retry from Projects.");
+      throw new Error("Could not confirm the workspace operation. Try again.");
     }
     const result = reply.safeParse(value);
     if (!result.success) throw new Error("The workspace returned an invalid project result.");
@@ -91,6 +93,7 @@ export const openProjectTerminalAction = authActionClient
       latest.latest_build.status !== "running"
     )
       throw new Error("The workspace build changed before the terminal could open.");
+    if (result.data.checkout === "missing") return { checkout: "missing" };
     const [owner, name] = result.data.fullName.split("/");
     await invalidateDiscovery(
       discoveryCacheKey([

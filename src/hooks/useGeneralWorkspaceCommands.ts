@@ -17,7 +17,7 @@ import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
 import { workspaceTemplateCapabilities } from "@/lib/templates/catalog";
 import { matchesProjectSearch } from "@/lib/terminal/command-search";
 import { registerGlobalCommandPaletteSource } from "@/lib/terminal/global-command-palette";
-import type { GeneralPane } from "@/lib/workspaces/general-workspace";
+import type { GeneralPane, ProjectTerminalRequest } from "@/lib/workspaces/general-workspace";
 import { repositories, repositoryTerminalPane } from "@/lib/workspaces/terminal-selection";
 
 export function useGeneralWorkspaceCommands({
@@ -27,6 +27,7 @@ export function useGeneralWorkspaceCommands({
   onStart,
   onStop,
   onStartForProjects,
+  onOpenProject,
   operations,
   initialWorkspaceId,
   additionalActions,
@@ -36,6 +37,7 @@ export function useGeneralWorkspaceCommands({
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
   onStop: (workspaceId: string) => Promise<void>;
+  onOpenProject?: (project: ProjectTerminalRequest) => void;
   onStartForProjects?: (workspaceId: string) => Promise<void>;
   operations?: Record<string, WorkspaceOperationState>;
   initialWorkspaceId?: string;
@@ -47,14 +49,14 @@ export function useGeneralWorkspaceCommands({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const projects = useProjectsPalette({
-    enabled: !!projectDiscoveryEnabled,
+    enabled: !!projectDiscoveryEnabled && !!onOpenProject,
     open,
     query,
     workspaces,
     initialWorkspaceId,
     operations,
     onStart: onStartForProjects ?? onStart,
-    onOpenPane,
+    onOpenProject: (project) => onOpenProject?.(project),
   });
   const { pages: creationPages, beginCreation } = useWindowCreationPages({
     workspaces,

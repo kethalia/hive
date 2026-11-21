@@ -3,9 +3,10 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Terminal } from "@xterm/xterm";
 import dynamic from "next/dynamic";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
 import {
   type WorkspacePaneAction,
@@ -46,6 +47,46 @@ interface Connection {
   reloadRequired?: boolean;
   error?: string;
 }
+function ProjectLaunchFeedback({
+  logs,
+  error,
+  onRetry,
+}: {
+  logs: readonly string[];
+  error?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex min-h-0 w-full max-w-xl flex-col gap-3 text-left">
+      {error ? (
+        <div className="flex flex-col items-start gap-3">
+          <p role="alert" className="text-destructive">
+            {error}
+          </p>
+          {onRetry ? (
+            <Button variant="outline" onClick={onRetry}>
+              Retry
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <LoadingStatus>{logs.at(-1)}</LoadingStatus>
+      )}
+      <details className="min-h-0 rounded-md border border-border bg-background">
+        <summary className="cursor-pointer px-3 py-2 text-muted-foreground">Logs</summary>
+        <pre
+          role="log"
+          aria-live="off"
+          aria-label="Project launch logs"
+          className="max-h-48 overflow-auto whitespace-pre-wrap break-words border-t border-border bg-black/20 px-3 py-2 font-mono text-xs leading-relaxed"
+        >
+          {[...logs, ...(error ? [error] : [])].join("\n")}
+        </pre>
+      </details>
+    </div>
+  );
+}
+
 interface Props {
   pane: Exclude<GeneralWindow, { kind: "hive" }>;
   workspace?: CoderWorkspace;
@@ -63,6 +104,7 @@ interface Props {
   onReady: (term: Terminal, send: (data: string) => void, sessionName: string) => void;
   onDestroy: () => void;
   onStart: () => void;
+  onRetryProject?: () => void;
 }
 export function GeneralWorkspacePane({
   pane,
@@ -81,6 +123,7 @@ export function GeneralWorkspacePane({
   onReady,
   onDestroy,
   onStart,
+  onRetryProject,
 }: Props) {
   const appFrame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
@@ -111,6 +154,8 @@ export function GeneralWorkspacePane({
     },
     [connection],
   );
+  const preparingProject = pane.kind === "project-launch";
+  const projectLogs = pane.kind === "terminal" ? pane.projectLogs : undefined;
   const running = workspace?.latest_build.status === "running";
   const cloneSessionKey = pane.kind === "terminal" ? pane.cloneSessionKey : undefined;
   const relativePath = pane.kind === "terminal" ? pane.relativePath : undefined;
@@ -144,7 +189,7 @@ export function GeneralWorkspacePane({
   // A new Coder build or explicit retry requires fresh agent/app credentials.
   // biome-ignore lint/correctness/useExhaustiveDependencies: Build and retry are explicit invalidation signals.
   useEffect(() => {
-    if (!running || agentPending) return;
+    if (preparingProject || !running || agentPending) return;
     let cancelled = false;
     setConnection(null);
     async function connect() {
@@ -190,6 +235,7 @@ export function GeneralWorkspacePane({
       cancelled = true;
     };
   }, [
+    preparingProject,
     running,
     agentId,
     agentStatus,
@@ -316,12 +362,9 @@ export function GeneralWorkspacePane({
           },
         ]
       : []),
-    {
-      id: "retry",
-      icon: "activate",
-      label: "Reconnect",
-      onSelect: reconnect,
-    },
+    ...(!preparingProject
+      ? [{ id: "retry", icon: "activate" as const, label: "Reconnect", onSelect: reconnect }]
+      : []),
     {
       id: "remove",
       icon: "remove",
@@ -331,7 +374,11 @@ export function GeneralWorkspacePane({
     },
   ];
   let content: ReactNode;
-  if (!workspace) {
+  if (pane.kind === "project-launch") {
+    content = (
+      <ProjectLaunchFeedback logs={pane.logs} error={pane.error} onRetry={onRetryProject} />
+    );
+  } else if (!workspace) {
     content = <p>This Coder workspace is unavailable.</p>;
   } else if (!running) {
     content = (
@@ -345,7 +392,9 @@ export function GeneralWorkspacePane({
       </>
     );
   } else if (connection?.error) {
-    content = (
+    content = projectLogs ? (
+      <ProjectLaunchFeedback logs={projectLogs} error={connection.error} onRetry={reconnect} />
+    ) : (
       <>
         <p role="alert">{connection.error}</p>
         <Button onClick={reconnect}>Retry connection</Button>
@@ -398,7 +447,11 @@ export function GeneralWorkspacePane({
       />
     );
   } else {
-    content = <p role="status">Connecting to {workspace.name}…</p>;
+    content = projectLogs ? (
+      <ProjectLaunchFeedback logs={projectLogs} />
+    ) : (
+      <LoadingStatus>Connecting to {workspace.name}…</LoadingStatus>
+    );
   }
   const connected =
     running &&
@@ -431,7 +484,19 @@ export function GeneralWorkspacePane({
               : "flex h-full flex-col items-center justify-center gap-3 p-4 text-center text-sm"
           }
         >
-          {content}
+          <Suspense
+            fallback={
+              projectLogs ? (
+                <div className="flex h-full items-center justify-center p-4">
+                  <ProjectLaunchFeedback logs={projectLogs} />
+                </div>
+              ) : (
+                <LoadingStatus placement="window">Loading terminal…</LoadingStatus>
+              )
+            }
+          >
+            {content}
+          </Suspense>
         </div>
       </TerminalSessionFrame>
       <WorkspacePaneActionSheet

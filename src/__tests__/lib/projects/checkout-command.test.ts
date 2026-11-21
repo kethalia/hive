@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -31,7 +39,7 @@ function git(cwd: string, ...args: string[]) {
   return execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function prepare() {
+function prepare(cloneMissing = true) {
   const harness = `
 import json, os, pathlib, sys
 scope = {"__name__": "fixture"}
@@ -48,15 +56,19 @@ def fixture_git(cwd, args, gh, env, timeout=12, code="checkout_unavailable"):
     return result
 scope["git"] = fixture_git
 try:
-    print(json.dumps(scope["main"]({"providerAccountId": "12", "repositoryId": "34"})))
+    print(json.dumps(scope["main"]({"providerAccountId": "12", "repositoryId": "34", "cloneMissing": json.loads(sys.argv[4])})))
 except scope["ProjectError"] as error:
     print(json.dumps({"error": str(error)}))
 `;
   return JSON.parse(
-    execFileSync("python3", ["-c", harness, projectCheckoutScript, root, remote], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }),
+    execFileSync(
+      "python3",
+      ["-c", harness, projectCheckoutScript, root, remote, String(cloneMissing)],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    ),
   );
 }
 
@@ -70,11 +82,13 @@ it("passes the fixed program through the workspace shell and rejects unsafe iden
 
 it("clones to the owner/repository directory and preserves local changes on reopen", () => {
   const checkout = join(root, "projects", "owner", "repo");
+  expect(prepare(false)).toEqual({ fullName: "owner/repo", checkout: "missing" });
+  expect(existsSync(checkout)).toBe(false);
   expect(prepare()).toEqual({ fullName: "owner/repo" });
   expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("project\n");
   git(checkout, "remote", "set-url", "origin", "git@github.com:Owner/Repo.git");
   writeFileSync(join(checkout, "README.md"), "local changes\n");
-  expect(prepare()).toEqual({ fullName: "owner/repo" });
+  expect(prepare(false)).toEqual({ fullName: "owner/repo" });
   expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("local changes\n");
   git(checkout, "remote", "set-url", "origin", "git@github.com:owner/other.git");
   expect(prepare()).toEqual({ error: "checkout_unavailable" });

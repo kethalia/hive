@@ -98,6 +98,46 @@ function AgentDiscovery() {
 }
 
 describe("GeneralWorkspacePane connections", () => {
+  it("shows project preparation progress, expandable logs, and retry inside the window", () => {
+    const input = props();
+    const onRetryProject = vi.fn();
+    const pane = {
+      kind: "project-launch" as const,
+      id: "project",
+      workspaceId: "software",
+      label: "owner/repo",
+      project: {
+        workspaceId: "software",
+        buildId: "build-1",
+        repositoryId: "34",
+        providerAccountId: "12",
+        fullName: "owner/repo",
+      },
+      logs: ["Checking workspace and GitHub repository access…", "Cloning owner/repo…"],
+    };
+    const { rerender } = render(
+      <GeneralWorkspacePane {...input} pane={pane} onRetryProject={onRetryProject} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Cloning owner/repo…");
+    const logs = screen.getByLabelText("Project launch logs");
+    expect(logs.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Logs"));
+    expect(logs.closest("details")).toHaveAttribute("open");
+    expect(logs).toHaveTextContent("Checking workspace and GitHub repository access…");
+
+    rerender(
+      <GeneralWorkspacePane
+        {...input}
+        pane={{ ...pane, error: "Could not clone the repository." }}
+        onRetryProject={onRetryProject}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not clone the repository.");
+    expect(logs).toHaveTextContent("Could not clone the repository.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry", exact: true }));
+    expect(onRetryProject).toHaveBeenCalledOnce();
+  });
+
   it.each([
     "files",
     "code",

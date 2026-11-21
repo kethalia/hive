@@ -5,10 +5,7 @@ import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { CommandPalette } from "@/components/terminal/CommandPalette";
 import { useProjectsPalette } from "@/hooks/useProjectsPalette";
-import { openProjectTerminalAction } from "@/lib/actions/project-checkout";
 import type { CoderWorkspace } from "@/lib/coder/types";
-
-vi.mock("@/lib/actions/project-checkout", () => ({ openProjectTerminalAction: vi.fn() }));
 
 const workspace = {
   id: "workspace",
@@ -65,16 +62,7 @@ it("browses GitHub repositories in the existing palette and opens the selected t
       }),
     ),
   );
-  const pane = {
-    kind: "terminal" as const,
-    workspaceId: "workspace",
-    label: "owner/repo",
-    relativePath: "projects/owner/repo",
-    sessionName: "git-clone-fixture",
-  };
-  const action = vi.mocked(openProjectTerminalAction);
-  action.mockResolvedValueOnce({ data: pane });
-  const onOpenPane = vi.fn();
+  const onOpenProject = vi.fn();
   function Harness() {
     const [open, setOpen] = useState(true);
     const [query, setQuery] = useState("");
@@ -84,7 +72,7 @@ it("browses GitHub repositories in the existing palette and opens the selected t
       query,
       workspaces: [workspace],
       onStart: vi.fn(),
-      onOpenPane,
+      onOpenProject,
     });
     return (
       <CommandPalette
@@ -101,7 +89,7 @@ it("browses GitHub repositories in the existing palette and opens the selected t
   render(<Harness />);
   fireEvent.click(screen.getByRole("option", { name: /projects/i }));
   await screen.findByRole("option", { name: /owner\/repo/i });
-  expect(onOpenPane).not.toHaveBeenCalled();
+  expect(onOpenProject).not.toHaveBeenCalled();
   fireEvent.change(screen.getByRole("combobox"), { target: { value: "owner/repo" } });
   await waitFor(() =>
     expect(screen.getByRole("option", { name: /owner\/repo/i })).toHaveAttribute(
@@ -110,11 +98,11 @@ it("browses GitHub repositories in the existing palette and opens the selected t
     ),
   );
   fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
-  await waitFor(() => expect(onOpenPane).toHaveBeenCalledWith(pane));
-  expect(action).toHaveBeenCalledWith({
+  expect(onOpenProject).toHaveBeenCalledWith({
     workspaceId: "workspace",
     buildId: "build",
     repositoryId: "34",
     providerAccountId: "12",
+    fullName: "owner/repo",
   });
 });

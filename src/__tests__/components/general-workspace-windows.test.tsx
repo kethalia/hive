@@ -47,6 +47,7 @@ vi.mock("@/app/(dashboard)/workspaces/workspace-list-content", async () => {
   await loading.management.promise;
   return { WorkspaceListContent: () => <p>Loaded workspace controls</p> };
 });
+vi.mock("@/lib/actions/project-checkout", () => ({ openProjectTerminalAction: vi.fn() }));
 vi.mock("@/lib/actions/clone-project", () => ({ cloneProjectAction: vi.fn() }));
 vi.mock("@/lib/settings/window-client", () => ({
   fetchSettingsWindow: vi.fn(async () => ({
@@ -82,14 +83,21 @@ vi.mock("@/components/workspaces/WorkspaceHeaderButton", async (importOriginal) 
   WorkspaceSearchButton: () => null,
 }));
 vi.mock("@/components/workspaces/GeneralWorkspacePane", () => ({
-  GeneralWorkspacePane: () => {
+  GeneralWorkspacePane: ({ pane }: { pane: GeneralWindow }) => {
     // React cleans up layout effects when a mounted subtree is hidden by Suspense,
     // even if it preserves the DOM and component state for later.
     useLayoutEffect(() => {
       loading.mount();
       return loading.hide;
     }, []);
-    return <textarea aria-label="Terminal input" className="xterm-helper-textarea" />;
+    if (pane.kind === "project-launch") return <p data-testid={pane.id}>{pane.logs.at(-1)}</p>;
+    return (
+      <textarea
+        data-testid={pane.id}
+        aria-label="Terminal input"
+        className="xterm-helper-textarea"
+      />
+    );
   },
 }));
 
@@ -98,6 +106,7 @@ import { HelpOverlay } from "@/components/terminal/HelpOverlay";
 import { KeybindingProvider } from "@/components/terminal/KeybindingProvider";
 import { GeneralWorkspace } from "@/components/workspaces/GeneralWorkspace";
 import { useGeneralWorkspaceCommands } from "@/hooks/useGeneralWorkspaceCommands";
+import { openProjectTerminalAction } from "@/lib/actions/project-checkout";
 import {
   listWorkspacesAction,
   startWorkspaceAction,
@@ -106,7 +115,9 @@ import {
 import type { CoderWorkspace } from "@/lib/coder/types";
 import {
   emptyGeneralWorkspace,
+  type GeneralWindow,
   generalWorkspaceStorageKey,
+  parseGeneralWorkspace,
   requestHiveWindow,
 } from "@/lib/workspaces/general-workspace";
 
@@ -160,6 +171,50 @@ describe("workspace navigation commands", () => {
         <GeneralWorkspace userId="user" initialWorkspaces={workspaces} />
       </KeybindingProvider>,
     );
+  it("opens the destination immediately and replaces its loading content in the same window", async () => {
+    const action = vi.mocked(openProjectTerminalAction);
+    type Result = Awaited<ReturnType<typeof openProjectTerminalAction>>;
+    const check = Promise.withResolvers<Result>();
+    const clone = Promise.withResolvers<Result>();
+    action.mockReturnValueOnce(check.promise).mockReturnValueOnce(clone.promise);
+    mountWorkspace();
+    await screen.findByRole("textbox", { name: "Terminal input" });
+    const openProject = vi.mocked(useGeneralWorkspaceCommands).mock.lastCall![0].onOpenProject!;
+    const project = {
+      workspaceId: "software",
+      buildId: "build-1",
+      repositoryId: "34",
+      providerAccountId: "12",
+      fullName: "owner/repo",
+    };
+    act(() => openProject(project));
+    const pending = screen.getByText("Checking workspace and GitHub repository access…");
+    const id = pending.getAttribute("data-testid")!;
+    act(() => openProject(project));
+    expect(action).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(saved().boards[0].activeWindowId).toBe(id));
+    expect(parseGeneralWorkspace(JSON.stringify(saved()))?.boards[0].windows).toHaveLength(1);
+
+    await act(async () => check.resolve({ data: { checkout: "missing" } }));
+    expect(screen.getByTestId(id)).toHaveTextContent("Cloning owner/repo…");
+    expect(action).toHaveBeenLastCalledWith(expect.objectContaining({ cloneMissing: true }));
+
+    await act(async () =>
+      clone.resolve({
+        data: {
+          kind: "terminal",
+          workspaceId: "software",
+          label: "owner/repo",
+          relativePath: "projects/owner/repo",
+          cloneSessionKey: "git-clone:projects/owner/repo",
+          sessionName: "git-clone-0123456789abcdef0123456789abcdef",
+        },
+      }),
+    );
+    expect(screen.getByTestId(id)).toHaveAccessibleName("Terminal input");
+    expect(loading.mount).toHaveBeenCalledTimes(2);
+  });
+
   it("connects dock spaces to saved boards without remounting existing terminal panes", async () => {
     mountWorkspace();
     const input = await screen.findByRole("textbox", { name: "Terminal input" });

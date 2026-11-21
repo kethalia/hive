@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import type {
   CommandPaletteAction,
   CommandPalettePage,
 } from "@/components/terminal/CommandPalette";
 import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
-import { openProjectTerminalAction } from "@/lib/actions/project-checkout";
 import type { CoderWorkspace } from "@/lib/coder/types";
-import type { GeneralPane } from "@/lib/workspaces/general-workspace";
+import type { ProjectTerminalRequest } from "@/lib/workspaces/general-workspace";
 import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 import { useProjectRepositories } from "./useProjectRepositories";
 
@@ -21,7 +19,7 @@ export function useProjectsPalette({
   initialWorkspaceId,
   operations,
   onStart,
-  onOpenPane,
+  onOpenProject,
 }: {
   enabled: boolean;
   open: boolean;
@@ -30,10 +28,9 @@ export function useProjectsPalette({
   initialWorkspaceId?: string;
   operations?: Record<string, WorkspaceOperationState>;
   onStart: (id: string) => Promise<void>;
-  onOpenPane: (pane: GeneralPane) => void;
+  onOpenProject: (project: ProjectTerminalRequest) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string>();
-  const [opening, setOpening] = useState(false);
   const workspace = workspaces.find((item) => item.id === selectedId);
   const operation = workspace && operations?.[workspace.id];
   const status = workspace?.latest_build.status;
@@ -93,28 +90,14 @@ export function useProjectsPalette({
         group: "Projects",
         icon: "files",
         rightLabel: "Open terminal",
-        disabled: opening,
-        onSelect: () => {
-          setOpening(true);
-          void (async () => {
-            const notice = toast.loading(`Opening ${repository.fullName}…`);
-            try {
-              const result = await openProjectTerminalAction({
-                workspaceId: workspace.id,
-                buildId: workspace.latest_build.id,
-                repositoryId: repository.providerRepositoryId,
-                providerAccountId: accountId,
-              });
-              if (!result?.data) throw Error(result?.serverError ?? "Could not open the project.");
-              onOpenPane(result.data);
-            } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Could not open the project.");
-            } finally {
-              toast.dismiss(notice);
-              setOpening(false);
-            }
-          })();
-        },
+        onSelect: () =>
+          onOpenProject({
+            workspaceId: workspace.id,
+            buildId: workspace.latest_build.id,
+            repositoryId: repository.providerRepositoryId,
+            providerAccountId: accountId,
+            fullName: repository.fullName,
+          }),
       });
     }
   }

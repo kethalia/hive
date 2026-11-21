@@ -67,10 +67,15 @@ def main(spec):
     home = pathlib.Path.home().resolve(strict=True)
     name, url, gh, env = resolve(home, account, repository)
     owner, repository_name = name.split("/")
+    clone_missing = spec["cloneMissing"]
+    missing = {"fullName": name, "checkout": "missing"}
     parent = home
     for part in ("projects", owner):
         parent = parent / part
-        parent.mkdir(exist_ok=True)
+        if clone_missing:
+            parent.mkdir(exist_ok=True)
+        elif not parent.exists() and not parent.is_symlink():
+            return missing
         require(not parent.is_symlink() and parent.is_dir(), "checkout_unavailable")
 
     checkout = parent / repository_name
@@ -82,6 +87,8 @@ def main(spec):
             raise ProjectError("checkout_busy")
         if checkout.exists() or checkout.is_symlink():
             verify_checkout(checkout, name, gh, env)
+        elif not clone_missing:
+            return missing
         else:
             with tempfile.TemporaryDirectory(dir=parent, prefix=".hive-clone-") as staging:
                 stage = pathlib.Path(staging)

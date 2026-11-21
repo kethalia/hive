@@ -15,6 +15,7 @@ const target = {
   buildId: "22222222-2222-4222-8222-222222222222",
   providerAccountId: "12",
   repositoryId: "34",
+  cloneMissing: true,
 };
 const workspace = {
   id: target.workspaceId,
@@ -65,9 +66,20 @@ it("passes only the verified Coder build and stable GitHub identities to the wor
         buildId: target.buildId,
         repositoryId: target.repositoryId,
         providerAccountId: target.providerAccountId,
+        cloneMissing: true,
       }),
     }),
   );
+});
+
+it("reports a missing checkout during the check step without returning a terminal", async () => {
+  mocks.execute.mockResolvedValue({
+    exitCode: 0,
+    stdout: JSON.stringify({ fullName: "owner/repo", checkout: "missing" }),
+  });
+  expect((await openProjectTerminalAction({ ...target, cloneMissing: false }))?.data).toEqual({
+    checkout: "missing",
+  });
 });
 
 it("rejects other owners, changed builds, and caller-provided checkout paths before workspace execution", async () => {
