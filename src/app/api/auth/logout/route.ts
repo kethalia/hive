@@ -1,4 +1,5 @@
 import { coderAuthCookieValues } from "@hive/auth";
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { getDb } from "@hive/db";
 import { NextResponse } from "next/server";
 import { getAuthServiceClient } from "@/lib/auth/service-client";
@@ -14,17 +15,17 @@ export async function POST(request: Request) {
   const coderCookie = coderAuthCookieValues(request.headers.get("Cookie"));
   if (
     process.env.HIVE_CODER_OAUTH_ENABLED === "true" &&
-    request.headers.get("Origin") !== process.env.HIVE_PUBLIC_ORIGIN
+    request.headers.get("Origin") !== getHivePublicOrigin()
   )
     return NextResponse.json({ error: "Origin rejected" }, { status: 403 });
   let authResponse: Response | undefined;
   if (coderCookie.length && process.env.HIVE_CODER_OAUTH_ENABLED === "true") {
     authResponse = await createCoderAuth(getDb()).handler(
-      new Request(`${process.env.HIVE_PUBLIC_ORIGIN}/api/auth/sign-out`, {
+      new Request(`${getHivePublicOrigin()}/api/auth/sign-out`, {
         method: "POST",
         headers: {
           Cookie: request.headers.get("Cookie") ?? "",
-          Origin: process.env.HIVE_PUBLIC_ORIGIN ?? "",
+          Origin: getHivePublicOrigin() ?? "",
           "Content-Type": "application/json",
         },
         body: "{}",

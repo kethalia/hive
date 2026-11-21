@@ -47,6 +47,14 @@ describe("buildPtyUrl", () => {
     expect(url).toMatch(/^ws:\/\/localhost:3000\//);
   });
 
+  it("attaches to a prepared Codex session without recreating it", () => {
+    const sessionName = "hive-project-0123456789abcdef0123456789abcdef";
+    const url = buildPtyUrl("https://coder.dev", agentId, { ...defaults, sessionName });
+    const command = new URL(url).searchParams.get("command");
+    expect(command).toContain(`attach-session -t '=${sessionName}'`);
+    expect(command).not.toContain("new-session");
+  });
+
   it("converts https:// to wss://", () => {
     const url = buildPtyUrl("https://coder.dev", agentId, defaults);
     expect(url).toMatch(/^wss:\/\/coder.dev\//);

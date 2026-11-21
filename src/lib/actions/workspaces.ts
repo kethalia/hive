@@ -12,6 +12,7 @@ import { SAFE_IDENTIFIER_RE } from "@/lib/constants";
 import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
 import { isSafeCloneRelativePath } from "@/lib/git/clone-public-identifiers";
 import { isCloneTerminalSessionName } from "@/lib/git/clone-terminal-session";
+import { isProjectSessionName } from "@/lib/projects/session-name";
 import { authActionClient } from "@/lib/safe-action";
 import {
   CODER_HOST_COOKIE,
@@ -207,6 +208,8 @@ const getWorkspaceSchema = z.object({
 });
 
 function assertGenericSessionName(sessionName: string, operation: "create" | "rename" | "kill") {
+  if (isProjectSessionName(sessionName))
+    throw new Error("Manage this Codex session from Projects.");
   if (isCloneTerminalSessionName(sessionName)) {
     console.warn(`[workspaces] Rejected generic ${operation} for reserved clone terminal session`);
     throw new Error(

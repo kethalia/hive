@@ -1,5 +1,7 @@
+import { getHivePublicOrigin } from "./hive-origin.mjs";
+
 export function coderAuthCookieName() {
-  return `${process.env.HIVE_PUBLIC_ORIGIN?.startsWith("https://") ? "__Host-" : ""}hive-auth`;
+  return `${getHivePublicOrigin()?.startsWith("https://") ? "__Host-" : ""}hive-auth`;
 }
 
 export function coderAuthCookieValues(header: string | null | undefined) {

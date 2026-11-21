@@ -19,6 +19,7 @@ import {
 } from "../../../services/auth/src/auth/coder-oauth-config";
 import { getUsableCoderCredential } from "../../../services/auth/src/auth/coder-oauth-credentials";
 import { coderOAuthApplicationsHost } from "../../../services/auth/src/auth/coder-oauth-provider";
+import { registerCoderPreviewCallback } from "../../../services/auth/src/auth/coder-preview-callback";
 import { appendClearSessionCookieHeaders } from "./session-cookie";
 
 const allowed = new Map([
@@ -58,12 +59,22 @@ export async function handleCoderAuth(request: Request) {
   const url = new URL(request.url);
   if (!coderOAuthEnabled() || allowed.get(url.pathname) !== request.method)
     return Response.json({ error: "Not found" }, { status: 404 });
-  const config = getCoderOAuthConfig();
   const privateHeaders = {
     "Cache-Control": "private, no-store",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
   };
+  const unavailable = (code: string) =>
+    Response.json(
+      { error: "Coder sign-in is temporarily unavailable", code },
+      { status: 503, headers: privateHeaders },
+    );
+  let config: ReturnType<typeof getCoderOAuthConfig>;
+  try {
+    config = getCoderOAuthConfig();
+  } catch {
+    return unavailable("coder_oauth_configuration");
+  }
   if (
     url.origin !== config.publicOrigin ||
     (request.method === "POST" &&
@@ -118,7 +129,20 @@ export async function handleCoderAuth(request: Request) {
       );
     }
   }
-  const auth = createCoderAuth(getDb(), { signal });
+  const db = getDb();
+  if (request.method === "POST" && url.pathname.endsWith("/social")) {
+    try {
+      await registerCoderPreviewCallback(config, db, signal);
+    } catch (error) {
+      const known =
+        error instanceof Error &&
+        /^coder_preview_callback_(?:configuration|(?:metadata|database|read|update)(?:_[1-5][0-9]{2}|_P[0-9]{4}|_deadline|_transport)?)$/.test(
+          error.message,
+        );
+      return unavailable(known ? error.message : "coder_preview_callback_unavailable");
+    }
+  }
+  const auth = createCoderAuth(db, { signal });
   const response = await auth.handler(request);
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(privateHeaders)) headers.set(name, value);

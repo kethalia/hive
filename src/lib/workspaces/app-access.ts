@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { headers } from "next/headers";
 import { sessionCookieDomainsToClear } from "@/lib/auth/session-cookie";
 import type { CoderClient } from "@/lib/coder/client";
@@ -10,7 +11,7 @@ export interface WorkspaceAppIsolationContext {
 }
 
 export async function getWorkspaceAppIsolationContext(): Promise<WorkspaceAppIsolationContext> {
-  const configuredOrigin = process.env.HIVE_PUBLIC_ORIGIN?.trim();
+  const configuredOrigin = getHivePublicOrigin()?.trim();
   const requestHost = (await headers()).get("host");
   if (!configuredOrigin && !requestHost)
     throw new Error("Hive host is unavailable for workspace tools.");

@@ -17,6 +17,7 @@ import {
   type GeneralWindow,
   hiveToolLabels,
   isAccountTool,
+  isWorkspaceProviderTool,
 } from "@/lib/workspaces/general-workspace";
 import { AccountWorkspacePanel } from "./AccountWorkspacePanel";
 import { TerminalSessionFrame } from "./TerminalSessionFrame";
@@ -78,7 +79,7 @@ interface Props {
   onCycleWidth?: () => void;
   onStartWorkspace: (workspaceId: string) => void;
   onWorkspaceChange: (workspaceId: string, buildId?: string) => void;
-  onOpenSession: (workspaceId: string, sessionName: string) => void;
+  onOpenSession: (workspaceId: string, sessionName: string, label?: string) => void;
 }
 
 export function HiveWorkspacePane({
@@ -100,12 +101,11 @@ export function HiveWorkspacePane({
 }: Props) {
   const { projectDiscoveryEnabled } = useRuntimeConfig();
   const accountTool = isAccountTool(pane.tool);
-  const providerWorkspace =
-    accountTool || pane.tool === "projects"
-      ? pane.workspaceId
-        ? workspaces.find((w) => w.id === pane.workspaceId)
-        : defaultProviderWorkspace(workspaces)
-      : undefined;
+  const providerWorkspace = isWorkspaceProviderTool(pane.tool)
+    ? pane.workspaceId
+      ? workspaces.find((w) => w.id === pane.workspaceId)
+      : defaultProviderWorkspace(workspaces)
+    : undefined;
   const providerOperation = providerWorkspace ? operations?.[providerWorkspace.id] : undefined;
   const navigationId = useId();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

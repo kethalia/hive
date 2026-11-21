@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/headers", () => ({
@@ -339,7 +343,7 @@ describe("listGitClonesAction", () => {
     expect(mockedExecInWorkspace).not.toHaveBeenCalled();
   });
 
-  it("requires authentication before invoking the scanner", async () => {
+  it("requires authentication before invoking the workspace command", async () => {
     mockedGetRequestSession.mockResolvedValueOnce(null);
     mockedGetSession.mockResolvedValueOnce(null);
 
@@ -430,6 +434,45 @@ describe("resolveGitCloneTerminalAction", () => {
     ).toMatchObject({ ok: true });
     expect(JSON.stringify(result?.data)).not.toContain(PRIVATE_ROOT);
     expect(JSON.stringify(result?.data)).not.toContain("SUPER_SECRET_TOKEN");
+  });
+
+  it("verifies explicit repositories hidden from discovery using only the selected path", async () => {
+    const root = mkdtempSync(join(tmpdir(), "hive-selected-clone-"));
+    try {
+      vi.stubEnv(PROJECTS_ROOT_ENV_KEY, realpathSync(root));
+      const owner = join(root, "owner");
+      mkdirSync(owner);
+      for (const name of [".github", "build"]) {
+        execFileSync("git", ["init", "-q", join(owner, name)]);
+      }
+      symlinkSync(join(owner, "build"), join(owner, "linked"), "dir");
+      mockedExecInWorkspace.mockImplementation(async (_, command) => ({
+        stdout: execFileSync("sh", ["-c", command], { encoding: "utf8" }),
+        stderr: "",
+        exitCode: 0,
+      }));
+      for (const name of [".github", "build"]) {
+        const relativePath = `owner/${name}`;
+        const cloneSessionKey = `git-clone:${relativePath}`;
+        expect(
+          (
+            await resolveGitCloneTerminalAction({
+              workspaceId: WORKSPACE_ID,
+              relativePath,
+              cloneSessionKey,
+            })
+          )?.data,
+        ).toMatchObject({ clonePath: relativePath, cloneSessionKey });
+      }
+      const linked = await resolveGitCloneTerminalAction({
+        workspaceId: WORKSPACE_ID,
+        relativePath: "owner/linked",
+        cloneSessionKey: "git-clone:owner/linked",
+      });
+      expect(linked?.serverError).toContain("couldn't verify that Git repository");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("refuses to mint a proof for an agent that is not in the authenticated user's workspace resources", async () => {
@@ -585,7 +628,7 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(JSON.stringify(result)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("refuses missing repositories after scanner revalidation", async () => {
+  it("refuses missing repositories after direct revalidation", async () => {
     mockedExecInWorkspace.mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
 
     const result = await resolveGitCloneTerminalAction({
@@ -645,7 +688,7 @@ describe("resolveGitCloneTerminalAction", () => {
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SUPER_SECRET_TOKEN");
   });
 
-  it("rejects malformed clone keys and traversal-like input before invoking the scanner", async () => {
+  it("rejects malformed clone keys and traversal-like input before invoking the workspace command", async () => {
     const emptyResult = await resolveGitCloneTerminalAction({
       cloneSessionKey: "",
       workspaceId: WORKSPACE_ID,

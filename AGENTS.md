@@ -48,6 +48,9 @@
   Show sign-in instructions, empty states, counts, and actions once the initial check completes.
 - During refresh, keep confirmed content, selection, and search visible. Put progress on the
   action that initiated it. Clear stale content immediately when authorization or identity fails.
+- When opening a window requires preparation, show the destination window immediately. Use one
+  in-window status for the current step and keep earlier steps in a collapsible Logs section.
+  Keep failures and retry in the same window.
 - Check slow initial loads, background refresh, and error recovery when changing a window.
   Compare equivalent provider panels side by side for matching placement and a single indicator.
 

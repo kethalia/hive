@@ -8,11 +8,11 @@ type Binding = { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
 const secret = "a".repeat(64);
 const env = {
   HIVE_NATIVE_MODE: "preview",
-  HIVE_PUBLIC_ORIGIN: "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  HIVE_PUBLIC_ORIGIN: "https://hive-preview.kethalia.com",
   DATABASE_URL:
-    "postgresql://hive_foundation_runtime:fixture@database.invalid/hive_foundation_preview",
-  HIVE_DATABASE_NAME: "hive_foundation_preview",
-  HIVE_DATABASE_ROLE: "hive_foundation_runtime",
+    "postgresql://hive_accounts_runtime:fixture@database.invalid/hive_workspace_accounts_preview",
+  HIVE_DATABASE_NAME: "hive_workspace_accounts_preview",
+  HIVE_DATABASE_ROLE: "hive_accounts_runtime",
 };
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -41,7 +41,8 @@ function fixture(
   return {
     dispatch,
     tasks,
-    run: () => worker.fetch(new Request(env.HIVE_PUBLIC_ORIGIN), env, context),
+    run: () =>
+      worker.fetch(new Request("https://auth-tests.hive-preview.kethalia.com"), env, context),
     async drain() {
       let count = 0;
       while (count < tasks.length) {

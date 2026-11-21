@@ -15,6 +15,7 @@ import { useKeybindings, useRegisterKeybinding } from "@/hooks/useKeybindings";
 import { useVisualViewportKeyboardOffset } from "@/hooks/useVisualViewportKeyboardOffset";
 import { useWindowManagerCommands } from "@/hooks/useWindowManagerCommands";
 import { useWorkspaceNotifications } from "@/hooks/useWorkspaceNotifications";
+import { openProjectTerminalAction } from "@/lib/actions/project-checkout";
 import {
   startWorkspaceAction,
   stopWorkspaceAction,
@@ -44,10 +45,12 @@ import {
   hiveWindowRequestSchema,
   importLegacyWorkspaceBoards,
   isAccountTool,
+  isWorkspaceProviderTool,
   MAX_GENERAL_BOARDS,
   MAX_GENERAL_WINDOWS,
   moveGeneralWindowToAdjacentBoard,
   openHiveWindow,
+  type ProjectTerminalRequest,
   parseGeneralWorkspace,
   removeGeneralWindow,
 } from "@/lib/workspaces/general-workspace";
@@ -67,6 +70,7 @@ import { WindowCanvas } from "./WindowCanvas";
 import { WindowShortcutHelp } from "./WindowShortcutHelp";
 import type { WorkspaceOperationState } from "./WorkspaceDetails";
 
+const checkingProject = "Checking workspace and GitHub repository access…";
 const labels = { files: "Files", code: "VS Code", desktop: "Desktop" };
 interface Props {
   userId: string;
@@ -91,9 +95,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       poll: state.boards.some(
         (b) =>
           b.key === state.activeBoardKey &&
-          b.windows.some(
-            (w) => w.kind === "hive" && (isAccountTool(w.tool) || w.tool === "projects"),
-          ),
+          b.windows.some((w) => w.kind === "hive" && isWorkspaceProviderTool(w.tool)),
       ),
     },
   );
@@ -269,7 +271,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [focusRequest]);
   const openPane = useCallback(
-    (pane: GeneralPane) => {
+    (pane: GeneralPane, id = crypto.randomUUID()) => {
       setFocusRequest((value) => value + 1);
       update(
         (current) => {
@@ -278,8 +280,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
           );
           const next =
             pane.kind === "hive"
-              ? openHiveWindow(current, pane, crypto.randomUUID())
-              : addGeneralWindow(current, pane, crypto.randomUUID(), existingBoard?.key);
+              ? openHiveWindow(current, pane, id)
+              : addGeneralWindow(current, pane, id, existingBoard?.key);
           if (next === current)
             setNotice(`The workspace supports up to ${MAX_GENERAL_WINDOWS} open windows.`);
           return next;
@@ -288,6 +290,100 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       );
     },
     [update],
+  );
+  const launchProject = useCallback(
+    async (id: string, project: ProjectTerminalRequest) => {
+      let logs = [checkingProject];
+      const findPending = () =>
+        stateRef.current.boards
+          .flatMap((b) => b.windows)
+          .find((w) => w.id === id && w.kind === "project-launch");
+      const show = (
+        next: (pane: Extract<GeneralPane, { kind: "project-launch" }>) => GeneralPane,
+      ) => {
+        if (!findPending()) return false;
+        update((state) => ({
+          ...state,
+          boards: state.boards.map((b) => ({
+            ...b,
+            windows: b.windows.map((w) =>
+              w.id === id && w.kind === "project-launch" ? { ...next(w), id } : w,
+            ),
+          })),
+        }));
+        return true;
+      };
+      const pending = findPending();
+      if (pending?.kind !== "project-launch") return;
+      if (pending.error) show((pane) => ({ ...pane, project, logs, error: undefined }));
+
+      const { fullName, ...target } = project;
+      try {
+        const check = await openProjectTerminalAction({ ...target, cloneMissing: false });
+        if (!check?.data)
+          throw new Error(check?.serverError ?? "Could not check the project checkout.");
+        let terminal = check.data;
+        if ("checkout" in terminal) {
+          logs = [...logs, "No local checkout found.", `Cloning ${fullName}…`];
+          if (!show((pane) => ({ ...pane, logs }))) return;
+          const clone = await openProjectTerminalAction({ ...target, cloneMissing: true });
+          if (!clone?.data || "checkout" in clone.data)
+            throw new Error(clone?.serverError ?? "Could not clone the project.");
+          terminal = clone.data;
+          logs = [...logs, `Checkout ready at ~/projects/${terminal.label}.`];
+        } else {
+          logs = [...logs, `Using the existing checkout at ~/projects/${terminal.label}.`];
+        }
+        // Reuse a terminal only after verifying the repository's current checkout identity.
+        const existing = stateRef.current.boards
+          .flatMap((b) => b.windows)
+          .find(
+            (w) =>
+              w.kind === "terminal" && generalPaneIdentity(w) === generalPaneIdentity(terminal),
+          );
+        if (existing) {
+          if (!findPending()) return;
+          const current = stateRef.current;
+          const focused =
+            current.boards.find((b) => b.key === current.activeBoardKey)?.activeWindowId === id;
+          update((state) => ({
+            ...state,
+            boards: state.boards.map((b) => removeGeneralWindow(b, id)),
+          }));
+          if (focused) openPane(existing);
+          return;
+        }
+        show(() => ({ ...terminal, projectLogs: [...logs, "Connecting terminal…"] }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not open the project.";
+        show((pane) => ({ ...pane, logs, error: message }));
+      }
+    },
+    [openPane, update],
+  );
+  const openProject = useCallback(
+    (project: ProjectTerminalRequest) => {
+      const pending = {
+        kind: "project-launch" as const,
+        workspaceId: project.workspaceId,
+        label: project.fullName,
+        project,
+        logs: [checkingProject],
+      };
+      const existing = stateRef.current.boards
+        .flatMap((b) => b.windows)
+        .find((w) => generalPaneIdentity(w) === generalPaneIdentity(pending));
+      if (existing) {
+        openPane(existing);
+        if (existing.kind === "project-launch" && existing.error)
+          void launchProject(existing.id, project);
+        return;
+      }
+      const id = crypto.randomUUID();
+      openPane(pending, id);
+      void launchProject(id, project);
+    },
+    [launchProject, openPane],
   );
   const openHiveTool = useCallback(
     (request: HiveWindowRequest) => {
@@ -425,7 +521,12 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const [operations, setOperations] = useState<Record<string, WorkspaceOperationState>>({});
   const pendingOperations = useRef(new Set<string>());
   const changeWorkspaceStatus = useCallback(
-    async (workspaceId: string, operation: "start" | "stop", fromProvider = false) => {
+    async (
+      workspaceId: string,
+      operation: "start" | "stop",
+      fromProvider = false,
+      showDetails = true,
+    ) => {
       if (pendingOperations.current.has(workspaceId)) return;
       pendingOperations.current.add(workspaceId);
       const providerWindows = (available: CoderWorkspace[]) => {
@@ -436,7 +537,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             (pane): pane is Extract<GeneralPane, { kind: "hive" }> & { id: string } =>
               pane.kind === "hive" &&
               (pane.workspaceId ?? fallbackWorkspaceId) === workspaceId &&
-              (isAccountTool(pane.tool) || pane.tool === "projects"),
+              isWorkspaceProviderTool(pane.tool),
           );
       };
       const selectedBuilds = new Map(
@@ -447,7 +548,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       const waitForAgent = fromProvider || selectedBuilds.size > 0;
       setOperations((current) => ({ ...current, [workspaceId]: { pending: operation } }));
       try {
-        openHiveTool({ tool: "workspace-details", workspaceId });
+        if (showDetails) openHiveTool({ tool: "workspace-details", workspaceId });
         const result =
           operation === "start"
             ? await startWorkspaceAction({
@@ -552,6 +653,9 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     onError: setNotice,
     onStart: start,
     onStop: stop,
+    operations,
+    onOpenProject: openProject,
+    onStartForProjects: (id) => changeWorkspaceStatus(id, "start", true, false),
     initialWorkspaceId: active?.workspaceId,
     additionalActions: windowActions,
   });
@@ -787,7 +891,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                     void changeWorkspaceStatus(workspaceId, "start", true).catch(() => {});
                   }}
                   onWorkspaceChange={selectWorkspace}
-                  onOpenSession={(workspaceId, sessionName) => {
+                  onOpenSession={(workspaceId, sessionName, label) => {
                     const current = stateRef.current;
                     const existingBoard = current.boards.find((b) =>
                       b.windows.some(
@@ -807,7 +911,12 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                     else if (sessionName.startsWith("git-clone-"))
                       void notification.open(workspaceId, sessionName);
                     else
-                      openPane({ kind: "terminal", workspaceId, sessionName, label: sessionName });
+                      openPane({
+                        kind: "terminal",
+                        workspaceId,
+                        sessionName,
+                        label: label ?? sessionName,
+                      });
                   }}
                 />
               );
@@ -845,6 +954,11 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
                     },
                     { revealActiveWindow: true },
                   )
+                }
+                onRetryProject={
+                  pane.kind === "project-launch"
+                    ? () => void launchProject(pane.id, pane.project)
+                    : undefined
                 }
                 onStart={() => {
                   void start(pane.workspaceId).catch((err) => setNotice(err.message));

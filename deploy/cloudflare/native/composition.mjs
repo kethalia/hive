@@ -1,4 +1,9 @@
-import previewProfiles from "./preview-profiles.json" with { type: "json" };
+import { withHivePublicOrigin } from "@hive/auth/hive-origin";
+
+const productionOrigin = "https://hive.kethalia.com";
+const previewDomain = "hive-preview.kethalia.com";
+const previewHost = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.hive-preview\.kethalia\.com$/;
+const workersPreviewHost = /^([a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?)-hive\.b00ste\.workers\.dev$/;
 
 async function callAuth(auth, request, env, context) {
   const signal = request.signal;
@@ -49,24 +54,15 @@ export function assertNativeEnvironment(env) {
       throw new Error("Background deployment unavailable");
     const production = env.HIVE_NATIVE_MODE === "production";
     const database = new URL(env.DATABASE_URL);
-    const profile = production
-      ? {
-          origin: "https://hive.kethalia.com",
-          databaseName: "hive_production",
-          databaseRole: "hive_production_runtime",
-        }
-      : Object.values(previewProfiles).find(
-          (candidate) => candidate.origin === env.HIVE_PUBLIC_ORIGIN,
-        );
+    const databaseName = production ? "hive_production" : "hive_workspace_accounts_preview";
+    const databaseRole = production ? "hive_production_runtime" : "hive_accounts_runtime";
+    const origin = production ? productionOrigin : `https://${previewDomain}`;
     if (
-      !profile ||
-      env.HIVE_DATABASE_NAME !== profile.databaseName ||
-      env.HIVE_DATABASE_ROLE !== profile.databaseRole ||
-      env.HIVE_PUBLIC_ORIGIN !== profile.origin ||
-      decodeURIComponent(database.pathname.slice(1)) !== profile.databaseName ||
-      decodeURIComponent(database.username) !== profile.databaseRole ||
-      (env.HIVE_PREVIEW_ORIGIN_ALIAS !== undefined &&
-        (production || env.HIVE_PREVIEW_ORIGIN_ALIAS !== profile.alias))
+      env.HIVE_PUBLIC_ORIGIN !== origin ||
+      env.HIVE_DATABASE_NAME !== databaseName ||
+      env.HIVE_DATABASE_ROLE !== databaseRole ||
+      decodeURIComponent(database.pathname.slice(1)) !== databaseName ||
+      decodeURIComponent(database.username) !== databaseRole
     )
       throw new Error("Background deployment unavailable");
   } catch {
@@ -84,36 +80,28 @@ export function createNativeWorker({ app, auth }) {
         return new Response("deployment_pending", { status: 503 });
       }
       const url = new URL(request.url);
-      if (url.origin !== env.HIVE_PUBLIC_ORIGIN) {
-        const previewAlias =
-          url.origin === env.HIVE_PREVIEW_ORIGIN_ALIAS ||
-          (env.HIVE_PREVIEW_ORIGIN_ALIAS !== undefined &&
-            /^https:\/\/[a-f0-9]{8}(?:\.hive-preview\.kethalia\.com|-hive\.b00ste\.workers\.dev)$/.test(
-              url.origin,
-            ));
-        if (
-          env.HIVE_NATIVE_MODE === "preview" &&
-          previewAlias &&
-          ["GET", "HEAD"].includes(request.method) &&
-          !request.headers.has("upgrade")
-        ) {
-          const target = new URL(env.HIVE_PUBLIC_ORIGIN);
-          target.pathname = url.pathname;
-          target.search = url.search;
+      if (env.HIVE_NATIVE_MODE === "preview") {
+        const alias =
+          url.protocol === "https:" && !url.port && workersPreviewHost.exec(url.hostname);
+        if (alias && ["GET", "HEAD"].includes(request.method) && !request.headers.has("upgrade")) {
+          url.hostname = `${alias[1]}.${previewDomain}`;
           return new Response(null, {
             status: 307,
-            headers: { Location: target.href, "Cache-Control": "no-store" },
+            headers: { Location: url.href, "Cache-Control": "no-store" },
           });
         }
+        if (url.protocol !== "https:" || url.port || !previewHost.test(url.hostname))
+          return new Response("Origin unavailable", { status: 403 });
+      } else if (url.origin !== productionOrigin) {
         return new Response("Origin unavailable", { status: 403 });
       }
-      const local = { ...env };
+      const local = { ...env, HIVE_PUBLIC_ORIGIN: url.origin };
       local.AUTH_SERVICE = {
         fetch(input, init) {
           return callAuth(auth, new Request(input, init), local, context);
         },
       };
-      return app.fetch(request, local, context);
+      return withHivePublicOrigin(url.origin, () => app.fetch(request, local, context));
     },
   };
 }

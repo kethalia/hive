@@ -35,10 +35,11 @@ import {
 const owner = "10000000-0000-4000-8000-000000000001";
 const env: BackgroundEnvironment = {
   HIVE_NATIVE_MODE: "preview",
-  HIVE_DATABASE_NAME: "hive_foundation_preview",
-  HIVE_DATABASE_ROLE: "hive_foundation_runtime",
-  DATABASE_URL: "postgresql://hive_foundation_runtime:fixture@localhost/hive_foundation_preview",
-  HIVE_PUBLIC_ORIGIN: "https://codex-hive-production-cutover.hive-preview.kethalia.com",
+  HIVE_DATABASE_NAME: "hive_workspace_accounts_preview",
+  HIVE_DATABASE_ROLE: "hive_accounts_runtime",
+  DATABASE_URL:
+    "postgresql://hive_accounts_runtime:fixture@localhost/hive_workspace_accounts_preview",
+  HIVE_PUBLIC_ORIGIN: "https://hive-preview.kethalia.com",
   ASSETS: { fetch: vi.fn() },
   BACKGROUND: { getByName: vi.fn() },
 };

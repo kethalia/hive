@@ -57,6 +57,9 @@ type AccountTool = "codex-account" | "claude-account";
 export function isAccountTool(tool: HiveTool): tool is AccountTool {
   return tool === "codex-account" || tool === "claude-account";
 }
+export function isWorkspaceProviderTool(tool: HiveTool) {
+  return isAccountTool(tool) || tool === "projects";
+}
 export function defaultProviderWorkspace(workspaces: CoderWorkspace[]) {
   return (
     workspaces.find((workspace) => workspace.latest_build.status === "running") ?? workspaces[0]
@@ -132,12 +135,31 @@ const hive = z
     label: z.string().min(1).max(512),
   })
   .transform((pane) =>
-    isAccountTool(pane.tool) || pane.tool === "projects"
-      ? { ...pane, label: hiveToolLabels[pane.tool] }
-      : pane,
+    isWorkspaceProviderTool(pane.tool) ? { ...pane, label: hiveToolLabels[pane.tool] } : pane,
   );
 export const generalPaneSchema = z.union([terminal, app, hive]);
-export type GeneralPane = z.infer<typeof generalPaneSchema>;
+export type TerminalPane = z.infer<typeof terminal> & { projectLogs?: readonly string[] };
+export interface ProjectTerminalRequest {
+  workspaceId: string;
+  buildId: string;
+  repositoryId: string;
+  providerAccountId: string;
+  fullName: string;
+}
+export interface ProjectLaunchPane {
+  kind: "project-launch";
+  workspaceId: string;
+  label: string;
+  project: ProjectTerminalRequest;
+  logs: readonly string[];
+  error?: string;
+}
+// A launch is transient. Only the verified terminal descriptor can be restored.
+export type GeneralPane =
+  | TerminalPane
+  | z.infer<typeof app>
+  | z.infer<typeof hive>
+  | ProjectLaunchPane;
 export type GeneralWindow = GeneralPane & { id: string };
 export interface GeneralBoard {
   key: string;
@@ -166,6 +188,8 @@ export function emptyGeneralWorkspace(): GeneralWorkspaceState {
 }
 export function generalPaneIdentity(pane: GeneralPane) {
   if (pane.kind === "hive") return hiveWindowIdentity(pane);
+  if (pane.kind === "project-launch")
+    return JSON.stringify([pane.kind, pane.workspaceId, pane.project.repositoryId]);
   return JSON.stringify([
     pane.workspaceId,
     pane.kind,

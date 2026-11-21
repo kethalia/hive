@@ -26,36 +26,35 @@ OpenNext's embedded local environment module before marking output deployable.
 
 ## Deployment settings
 
-The connected repository uses root `/`, build `pnpm build:cloudflare`, production
-command `node deploy/cloudflare/native/deploy.mjs production` and preview command
-`node deploy/cloudflare/native/deploy.mjs preview`.
-Set these commands in Previews Base and in an existing branch Preview's copied
-build settings. `deploy.mjs` checks the branch's repository-managed runtime profile.
+Workers Builds uses the repository root and runs `pnpm build:cloudflare`.
+Production runs `pnpm exec wrangler deploy --config deploy/cloudflare/native/wrangler.jsonc`.
+Preview Builds uses the same Worker and runs
+`pnpm exec wrangler preview --config deploy/cloudflare/native/wrangler.jsonc --name "$WORKERS_CI_BRANCH"`.
+Cloudflare creates a Preview for each branch it builds. The Preview Build
+command is copied when Cloudflare creates a branch Preview. When migrating an
+existing Worker from the previous Hive deploy script, update previews that still
+have the old command once. The `previews` block
+inherited from `main` supplies the non-production database, runtime role and other
+default bindings. Native runtime admission validates the database and role before
+serving requests or running background work.
 
-`wrangler.jsonc` defines production. `preview-profiles.json` enrolls each branch,
-canonical origin, database and restricted runtime role. Production requires `main`,
-`hive_production`, `hive_production_runtime` and `https://hive.kethalia.com`.
-Each Preview requires the exact database and runtime role in its enrolled profile.
-HTTP, scheduled work and background alarms validate this scope before database use.
+Use the branch's stable `*.hive-preview.kethalia.com` URL. The Worker derives the
+request origin from that hostname and redirects `workers.dev` page loads to the
+matching custom domain. Coder sign-in adds the exact callback to a single Preview
+OAuth application through Coder Dynamic Client Registration, with its own
+client secret and registration token. The app keeps up to 32 registered callbacks. When the list fills up, adding a
+callback replaces the oldest entry, and starting sign-in on an existing callback
+moves it to the front. A later sign-in registers a callback again if it was removed.
 
-P01b's Preview is
-`https://codex-hive-production-cutover.hive-preview.kethalia.com`.
-Its original `workers.dev` URL redirects browser navigation to this canonical host.
-New deployment-specific URLs on `hive-preview.kethalia.com` and `workers.dev`
-also redirect GET and HEAD navigation to the stable branch Preview, preserving
-the path and query. This keeps authentication and workspace-app cookies on the
-same-site origin. Historical immutable deployments run their original routing
-code. Use the stable branch URL when sharing the Preview.
-The same-site Preview exercises Coder workspace-app cookies under the production site.
-Configure its existing Workers Builds Preview settings for automatic branch builds.
-The P01 acceptance deployment remains documented in `docs/checks/cloudflare-foundation`.
-
-Provision `DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`,
-`AUTH_SERVICE_SECRET`, `CODER_OAUTH_CLIENT_SECRET` and
-`HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY` through Cloudflare runtime settings.
-Preview secrets can be staged through `wrangler preview base-config secret bulk`
-before the initial deployment. After deployment, `wrangler preview secret bulk`
-updates the named Preview. The owner authorized a
+Provision the Preview Base secrets
+`DATABASE_URL`, `ENCRYPTION_KEY`, `COOKIE_SECRET`, `AUTH_SERVICE_SECRET`,
+`HIVE_AGENT_TOOLS_ISSUER_PRIVATE_KEY`, `HIVE_PREVIEW_CODER_OAUTH_CLIENT_SECRET`
+and `HIVE_PREVIEW_CODER_REGISTRATION_TOKEN` once through Cloudflare runtime
+settings. Use the scoped registration token for the Preview OAuth client, whose
+public ID is in the `previews` block. Existing named Previews receive updated
+secrets through `wrangler preview secret bulk`.
+Production uses its own `CODER_OAUTH_CLIENT_SECRET` and registered callback.
+The owner authorized a
 fresh production start on 13 November 2026. Initialize the empty production schema,
 apply scoped runtime grants and configure independent production secrets before
 activating the production build. Its source configuration binds the Custom Domain.

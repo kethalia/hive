@@ -1,3 +1,4 @@
+import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { z } from "zod";
 import { getRequestSession } from "@/lib/auth/session";
 import { publicationBody } from "@/lib/templates/publication-io";
@@ -16,7 +17,7 @@ const envelope = z
 export async function codexManagementRoute(request: Request, workspaceId: string) {
   if (process.env.HIVE_CODEX_ACCOUNTS_ENABLED !== "true")
     return new Response(null, { status: 404, headers });
-  const origin = process.env.HIVE_PUBLIC_ORIGIN;
+  const origin = getHivePublicOrigin();
   const target = new URL(request.url);
   if (
     !origin ||

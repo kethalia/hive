@@ -25,6 +25,7 @@ import {
   type CloneTreeNode,
   type CloneTreeRepositoryNode,
   type CloneTreeSkippedPathReason,
+  createCloneSessionKey,
   createSafeCloneTerminalSessionName,
 } from "@/lib/git/clone-tree";
 import { authActionClient } from "@/lib/safe-action";
@@ -44,12 +45,6 @@ const TERMINAL_PROOF_UNAVAILABLE_MESSAGE =
 const WORKSPACE_DISCOVERY_TIMEOUT_MS = 15_000;
 const WORKSPACE_ROOT_MISSING_SENTINEL = "__HIVE_PROJECTS_ROOT_MISSING__";
 const WORKSPACE_CLONE_SCAN_LIMIT = 201;
-
-type GitCloneTerminalResolveStatus =
-  | "success"
-  | "missing-root"
-  | "scan-failed"
-  | "invalid-selection";
 
 const listGitClonesSchema = z
   .object({
@@ -340,37 +335,55 @@ async function resolveSelectedRepository(
   workspaceId: string,
   cloneSessionKey: string,
   relativePath: string,
-): Promise<CloneTreeRepositoryNode> {
-  let tree: CloneTree;
-
-  try {
-    const projectsRootPath = resolveConfiguredProjectsRoot();
-    tree = await discoverWorkspaceCloneTree(userId, projectsRootPath, workspaceId);
-  } catch (error) {
-    console.error(`[git-clones] Terminal resolution scan failed (${describeErrorForLogs(error)})`);
-    throw new Error(SCAN_FAILED_MESSAGE);
-  }
-
-  const rootSkippedReason = getRootSkippedReason(tree.diagnostics);
-  if (rootSkippedReason === "not-directory") {
-    logTerminalResolveOutcome("missing-root", tree.diagnostics);
-    throw new Error(MISSING_ROOT_MESSAGE);
-  }
-
-  if (rootSkippedReason) {
-    logTerminalResolveOutcome("scan-failed", tree.diagnostics);
-    throw new Error(SCAN_FAILED_MESSAGE);
-  }
-
-  const repository = findRepositoryNode(tree.nodes, cloneSessionKey, relativePath);
-
-  if (!repository) {
-    logTerminalResolveOutcome("invalid-selection", tree.diagnostics);
+): Promise<{ cloneSessionKey: string; relativePath: string }> {
+  if (createCloneSessionKey(relativePath.split("/")) !== cloneSessionKey)
     throw new Error(INVALID_SELECTION_MESSAGE);
+
+  let result: Awaited<ReturnType<typeof execInWorkspace>>;
+  try {
+    const client = await getCoderClientForUser(userId);
+    const workspace = await client.getWorkspace(workspaceId);
+    if (!workspace) throw new Error("workspace_missing");
+    const agentTarget = await client.getWorkspaceAgentName(workspace.id);
+    result = await execInWorkspace(
+      agentTarget,
+      buildWorkspaceCloneSelectionCommand(resolveConfiguredProjectsRoot(), relativePath),
+      {
+        coderUrl: client.getBaseUrl(),
+        sessionToken: client.getSessionToken(),
+        credentialSource: client.getCredentialSource(),
+        timeoutMs: WORKSPACE_DISCOVERY_TIMEOUT_MS,
+        maxBufferBytes: 4096,
+      },
+    );
+  } catch (error) {
+    console.error(`[git-clones] Terminal validation failed (${describeErrorForLogs(error)})`);
+    throw new Error(SCAN_FAILED_MESSAGE);
   }
 
-  logTerminalResolveOutcome("success", tree.diagnostics);
-  return repository;
+  if (result.exitCode !== 0) throw new Error(SCAN_FAILED_MESSAGE);
+  if (result.stdout.trim() === WORKSPACE_ROOT_MISSING_SENTINEL)
+    throw new Error(MISSING_ROOT_MESSAGE);
+  if (result.stdout.trim() !== relativePath) throw new Error(INVALID_SELECTION_MESSAGE);
+  return { cloneSessionKey, relativePath };
+}
+
+function buildWorkspaceCloneSelectionCommand(projectsRootPath: string, relativePath: string) {
+  // Browse filters and scan limits do not affect an explicitly selected checkout.
+  // A physical path check keeps symlinked children outside the selection boundary.
+  return [
+    `root=${shellQuote(projectsRootPath)}`,
+    `relative=${shellQuote(relativePath)}`,
+    `if [ ! -d "$root" ]; then printf '%s\\n' ${shellQuote(WORKSPACE_ROOT_MISSING_SENTINEL)}; exit 0; fi`,
+    'root=$(cd -P "$root" && pwd -P) || exit 1',
+    `expected="\${root%/}/$relative"`,
+    'selected=$(cd -P "$expected" 2>/dev/null && pwd -P) || exit 0',
+    '[ "$selected" = "$expected" ] || exit 0',
+    '[ ! -L "$selected/.git" ] || exit 0',
+    '[ -d "$selected/.git" ] || [ -f "$selected/.git" ] || exit 0',
+    'top=$(git -C "$selected" rev-parse --show-toplevel 2>/dev/null) || exit 0',
+    'if [ "$top" = "$selected" ]; then printf "%s\\n" "$relative"; fi',
+  ].join("; ");
 }
 
 async function discoverWorkspaceCloneTree(
@@ -579,16 +592,6 @@ function logDiscoveryOutcome(
   const level = status === "scan-failed" ? console.error : console.log;
   level(
     `[git-clones] Discovery ${status}: repos=${diagnostics.repoCount} directories=${diagnostics.directoryCount} skipped=${diagnostics.skippedPaths.length} truncated=${diagnostics.truncated} durationMs=${diagnostics.durationMs}`,
-  );
-}
-
-function logTerminalResolveOutcome(
-  status: GitCloneTerminalResolveStatus,
-  diagnostics: CloneTreeDiagnostics,
-): void {
-  const level = status === "scan-failed" ? console.error : console.log;
-  level(
-    `[git-clones] Terminal resolution ${status}: repos=${diagnostics.repoCount} directories=${diagnostics.directoryCount} skipped=${diagnostics.skippedPaths.length} truncated=${diagnostics.truncated} durationMs=${diagnostics.durationMs}`,
   );
 }
 
