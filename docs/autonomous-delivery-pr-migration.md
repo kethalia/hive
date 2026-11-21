@@ -220,3 +220,9 @@ P05 starts with the [interactive Projects workflow](https://github.com/kethalia/
 Open Projects in the context palette to browse the selected workspace’s GitHub
 repositories. Enter opens the repository terminal, cloning into
 `~/projects/<owner>/<repository>` when the checkout is absent.
+
+The remaining P05 extraction is in [draft PR458](https://github.com/kethalia/hive/pull/458),
+based on main at `5b09c6c3`. The draft includes the shared session views and
+transport, the managed checkout safeguards, and the first additive migrations.
+The guardian and manager runtime, live recovery, and controller-authorized
+cleanup still require integration and preview acceptance.
