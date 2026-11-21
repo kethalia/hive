@@ -35,6 +35,7 @@ const supported = {
     "closeGitCloneTerminalAction",
   ],
   "lib/actions/clone-project.ts": ["cloneProjectAction"],
+  "lib/actions/project-checkout.ts": ["openProjectTerminalAction"],
   "lib/actions/settings-window.ts": ["getSettingsWindowAction"],
   "lib/actions/user-settings.ts": ["getTerminalSettingsAction", "updateTerminalSettingsAction"],
   "lib/push/actions.ts": ["getVapidPublicKeyAction", "testPushAction"],

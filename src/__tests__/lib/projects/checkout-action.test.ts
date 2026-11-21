@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { manageProjectCheckoutAction } from "@/lib/actions/project-checkout";
+import { openProjectTerminalAction } from "@/lib/actions/project-checkout";
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), client: vi.fn(), execute: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ getRequestSession: mocks.session }));
 vi.mock("@/lib/coder/user-client", () => ({ getCoderClientForUser: mocks.client }));
+vi.mock("@/lib/discovery/server-cache", () => ({
+  discoveryCacheKey: vi.fn(),
+  invalidateDiscovery: vi.fn(),
+}));
 vi.mock("@/lib/workspace/exec", () => ({ execInWorkspace: mocks.execute }));
 
 const target = {
@@ -11,7 +15,6 @@ const target = {
   buildId: "22222222-2222-4222-8222-222222222222",
   providerAccountId: "12",
   repositoryId: "34",
-  action: "open" as const,
 };
 const workspace = {
   id: target.workspaceId,
@@ -43,20 +46,21 @@ afterEach(() => {
 });
 
 it("passes only the verified Coder build and stable GitHub identities to the workspace", async () => {
-  const data = {
-    status: "opened",
-    sessionName: "hive-project-0123456789abcdef0123456789abcdef",
-    fullName: "owner/repo",
-  };
+  const data = { fullName: "owner/repo" };
   mocks.execute.mockResolvedValue({ exitCode: 0, stdout: JSON.stringify(data) });
-  expect((await manageProjectCheckoutAction(target))?.data).toEqual(data);
+  expect((await openProjectTerminalAction(target))?.data).toMatchObject({
+    kind: "terminal",
+    workspaceId: target.workspaceId,
+    label: "owner/repo",
+    relativePath: "projects/owner/repo",
+    sessionName: expect.stringMatching(/^git-clone-[a-f0-9]{32}$/),
+  });
   expect(mocks.execute).toHaveBeenCalledWith(
     "test-dev.main",
     expect.any(String),
     expect.objectContaining({
       expected: { workspaceId: target.workspaceId, buildId: target.buildId, agentId: "agent" },
       stdin: JSON.stringify({
-        action: target.action,
         workspaceId: target.workspaceId,
         buildId: target.buildId,
         repositoryId: target.repositoryId,
@@ -68,15 +72,15 @@ it("passes only the verified Coder build and stable GitHub identities to the wor
 
 it("rejects other owners, changed builds, and caller-provided checkout paths before workspace execution", async () => {
   getWorkspace.mockResolvedValueOnce({ ...workspace, owner_id: "other-user" });
-  expect((await manageProjectCheckoutAction(target))?.serverError).toContain("workspace you own");
+  expect((await openProjectTerminalAction(target))?.serverError).toContain("workspace you own");
   getWorkspace.mockResolvedValueOnce({
     ...workspace,
     latest_build: { id: "changed", status: "running" },
   });
-  expect((await manageProjectCheckoutAction(target))?.serverError).toContain(
+  expect((await openProjectTerminalAction(target))?.serverError).toContain(
     "workspace build changed",
   );
   const invalid = { ...target, checkout: "/home/coder/projects/existing" };
-  expect((await manageProjectCheckoutAction(invalid))?.validationErrors).toBeDefined();
+  expect((await openProjectTerminalAction(invalid))?.validationErrors).toBeDefined();
   expect(mocks.execute).not.toHaveBeenCalled();
 });

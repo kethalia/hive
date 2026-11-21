@@ -39,9 +39,6 @@ const Logs = dynamic(() =>
   import("./TerminalSessionEventLog").then((m) => m.TerminalSessionEventLog),
 );
 const TemplatesWindow = dynamic(() => import("./TemplatesWindow").then((m) => m.TemplatesWindow));
-const ProjectsWindow = dynamic(() =>
-  import("@/components/projects/ProjectsWindow").then((m) => m.ProjectsWindow),
-);
 
 function SettingsWindow({
   userId,
@@ -126,7 +123,7 @@ export function HiveWorkspacePane({
   const detailOperation = detailWorkspace ? operations?.[detailWorkspace.id] : undefined;
   const hasSidebar =
     pane.tool === "settings" ||
-    ((pane.tool === "projects" || pane.tool === "managed-projects") && !!projectDiscoveryEnabled) ||
+    (pane.tool === "projects" && !!projectDiscoveryEnabled) ||
     accountTool;
   const renderWindow = (status: ReactNode, detailBody: ReactNode) => (
     <TerminalSessionFrame
@@ -206,22 +203,6 @@ export function HiveWorkspacePane({
             />
           ) : (
             <p className="p-4">Repository discovery is disabled.</p>
-          )
-        ) : pane.tool === "managed-projects" ? (
-          projectDiscoveryEnabled ? (
-            <ProjectsWindow
-              key={userId}
-              workspaces={workspaces}
-              workspace={providerWorkspace}
-              operation={providerOperation}
-              onStartWorkspace={onStartWorkspace}
-              onWorkspaceChange={onWorkspaceChange}
-              onOpenSession={onOpenSession}
-              visible={visible}
-              navigation={navigation}
-            />
-          ) : (
-            <p className="p-4">Projects are unavailable.</p>
           )
         ) : pane.tool === "agents" ? (
           <div className="space-y-4 p-4" data-mobile-scroll-allow="true">

@@ -7,6 +7,8 @@ import type {
   CommandPaletteAction,
   CommandPalettePage,
 } from "@/components/terminal/CommandPalette";
+import type { WorkspaceOperationState } from "@/components/workspaces/WorkspaceDetails";
+import { useProjectsPalette } from "@/hooks/useProjectsPalette";
 import { useWindowCreationPages } from "@/hooks/useWindowCreationPages";
 import type { CoderWorkspace } from "@/lib/coder/types";
 import { discoveryOptions } from "@/lib/discovery/queries";
@@ -24,6 +26,8 @@ export function useGeneralWorkspaceCommands({
   onError,
   onStart,
   onStop,
+  onStartForProjects,
+  operations,
   initialWorkspaceId,
   additionalActions,
 }: {
@@ -32,6 +36,8 @@ export function useGeneralWorkspaceCommands({
   onError: (message: string) => void;
   onStart: (workspaceId: string) => Promise<void>;
   onStop: (workspaceId: string) => Promise<void>;
+  onStartForProjects?: (workspaceId: string) => Promise<void>;
+  operations?: Record<string, WorkspaceOperationState>;
   initialWorkspaceId?: string;
   additionalActions?: CommandPaletteAction[];
 }) {
@@ -40,6 +46,16 @@ export function useGeneralWorkspaceCommands({
   const checkoutGroup = projectDiscoveryEnabled ? "Checkouts" : "Projects";
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const projects = useProjectsPalette({
+    enabled: !!projectDiscoveryEnabled,
+    open,
+    query,
+    workspaces,
+    initialWorkspaceId,
+    operations,
+    onStart: onStartForProjects ?? onStart,
+    onOpenPane,
+  });
   const { pages: creationPages, beginCreation } = useWindowCreationPages({
     workspaces,
     initialWorkspaceId,
@@ -389,8 +405,12 @@ export function useGeneralWorkspaceCommands({
       registerGlobalCommandPaletteSource({
         id: "general-workspace",
         handlesWorkspaces: true,
-        pages: { ...creationPages, ...workspacePages },
-        actions: [...actions, ...(additionalActions ?? [])],
+        pages: { ...creationPages, ...workspacePages, ...projects.pages },
+        actions: [
+          ...(projects.browse ? [projects.browse] : []),
+          ...actions,
+          ...(additionalActions ?? []),
+        ],
         searchValue: query,
         onSearchValueChange: setQuery,
         onOpenChange: setOpen,
@@ -398,6 +418,6 @@ export function useGeneralWorkspaceCommands({
         emptyText: "No matching windows or commands.",
         loadingText: loading ? "Loading terminals and repositories…" : undefined,
       }),
-    [actions, query, loading, additionalActions, creationPages, workspacePages],
+    [actions, query, loading, additionalActions, creationPages, workspacePages, projects],
   );
 }

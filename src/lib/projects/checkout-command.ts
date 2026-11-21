@@ -1,6 +1,6 @@
 // Sent over the existing bounded workspace exec transport. Identifiers arrive on stdin.
-export const projectCheckoutScript = String.raw`
-import fcntl, hashlib, json, os, pathlib, re, shlex, shutil, subprocess, sys, tempfile, time
+export const projectCheckoutScript = `
+import fcntl, json, os, pathlib, re, shlex, shutil, subprocess, sys, tempfile
 
 class ProjectError(Exception):
     pass
@@ -14,12 +14,6 @@ def run(args, cwd=None, env=None, timeout=12, code="checkout_unavailable"):
                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     require(result.returncode == 0 and len(result.stdout) <= 1048576, code)
     return result.stdout
-
-def private_directory(path):
-    path.mkdir(mode=0o700, exist_ok=True)
-    require(not path.is_symlink() and path.is_dir() and path.stat().st_uid == os.getuid(),
-            "checkout_unavailable")
-    return path
 
 def resolve(root, account, repository):
     gh = root / ".local/libexec/gh"
@@ -55,230 +49,63 @@ def git(cwd, args, gh, env, timeout=12, code="checkout_unavailable"):
                cwd, {**env, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
                      "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}, timeout, code)
 
-def process_uses(path, process):
-    prefix = str(path) + "/"
-    def inside(target):
-        return target == str(path) or target.startswith(prefix)
-    for attempt in range(3):
-        try:
-            status = (process / "status").read_text(errors="surrogateescape").splitlines()
-            uids = next(line.split()[1:] for line in status if line.startswith("Uid:"))
-            if str(os.getuid()) not in uids:
-                return False
-            state = next(line.split()[1] for line in status if line.startswith("State:"))
-            if state in ("Z", "X"):
-                return False
-            for entry in (process / "cwd", process / "exe", *(process / "fd").iterdir()):
-                try:
-                    if inside(os.readlink(entry).removesuffix(" (deleted)")):
-                        return True
-                except FileNotFoundError:
-                    continue
-            for line in (process / "maps").read_text(errors="surrogateescape").splitlines():
-                fields = line.split(maxsplit=5)
-                if len(fields) == 6 and inside(fields[5].removesuffix(" (deleted)")):
-                    return True
-            return False
-        except (FileNotFoundError, ProcessLookupError):
-            return False
-        except PermissionError:
-            # An exec can briefly make procfs links unreadable. A persistent
-            # inspection failure must keep the checkout.
-            if attempt == 2:
-                raise ProjectError("cleanup_unverified")
-            time.sleep(0.05)
-
-def in_use(path, proc_root=pathlib.Path("/proc")):
-    for process in proc_root.iterdir():
-        if process.name.isdecimal() and process_uses(path, process):
-            return True
-    for line in (proc_root / "self/mountinfo").read_text().splitlines():
-        mount = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), line.split()[4])
-        if mount == str(path) or mount.startswith(str(path) + "/"):
-            return True
-    return False
-
-def audio_environment(session):
-    helper = shutil.which("hive-audio")
-    if not helper:
-        return []
-    try:
-        pulse = run([helper, "prepare", "--", session], timeout=8).decode().strip()
-    except (OSError, ProjectError, subprocess.TimeoutExpired, UnicodeError):
-        return []
-    if not re.fullmatch(r"unix:/[^\r\n\x00]+", pulse):
-        return []
-    return ["-e", "PULSE_SERVER=" + pulse]
-
-# Runs inside tmux so dependency progress and errors stay visible across browser disconnects.
-LAUNCH = """
-import hashlib, json, os, pathlib, re, shutil, subprocess, sys, uuid
-
-def yarn_command(root, lock, pinned, args):
-    config = (root / ".yarnrc", root / ".yarnrc.yml")
-    if any(path.exists() or path.is_symlink() for path in config):
-        print("This repository has custom Yarn configuration. Run Yarn from Codex after reviewing it.",
-              flush=True)
-        return None
-    match = re.fullmatch(r"yarn@([0-9]+[.][0-9]+[.][0-9]+(?:[+]sha(?:224|256|384|512)[.][a-f0-9]+)?)", pinned)
-    version = match[1] if match else ""
-    with lock.open("rb") as stream:
-        classic = version.startswith("1.") or b"# yarn lockfile v1" in stream.read(256)
-    env = {"COREPACK_ENABLE_PROJECT_SPEC": "0", "YARN_RC_FILENAME": ".hive-yarnrc-" + uuid.uuid4().hex}
-    if classic:
-        version = version if version.startswith("1.") else "1.22.22"
-        args = ["install", "--no-default-rc", "--frozen-lockfile", "--ignore-scripts"]
-    if version and shutil.which("corepack"):
-        return ["corepack", "yarn@" + version, *args], env
-    if classic:
-        print("Yarn Classic needs Corepack for automatic setup. Run Yarn from Codex.", flush=True)
-        return None
-    return ["yarn", *args], env
-
-def prepare():
-    root = pathlib.Path.cwd()
-    manifest = root / "package.json"
-    if not manifest.is_file() or manifest.is_symlink():
-        return
-    commands = {
-        "pnpm": (("pnpm-lock.yaml",), ["install", "--frozen-lockfile", "--ignore-scripts", "--ignore-pnpmfile"]),
-        "npm": (("package-lock.json", "npm-shrinkwrap.json"), ["ci", "--ignore-scripts"]),
-        "yarn": (("yarn.lock",), ["install", "--immutable", "--mode=skip-build"]),
-        "bun": (("bun.lock", "bun.lockb"), ["install", "--frozen-lockfile", "--ignore-scripts"]),
-    }
-    data = json.loads(manifest.read_text())
-    pinned = data.get("packageManager", "")
-    candidates = [(manager, root / lock, args) for manager, (locks, args) in commands.items()
-                  for lock in locks if (root / lock).is_file() and not (root / lock).is_symlink()]
-    candidate = next((entry for entry in candidates if entry[0] == pinned.split("@", 1)[0]), None)
-    if not candidate and len(candidates) == 1:
-        candidate = candidates[0]
-    if not candidate:
-        if candidates:
-            print("Multiple package managers found. Install dependencies from the Codex terminal.", flush=True)
-        return
-    manager, lock, args = candidate
-    command, manager_env = [manager, *args], {}
-    if manager == "yarn":
-        yarn = yarn_command(root, lock, pinned, args)
-        if not yarn:
-            return
-        command, manager_env = yarn
-    files = [manifest, lock, root / "pnpm-workspace.yaml", root / ".npmrc"]
-    digest = hashlib.sha256()
-    for file in files:
-        if file.is_file() and not file.is_symlink():
-            digest.update(file.name.encode() + bytes([0]) + file.read_bytes())
-    fingerprint = digest.hexdigest()
-    stamp = root.parent / "dependencies"
-    if stamp.is_file() and not stamp.is_symlink() and stamp.read_text() == fingerprint and (
-        (root / "node_modules").is_dir() or (root / ".pnp.cjs").is_file()
-    ):
-        return
-    print("Installing locked dependencies with " + manager + "…", flush=True)
-    env = {**os.environ, "CI": "true", "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-           "COREPACK_ENV_FILE": "0", "COREPACK_ENABLE_UNSAFE_CUSTOM_URLS": "0",
-           "YARN_ENABLE_SCRIPTS": "false", "YARN_IGNORE_PATH": "1", **manager_env}
-    env.pop("GH_TOKEN", None)
-    env.pop("GITHUB_TOKEN", None)
-    binary = shutil.which(command[0])
-    if not binary or subprocess.run([binary, *command[1:]], env=env, check=False, timeout=600).returncode != 0:
-        print("Dependency setup did not finish. You can retry from Projects after closing this session.", flush=True)
-        return
-    temporary = stamp.with_suffix(".new")
-    with temporary.open("x") as stream:
-        stream.write(fingerprint)
-    os.replace(temporary, stamp)
-
-try:
-    prepare()
-except Exception:
-    print("Dependency setup could not be verified. Review the checkout from Codex.", flush=True)
-print("Opening Codex in " + str(pathlib.Path.cwd()), flush=True)
-os.environ.pop("GH_TOKEN", None)
-os.environ.pop("GITHUB_TOKEN", None)
-os.execv(sys.argv[1], [sys.argv[1]])
-"""
+def verify_checkout(checkout, name, gh, env):
+    require(not checkout.is_symlink() and checkout.is_dir(), "checkout_unavailable")
+    require(not (checkout / ".git").is_symlink(), "checkout_unavailable")
+    top = git(checkout, ["rev-parse", "--show-toplevel"], gh, env).decode().strip()
+    require(top == str(checkout), "checkout_unavailable")
+    remote = git(checkout, ["config", "--local", "--get", "remote.origin.url"], gh, env
+                ).decode().strip().lower()
+    origins = ("https://github.com/", "git@github.com:", "ssh://git@github.com/")
+    require(any(remote.removesuffix(".git") == prefix + name.lower() for prefix in origins),
+            "checkout_unavailable")
 
 def main(spec):
-    action, account, repository = spec["action"], spec["providerAccountId"], spec["repositoryId"]
-    require(action in ("open", "cleanup") and all(re.fullmatch(r"[1-9][0-9]{0,19}", x)
-            for x in (account, repository)), "checkout_unavailable")
+    account, repository = spec["providerAccountId"], spec["repositoryId"]
+    require(all(re.fullmatch(r"[1-9][0-9]{0,19}", x) for x in (account, repository)),
+            "checkout_unavailable")
     home = pathlib.Path.home().resolve(strict=True)
     name, url, gh, env = resolve(home, account, repository)
-    root = home
-    for part in (".local", "share", "hive", "project-checkouts"):
-        root = private_directory(root / part)
-    require(root.stat().st_mode & 0o077 == 0, "checkout_unavailable")
-    key = account + "-" + repository
-    session = "hive-project-" + hashlib.sha256(key.encode()).hexdigest()[:32]
-    tmux = ["tmux", "-L", "web"]
-    project = root / key
-    checkout = project / "checkout"
-    record = project / "project.json"
-    lock = os.open(root / (key + ".lock"), os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(lock, "w") as guard:
+    owner, repository_name = name.split("/")
+    parent = home
+    for part in ("projects", owner):
+        parent = parent / part
+        parent.mkdir(exist_ok=True)
+        require(not parent.is_symlink() and parent.is_dir(), "checkout_unavailable")
+
+    checkout = parent / repository_name
+    directory = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
         try:
-            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ProjectError("checkout_busy")
-        if project.exists() or project.is_symlink():
-            require(not project.is_symlink() and not checkout.is_symlink() and not record.is_symlink()
-                    and project.is_dir() and checkout.is_dir() and (checkout / ".git").is_dir()
-                    and not (checkout / ".git").is_symlink() and record.is_file()
-                    and record.stat().st_size < 2048, "checkout_unavailable")
-            saved = json.loads(record.read_text())
-            require(saved == {"account": account, "repository": repository, "url": saved.get("url")}
-                    and re.fullmatch(r"https://github\.com/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}\.git",
-                                     saved["url"])
-                    and git(checkout, ["remote", "get-url", "origin"], gh, env).decode().strip()
-                    == saved["url"], "checkout_unavailable")
-            require(git(checkout, ["rev-parse", "--show-toplevel"], gh, env).decode().strip() == str(checkout),
-                    "checkout_unavailable")
-        elif action == "cleanup":
-            return {"status": "absent"}
+        if checkout.exists() or checkout.is_symlink():
+            verify_checkout(checkout, name, gh, env)
         else:
-            with tempfile.TemporaryDirectory(dir=root, prefix=".clone-") as staging:
+            with tempfile.TemporaryDirectory(dir=parent, prefix=".hive-clone-") as staging:
                 stage = pathlib.Path(staging)
-                git(stage, ["clone", "--no-recurse-submodules", "--", url, "checkout"], gh, env, 75,
-                    "clone_failed")
-                git(stage / "checkout", ["config", "--local", "--add",
-                                         "credential.https://github.com.helper", ""], gh, env)
-                git(stage / "checkout", ["config", "--local", "--add",
-                                         "credential.https://github.com.helper",
-                                         "!" + shlex.join([str(gh), "auth", "git-credential"])], gh, env)
-                (stage / "project.json").write_text(json.dumps({"account": account,
-                                                               "repository": repository, "url": url}))
-                stage.rename(project)
-        active = subprocess.run([*tmux, "has-session", "-t", "=" + session], timeout=5,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-        if action == "open":
-            if not active:
-                codex = shutil.which("codex")
-                require(codex, "codex_unavailable")
-                run([*tmux, "new-session", "-d", "-s", session, "-c", str(checkout),
-                     *audio_environment(session), shlex.join([sys.executable, "-c", LAUNCH, codex])],
-                    code="codex_unavailable")
-            return {"status": "opened", "sessionName": session, "fullName": name}
-        require(not active and not in_use(project), "checkout_in_use")
-        require(git(checkout, ["worktree", "list", "--porcelain"], gh, env).count(b"worktree ") == 1,
-                "checkout_in_use")
-        require(not any(entry and (entry[:1] == b"S" or entry[:1].islower()) for entry in
-                        git(checkout, ["ls-files", "-v", "-z"], gh, env).split(bytes([0]))),
-                "checkout_dirty")
-        changes = git(checkout, ["status", "--porcelain=v1", "-z", "--untracked-files=normal",
-                                 "--ignored=matching", "--ignore-submodules=none"], gh, env).split(bytes([0]))
-        allowed = (b"/node_modules/", b" node_modules/")
-        require(not any(line and not (line.startswith(b"!! ") and line.endswith(allowed))
-                        for line in changes), "checkout_dirty")
-        # Query current remote refs; stale tracking refs cannot authorize deletion.
-        git(checkout, ["fetch", "--prune", "--no-tags", "--", url,
-                       "+refs/heads/*:refs/remotes/origin/*"], gh, env, 45, "cleanup_unverified")
-        require(not git(checkout, ["rev-list", "--all", "--reflog", "--not", "--remotes=origin"], gh, env),
-                "checkout_unpublished")
-        require(not in_use(project), "checkout_in_use")
-        shutil.rmtree(project)
-        return {"status": "removed"}
+                prepared = stage / "checkout"
+                git(stage, ["clone", "--no-recurse-submodules", "--", url, "checkout"],
+                    gh, env, 75, "clone_failed")
+                git(prepared, ["config", "--local", "--add", "credential.https://github.com.helper", ""],
+                    gh, env)
+                git(prepared, ["config", "--local", "--add", "credential.https://github.com.helper",
+                               "!" + shlex.join([str(gh), "auth", "git-credential"])], gh, env)
+                # Reserve the destination without replacing an existing directory.
+                checkout.mkdir()
+                try:
+                    prepared.rename(checkout)
+                except OSError:
+                    try:
+                        checkout.rmdir()
+                    except OSError:
+                        pass
+                    raise
+    finally:
+        os.close(directory)
+
+    return {"fullName": name}
 
 if __name__ == "__main__":
     try:

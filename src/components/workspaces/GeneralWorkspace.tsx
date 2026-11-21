@@ -424,7 +424,12 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
   const [operations, setOperations] = useState<Record<string, WorkspaceOperationState>>({});
   const pendingOperations = useRef(new Set<string>());
   const changeWorkspaceStatus = useCallback(
-    async (workspaceId: string, operation: "start" | "stop", fromProvider = false) => {
+    async (
+      workspaceId: string,
+      operation: "start" | "stop",
+      fromProvider = false,
+      showDetails = true,
+    ) => {
       if (pendingOperations.current.has(workspaceId)) return;
       pendingOperations.current.add(workspaceId);
       const providerWindows = (available: CoderWorkspace[]) => {
@@ -446,7 +451,7 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       const waitForAgent = fromProvider || selectedBuilds.size > 0;
       setOperations((current) => ({ ...current, [workspaceId]: { pending: operation } }));
       try {
-        openHiveTool({ tool: "workspace-details", workspaceId });
+        if (showDetails) openHiveTool({ tool: "workspace-details", workspaceId });
         const result =
           operation === "start"
             ? await startWorkspaceAction({
@@ -551,6 +556,8 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
     onError: setNotice,
     onStart: start,
     onStop: stop,
+    operations,
+    onStartForProjects: (id) => changeWorkspaceStatus(id, "start", true, false),
     initialWorkspaceId: active?.workspaceId,
     additionalActions: windowActions,
   });

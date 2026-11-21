@@ -1,231 +1,92 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { projectCheckoutCommand, projectCheckoutScript } from "@/lib/projects/checkout-command";
 
-const home = mkdtempSync(join(tmpdir(), "hive-project-checkout-"));
-const gitRemote = join(home, "remote");
-const checkout = join(home, ".local/share/hive/project-checkouts/12-34/checkout");
-const procRoot = join(home, "proc");
-const fixture = { HOME: home, TMUX_TMPDIR: home, PATH: `${join(home, "bin")}:${process.env.PATH}` };
-const env = { ...process.env, ...fixture };
+let root: string;
+let remote: string;
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), "hive-project-checkout-"));
+  remote = join(root, "remote");
+  mkdirSync(remote);
+  git(remote, "init", "-b", "main");
+  writeFileSync(join(remote, "README.md"), "project\n");
+  git(remote, "add", "README.md");
+  git(
+    remote,
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.test",
+    "commit",
+    "-m",
+    "initial",
+  );
+});
+afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 function git(cwd: string, ...args: string[]) {
-  return execFileSync("git", args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+  return execFileSync("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function manage(action: "open" | "cleanup") {
-  // Use a controlled process inventory, even on CI hosts where other
-  // same-user processes are visible but their procfs links are restricted.
-  // Git, tmux and checkout filesystem checks still use real fixtures.
+function prepare() {
   const harness = `
 import json, os, pathlib, sys
 scope = {"__name__": "fixture"}
 exec(sys.argv[1], scope)
-remote = sys.argv[2]
-scope["resolve"] = lambda home, account, repo: ("owner/repo", "https://github.com/owner/repo.git", "gh", os.environ)
+pathlib.Path.home = lambda: pathlib.Path(sys.argv[2])
+remote = sys.argv[3]
+url = "https://github.com/owner/repo.git"
+scope["resolve"] = lambda home, account, repo: ("owner/repo", url, "gh", os.environ)
 def fixture_git(cwd, args, gh, env, timeout=12, code="checkout_unavailable"):
-    if args == ["remote", "get-url", "origin"]:
-        assert scope["run"](["git", *args], cwd, env, timeout, code).decode().strip() == remote
-        return b"https://github.com/owner/repo.git"
-    mapped = [remote if item == "https://github.com/owner/repo.git" else item for item in args]
-    return scope["run"](["git", *mapped], cwd, env, timeout, code)
+    mapped = [remote if item == url else item for item in args]
+    result = scope["run"](["git", *mapped], cwd, env, timeout, code)
+    if args[0] == "clone":
+        scope["run"](["git", "remote", "set-url", "origin", url], cwd / "checkout")
+    return result
 scope["git"] = fixture_git
-in_use = scope["in_use"]
-scope["in_use"] = lambda path: in_use(path, pathlib.Path(sys.argv[4]))
 try:
-    print(json.dumps(scope["main"]({"action": sys.argv[3], "providerAccountId": "12", "repositoryId": "34"})))
+    print(json.dumps(scope["main"]({"providerAccountId": "12", "repositoryId": "34"})))
 except scope["ProjectError"] as error:
     print(json.dumps({"error": str(error)}))
 `;
   return JSON.parse(
-    execFileSync("python3", ["-c", harness, projectCheckoutScript, gitRemote, action, procRoot], {
-      env,
+    execFileSync("python3", ["-c", harness, projectCheckoutScript, root, remote], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }),
   );
 }
 
-afterAll(() => {
-  try {
-    execFileSync("tmux", ["-L", "web", "kill-server"], { env, stdio: "ignore" });
-  } catch {
-    // The session can already have exited.
-  }
-  rmSync(home, { recursive: true, force: true });
-});
-
-it("passes the fixed project program through the workspace shell", () => {
+it("passes the fixed program through the workspace shell and rejects unsafe identifiers", () => {
   const result = execFileSync("bash", ["-c", projectCheckoutCommand], {
-    input: JSON.stringify({ action: "open", providerAccountId: "12", repositoryId: "../outside" }),
+    input: JSON.stringify({ providerAccountId: "12", repositoryId: "../outside" }),
     encoding: "utf8",
   });
   expect(JSON.parse(result)).toEqual({ error: "checkout_unavailable" });
 });
 
-function launchYarnProject(lockfile: string, packageManager?: string, yarnConfig?: string) {
-  const directory = mkdtempSync(join(home, "yarn-"));
-  const bin = join(directory, "bin");
-  const root = join(directory, "checkout");
-  mkdirSync(bin);
-  mkdirSync(root);
-  writeFileSync(join(root, "package.json"), JSON.stringify({ packageManager }));
-  writeFileSync(join(root, "yarn.lock"), lockfile);
-  if (yarnConfig) writeFileSync(join(root, ".yarnrc.yml"), yarnConfig);
-  for (const executable of ["corepack", "yarn"]) {
-    writeFileSync(
-      join(bin, executable),
-      '#!/bin/sh\nprintf "%s\\n" "$0" "$*" "$COREPACK_ENABLE_PROJECT_SPEC" "$YARN_RC_FILENAME" > "$HOME/install"\n',
-      { mode: 0o755 },
-    );
-  }
-  const codex = join(bin, "codex");
-  writeFileSync(codex, '#!/bin/sh\npwd > "$HOME/codex-cwd"\n', { mode: 0o755 });
-  const harness = `
-import os, sys
-scope = {"__name__": "fixture"}
-exec(sys.argv[1], scope)
-os.execv(sys.executable, [sys.executable, "-c", scope["LAUNCH"], sys.argv[2]])
-`;
-  const output = execFileSync("python3", ["-c", harness, projectCheckoutScript, codex], {
-    cwd: root,
-    env: { ...env, HOME: directory, PATH: `${bin}:${env.PATH}` },
-    encoding: "utf8",
-  });
-  expect(readFileSync(join(directory, "codex-cwd"), "utf8").trim()).toBe(root);
-  const invocation = join(directory, "install");
-  return {
-    output,
-    command: existsSync(invocation) ? readFileSync(invocation, "utf8").trimEnd().split("\n") : [],
-  };
-}
-
-it("leaves custom Yarn configuration for the user to review in Codex", () => {
-  const { output, command } = launchYarnProject(
-    "__metadata:\n  version: 8\n",
-    "yarn@4.14.1",
-    "plugins:\n  - path: .yarn/plugins/custom.cjs\n",
-  );
-  expect(command).toEqual([]);
-  expect(output).toContain("custom Yarn configuration");
+it("clones to the owner/repository directory and preserves local changes on reopen", () => {
+  const checkout = join(root, "projects", "owner", "repo");
+  expect(prepare()).toEqual({ fullName: "owner/repo" });
+  expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("project\n");
+  git(checkout, "remote", "set-url", "origin", "git@github.com:Owner/Repo.git");
+  writeFileSync(join(checkout, "README.md"), "local changes\n");
+  expect(prepare()).toEqual({ fullName: "owner/repo" });
+  expect(readFileSync(join(checkout, "README.md"), "utf8")).toBe("local changes\n");
+  git(checkout, "remote", "set-url", "origin", "git@github.com:owner/other.git");
+  expect(prepare()).toEqual({ error: "checkout_unavailable" });
 });
 
-it("selects Yarn Classic through Corepack for an unpinned v1 lockfile", () => {
-  const { command } = launchYarnProject("# THIS IS AN AUTOGENERATED FILE\n# yarn lockfile v1\n");
-  expect(command[0]).toMatch(/\/corepack$/);
-  expect(command[1]).toBe(
-    "yarn@1.22.22 install --no-default-rc --frozen-lockfile --ignore-scripts",
-  );
-  expect(command[2]).toBe("0");
+it("preserves an existing folder and refuses a symlinked owner directory", () => {
+  const parent = join(root, "projects", "owner");
+  mkdirSync(join(parent, "repo"), { recursive: true });
+  writeFileSync(join(parent, "repo", "important"), "keep");
+  expect(prepare()).toEqual({ error: "checkout_unavailable" });
+  expect(readFileSync(join(parent, "repo", "important"), "utf8")).toBe("keep");
+  rmSync(parent, { recursive: true });
+  symlinkSync(remote, parent, "dir");
+  expect(prepare()).toEqual({ error: "checkout_unavailable" });
 });
-
-it("honors a pinned modern Yarn version with configuration loading isolated", () => {
-  const { command } = launchYarnProject("__metadata:\n  version: 8\n", "yarn@4.14.1");
-  expect(command[0]).toMatch(/\/corepack$/);
-  expect(command[1]).toBe("yarn@4.14.1 install --immutable --mode=skip-build");
-  expect(command[2]).toBe("0");
-  expect(command[3]).toMatch(/^\.hive-yarnrc-[a-f0-9]{32}$/);
-});
-
-const localTmuxAvailable = process.platform === "linux" && spawnSync("tmux", ["-V"]).status === 0;
-it.skipIf(!localTmuxAvailable)(
-  "prepares and reuses a real checkout and only cleans published work",
-  async () => {
-    mkdirSync(gitRemote);
-    mkdirSync(join(home, "bin"));
-    mkdirSync(join(procRoot, "self"), { recursive: true });
-    writeFileSync(join(procRoot, "self/mountinfo"), "");
-    writeFileSync(
-      join(home, "bin", "codex"),
-      '#!/bin/sh\nprintf "%s" "$PULSE_SERVER" > "$HOME/codex-pulse"\npwd > "$HOME/codex-cwd"\nexec sleep 30\n',
-      {
-        mode: 0o755,
-      },
-    );
-    writeFileSync(
-      join(home, "bin", "hive-audio"),
-      '#!/bin/sh\nprintf "%s" "$*" > "$HOME/audio-args"\nprintf "%s\\n" "unix:/tmp/project-fixture.sock"\n',
-      { mode: 0o755 },
-    );
-    git(gitRemote, "init", "-b", "main");
-    git(gitRemote, "config", "receive.denyCurrentBranch", "ignore");
-    writeFileSync(join(gitRemote, "README.md"), "project\n");
-    writeFileSync(join(gitRemote, ".gitignore"), "node_modules/\n.local-secret\n");
-    writeFileSync(join(gitRemote, "package.json"), '{"packageManager":"pnpm@10.32.1"}');
-    writeFileSync(join(gitRemote, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
-    writeFileSync(
-      join(home, "bin", "pnpm"),
-      '#!/bin/sh\nprintf "%s" "$*" > "$HOME/install-args"\nmkdir node_modules\n',
-      {
-        mode: 0o755,
-      },
-    );
-    git(gitRemote, "add", ".");
-    git(
-      gitRemote,
-      "-c",
-      "user.name=Test",
-      "-c",
-      "user.email=test@example.test",
-      "commit",
-      "-m",
-      "initial",
-    );
-
-    const project = manage("open");
-    expect(project).toMatchObject({ status: "opened", fullName: "owner/repo" });
-    await vi.waitFor(() =>
-      expect(readFileSync(join(home, "codex-cwd"), "utf8").trim()).toBe(checkout),
-    );
-    expect(readFileSync(join(home, "install-args"), "utf8")).toBe(
-      "install --frozen-lockfile --ignore-scripts --ignore-pnpmfile",
-    );
-    expect(readFileSync(join(home, "audio-args"), "utf8")).toBe(
-      `prepare -- ${project.sessionName}`,
-    );
-    expect(readFileSync(join(home, "codex-pulse"), "utf8")).toBe("unix:/tmp/project-fixture.sock");
-    expect(manage("open")).toEqual(project);
-    expect(manage("cleanup")).toEqual({ error: "checkout_in_use" });
-    execFileSync("tmux", ["-L", "web", "kill-session", "-t", `=${project.sessionName}`], { env });
-
-    const consumer = join(procRoot, "1234");
-    mkdirSync(join(consumer, "fd"), { recursive: true });
-    writeFileSync(join(consumer, "status"), `State:\tS\nUid:\t${process.getuid?.()}\n`);
-    symlinkSync(checkout, join(consumer, "cwd"), "dir");
-    expect(manage("cleanup")).toEqual({ error: "checkout_in_use" });
-    rmSync(consumer, { recursive: true });
-
-    writeFileSync(join(checkout, ".local-secret"), "keep");
-    await vi.waitFor(() => expect(manage("cleanup")).toEqual({ error: "checkout_dirty" }));
-    rmSync(join(checkout, ".local-secret"));
-    writeFileSync(join(checkout, "README.md"), "edited\n");
-    expect(manage("cleanup")).toEqual({ error: "checkout_dirty" });
-    git(checkout, "add", "README.md");
-    git(
-      checkout,
-      "-c",
-      "user.name=Test",
-      "-c",
-      "user.email=test@example.test",
-      "commit",
-      "-m",
-      "edit",
-    );
-    expect(manage("cleanup")).toEqual({ error: "checkout_unpublished" });
-    git(checkout, "push", "origin", "main");
-    await vi.waitFor(() => expect(manage("cleanup")).toEqual({ status: "removed" }));
-    expect(manage("cleanup")).toEqual({ status: "absent" });
-  },
-  12_000,
-);

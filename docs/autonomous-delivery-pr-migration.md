@@ -217,6 +217,6 @@ P04 merged through [PR455](https://github.com/kethalia/hive/pull/455) at
 enrollment, repository identity, pagination and checkout preservation.
 
 P05 starts with the [interactive Projects workflow](https://github.com/kethalia/hive/pull/457).
-Select an available GitHub repository to prepare a checkout, install supported
-dependencies, and open Codex in the repository. End the session and publish or
-preserve the work before requesting checkout cleanup.
+Open Projects in the context palette to browse the selected workspace’s GitHub
+repositories. Enter opens the repository terminal, cloning into
+`~/projects/<owner>/<repository>` when the checkout is absent.

@@ -2,14 +2,17 @@
 
 import { z } from "zod";
 import { getCoderClientForUser } from "@/lib/coder/user-client";
+import { discoveryCacheKey, invalidateDiscovery } from "@/lib/discovery/server-cache";
+import { resolveConfiguredProjectsRoot } from "@/lib/git/clone-actions-contract";
+import { createCloneSessionKey, createSafeCloneTerminalSessionName } from "@/lib/git/clone-tree";
 import { projectCheckoutCommand } from "@/lib/projects/checkout-command";
 import { authActionClient } from "@/lib/safe-action";
 import { execInWorkspace } from "@/lib/workspace/exec";
+import type { GeneralPane } from "@/lib/workspaces/general-workspace";
 
 const githubId = z.string().regex(/^[1-9][0-9]{0,19}$/);
 const input = z
   .object({
-    action: z.enum(["open", "cleanup"]),
     workspaceId: z.string().uuid(),
     buildId: z.string().uuid(),
     repositoryId: githubId,
@@ -21,33 +24,25 @@ const errors = {
   github_account_changed:
     "The GitHub account changed. Refresh Projects and select the repository again.",
   checkout_unavailable: "Could not use this project checkout. Check the workspace and try again.",
-  checkout_busy: "This project is already preparing or cleaning up. Try again shortly.",
+  checkout_busy: "A checkout for this owner is already being prepared. Try again shortly.",
   clone_failed: "Could not clone the repository. Check workspace GitHub access and try again.",
-  codex_unavailable:
-    "Could not start Codex. Check that Codex and tmux are available in this workspace.",
-  checkout_in_use: "This checkout is in use. Exit Codex and close any other sessions using it.",
-  checkout_dirty: "This checkout has local changes or files. Save your work before cleaning up.",
-  cleanup_unverified:
-    "Could not confirm the checkout was safe to remove. Try again after closing workspace sessions and checking GitHub access.",
-  checkout_unpublished:
-    "This checkout has unpublished commits. Push or preserve them before cleaning up.",
 };
 const reply = z.union([
-  z.object({ status: z.enum(["absent", "removed"]) }),
   z.object({
-    status: z.literal("opened"),
-    sessionName: z.string().regex(/^hive-project-[0-9a-f]{32}$/),
-    fullName: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/),
+    fullName: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/)
+      .refine((name) => !name.endsWith("/.") && !name.endsWith("/..")),
   }),
   z.object({ error: z.string() }),
 ]);
 
-export const manageProjectCheckoutAction = authActionClient
+export const openProjectTerminalAction = authActionClient
   .inputSchema(input)
-  .action(async ({ ctx, parsedInput }) => {
+  .action(async ({ ctx, parsedInput }): Promise<GeneralPane> => {
     if (process.env.HIVE_PROJECT_DISCOVERY_ENABLED !== "true")
       throw new Error("Projects are unavailable on this Hive deployment.");
-    const { workspaceId, buildId, action } = parsedInput;
+    const { workspaceId, buildId } = parsedInput;
     const client = await getCoderClientForUser(ctx.user.id);
     const workspace = await client.getWorkspace(workspaceId);
     if (workspace.owner_id !== ctx.user.coderUserId || workspace.id !== workspaceId)
@@ -89,15 +84,32 @@ export const manageProjectCheckoutAction = authActionClient
           ? errors[result.data.error as keyof typeof errors]
           : "Could not complete the project operation.",
       );
-    if (action === "cleanup" && result.data.status !== "opened") return result.data;
-    if (action !== "open" || result.data.status !== "opened")
-      throw new Error("The workspace returned an invalid project result.");
     const latest = await client.getWorkspace(workspaceId);
     if (
       latest.owner_id !== ctx.user.coderUserId ||
       latest.latest_build.id !== buildId ||
       latest.latest_build.status !== "running"
     )
-      throw new Error("The workspace build changed before Codex could open.");
-    return result.data;
+      throw new Error("The workspace build changed before the terminal could open.");
+    const [owner, name] = result.data.fullName.split("/");
+    await invalidateDiscovery(
+      discoveryCacheKey([
+        "repositories",
+        client.getBaseUrl(),
+        ctx.user.id,
+        workspaceId,
+        buildId,
+        resolveConfiguredProjectsRoot(),
+      ]),
+    );
+    const segments = ["projects", owner, name];
+    const cloneSessionKey = createCloneSessionKey(segments);
+    return {
+      kind: "terminal",
+      workspaceId,
+      label: result.data.fullName,
+      cloneSessionKey,
+      relativePath: segments.join("/"),
+      sessionName: createSafeCloneTerminalSessionName(cloneSessionKey),
+    };
   });

@@ -29,7 +29,6 @@ export const hiveToolSchema = z
   .enum([
     "agents",
     "projects",
-    "managed-projects",
     "accounts",
     "codex-account",
     "claude-account",
@@ -47,7 +46,6 @@ export const hiveToolLabels: Record<HiveTool, string> = {
   logs: "Logs",
   agents: "Agents",
   projects: "GitHub",
-  "managed-projects": "Projects",
   "codex-account": "Codex",
   "claude-account": "Claude",
   diagnostics: "Diagnostics",
@@ -60,7 +58,7 @@ export function isAccountTool(tool: HiveTool): tool is AccountTool {
   return tool === "codex-account" || tool === "claude-account";
 }
 export function isWorkspaceProviderTool(tool: HiveTool) {
-  return isAccountTool(tool) || tool === "projects" || tool === "managed-projects";
+  return isAccountTool(tool) || tool === "projects";
 }
 export function defaultProviderWorkspace(workspaces: CoderWorkspace[]) {
   return (

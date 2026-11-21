@@ -156,13 +156,6 @@ export function DashboardKeyboardController() {
           ...(projectDiscoveryEnabled
             ? ([
                 [
-                  "managed-projects",
-                  "Projects",
-                  "Open GitHub repositories in Codex",
-                  undefined,
-                  ["Browse projects", "Open repository", "Clean up checkout"],
-                ],
-                [
                   "projects",
                   "GitHub",
                   "Manage your connection and browse repositories",
