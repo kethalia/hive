@@ -95,3 +95,73 @@ test("database roles remain isolated at the native Worker boundary", async () =>
     assert.equal((await worker.fetch(new Request(previewOrigin), env, context)).status, 503);
   }
 });
+
+const htmlWorker = createNativeWorker({
+  app: {
+    fetch(request) {
+      const path = new URL(request.url).pathname;
+      const policy =
+        path === "/api/private"
+          ? "default-src 'none'; frame-ancestors 'none'"
+          : "default-src 'self'; frame-ancestors 'self'; frame-src 'self'; object-src 'none'";
+      return new Response("<main>Hive</main>", {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Security-Policy": policy,
+          "X-Frame-Options": "SAMEORIGIN",
+          "Permissions-Policy":
+            'clipboard-read=(self "https://coder.kethalia.com"), clipboard-write=(self "https://coder.kethalia.com" "https://*.apps.example.com")',
+        },
+      });
+    },
+  },
+  auth: {},
+});
+
+test("only the launcher document allows its exact preview origin", async () => {
+  const launch = await htmlWorker.fetch(
+    new Request(`${production.HIVE_PUBLIC_ORIGIN}/app-preview/codex-projects-p05`),
+    production,
+    context,
+  );
+  assert.equal(
+    launch.headers.get("Content-Security-Policy"),
+    `default-src 'self'; frame-ancestors 'self'; frame-src ${previewOrigin}; object-src 'none'`,
+  );
+  assert.equal(launch.headers.get("X-Frame-Options"), "SAMEORIGIN");
+  assert.equal(launch.headers.get("Cache-Control"), "private, no-store");
+  assert.equal(
+    launch.headers.get("Permissions-Policy"),
+    `camera=(), geolocation=(), microphone=(self "${previewOrigin}"), payment=(), usb=(), clipboard-read=(self "${previewOrigin}" "https://coder.kethalia.com"), clipboard-write=(self "${previewOrigin}" "https://coder.kethalia.com" "https://*.apps.example.com")`,
+  );
+  for (const path of ["/settings", "/app-preview/extra.example", "/app-preview/a/b"]) {
+    const document = await htmlWorker.fetch(
+      new Request(production.HIVE_PUBLIC_ORIGIN + path),
+      production,
+      context,
+    );
+    assert.match(document.headers.get("Content-Security-Policy"), /frame-src 'self';/);
+  }
+});
+
+test("native preview pages can be framed by Hive while custom API framing policy is kept", async () => {
+  for (const path of ["/workspaces", "/login"]) {
+    const previewDocument = await htmlWorker.fetch(
+      new Request(previewOrigin + path),
+      preview,
+      context,
+    );
+    assert.match(
+      previewDocument.headers.get("Content-Security-Policy"),
+      /frame-ancestors 'self' https:\/\/hive\.kethalia\.com;/,
+    );
+    assert.equal(previewDocument.headers.get("X-Frame-Options"), null);
+  }
+  const privateDocument = await htmlWorker.fetch(
+    new Request(`${previewOrigin}/api/private`),
+    preview,
+    context,
+  );
+  assert.match(privateDocument.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
+  assert.equal(privateDocument.headers.get("X-Frame-Options"), "SAMEORIGIN");
+});

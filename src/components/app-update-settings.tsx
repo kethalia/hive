@@ -1,20 +1,24 @@
 "use client";
 
 import { ChevronRight, Download, Loader2, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppPreviewVersions } from "@/components/app-preview-versions";
 import { Button } from "@/components/ui/button";
 import { checkAppVersion, refreshInstalledApp } from "@/lib/app-update";
 import { APP_VERSION, type AppVersion, hasAppUpdate } from "@/lib/app-version";
 
-export function AppUpdateSettings() {
+export function AppUpdateSettings({ active }: { active: boolean }) {
   const [deployed, setDeployed] = useState<AppVersion | null>(null);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const [checkFailed, setCheckFailed] = useState(false);
   const [busy, setBusy] = useState<"checking" | "updating" | null>(null);
   const [error, setError] = useState("");
+  const operationInProgress = useRef(false);
   const available = deployed !== null && hasAppUpdate(APP_VERSION, deployed);
 
-  async function check() {
+  const check = useCallback(async () => {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
     setBusy("checking");
     setError("");
 
@@ -26,11 +30,18 @@ export function AppUpdateSettings() {
       setCheckFailed(true);
       setError("Could not check for updates. Check your connection and try again.");
     } finally {
+      operationInProgress.current = false;
       setBusy(null);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (active) void check();
+  }, [active, check]);
 
   async function update() {
+    if (operationInProgress.current) return;
+    operationInProgress.current = true;
     setBusy("updating");
     setError("");
     try {
@@ -38,6 +49,7 @@ export function AppUpdateSettings() {
       await checkAppVersion();
       await refreshInstalledApp();
     } catch {
+      operationInProgress.current = false;
       setError("Could not update Hive. Check your connection and try again.");
       setBusy(null);
     }
@@ -53,7 +65,10 @@ export function AppUpdateSettings() {
           </div>
           <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 px-3 py-2.5">
             <dt>{available ? "Available" : "Latest"}</dt>
-            <dd className="break-all font-medium">{deployed?.version ?? "Not checked"}</dd>
+            <dd className="break-all font-medium">
+              {deployed?.version ??
+                (busy === "checking" ? "Checking…" : checkFailed ? "Unavailable" : "Not checked")}
+            </dd>
           </div>
         </dl>
         <div className="flex flex-wrap items-start justify-between gap-2 p-2.5">
@@ -129,6 +144,7 @@ export function AppUpdateSettings() {
           Updating reloads Hive. Your workspace sessions keep running.
         </p>
       )}
+      <AppPreviewVersions />
     </div>
   );
 }

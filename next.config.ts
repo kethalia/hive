@@ -20,7 +20,12 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_HIVE_APP_VERSION: version,
     ...(cloudflareBuild
-      ? { HIVE_RUNTIME_TARGET: "cloudflare", HIVE_DISABLE_BACKGROUND_WORKERS: "true" }
+      ? {
+          HIVE_RUNTIME_TARGET: "cloudflare",
+          HIVE_DISABLE_BACKGROUND_WORKERS: "true",
+          HIVE_PROVIDER_BUILD_BRANCH: process.env.HIVE_PROVIDER_BUILD_BRANCH ?? "",
+          HIVE_PROVIDER_BUILD_SHA: process.env.HIVE_PROVIDER_BUILD_SHA ?? "",
+        }
       : {}),
     NEXT_PUBLIC_HIVE_APP_BUILD: process.env.NODE_ENV === "production" ? appBuildId : "development",
   },

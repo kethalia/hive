@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { AppPreviewReady } from "@/components/app-preview-ready";
 import {
   CODER_FRAME_HOSTS_META,
   CODER_FRAME_HOSTS_REQUEST_HEADER,
@@ -49,6 +50,7 @@ export default async function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className="font-sans antialiased">
+        {process.env.HIVE_NATIVE_MODE === "preview" && <AppPreviewReady />}
         <a className="skip-link" href="#main-content">
           Skip to main content
         </a>

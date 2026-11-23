@@ -28,7 +28,7 @@ const preserved = join(directory, `node-next-${randomUUID()}`);
 let saved = false;
 let staged = false;
 try {
-  readProviderBuildIdentity();
+  const providerBuild = readProviderBuildIdentity();
   await unlink(READY_FILE).catch((error) => {
     if (error.code !== "ENOENT") throw error;
   });
@@ -59,6 +59,10 @@ try {
           ...process.env,
           HIVE_RUNTIME_TARGET: "cloudflare",
           HIVE_DISABLE_BACKGROUND_WORKERS: "true",
+          HIVE_PROVIDER_BUILD_BRANCH:
+            providerBuild.status === "available" ? providerBuild.branch : "",
+          HIVE_PROVIDER_BUILD_SHA:
+            providerBuild.status === "available" ? providerBuild.sourceSha : "",
         },
       },
     );

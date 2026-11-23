@@ -6,6 +6,7 @@ import { DashboardPageHeader } from "@/components/dashboard-page-header";
 import { DashboardPageShell } from "@/components/dashboard-page-shell";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { isEmbeddedAppPreview } from "@/lib/app-preview-origin.mjs";
 import { testPushAction } from "@/lib/push/actions";
 import {
   DEVICE_DISABLED_KEY,
@@ -76,6 +77,10 @@ export function NotificationSettings({
 
   useEffect(() => {
     setSound(localStorage.getItem(SOUND_KEY) !== "false");
+    if (isEmbeddedAppPreview()) {
+      setStatus("Open this preview in your browser to set up push notifications.");
+      return;
+    }
     const available =
       window.isSecureContext &&
       "Notification" in window &&
