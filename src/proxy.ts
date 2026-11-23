@@ -36,6 +36,9 @@ export async function proxy(request: NextRequest) {
     // These APIs handle authentication in their routes and return JSON errors.
     pathname.startsWith("/api/discovery/") ||
     pathname === "/api/projects" ||
+    pathname === "/api/projects/open" ||
+    /^\/api\/projects\/[0-9a-f-]+\/(?:session-grant|terminal-grant)$/i.test(pathname) ||
+    /^\/api\/codex-host\/registrations(?:\/[0-9a-f-]+\/heartbeat)?$/i.test(pathname) ||
     /^\/api\/workspaces\/[^/]+\/(?:codex-account|claude-account|build-logs)$/.test(pathname) ||
     pathname === "/api/github/connection" ||
     pathname === "/api/notifications/events" ||

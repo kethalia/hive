@@ -485,6 +485,7 @@ model DeliveryEvidence {
 }
 
 model DeliveryEvent {
+  maintenanceEpochBindings DeliveryManagerBinding[] @relation("MaintenanceResumeIntent")
   id               String @id @db.Uuid
   ownerId          String @map("owner_id") @db.Uuid
   taskId           String @map("task_id") @db.Uuid
@@ -564,6 +565,8 @@ model DeliveryOutbox {
 // Registration authority only. All host rows are tenant-bound; grants store digests,
 // never signed bearer grants. A slot serializes every lifetime transition.
 model CodexHostSlot {
+  accountMaintenance Json? @map("account_maintenance")
+  accountMaintenanceVersion Int @default(0) @map("account_maintenance_version")
   id String @id @default(uuid()) @db.Uuid
   ownerId String @map("owner_id") @db.Uuid
   coderOrigin String @map("coder_origin")
@@ -681,6 +684,12 @@ model ProjectTaskIntent {
 // and short-lived host registration credentials. The intent row serializes all
 // lifetimes before one native writer can claim this checkout.
 model DeliveryManagerBinding {
+  executionEpochVersion Int @default(0) @map("execution_epoch_version")
+  executionEpochRuntimeId String? @map("execution_epoch_runtime_id") @db.Uuid
+  executionEpochEventId String? @map("execution_epoch_event_id") @db.Uuid
+  executionEpochResumeEventId String? @map("execution_epoch_resume_event_id") @db.Uuid
+  executionEpochReceipt CodexGuardianOperationReceipt? @relation("MaintenanceEpochReceipt", fields: [ownerId, executionEpochRuntimeId, executionEpochEventId], references: [ownerId, runtimeId, eventId], onDelete: Restrict, onUpdate: NoAction, map: "manager_maintenance_epoch_receipt_fk")
+  executionEpochResumeEvent DeliveryEvent? @relation("MaintenanceResumeIntent", fields: [ownerId, executionEpochResumeEventId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "manager_maintenance_resume_event_fk")
   id String @id @db.Uuid
   ownerId String @map("owner_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
@@ -764,6 +773,9 @@ model DeliverySourceRevision {
 // Explicit guardian enrollment is independent of native registration: preparation
 // precedes root creation. All runtime authority is server-persisted and tenant-bound.
 model CodexGuardianRuntime {
+  operationReceiptsEnabled Boolean @default(false) @map("operation_receipts_enabled")
+  unusedBootstrapPredecessorBuildId String? @map("unused_bootstrap_predecessor_build_id") @db.Uuid
+  operationReceipts CodexGuardianOperationReceipt[]
   id String @id @default(uuid()) @db.Uuid
   ownerId String @map("owner_id") @db.Uuid
   slotId String @map("slot_id") @db.Uuid
@@ -853,6 +865,8 @@ model CodexGuardianAdmission {
 }
 
 model CodexGuardianBarrier {
+  purpose String @default("completion")
+  maintenanceId String? @map("maintenance_id") @db.Uuid
   id String @id @db.Uuid
   ownerId String @map("owner_id") @db.Uuid
   runtimeId String @map("runtime_id") @db.Uuid
@@ -883,4 +897,26 @@ model CodexGuardianStopDecision {
   @@unique([ownerId, id])
   @@unique([ownerId, barrierId, admissionId])
   @@map("codex_guardian_stop_decisions")
+}
+
+model CodexGuardianOperationReceipt {
+  ownerId String @map("owner_id") @db.Uuid
+  runtimeId String @map("runtime_id") @db.Uuid
+  eventId String @map("event_id") @db.Uuid
+  action String
+  requestDigest String @map("request_digest")
+  inputRuntimeGeneration Int @map("input_runtime_generation")
+  resultRuntimeGeneration Int @map("result_runtime_generation")
+  resultAdmissionGeneration Int @map("result_admission_generation")
+  response Json
+  responseDigest String @map("response_digest")
+  lifetimeId String @map("lifetime_id") @db.Uuid
+  buildId String @map("build_id") @db.Uuid
+  configSha256 String @map("config_sha256")
+  outerKeyFingerprint String @map("outer_key_fingerprint")
+  committedAt DateTime @default(dbgenerated("clock_timestamp()")) @map("committed_at") @db.Timestamptz
+  runtime CodexGuardianRuntime @relation(fields: [ownerId, runtimeId], references: [ownerId, id], onDelete: Restrict, onUpdate: NoAction, map: "guardian_operation_receipt_runtime_fk")
+  @@id([ownerId, runtimeId, eventId], map: "codex_guardian_operation_receipts_pkey")
+  @@map("codex_guardian_operation_receipts")
+  maintenanceEpochBindings DeliveryManagerBinding[] @relation("MaintenanceEpochReceipt")
 }
