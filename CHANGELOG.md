@@ -1,5 +1,55 @@
 # hive-orchestrator
 
+## 2.34.0
+
+### Minor Changes
+
+- d7bd8b1: Support the existing Hive application on Cloudflare, including repository terminals, workspace file tools, clipboard uploads, audio, notifications, template jobs and durable background processing. Add the compatibility schema and preserve existing Node deployment behavior during migration.
+- a8ea438: Serve Hive previews from the existing Cloudflare Worker with request-scoped Neon database access, in-process authentication, portable workspace/settings reads and ordinary terminal transport.
+- 37c5529: Use Better Auth for browser sign-in through the configured Coder OAuth application. Preserve Hive user identities, encrypt provider credentials, serialize rotating refreshes, and support local sign-out and Coder disconnect. Propagate OAuth bearer credentials through workspace APIs, commands, terminals, audio, and template publication.
+
+  Apply the additive Coder OAuth migration and scoped runtime grants, then configure the Coder OAuth client secret before enabling this release. Existing users complete a one-time Coder consent flow.
+
+  Open Coder consent in a separate browser window. Serve a self-contained HTML callback and keep the window open until Hive verifies its browser session. Recover through serialized same-origin session checks when popup notifications are lost or the user closes the window after consent. Preserve typed browser-navigation responses for existing callback flows.
+
+  Keep a visible workspace-loading state after successful popup sign-in until navigation completes, with a disabled button and accessible progress feedback.
+
+  Fade command-palette results beneath the directional scroll arrows and preserve keyboard selection when scrolling moves rows under a stationary pointer. Mouse movement and clicks retain selection support.
+
+  Resolve current OAuth credentials through the auth service for every Node terminal keepalive, including rotating tokens and revoked-session handling. Bind the refresh to the authenticated terminal session and configured Coder host.
+
+- 7554a83: Open the GitHub window to check, connect or reconnect your Coder account’s GitHub authorization. Browse and search workspace repositories, load more results, and inspect stable repository IDs and default branches.
+- 5b09c6c: Open accessible GitHub repositories in a dedicated Projects window. Hive prepares an isolated checkout, installs supported locked dependencies, and opens a Codex terminal in the repository. Remove the checkout from Projects after work is saved and published and all sessions using it have exited.
+- eb67070: Open native pull request previews from App updates in the installed Hive app.
+- 8dcbc43: Add separate native Codex and Claude account windows for workspace connections through a versioned, signed Hive bridge. Bind account operations to the selected workspace build and preserve credential locks, provider flow state and reconnect behavior.
+
+  Package the independent bridge, pinned Codex runtime installer and native workspace identity helper across workspace profiles. Configure matching deployment issuer keys, package pins and workspace bridge parameters for activation.
+
+  Match the Creative Studio connection experience with expiry, copy and disconnect controls, and expose native Codex usage and version-protected runtime defaults inside Accounts.
+
+  Reset command palette scrolling when the search changes and explain when the selected workspace needs enrollment or the Accounts bridge.
+
+  Add a sidebar to Codex and Settings, a focused device-code sign-in, and expandable Hive build details. Manage workspace Codex skills and plugins and browse session history and MCP integrations in Hive.
+
+  Extend the Settings and Codex sidebar dividers to the bottom of each pane and add a title-bar toggle. Give each shared Strip gutter one resize divider that moves both adjoining edges together. Keep the outer grip clear of the window border.
+
+  Animate sidebar toggles with reduced-motion support and load larger Codex plugin and integration inventories within dedicated limits.
+
+  Remember separate Codex and Claude workspace selections on this browser, and start a stopped workspace directly from either account window.
+
+  List workspaces and their status in the first tab of each account window, where users can switch workspaces or start the selected one.
+
+### Patch Changes
+
+- daf99f9: Check the latest app version when opening App updates and load preview versions even when an individual preview is unavailable.
+- 2773691: Fix preview versions failing to load in the installed app on Cloudflare Workers.
+- 483a418: Open previews fullscreen and switch back to Production from the Versions picker.
+- Updated dependencies [d7bd8b1]
+- Updated dependencies [a8ea438]
+- Updated dependencies [37c5529]
+  - @hive/db@0.4.0
+  - @hive/auth@1.1.0
+
 ## 2.33.0
 
 ### Minor Changes
