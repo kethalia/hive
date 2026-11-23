@@ -6,6 +6,10 @@ export const appPreviewBuildSchema = z.object({
   revision: z.string().regex(/^[a-f0-9]{40}$/),
 });
 
+const switchableAppPreviewBuildSchema = appPreviewBuildSchema.extend({
+  productionSwitch: z.literal(true),
+});
+
 export const appPreviewCatalogSchema = z.array(
   appPreviewBuildSchema.extend({
     slug: z.string().refine((slug) => appPreviewOrigin(slug) !== null),
@@ -32,7 +36,7 @@ export async function isAppPreviewDeployed(
         : AbortSignal.timeout(3_000),
     });
     if (!response.ok) return false;
-    const build = appPreviewBuildSchema.safeParse(await response.json());
+    const build = switchableAppPreviewBuildSchema.safeParse(await response.json());
     return (
       build.success &&
       build.data.branch === preview.branch &&

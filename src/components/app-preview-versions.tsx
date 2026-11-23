@@ -9,16 +9,22 @@ import {
   appPreviewCatalogSchema,
   isAppPreviewDeployed,
 } from "@/lib/app-preview-catalog";
-import { appPreviewPrefix, hiveProductionOrigin } from "@/lib/app-preview-origin.mjs";
+import {
+  appPreviewPrefix,
+  hiveProductionOrigin,
+  isEmbeddedAppPreview,
+  requestProduction,
+} from "@/lib/app-preview-origin.mjs";
 
 export function AppPreviewVersions() {
-  const [supported, setSupported] = useState(false);
+  const [mode, setMode] = useState<"production" | "preview" | null>(null);
   const [previews, setPreviews] = useState<AppPreview[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    setSupported(window.location.origin === hiveProductionOrigin);
+    if (window.location.origin === hiveProductionOrigin) setMode("production");
+    else if (isEmbeddedAppPreview()) setMode("preview");
   }, []);
 
   async function load() {
@@ -44,17 +50,24 @@ export function AppPreviewVersions() {
     }
   }
 
-  if (!supported) return null;
+  if (mode === null) return null;
   return (
     <details
       className="group rounded-md border bg-muted/15"
       onToggle={(event) => {
-        if (event.currentTarget.open && previews === null && !loading && !error) void load();
+        if (
+          mode === "production" &&
+          event.currentTarget.open &&
+          previews === null &&
+          !loading &&
+          !error
+        )
+          void load();
       }}
     >
       <summary className="flex min-h-11 cursor-pointer items-center gap-2 px-3 text-sm font-medium">
         <ChevronRight className="size-4 shrink-0 group-open:rotate-90" aria-hidden="true" />
-        Preview versions
+        Versions
       </summary>
       <div className="space-y-3 border-t p-3">
         {loading && previews === null && <LoadingStatus>Checking preview versions…</LoadingStatus>}
@@ -66,29 +79,42 @@ export function AppPreviewVersions() {
         {previews?.length === 0 && (
           <p className="text-sm text-muted-foreground">No pull request previews are ready.</p>
         )}
-        {previews && previews.length > 0 && (
-          <ul className="divide-y rounded-md border">
-            {previews.map((preview) => (
-              <li key={preview.slug}>
-                {/* The launcher needs a new document with its own frame policy. */}
-                <a
-                  href={appPreviewPrefix + preview.slug}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/50"
-                >
-                  <span className="min-w-0">
-                    <span className="block break-words font-medium">
-                      #{preview.number} {preview.title}
-                    </span>
-                    <span className="block break-all text-xs text-muted-foreground">
-                      {preview.branch} · {preview.revision.slice(0, 8)}
-                    </span>
+        <ul className="divide-y rounded-md border">
+          {mode === "preview" ? (
+            <li>
+              <button
+                type="button"
+                onClick={requestProduction}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-medium hover:bg-muted/50"
+              >
+                Production <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+              </button>
+            </li>
+          ) : (
+            <li aria-current="true" className="px-3 py-2.5 text-sm font-medium">
+              Production
+            </li>
+          )}
+          {previews?.map((preview) => (
+            <li key={preview.slug}>
+              {/* The launcher needs a new document with its own frame policy. */}
+              <a
+                href={appPreviewPrefix + preview.slug}
+                className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-muted/50"
+              >
+                <span className="min-w-0">
+                  <span className="block break-words font-medium">
+                    #{preview.number} {preview.title}
                   </span>
-                  <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span className="block break-all text-xs text-muted-foreground">
+                    {preview.branch} · {preview.revision.slice(0, 8)}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+              </a>
+            </li>
+          ))}
+        </ul>
         {(previews || error) && (
           <Button variant="outline" size="sm" disabled={loading} onClick={() => void load()}>
             {loading ? (
