@@ -18,6 +18,7 @@ it("reports the provider build only from its native preview origin", async () =>
   const response = reportedBuild("preview", origin, revision);
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("access-control-allow-origin")).toBe("https://hive.kethalia.com");
   expect(await response.json()).toEqual({ branch: "codex/task", revision });
 });
 

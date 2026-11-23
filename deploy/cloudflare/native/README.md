@@ -65,8 +65,9 @@ production features, then finish residual application storage retirement.
 ## Preview versions in the installed app
 
 In production Hive, open **Settings → App updates → Preview versions**. Hive
-reads the public pull requests against `main` and checks the deployed identity
-reported by each native preview. A preview appears when it reports the branch
+reads the public pull requests against `main`. The browser checks the deployed
+identity at each preview URL, since native preview routes can reject subrequests
+from the production Worker. A preview appears when it reports the branch
 and current commit of a pull request from Hive’s own repository. It opens on its
 own origin inside a production Hive page with a **Return to Hive** action. Sign in
 to the preview with Coder if prompted.

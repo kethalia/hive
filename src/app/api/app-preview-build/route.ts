@@ -1,6 +1,10 @@
 import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { appPreviewBuildSchema } from "@/lib/app-preview-catalog";
-import { appPreviewBranchSlug, appPreviewOrigin } from "@/lib/app-preview-origin.mjs";
+import {
+  appPreviewBranchSlug,
+  appPreviewOrigin,
+  hiveProductionOrigin,
+} from "@/lib/app-preview-origin.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +22,7 @@ export function GET() {
   ) {
     return Response.json({ error: "Preview build unavailable" }, { status: 404, headers });
   }
-  return Response.json(build.data, { headers });
+  return Response.json(build.data, {
+    headers: { ...headers, "Access-Control-Allow-Origin": hiveProductionOrigin },
+  });
 }
