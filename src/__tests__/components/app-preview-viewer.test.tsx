@@ -17,7 +17,7 @@ const preview = {
 beforeEach(() =>
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => Response.json(preview)),
+    vi.fn(async () => Response.json({ ...preview, productionSwitch: true })),
   ),
 );
 
@@ -33,7 +33,6 @@ it("shows the preview only after its exact frame reports readiness", async () =>
   expect(frame).toHaveAttribute("src", `${previewOrigin}/workspaces`);
   expect(frame).toHaveAttribute("inert");
   expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation");
-  expect(screen.getByRole("link", { name: "Return to Hive" })).toHaveAttribute("href", "/settings");
 
   fireEvent(
     window,
@@ -63,9 +62,11 @@ it("shows the preview only after its exact frame reports readiness", async () =>
   );
   expect(frame).not.toHaveAttribute("inert");
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 
-it("offers a direct link and retries with a fresh frame when the preview cannot load", async () => {
+it("offers Production and retries with a fresh frame when the preview cannot load", async () => {
   vi.useFakeTimers();
   await act(async () => {
     render(<AppPreviewViewer preview={preview} />);
@@ -73,10 +74,7 @@ it("offers a direct link and retries with a fresh frame when the preview cannot 
   const original = screen.getByTitle("Hive preview #12");
   act(() => vi.advanceTimersByTime(20_000));
   expect(screen.getByRole("alert")).toHaveTextContent("Could not open this build");
-  expect(screen.getByRole("link", { name: "Open in browser" })).toHaveAttribute(
-    "href",
-    `${previewOrigin}/workspaces`,
-  );
+  expect(screen.getByRole("link", { name: "Production" })).toHaveAttribute("href", "/settings");
 
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -88,7 +86,9 @@ it("offers a direct link and retries with a fresh frame when the preview cannot 
 it("keeps an outdated preview out of the iframe", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => Response.json({ ...preview, revision: "b".repeat(40) })),
+    vi.fn(async () =>
+      Response.json({ ...preview, revision: "b".repeat(40), productionSwitch: true }),
+    ),
   );
   render(<AppPreviewViewer preview={preview} />);
 

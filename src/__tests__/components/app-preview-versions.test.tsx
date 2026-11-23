@@ -32,12 +32,12 @@ it.each([
   const fetch = vi
     .fn()
     .mockResolvedValueOnce(Response.json(entries))
-    .mockResolvedValueOnce(Response.json(entries[0]))
+    .mockResolvedValueOnce(Response.json({ ...entries[0], productionSwitch: true }))
     .mockResolvedValueOnce(new Response(null, { status: responseStatus }));
   vi.stubGlobal("fetch", fetch);
   render(<AppPreviewVersions />);
 
-  const details = screen.getByText("Preview versions").closest("details");
+  const details = screen.getByText("Versions", { exact: true }).closest("details");
   if (!details) throw new Error("Preview disclosure missing");
   details.open = true;
   fireEvent(details, new Event("toggle"));
@@ -63,17 +63,18 @@ it("shows a healthy preview when a different branch cannot be reached", async ()
       if (url === "/api/app-previews?view=candidates")
         return Response.json([...entries, { ...entries[0], slug: "broken", number: 459 }]);
       if (url.startsWith("https://broken.")) throw new TypeError("Preview unreachable");
-      return Response.json(entries[0]);
+      return Response.json({ ...entries[0], productionSwitch: true });
     }),
   );
   render(<AppPreviewVersions />);
 
-  const details = screen.getByText("Preview versions").closest("details");
+  const details = screen.getByText("Versions", { exact: true }).closest("details");
   if (!details) throw new Error("Preview disclosure missing");
   details.open = true;
   fireEvent(details, new Event("toggle"));
 
   expect(await screen.findByRole("link", { name: /#458 Managed task/ })).toBeInTheDocument();
+  expect(screen.getByText("Production")).toHaveAttribute("aria-current", "true");
   expect(screen.queryByRole("link", { name: /#459/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

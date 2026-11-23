@@ -51,7 +51,9 @@ it("requires an unambiguous public preview hostname", async () => {
 });
 
 it("verifies the deployed branch and commit without sending session credentials", async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(Response.json(preview));
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(Response.json({ ...preview, productionSwitch: true }));
   vi.stubGlobal("fetch", fetch);
 
   await expect(isAppPreviewDeployed(preview)).resolves.toBe(true);
@@ -62,9 +64,10 @@ it("verifies the deployed branch and commit without sending session credentials"
 });
 
 it.each([
-  () => Response.json({ ...preview, revision: "b".repeat(40) }),
-  () => Response.json({ ...preview, branch: "codex-task" }),
-  () => Response.json({ ...preview, revision: "invalid" }),
+  () => Response.json({ ...preview, revision: "b".repeat(40), productionSwitch: true }),
+  () => Response.json({ ...preview, branch: "codex-task", productionSwitch: true }),
+  () => Response.json({ ...preview, revision: "invalid", productionSwitch: true }),
+  () => Response.json(preview),
   () => Response.redirect("https://codex-task.hive-preview.kethalia.com/login", 307),
   () => new Response(null, { status: 400 }),
 ])("skips a preview that cannot verify the current branch and commit", async (previewResponse) => {
