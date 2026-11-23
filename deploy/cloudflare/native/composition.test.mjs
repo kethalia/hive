@@ -132,7 +132,7 @@ test("only the launcher document allows its exact preview origin", async () => {
   assert.equal(launch.headers.get("Cache-Control"), "private, no-store");
   assert.equal(
     launch.headers.get("Permissions-Policy"),
-    `camera=(), geolocation=(), microphone=("${previewOrigin}"), payment=(), usb=(), clipboard-read=("${previewOrigin}" "https://coder.kethalia.com"), clipboard-write=("${previewOrigin}" "https://coder.kethalia.com" "https://*.apps.example.com")`,
+    `camera=(), geolocation=(), microphone=(self "${previewOrigin}"), payment=(), usb=(), clipboard-read=(self "${previewOrigin}" "https://coder.kethalia.com"), clipboard-write=(self "${previewOrigin}" "https://coder.kethalia.com" "https://*.apps.example.com")`,
   );
   for (const path of ["/settings", "/app-preview/extra.example", "/app-preview/a/b"]) {
     const document = await htmlWorker.fetch(

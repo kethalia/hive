@@ -9,9 +9,9 @@ const previewHost = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.hive-preview\.keth
 const workersPreviewHost = /^([a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?)-hive\.b00ste\.workers\.dev$/;
 
 function previewClipboardAllowlist(policy, feature, target) {
-  // The application policy already delegates to its configured Coder hosts.
-  // Retain those explicit origins through the new ancestor frame.
-  const origins = new Set([`"${target}"`]);
+  // The launcher needs permission itself to delegate it to the preview.
+  // Retain the application's configured Coder origins as well.
+  const origins = new Set(["self", `"${target}"`]);
   for (const [, allowlist] of policy.matchAll(new RegExp(`\\b${feature}=\\(([^)]*)\\)`, "g"))) {
     for (const origin of allowlist.match(/"https?:\/\/[^"\s()]+"/g) ?? []) origins.add(origin);
   }
@@ -49,7 +49,7 @@ function framePreviewDocument(response, request, url, mode) {
     headers.set(
       "Permissions-Policy",
       [
-        `camera=(), geolocation=(), microphone=("${target}"), payment=(), usb=()`,
+        `camera=(), geolocation=(), microphone=(self "${target}"), payment=(), usb=()`,
         previewClipboardAllowlist(existingPermissions, "clipboard-read", target),
         previewClipboardAllowlist(existingPermissions, "clipboard-write", target),
       ].join(", "),
