@@ -1,7 +1,7 @@
 import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { notFound, redirect } from "next/navigation";
 import { AppPreviewViewer, ReturnToHive } from "@/components/app-preview-viewer";
-import { readAppPreviewCatalog } from "@/lib/app-preview-catalog.server";
+import { readAppPreviewCandidates } from "@/lib/app-preview-catalog.server";
 import { appPreviewOrigin, hiveProductionOrigin } from "@/lib/app-preview-origin.mjs";
 import { getRequestSession } from "@/lib/auth/session";
 
@@ -17,7 +17,7 @@ export default async function AppPreviewPage({ params }: { params: Promise<{ slu
 
   const { slug } = await params;
   const origin = appPreviewOrigin(slug);
-  const previews = origin ? await readAppPreviewCatalog().catch(() => null) : null;
+  const previews = origin ? await readAppPreviewCandidates().catch(() => null) : null;
   const preview = previews?.find((entry) => entry.slug === slug);
   if (!origin || !preview) {
     return (
@@ -27,5 +27,5 @@ export default async function AppPreviewPage({ params }: { params: Promise<{ slu
       </main>
     );
   }
-  return <AppPreviewViewer origin={origin} number={preview.number} branch={preview.branch} />;
+  return <AppPreviewViewer preview={preview} />;
 }

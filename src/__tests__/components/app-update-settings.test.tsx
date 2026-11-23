@@ -18,17 +18,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("AppUpdateSettings", () => {
-  it("shows the loaded version and requires a check before updating", () => {
-    render(<AppUpdateSettings />);
+  it("checks the deployed version when App updates opens", async () => {
+    check.mockResolvedValue(APP_VERSION);
+    const { rerender } = render(<AppUpdateSettings active={false} />);
     expect(screen.getByText("Installed").parentElement).toHaveTextContent(APP_VERSION.version);
     expect(screen.getByRole("button", { name: "Update app" })).toBeDisabled();
     expect(check).not.toHaveBeenCalled();
+    rerender(<AppUpdateSettings active />);
+    expect(await screen.findByText("You're up to date.")).toBeInTheDocument();
+    expect(check).toHaveBeenCalledOnce();
   });
 
   it("reports when the installed app is current", async () => {
     check.mockResolvedValue(APP_VERSION);
-    render(<AppUpdateSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    render(<AppUpdateSettings active />);
     expect(await screen.findByText("You're up to date.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Update app" })).toBeDisabled();
   });
@@ -36,8 +39,7 @@ describe("AppUpdateSettings", () => {
   it("detects a new build with the same version and updates on request", async () => {
     check.mockResolvedValue({ ...APP_VERSION, buildId: "new-build" });
     update.mockResolvedValue(undefined);
-    render(<AppUpdateSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    render(<AppUpdateSettings active />);
     await screen.findByText("An app update is available.");
     expect(update).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Update app" }));
@@ -47,8 +49,7 @@ describe("AppUpdateSettings", () => {
 
   it("shows a retryable check error without offering a stale update", async () => {
     check.mockResolvedValueOnce(latest).mockRejectedValueOnce(new Error("Offline"));
-    render(<AppUpdateSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    render(<AppUpdateSettings active />);
     await screen.findByText("An app update is available.");
     fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not check for updates");
@@ -59,8 +60,7 @@ describe("AppUpdateSettings", () => {
   it("keeps the page open and permits retry when updating fails", async () => {
     check.mockResolvedValue(latest);
     update.mockRejectedValueOnce(new Error("Worker offline"));
-    render(<AppUpdateSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    render(<AppUpdateSettings active />);
     await screen.findByText("An app update is available.");
     fireEvent.click(screen.getByRole("button", { name: "Update app" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not update Hive");

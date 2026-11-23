@@ -4,6 +4,8 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
+import { type AppPreview, isAppPreviewDeployed } from "@/lib/app-preview-catalog";
+import { appPreviewOrigin } from "@/lib/app-preview-origin.mjs";
 
 export function ReturnToHive() {
   return (
@@ -13,20 +15,24 @@ export function ReturnToHive() {
   );
 }
 
-export function AppPreviewViewer({
-  origin,
-  number,
-  branch,
-}: {
-  origin: string;
-  number: number;
-  branch: string;
-}) {
+export function AppPreviewViewer({ preview }: { preview: AppPreview }) {
+  const { slug, number, branch, revision } = preview;
+  const origin = appPreviewOrigin(slug);
   const iframe = useRef<HTMLIFrameElement>(null);
   const [attempt, setAttempt] = useState(0);
-  const [mounted, setMounted] = useState(false);
+  const [verifiedAttempt, setVerifiedAttempt] = useState<number | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const href = `${origin}/workspaces`;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void isAppPreviewDeployed({ slug, branch, revision }, controller.signal).then((deployed) => {
+      if (controller.signal.aborted) return;
+      if (deployed) setVerifiedAttempt(attempt);
+      else setStatus("unavailable");
+    });
+    return () => controller.abort();
+  }, [attempt, slug, branch, revision]);
 
   useEffect(() => {
     if (status === "ready") return;
@@ -43,7 +49,6 @@ export function AppPreviewViewer({
       }
     }
     window.addEventListener("message", ready);
-    setMounted(true);
     return () => {
       window.clearTimeout(timeout);
       window.removeEventListener("message", ready);
@@ -69,7 +74,7 @@ export function AppPreviewViewer({
         </div>
       </header>
       <div className="relative min-h-0 flex-1">
-        {mounted && (
+        {verifiedAttempt === attempt && (
           <iframe
             key={attempt}
             ref={iframe}

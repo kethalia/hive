@@ -2,15 +2,18 @@
 
 import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
-import { appPreviewCatalogSchema } from "@/lib/app-preview-catalog";
+import {
+  type AppPreview,
+  appPreviewCatalogSchema,
+  isAppPreviewDeployed,
+} from "@/lib/app-preview-catalog";
 import { appPreviewPrefix, hiveProductionOrigin } from "@/lib/app-preview-origin.mjs";
 
 export function AppPreviewVersions() {
   const [supported, setSupported] = useState(false);
-  const [previews, setPreviews] = useState<z.infer<typeof appPreviewCatalogSchema> | null>(null);
+  const [previews, setPreviews] = useState<AppPreview[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -22,14 +25,18 @@ export function AppPreviewVersions() {
     setLoading(true);
     setError(false);
     try {
-      const result = await fetch("/api/app-previews", {
+      const result = await fetch("/api/app-previews?view=candidates", {
         cache: "no-store",
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
       if ([401, 403].includes(result.status)) setPreviews(null);
       if (!result.ok) throw new Error("Preview catalog unavailable");
-      setPreviews(appPreviewCatalogSchema.parse(await result.json()));
+      const candidates = appPreviewCatalogSchema.parse(await result.json());
+      const ready = await Promise.all(
+        candidates.map((candidate) => isAppPreviewDeployed(candidate)),
+      );
+      setPreviews(candidates.filter((_, index) => ready[index]));
     } catch {
       setError(true);
     } finally {

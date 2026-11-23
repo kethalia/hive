@@ -109,7 +109,7 @@ export function SettingsContent({
           <h2 id="app-updates-heading" className="text-base font-medium">
             App updates
           </h2>
-          <AppUpdateSettings />
+          <AppUpdateSettings active={section === "updates"} />
         </section>
         <section
           id="notifications"
