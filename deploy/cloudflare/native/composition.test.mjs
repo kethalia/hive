@@ -109,6 +109,8 @@ const htmlWorker = createNativeWorker({
           "Content-Type": "text/html; charset=utf-8",
           "Content-Security-Policy": policy,
           "X-Frame-Options": "SAMEORIGIN",
+          "Permissions-Policy":
+            'clipboard-read=(self "https://coder.kethalia.com"), clipboard-write=(self "https://coder.kethalia.com" "https://*.apps.example.com")',
         },
       });
     },
@@ -128,6 +130,10 @@ test("only the launcher document allows its exact preview origin", async () => {
   );
   assert.equal(launch.headers.get("X-Frame-Options"), "SAMEORIGIN");
   assert.equal(launch.headers.get("Cache-Control"), "private, no-store");
+  assert.equal(
+    launch.headers.get("Permissions-Policy"),
+    `camera=(), geolocation=(), microphone=("${previewOrigin}"), payment=(), usb=(), clipboard-read=("${previewOrigin}" "https://coder.kethalia.com"), clipboard-write=("${previewOrigin}" "https://coder.kethalia.com" "https://*.apps.example.com")`,
+  );
   for (const path of ["/settings", "/app-preview/extra.example", "/app-preview/a/b"]) {
     const document = await htmlWorker.fetch(
       new Request(production.HIVE_PUBLIC_ORIGIN + path),

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,10 @@ export function AppPreviewVersions() {
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
+      if ([401, 403].includes(result.status)) setPreviews(null);
       if (!result.ok) throw new Error("Preview catalog unavailable");
       setPreviews(appPreviewCatalogSchema.parse(await result.json()));
     } catch {
-      setPreviews(null);
       setError(true);
     } finally {
       setLoading(false);
@@ -50,7 +50,7 @@ export function AppPreviewVersions() {
         Preview versions
       </summary>
       <div className="space-y-3 border-t p-3">
-        {loading && <LoadingStatus>Checking preview versions…</LoadingStatus>}
+        {loading && previews === null && <LoadingStatus>Checking preview versions…</LoadingStatus>}
         {error && (
           <p role="alert" className="text-sm text-destructive">
             Could not load preview versions.
@@ -82,10 +82,17 @@ export function AppPreviewVersions() {
             ))}
           </ul>
         )}
-        {!loading && (previews || error) && (
-          <Button variant="outline" size="sm" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" />
-            {error ? "Retry" : "Refresh previews"}
+        {(previews || error) && (
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => void load()}>
+            {loading ? (
+              <LoaderCircle
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : (
+              <RefreshCw aria-hidden="true" />
+            )}
+            {loading ? "Refreshing previews…" : error ? "Retry" : "Refresh previews"}
           </Button>
         )}
       </div>

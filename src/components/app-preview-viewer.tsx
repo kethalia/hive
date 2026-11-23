@@ -60,13 +60,15 @@ export function AppPreviewViewer({
       </header>
       <div className="relative min-h-0 flex-1">
         {mounted && (
+          // The launcher header bounds clipboard delegation to the preview and
+          // Coder origins already allowed by the application.
           <iframe
             key={attempt}
             ref={iframe}
             title={`Hive preview #${number}`}
             src={href}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
-            allow="clipboard-read; clipboard-write; microphone"
+            allow="clipboard-read *; clipboard-write *; microphone"
             className="size-full border-0"
             inert={status !== "ready"}
           />

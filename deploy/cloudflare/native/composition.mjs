@@ -8,6 +8,16 @@ import {
 const previewHost = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.hive-preview\.kethalia\.com$/;
 const workersPreviewHost = /^([a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?)-hive\.b00ste\.workers\.dev$/;
 
+function previewClipboardAllowlist(policy, feature, target) {
+  // The application policy already delegates to its configured Coder hosts.
+  // Retain those explicit origins through the new ancestor frame.
+  const origins = new Set([`"${target}"`]);
+  for (const [, allowlist] of policy.matchAll(new RegExp(`\\b${feature}=\\(([^)]*)\\)`, "g"))) {
+    for (const origin of allowlist.match(/"https?:\/\/[^"\s()]+"/g) ?? []) origins.add(origin);
+  }
+  return `${feature}=(${[...origins].join(" ")})`;
+}
+
 function framePreviewDocument(response, request, url, mode) {
   if (
     !["GET", "HEAD"].includes(request.method) ||
@@ -35,9 +45,14 @@ function framePreviewDocument(response, request, url, mode) {
       "Content-Security-Policy",
       policy.replace(/; frame-src [^;]+;/, `; frame-src ${target};`),
     );
+    const existingPermissions = headers.get("Permissions-Policy") ?? "";
     headers.set(
       "Permissions-Policy",
-      `camera=(), geolocation=(), microphone=("${target}"), payment=(), usb=(), clipboard-read=("${target}"), clipboard-write=("${target}")`,
+      [
+        `camera=(), geolocation=(), microphone=("${target}"), payment=(), usb=()`,
+        previewClipboardAllowlist(existingPermissions, "clipboard-read", target),
+        previewClipboardAllowlist(existingPermissions, "clipboard-write", target),
+      ].join(", "),
     );
   }
   headers.set("Cache-Control", "private, no-store");
