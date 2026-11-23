@@ -14,12 +14,15 @@ import {
   isUnsupportedPageMutation,
   type PortableActions,
 } from "./portable-actions";
+import { projectRelayPath } from "./project-relay";
+import { type ProjectRelayEnvironment, projectRelay } from "./project-relay-runtime";
 import { runRequestLifetime } from "./request-lifetime";
 
-type Environment = GenericTerminalEnvironment & {
-  DATABASE_URL?: string;
-  AUTH_SERVICE?: { fetch: typeof fetch };
-};
+type Environment = GenericTerminalEnvironment &
+  ProjectRelayEnvironment & {
+    DATABASE_URL?: string;
+    AUTH_SERVICE?: { fetch: typeof fetch };
+  };
 type Context = { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void };
 
 export function createAppWorker(
@@ -35,6 +38,8 @@ export function createAppWorker(
           createCloudflareDatabaseRequest(databaseUrl, bounds),
         );
       }
+      if (projectRelayPath(request))
+        return projectRelay(request, env, Number.MAX_SAFE_INTEGER, context);
       const path = new URL(request.url).pathname;
       const unavailable =
         request.headers.has("Upgrade") ||

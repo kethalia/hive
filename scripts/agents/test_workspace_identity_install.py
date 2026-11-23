@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULES = []
-for name in ("install-agent-bridge",):
+for name in ("install-agent-bridge", "install-codex-host"):
     spec = importlib.util.spec_from_file_location(name, ROOT / "templates/ai-dev-k8s/scripts" / (name + ".py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

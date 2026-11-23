@@ -6,7 +6,7 @@ import { assertArtifactPath } from "./artifact-paths.mjs";
 async function files(directory, prefix = "") {
   const result = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.name === ".terraform" && entry.isDirectory()) continue;
+    if (entry.isDirectory() && [".terraform", "__pycache__"].includes(entry.name)) continue;
     const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) result.push(...(await files(join(directory, entry.name), relative)));
     else if (entry.isFile()) result.push(relative);

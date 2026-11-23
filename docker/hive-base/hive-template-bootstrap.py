@@ -12,6 +12,7 @@ import sys
 
 ROOT = Path('/usr/local/libexec/hive-template-runtime')
 ASSETS = {
+    'host': ('install-codex-host.py', 'codex-host.tar.xz', {'schemaVersion', 'archiveEncoding', 'archiveSha256', 'config'}, 160000),
     'agent': ('install-agent-bridge.py', 'agent-bridge.tar.gz', {'schemaVersion', 'archiveSha256', 'manifestSha256', 'config'}, 65536),
 }
 

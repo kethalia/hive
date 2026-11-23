@@ -48,7 +48,11 @@ def run(mode):
     require(variant in VARIANTS)
     source = os.environ.get("EXPECTED_SOURCE_SHA", "")
     require(re.fullmatch("[a-f0-9]{40}", source) is not None)
-    require(os.environ.get("GITHUB_SHA") == source and os.environ.get("GITHUB_REPOSITORY") == "kethalia/hive" and os.environ.get("GITHUB_REF") == "refs/heads/codex/github-projects-p04")
+    ref = os.environ.get("GITHUB_REF")
+    approved = ref == "refs/heads/codex/github-projects-p04" or (
+        ref == "refs/heads/codex/managed-execution-p05" and variant == "cli"
+    )
+    require(os.environ.get("GITHUB_SHA") == source and os.environ.get("GITHUB_REPOSITORY") == "kethalia/hive" and approved)
     tag = "preview-" + variant + "-" + source
     status, raw, _ = fetch(REGISTRY + "/token?service=ghcr.io&scope=repository:kethalia/hive-base:pull")
     require(status == 200)

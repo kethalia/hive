@@ -1,7 +1,10 @@
+import { managedProjectTemplateIds } from "./projects/config";
+
 export interface RuntimeConfig {
   terminalWsUrl: string;
   codexVoiceEnabled?: true;
   projectDiscoveryEnabled?: true;
+  managedProjectTemplateIds?: string[];
 }
 
 export const RUNTIME_CONFIG_ELEMENT_ID = "hive-runtime-config";
@@ -18,7 +21,9 @@ declare global {
 }
 
 export function getServerRuntimeConfig(): RuntimeConfig {
+  const managedIds = managedProjectTemplateIds();
   return {
+    ...(managedIds.length ? { managedProjectTemplateIds: managedIds } : {}),
     terminalWsUrl: serverTerminalWsUrl(),
     ...(process.env.HIVE_PROJECT_DISCOVERY_ENABLED === "true"
       ? { projectDiscoveryEnabled: true as const }
@@ -62,6 +67,13 @@ export function parseRuntimeConfig(value: string | null | undefined): RuntimeCon
     ) {
       return {
         terminalWsUrl: parsed.terminalWsUrl,
+        ...("managedProjectTemplateIds" in parsed && Array.isArray(parsed.managedProjectTemplateIds)
+          ? {
+              managedProjectTemplateIds: parsed.managedProjectTemplateIds.filter(
+                (id): id is string => typeof id === "string" && /^[a-f0-9-]{36}$/.test(id),
+              ),
+            }
+          : {}),
         ...("projectDiscoveryEnabled" in parsed && parsed.projectDiscoveryEnabled === true
           ? { projectDiscoveryEnabled: true as const }
           : {}),
@@ -108,6 +120,9 @@ export function getClientRuntimeConfig(): RuntimeConfig {
 
   return {
     terminalWsUrl: resolveTerminalWsUrl(runtimeConfig.terminalWsUrl, browserLocation),
+    ...(runtimeConfig.managedProjectTemplateIds?.length
+      ? { managedProjectTemplateIds: runtimeConfig.managedProjectTemplateIds }
+      : {}),
     ...(runtimeConfig.projectDiscoveryEnabled ? { projectDiscoveryEnabled: true as const } : {}),
     ...(runtimeConfig.codexVoiceEnabled ? { codexVoiceEnabled: true as const } : {}),
   };

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,6 +25,28 @@ test("OAuth preview grants select the isolated database, owner, role and current
   assert.equal(cutoverMigrationNames.length, 12);
   assert.equal(Object.values(runtimeTables).flat().length, 15);
   assert(!sql.includes("hive_foundation_runtime"));
+});
+
+test("managed Projects grants bind to the complete migration set and preserve append-only tables", async () => {
+  const sql = runtimeGrantsSql("accounts-preview", 12345, "managed-projects");
+  const expected = await readdir(
+    new URL("../../../packages/db/prisma/migrations/", import.meta.url),
+    {
+      withFileTypes: true,
+    },
+  );
+  const history = expected
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  assert(sql.includes(`ARRAY[${history.map((name) => `'${name}'`).join(",")}]`));
+  const mutable = sql.match(
+    /FOREACH name IN ARRAY (.*) LOOP\n {4}EXECUTE format\('GRANT SELECT,INSERT,UPDATE ON TABLE/,
+  )[1];
+  assert(mutable.includes("'project_task_intents'"));
+  assert(!mutable.includes("'codex_registered_threads'"));
+  assert(!mutable.includes("'codex_guardian_operation_receipts'"));
+  assert(!runtimeGrantsSql("accounts-preview", 12345).includes("'project_task_intents'"));
 });
 
 test("the existing foundation preview grant target retains its database and role", () => {

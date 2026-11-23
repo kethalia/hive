@@ -9,12 +9,14 @@ import sys
 FILES = {
     'agent-bridge.tar.gz': 'templates/ai-dev-k8s/assets/agent-bridge.tar.gz',
     'install-agent-bridge.py': 'templates/ai-dev-k8s/scripts/install-agent-bridge.py',
+    'codex-host.tar.xz': 'templates/ai-dev-k8s/assets/codex-host.tar.xz',
+    'install-codex-host.py': 'templates/ai-dev-k8s/scripts/install-codex-host.py',
     'hive-template-bootstrap': 'docker/hive-base/hive-template-bootstrap.py',
 }
 INSPECT = r'''import hashlib,json,stat,sys
 from pathlib import Path
 root=Path('/usr/local/libexec/hive-template-runtime')
-files=['agent-bridge.tar.gz','install-agent-bridge.py']
+files=['agent-bridge.tar.gz','install-agent-bridge.py','codex-host.tar.xz','install-codex-host.py']
 def fail(code,p,s=None):
  out={'ok':False,'code':code,'path':str(p)}
  if s is not None: out.update(uid=s.st_uid,mode=oct(stat.S_IMODE(s.st_mode)),nlink=s.st_nlink,size=s.st_size)

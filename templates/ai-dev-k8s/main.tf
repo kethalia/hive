@@ -632,7 +632,7 @@ resource "kubernetes_deployment_v1" "workspace" {
         # Verify this compatibility annotation against deployed k3s before rollout.
         # Opt in only after the named policy is loaded on eligible nodes.
         # The seed-home container continues using the runtime's default policy.
-        annotations = merge(local.hive_agent_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
+        annotations = merge(local.hive_agent_bootstrap_data, local.hive_host_bootstrap_data, try(local.profile.codex_sandbox_apparmor_profile, null) == null ? {} : {
           "container.apparmor.security.beta.kubernetes.io/dev" = "localhost/${local.profile.codex_sandbox_apparmor_profile}"
         })
 
@@ -781,6 +781,15 @@ resource "kubernetes_deployment_v1" "workspace" {
           }
 
           dynamic "volume_mount" {
+            for_each = local.hive_host_enabled ? [true] : []
+            content {
+              name       = "hive-host-bootstrap"
+              mount_path = "/opt/hive-codex-host-template"
+              read_only  = true
+            }
+          }
+
+          dynamic "volume_mount" {
             for_each = local.hive_agent_enabled ? [true] : []
             content {
               name       = "hive-agent-bootstrap"
@@ -795,6 +804,22 @@ resource "kubernetes_deployment_v1" "workspace" {
               name       = "docker"
               mount_path = "/run/hive-docker"
               sub_path   = "run"
+            }
+          }
+        }
+
+        dynamic "volume" {
+          for_each = local.hive_host_enabled ? [true] : []
+          content {
+            name = "hive-host-bootstrap"
+            downward_api {
+              default_mode = "0444"
+              items {
+                path = "request.json"
+                field_ref {
+                  field_path = "metadata.annotations['hive.kethalia.com/host-request']"
+                }
+              }
             }
           }
         }

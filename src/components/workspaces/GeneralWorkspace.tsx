@@ -318,6 +318,10 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
       if (pending.error) show((pane) => ({ ...pane, project, logs, error: undefined }));
 
       const { fullName, ...target } = project;
+      const projectIdentity = {
+        repositoryId: project.repositoryId,
+        providerAccountId: project.providerAccountId,
+      };
       try {
         const check = await openProjectTerminalAction({ ...target, cloneMissing: false });
         if (!check?.data)
@@ -341,19 +345,33 @@ export function GeneralWorkspace({ userId, initialWorkspaces, error }: Props) {
             (w) =>
               w.kind === "terminal" && generalPaneIdentity(w) === generalPaneIdentity(terminal),
           );
-        if (existing) {
+        if (existing?.kind === "terminal") {
           if (!findPending()) return;
           const current = stateRef.current;
           const focused =
             current.boards.find((b) => b.key === current.activeBoardKey)?.activeWindowId === id;
           update((state) => ({
             ...state,
-            boards: state.boards.map((b) => removeGeneralWindow(b, id)),
+            boards: state.boards.map((b) => {
+              const next = removeGeneralWindow(b, id);
+              return {
+                ...next,
+                windows: next.windows.map((pane) =>
+                  pane.id === existing.id && pane.kind === "terminal"
+                    ? { ...pane, project: projectIdentity }
+                    : pane,
+                ),
+              };
+            }),
           }));
-          if (focused) openPane(existing);
+          if (focused) openPane({ ...existing, project: projectIdentity });
           return;
         }
-        show(() => ({ ...terminal, projectLogs: [...logs, "Connecting terminal…"] }));
+        show(() => ({
+          ...terminal,
+          project: projectIdentity,
+          projectLogs: [...logs, "Connecting terminal…"],
+        }));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Could not open the project.";
         show((pane) => ({ ...pane, logs, error: message }));

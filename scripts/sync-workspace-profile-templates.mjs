@@ -3,6 +3,7 @@ import { copyFile, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
 import { syncAgentPackage } from "./agent-bridge/build-package.mjs";
+import { syncHostArchive } from "./build-codex-host-archive.mjs";
 import { buildTemplateArtifacts } from "./build-template-artifacts.mjs";
 
 const repositoryRoot = process.cwd();
@@ -15,6 +16,7 @@ const targetRoots = [
 ];
 const checkOnly = process.argv.includes("--check");
 await syncAgentPackage(repositoryRoot, checkOnly);
+await syncHostArchive(repositoryRoot, checkOnly);
 
 async function collectFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -42,6 +44,9 @@ const sharedRelativePaths = [
   "main.tf",
   "docker.tf",
   "hive-agent.tf",
+  "hive-host.tf",
+  "assets/codex-host.tar.xz",
+  "assets/codex-host.tar.sha256",
   "assets/agent-bridge.tar.gz",
   "assets/agent-bridge.tar.sha256",
   "assets/agent-bridge.manifest.sha256",
