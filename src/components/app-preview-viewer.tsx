@@ -56,7 +56,17 @@ export function AppPreviewViewer({
         <h1 className="min-w-0 break-all text-sm font-medium">
           Preview #{number} <span className="text-muted-foreground">· {branch}</span>
         </h1>
-        <ReturnToHive />
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            Open in browser <ExternalLink aria-hidden="true" />
+          </a>
+          <ReturnToHive />
+        </div>
       </header>
       <div className="relative min-h-0 flex-1">
         {mounted && (
@@ -88,14 +98,6 @@ export function AppPreviewViewer({
                   >
                     Retry
                   </Button>
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={buttonVariants({ size: "sm", variant: "outline" })}
-                  >
-                    Open in browser <ExternalLink aria-hidden="true" />
-                  </a>
                 </div>
               </>
             )}

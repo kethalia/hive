@@ -1,11 +1,13 @@
 import { z } from "zod";
-import type { appPreviewCatalogSchema } from "./app-preview-catalog";
-import { appPreviewOrigin } from "./app-preview-origin.mjs";
+import { appPreviewBuildSchema, type appPreviewCatalogSchema } from "./app-preview-catalog";
+import {
+  appPreviewBranchSlug,
+  appPreviewBuildPath,
+  appPreviewOrigin,
+} from "./app-preview-origin.mjs";
 
 const repository = "kethalia/hive";
-const checkName = "Workers Builds: hive";
-const cloudflareBuildPath =
-  /^\/225177f82b9234ede14e897fe15e0cb5\/workers\/services\/view\/hive\/production\/previews\/([a-z0-9-]+)\/builds\/[a-f0-9-]+$/;
+const openPullRequestsUrl = `https://api.github.com/repos/${repository}/pulls?state=open&base=main&sort=updated&per_page=30`;
 
 const pullRequests = z.array(
   z.object({
@@ -18,80 +20,51 @@ const pullRequests = z.array(
     }),
   }),
 );
-const checks = z.object({
-  check_runs: z.array(
-    z.object({
-      app: z.object({ id: z.number(), slug: z.string() }).nullable(),
-      name: z.string(),
-      conclusion: z.string().nullable(),
-      details_url: z.string().nullable(),
-      head_sha: z.string(),
-    }),
-  ),
-});
 
-async function readGitHub(path: string, signal: AbortSignal): Promise<unknown> {
+async function readOpenPullRequests(signal: AbortSignal) {
   const init = {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "Hive-preview-catalog" },
     redirect: "error" as const,
-    // These fixed public URLs carry no caller identity. Cache successful reads at
-    // the edge to share GitHub's anonymous read budget across Hive users.
-    cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": 120, "400-599": -1 } },
+    // The catalog needs one public GitHub read per refresh. Share it at the
+    // edge so continuous use stays within GitHub's anonymous request budget.
+    cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": 240, "400-599": -1 } },
     signal,
   };
-  const response = await fetch(`https://api.github.com/repos/${repository}/${path}`, init);
+  const response = await fetch(openPullRequestsUrl, init);
   if (!response.ok) throw new Error("GitHub preview catalog unavailable");
-  return response.json();
+  return pullRequests.parse(await response.json());
 }
 
-function branchAlias(branch: string) {
-  return branch
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function deployedSlug(details: string | null, branch: string): string | null {
-  if (!details) return null;
-  const url = URL.parse(details);
-  if (url?.origin !== "https://dash.cloudflare.com" || url.username || url.password) return null;
-  const slug = cloudflareBuildPath.exec(url.pathname)?.[1];
-  // Workers Builds keys the preview by PR head branch. Require its reported
-  // alias to agree with that branch before constructing a public hostname.
-  return slug && slug === branchAlias(branch) && appPreviewOrigin(slug) ? slug : null;
+async function readPreviewBuild(origin: string, signal: AbortSignal) {
+  const response = await fetch(origin + appPreviewBuildPath, { redirect: "manual", signal });
+  // A branch without a preview returns 404. Older builds can redirect to login.
+  if (response.status === 404 || (response.status >= 300 && response.status < 400)) return null;
+  if (!response.ok) throw new Error("Could not verify the deployed preview build");
+  const result = appPreviewBuildSchema.safeParse(await response.json());
+  return result.success ? result.data : null;
 }
 
 export async function readAppPreviewCatalog() {
   const signal = AbortSignal.timeout(8_000);
-  const prs = pullRequests
-    .parse(await readGitHub("pulls?state=open&base=main&sort=updated&per_page=30", signal))
-    .filter((pr) => pr.head.repo?.full_name === repository && pr.head.ref !== "main");
+  const prs = (await readOpenPullRequests(signal)).filter(
+    (pr) => pr.head.repo?.full_name === repository && pr.head.ref !== "main",
+  );
   const previews: z.infer<typeof appPreviewCatalogSchema> = [];
   const aliasCounts = new Map<string, number>();
-  for (const pr of prs) {
-    const alias = branchAlias(pr.head.ref);
-    aliasCounts.set(alias, (aliasCounts.get(alias) ?? 0) + 1);
-  }
-  for (let offset = 0; offset < prs.length; offset += 5) {
+  const candidates = prs.map((pr) => {
+    const slug = appPreviewBranchSlug(pr.head.ref);
+    aliasCounts.set(slug, (aliasCounts.get(slug) ?? 0) + 1);
+    return { pr, slug };
+  });
+  const unique = candidates.filter(({ slug }) => aliasCounts.get(slug) === 1);
+  for (let offset = 0; offset < unique.length; offset += 5) {
     const batch = await Promise.all(
-      prs.slice(offset, offset + 5).map(async (pr) => {
-        const result = checks.parse(
-          await readGitHub(
-            `commits/${pr.head.sha}/check-runs?check_name=${encodeURIComponent(checkName)}&filter=latest`,
-            signal,
-          ),
-        );
-        const check = result.check_runs.find(
-          (row) =>
-            row.app?.id === 85455 &&
-            row.app.slug === "cloudflare-workers-and-pages" &&
-            row.name === checkName &&
-            row.conclusion === "success" &&
-            row.head_sha === pr.head.sha,
-        );
-        const slug = deployedSlug(check?.details_url ?? null, pr.head.ref);
-        return slug && aliasCounts.get(slug) === 1
-          ? { slug, number: pr.number, title: pr.title, branch: pr.head.ref, revision: pr.head.sha }
+      unique.slice(offset, offset + 5).map(async ({ pr, slug }) => {
+        const origin = appPreviewOrigin(slug);
+        if (!origin) return null;
+        const build = await readPreviewBuild(origin, signal);
+        return build?.branch === pr.head.ref && build.revision === pr.head.sha
+          ? { ...build, slug, number: pr.number, title: pr.title }
           : null;
       }),
     );

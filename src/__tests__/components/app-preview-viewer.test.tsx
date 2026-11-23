@@ -50,7 +50,7 @@ it("shows the preview only after its exact frame reports readiness", () => {
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
-it("offers a direct link for older builds and retries with a fresh frame", () => {
+it("offers a direct link and retries with a fresh frame when the preview cannot load", () => {
   vi.useFakeTimers();
   render(<AppPreviewViewer origin={previewOrigin} number={12} branch="test/branch" />);
   const original = screen.getByTitle("Hive preview #12");
