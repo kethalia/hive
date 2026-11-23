@@ -35,6 +35,7 @@ export async function proxy(request: NextRequest) {
   if (
     // These APIs handle authentication in their routes and return JSON errors.
     pathname.startsWith("/api/discovery/") ||
+    pathname === "/api/app-previews" ||
     pathname === "/api/projects" ||
     /^\/api\/workspaces\/[^/]+\/(?:codex-account|claude-account|build-logs)$/.test(pathname) ||
     pathname === "/api/github/connection" ||

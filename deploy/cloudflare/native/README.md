@@ -62,6 +62,19 @@ At the approved maintenance window, stop Kubernetes background writers through
 GitOps before fresh Cloudflare sign-in, deploy the reviewed main source and verify
 production features, then finish residual application storage retirement.
 
+## Preview versions in the installed app
+
+In production Hive, open **Settings → App updates → Preview versions**. Hive
+reads the public pull requests against `main` and the native Workers Builds
+checks for their current commits. A successful build from Hive’s own repository
+appears in the list. The preview opens on its own origin inside a production Hive
+page with a **Return to Hive** action. Sign in to the preview with Coder if prompted.
+
+In-app viewing requires a preview built from source that includes support for the
+Hive frame. For an older build, the launcher offers **Open in browser**. Updating a
+branch from `main` after this feature ships enables in-app viewing on its next
+native build.
+
 ## Workspace capabilities
 
 Existing commands execute through Coder's reconnecting PTY API with the requesting

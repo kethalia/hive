@@ -1,9 +1,52 @@
 import { withHivePublicOrigin } from "@hive/auth/hive-origin";
+import {
+  appPreviewPathOrigin,
+  hivePreviewDomain as previewDomain,
+  hiveProductionOrigin as productionOrigin,
+} from "../../../src/lib/app-preview-origin.mjs";
 
-const productionOrigin = "https://hive.kethalia.com";
-const previewDomain = "hive-preview.kethalia.com";
 const previewHost = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.hive-preview\.kethalia\.com$/;
 const workersPreviewHost = /^([a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?)-hive\.b00ste\.workers\.dev$/;
+
+function framePreviewDocument(response, request, url, mode) {
+  if (
+    !["GET", "HEAD"].includes(request.method) ||
+    request.headers.has("upgrade") ||
+    !response.headers.get("Content-Type")?.startsWith("text/html")
+  )
+    return response;
+  const policy = response.headers.get("Content-Security-Policy");
+  // Keep custom or additional policies (for example a deliberately unframeable
+  // response) intact. Only the normal Hive document policy is adjusted here.
+  if (!policy || policy.includes(",")) return response;
+
+  const headers = new Headers(response.headers);
+  if (mode === "preview" && !/^\/(?:api|_next)(?:\/|$)/.test(url.pathname)) {
+    if (!/; frame-ancestors 'self';/.test(policy)) return response;
+    headers.set(
+      "Content-Security-Policy",
+      policy.replace("; frame-ancestors 'self';", `; frame-ancestors 'self' ${productionOrigin};`),
+    );
+    if (headers.get("X-Frame-Options") === "SAMEORIGIN") headers.delete("X-Frame-Options");
+  } else {
+    const target = appPreviewPathOrigin(url.pathname);
+    if (!target) return response;
+    headers.set(
+      "Content-Security-Policy",
+      policy.replace(/; frame-src [^;]+;/, `; frame-src ${target};`),
+    );
+    headers.set(
+      "Permissions-Policy",
+      `camera=(), geolocation=(), microphone=("${target}"), payment=(), usb=(), clipboard-read=("${target}"), clipboard-write=("${target}")`,
+    );
+  }
+  headers.set("Cache-Control", "private, no-store");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 async function callAuth(auth, request, env, context) {
   const signal = request.signal;
@@ -101,7 +144,14 @@ export function createNativeWorker({ app, auth }) {
           return callAuth(auth, new Request(input, init), local, context);
         },
       };
-      return withHivePublicOrigin(url.origin, () => app.fetch(request, local, context));
+      return withHivePublicOrigin(url.origin, async () =>
+        framePreviewDocument(
+          await app.fetch(request, local, context),
+          request,
+          url,
+          env.HIVE_NATIVE_MODE,
+        ),
+      );
     },
   };
 }

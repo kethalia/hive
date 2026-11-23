@@ -2,6 +2,7 @@
 
 import { ChevronRight, Download, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { AppPreviewVersions } from "@/components/app-preview-versions";
 import { Button } from "@/components/ui/button";
 import { checkAppVersion, refreshInstalledApp } from "@/lib/app-update";
 import { APP_VERSION, type AppVersion, hasAppUpdate } from "@/lib/app-version";
@@ -129,6 +130,7 @@ export function AppUpdateSettings() {
           Updating reloads Hive. Your workspace sessions keep running.
         </p>
       )}
+      <AppPreviewVersions />
     </div>
   );
 }
