@@ -57,6 +57,49 @@ test("bundles only locked ws locally and keeps modules inert on import", () => {
           .digest("hex"),
         sha,
       );
+    const resolveRepository = `
+import importlib.util, io, json, sys
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location("managed", sys.argv[1])
+managed = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(managed)
+repo = {
+    "id": 12, "node_id": "repo_12", "full_name": "hive/sample",
+    "name": "sample", "owner": {"login": "hive"}, "default_branch": "release/current",
+    "private": False, "archived": False, "permissions": {"pull": True, "push": True},
+    "clone_url": "https://github.com/hive/sample.git",
+}
+metadata = {
+    "/user": {"id": 42},
+    "/repositories/12": repo,
+    "/repos/hive/sample/git/ref/heads/release/current": {
+        "ref": "refs/heads/release/current", "object": {"type": "commit", "sha": "a" * 40},
+    },
+}
+seen = []
+class Reply(io.BytesIO):
+    status = 200
+    headers = {}
+class Opener:
+    def open(self, request, timeout):
+        assert request.full_url.startswith("https://api.github.com/")
+        assert request.get_header("Authorization") == "Bearer test-local-token"
+        path = request.full_url.removeprefix("https://api.github.com")
+        seen.append(path)
+        return Reply(json.dumps(metadata[path]).encode())
+with patch.object(managed, "workspace_token", return_value="test-local-token"):
+    with patch.object(managed.urllib.request, "build_opener", return_value=Opener()):
+        result = managed.resolve_repository({
+            "schemaVersion": 1, "operation": "resolve", "repositoryId": "12", "expectedAccountId": "42",
+        })
+assert result["defaultRevision"] == "a" * 40
+assert seen == list(metadata)
+`;
+    execFileSync(
+      "/usr/bin/python3",
+      ["-I", "-B", "-c", resolveRepository, join(out, "codex-project-repository.py")],
+      { stdio: "pipe" },
+    );
     const entry = join(out, "codex-workspace-host.mjs");
     const output = execFileSync(
       process.execPath,
