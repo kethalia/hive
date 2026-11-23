@@ -5,6 +5,22 @@ variable "hive_project_origin" {
   description = "Deployment-controlled HTTPS origin for the managed Projects application."
 }
 
+variable "hive_project_issuer_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "Public key for the deployment's managed Projects issuer."
+  validation {
+    condition     = var.hive_project_issuer_public_key_pem == "" || (startswith(var.hive_project_issuer_public_key_pem, "-----BEGIN PUBLIC KEY-----\n") && !strcontains(var.hive_project_issuer_public_key_pem, "PRIVATE"))
+    error_message = "Provide the managed Projects public key in PEM format."
+  }
+}
+
+variable "hive_project_issuer_key_id" {
+  type        = string
+  default     = ""
+  description = "Identifier for the deployment's managed Projects issuer key."
+}
+
 variable "hive_project_model" {
   type        = string
   default     = "gpt-6.1-sol"
@@ -86,8 +102,8 @@ locals {
         guardianEnabled        = true
         nativeIsolationEnabled = true
         hiveOrigin             = var.hive_project_origin
-        issuerPublicKeyPem     = var.hive_issuer_public_key_pem
-        issuerKeyId            = var.hive_issuer_key_id
+        issuerPublicKeyPem     = var.hive_project_issuer_public_key_pem
+        issuerKeyId            = var.hive_project_issuer_key_id
         port                   = local.hive_host_port
         model                  = var.hive_project_model
         effort                 = var.hive_project_effort
@@ -120,7 +136,7 @@ resource "coder_script" "hive_projects" {
       error_message = "The managed host bootstrap request exceeds its annotation capacity."
     }
     precondition {
-      condition     = can(regex("^https://[a-z0-9.-]+$", var.hive_project_origin)) && var.hive_issuer_public_key_pem != "" && can(regex("^[A-Za-z0-9._:-]{1,200}$", var.hive_issuer_key_id))
+      condition     = can(regex("^https://[a-z0-9.-]+$", var.hive_project_origin)) && var.hive_project_issuer_public_key_pem != "" && can(regex("^[A-Za-z0-9._:-]{1,200}$", var.hive_project_issuer_key_id))
       error_message = "Managed projects require the deployment's HTTPS origin and public issuer key configuration."
     }
     precondition {
