@@ -224,7 +224,8 @@ repositories. Enter opens the repository terminal, cloning into
 The remaining P05 extraction is in [draft PR458](https://github.com/kethalia/hive/pull/458),
 based on main at `5b09c6c3`. The draft includes the shared session views, signed
 host registration and relay, repository enrollment, durable task intents, and
-managed checkout safeguards. The database upgrade and restricted runtime grants
-have been exercised on PostgreSQL. The installed workspace host, manager
-delegation and results, live recovery, and controller-authorized checkout
-cleanup still need integration and end-to-end preview acceptance.
+managed checkout safeguards. Local verification covers the PostgreSQL upgrade
+and restricted grants, the native guardian, and a delegated turn using the pinned
+Codex CLI against a local test server. Wiring these components into Start task,
+persisting manager results, recovery, and controller-authorized cleanup still
+need integration and end-to-end preview acceptance.
