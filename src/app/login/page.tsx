@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { HiveMark } from "@/components/hive-logo";
 import { getRequestSession } from "@/lib/auth/session";
 import { CoderOAuthLogin } from "./coder-oauth-login";
 import { LoginForm } from "./login-form";
+import { LoginHomeLink } from "./login-home-link";
 
 export default async function LoginPage({
   searchParams,
@@ -30,12 +30,7 @@ export default async function LoginPage({
         <LoginForm />
       )}
       <div className="text-center">
-        <Link
-          href="/"
-          className="inline-flex min-h-8 items-center text-sm text-muted-foreground underline-offset-4 hover:text-primary hover:underline"
-        >
-          Return to hive.dev
-        </Link>
+        <LoginHomeLink />
       </div>
     </section>
   );

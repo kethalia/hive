@@ -8,7 +8,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Publish only the public Git branch and commit verified by Workers Builds.
+// Publish the verified Git identity and whether the preview can switch back to production.
 export function GET() {
   const build = appPreviewBuildSchema.safeParse({
     branch: process.env.HIVE_PROVIDER_BUILD_BRANCH,
@@ -22,7 +22,10 @@ export function GET() {
   ) {
     return Response.json({ error: "Preview build unavailable" }, { status: 404, headers });
   }
-  return Response.json(build.data, {
-    headers: { ...headers, "Access-Control-Allow-Origin": hiveProductionOrigin },
-  });
+  return Response.json(
+    { ...build.data, productionSwitch: true },
+    {
+      headers: { ...headers, "Access-Control-Allow-Origin": hiveProductionOrigin },
+    },
+  );
 }

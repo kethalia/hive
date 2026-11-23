@@ -1,6 +1,6 @@
 import { getHivePublicOrigin } from "@hive/auth/hive-origin";
 import { notFound, redirect } from "next/navigation";
-import { AppPreviewViewer, ReturnToHive } from "@/components/app-preview-viewer";
+import { AppPreviewViewer, ProductionLink } from "@/components/app-preview-viewer";
 import { readAppPreviewCandidates } from "@/lib/app-preview-catalog.server";
 import { appPreviewOrigin, hiveProductionOrigin } from "@/lib/app-preview-origin.mjs";
 import { getRequestSession } from "@/lib/auth/session";
@@ -23,7 +23,7 @@ export default async function AppPreviewPage({ params }: { params: Promise<{ slu
     return (
       <main id="main-content" className="grid min-h-dvh place-content-center gap-4 p-6 text-center">
         <p role="status">This preview is unavailable.</p>
-        <ReturnToHive />
+        <ProductionLink />
       </main>
     );
   }
