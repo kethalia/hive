@@ -36,6 +36,17 @@ it("checks available previews directly using only one public GitHub request", as
   expect(fetch.mock.calls[1][1]).toMatchObject({ redirect: "manual" });
 });
 
+it("rejects GitHub redirects using Workers' supported redirect mode", async () => {
+  const fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+    expect(init.redirect).toBe("manual");
+    return Response.redirect("https://api.github.com/other", 302);
+  });
+  vi.stubGlobal("fetch", fetch);
+
+  await expect(readAppPreviewCatalog()).rejects.toThrow("GitHub preview catalog unavailable");
+  expect(fetch).toHaveBeenCalledOnce();
+});
+
 it.each([
   () => Response.json({ ...liveBuild, revision: "b".repeat(40) }),
   () => Response.json({ ...liveBuild, branch: "codex-task" }),

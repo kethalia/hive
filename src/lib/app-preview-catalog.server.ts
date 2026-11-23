@@ -24,7 +24,8 @@ const pullRequests = z.array(
 async function readOpenPullRequests(signal: AbortSignal) {
   const init = {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "Hive-preview-catalog" },
-    redirect: "error" as const,
+    // Workers supports manual redirects. The status check below rejects 3xx.
+    redirect: "manual" as const,
     // The catalog needs one public GitHub read per refresh. Share it at the
     // edge so continuous use stays within GitHub's anonymous request budget.
     cf: { cacheEverything: true, cacheTtlByStatus: { "200-299": 240, "400-599": -1 } },
