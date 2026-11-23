@@ -11,6 +11,10 @@ export type ProjectPrincipal = { id: string; coderUserId: string };
 const endpoints = {
   "/projects/resolve": "projects:resolve",
   "/projects/open": "projects:open",
+  "/projects/tasks/start": "projects:task:start",
+  "/projects/tasks/status": "projects:task:read",
+  "/projects/tasks/retry": "projects:task:retry",
+  "/projects/tasks/cleanup": "projects:task:cleanup",
 } as const;
 /** Internal controller only. The endpoint and scope pair is fixed here; browser
  * inputs are parsed by each operation before reaching this signer. */

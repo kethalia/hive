@@ -1130,17 +1130,24 @@ class ManagedProjects:
             self.write(receipt, record)
             return {"archiveDigest": digest, "revision": record["revision"], "checkoutRetained": True}
 
-    def request_cleanup(self, repository_id, task_id):
+    def request_cleanup(self, repository_id, task_id, request_id=None):
         require(identifier(task_id), "invalid_task")
+        request_id = str(uuid.uuid4()) if request_id is None else request_id
+        require(isinstance(request_id, str) and str(uuid.UUID(request_id)) == request_id, "invalid_request")
         with self.lock():
             project, receipt, record = self.load(repository_id)
             require(not record.get("sourceUpdating") and not record.get("acceptedSource"), "accepted_source_cleanup_unavailable")
             require(task_id == record["lastTaskId"], "cleanup_task_mismatch")
-            require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
-            record["cleanupRequests"].append({"id": str(uuid.uuid4()), "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
-            self.write(receipt, record)
+            previous = next((request for request in record["cleanupRequests"] if request["id"] == request_id), None)
+            if previous is not None:
+                require(previous["taskId"] == task_id
+                        and previous.get("checkoutIncarnation") == record.get("checkoutIncarnation"), "cleanup_request_stale")
+            else:
+                require(len(record["cleanupRequests"]) < 100, "cleanup_request_limit")
+                record["cleanupRequests"].append({"id": request_id, "taskId": task_id, "revision": record["revision"], "checkoutIdentity": record["checkoutIdentity"], "checkoutIncarnation": record.get("checkoutIncarnation"), "leaseGeneration": record["leaseGeneration"], "renewalSequence": record.get("renewalSequence", 0), "requestedAt": time.time()})
+                self.write(receipt, record)
             return {"status": "controller_authority_unavailable", "checkoutRetained": True,
-                    "requestId": record["cleanupRequests"][-1]["id"]}
+                    "requestId": request_id}
 
     def _cleanup_binding(self, record):
         identity = lambda value: {key: str(value[key]) for key in ("device", "inode")}
@@ -1277,7 +1284,7 @@ def dispatch(manager, value):
     fields = {
         "prepare": {"taskId", "revision", "leaseId", "generation", "ttlSeconds", "expectedAccountId"},
         "inspect": set(), "releaseLease": {"taskId", "leaseId", "generation", "revision"},
-        "requestCleanup": {"taskId"},
+        "requestCleanup": {"taskId", "requestId"},
     }
     require(operation in fields and set(value) <= common | fields[operation]
             and type(value.get("schemaVersion")) is int and value["schemaVersion"] == 1
@@ -1294,7 +1301,7 @@ def dispatch(manager, value):
         return manager.inspect(repository_id)
     if operation == "releaseLease":
         return manager.release_lease(repository_id, value.get("taskId"), value.get("leaseId"), value.get("generation"), value.get("revision"))
-    return manager.request_cleanup(repository_id, value.get("taskId"))
+    return manager.request_cleanup(repository_id, value.get("taskId"), value.get("requestId"))
 
 
 def main():

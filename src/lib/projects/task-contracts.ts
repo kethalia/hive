@@ -161,3 +161,11 @@ export const preparationReasonMessages: Record<NonNullable<ProjectTaskStatus["re
   preparation_timeout:
     "Preparation stopped making progress. Inspect the workspace before retrying.",
 };
+
+export const projectCleanupStatusSchema = z
+  .object({
+    status: z.literal("controller_authority_unavailable"),
+    checkoutRetained: z.literal(true),
+    requestId: z.string().uuid(),
+  })
+  .strict();

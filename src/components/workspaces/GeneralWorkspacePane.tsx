@@ -5,6 +5,7 @@ import type { Terminal } from "@xterm/xterm";
 import dynamic from "next/dynamic";
 import { type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useRuntimeConfig } from "@/components/runtime-config-provider";
 import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { TerminalSessionFrame } from "@/components/workspaces/TerminalSessionFrame";
@@ -37,6 +38,10 @@ import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
 const InteractiveTerminal = dynamic(
   () => import("./InteractiveTerminal").then((m) => m.InteractiveTerminal),
   { ssr: false },
+);
+const ManagedProjectPane = dynamic(
+  () => import("../projects/ProjectWorkspacePanel").then((m) => m.ManagedProjectPane),
+  { ssr: false, loading: () => <LoadingStatus>Opening project…</LoadingStatus> },
 );
 interface Connection {
   agentId?: string;
@@ -144,6 +149,8 @@ export function GeneralWorkspacePane({
   }, [onActivate]);
   const [connection, setConnection] = useState<Connection | null>(null);
   const [retry, setRetry] = useState(0);
+  const [showManagedTask, setShowManagedTask] = useState(false);
+  const { managedProjectTemplateIds } = useRuntimeConfig();
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const fileRequestGeneration = useRef(0);
   // A closed or reconnected source pane must not open a late file response.
@@ -157,6 +164,13 @@ export function GeneralWorkspacePane({
   const preparingProject = pane.kind === "project-launch";
   const projectLogs = pane.kind === "terminal" ? pane.projectLogs : undefined;
   const running = workspace?.latest_build.status === "running";
+  const managedProject =
+    pane.kind === "terminal" &&
+    running &&
+    workspace &&
+    managedProjectTemplateIds?.includes(workspace.template_id)
+      ? pane.project
+      : undefined;
   const cloneSessionKey = pane.kind === "terminal" ? pane.cloneSessionKey : undefined;
   const relativePath = pane.kind === "terminal" ? pane.relativePath : undefined;
   const sessionName = pane.kind === "terminal" ? pane.sessionName : undefined;
@@ -374,7 +388,23 @@ export function GeneralWorkspacePane({
     },
   ];
   let content: ReactNode;
-  if (pane.kind === "project-launch") {
+  if (managedProject && showManagedTask) {
+    content = (
+      <div className="h-full overflow-auto p-4">
+        <ManagedProjectPane
+          key={JSON.stringify([
+            pane.workspaceId,
+            workspace?.latest_build.id,
+            managedProject.repositoryId,
+            managedProject.providerAccountId,
+          ])}
+          workspaceId={pane.workspaceId}
+          {...managedProject}
+          onBack={() => setShowManagedTask(false)}
+        />
+      </div>
+    );
+  } else if (pane.kind === "project-launch") {
     content = (
       <ProjectLaunchFeedback logs={pane.logs} error={pane.error} onRetry={onRetryProject} />
     );
@@ -477,26 +507,35 @@ export function GeneralWorkspacePane({
         touchOptimizedActions={mobile}
         dataTestId={`general-window-${pane.id}`}
       >
-        <div
-          className={
-            connected
-              ? "h-full min-h-0"
-              : "flex h-full flex-col items-center justify-center gap-3 p-4 text-center text-sm"
-          }
-        >
-          <Suspense
-            fallback={
-              projectLogs ? (
-                <div className="flex h-full items-center justify-center p-4">
-                  <ProjectLaunchFeedback logs={projectLogs} />
-                </div>
-              ) : (
-                <LoadingStatus placement="window">Loading terminal…</LoadingStatus>
-              )
+        <div className="flex h-full min-h-0 flex-col">
+          {managedProject && !showManagedTask ? (
+            <div className="shrink-0 border-b border-border px-3 py-1">
+              <Button variant="outline" size="sm" onClick={() => setShowManagedTask(true)}>
+                Managed task
+              </Button>
+            </div>
+          ) : null}
+          <div
+            className={
+              connected || (managedProject && showManagedTask)
+                ? "min-h-0 flex-1"
+                : "flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-4 text-center text-sm"
             }
           >
-            {content}
-          </Suspense>
+            <Suspense
+              fallback={
+                projectLogs ? (
+                  <div className="flex h-full items-center justify-center p-4">
+                    <ProjectLaunchFeedback logs={projectLogs} />
+                  </div>
+                ) : (
+                  <LoadingStatus placement="window">Loading terminal…</LoadingStatus>
+                )
+              }
+            >
+              {content}
+            </Suspense>
+          </div>
         </div>
       </TerminalSessionFrame>
       <WorkspacePaneActionSheet

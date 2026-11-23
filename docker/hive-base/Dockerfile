@@ -19,7 +19,7 @@ FROM debian:trixie
 COPY --from=workspace-identity-build --chmod=0755 /out/hive-workspace-identity /usr/local/libexec/hive-workspace-identity
 COPY --from=workspace-identity-build --chmod=0644 /out/hive-workspace-identity.json /usr/local/libexec/hive-workspace-identity.json
 COPY --chmod=0555 hive-template-bootstrap.py /usr/local/libexec/hive-template-bootstrap
-COPY --from=template-runtime --chmod=0444 assets/agent-bridge.tar.gz scripts/install-agent-bridge.py /usr/local/libexec/hive-template-runtime/
+COPY --from=template-runtime --chmod=0444 assets/agent-bridge.tar.gz scripts/install-agent-bridge.py assets/codex-host.tar.xz scripts/install-codex-host.py /usr/local/libexec/hive-template-runtime/
 RUN chmod 0555 /usr/local/libexec/hive-template-runtime
 
 ARG WORKSPACE_VARIANT=cli

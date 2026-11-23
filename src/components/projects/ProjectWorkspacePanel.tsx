@@ -16,6 +16,7 @@ import {
   type ProjectTaskStatus,
   preparationFailureMessages,
   preparationReasonMessages,
+  projectCleanupStatusSchema,
   projectTaskStatusSchema,
 } from "@/lib/projects/task-contracts";
 import { requestHiveWindow } from "@/lib/workspaces/general-workspace";
@@ -49,12 +50,102 @@ async function post(path: string, body: unknown, signal: AbortSignal) {
   }
   return result;
 }
+async function openSelectedProject(
+  workspaceId: string,
+  repositoryId: string,
+  providerAccountId: string,
+  signal: AbortSignal,
+) {
+  const result = openedProjectSchema.parse(
+    await post(
+      "/api/projects/open",
+      {
+        workspaceId,
+        repositoryId,
+        providerAccountId,
+        requestId: crypto.randomUUID(),
+      },
+      signal,
+    ),
+  );
+  if (
+    result.workspaceId !== workspaceId ||
+    result.repository.providerRepositoryId !== repositoryId ||
+    result.providerAccountId !== providerAccountId
+  )
+    throw new Error("Project access changed. Refresh the repository list.");
+  return result;
+}
+
+export function ManagedProjectPane({
+  workspaceId,
+  repositoryId,
+  providerAccountId,
+  onBack,
+}: {
+  workspaceId: string;
+  repositoryId: string;
+  providerAccountId: string;
+  onBack: () => void;
+}) {
+  const [view, setView] = useState<
+    { project: OpenedProject; error?: never } | { error: string; project?: never } | null
+  >(null);
+  const [attempt, setAttempt] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Retry restarts this request.
+  useEffect(() => {
+    const controller = new AbortController();
+    setView(null);
+    void openSelectedProject(workspaceId, repositoryId, providerAccountId, controller.signal).then(
+      (project) => {
+        if (!controller.signal.aborted) setView({ project });
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted)
+          setView({
+            error: error instanceof Error ? error.message : "Could not open this project.",
+          });
+      },
+    );
+    return () => controller.abort();
+  }, [workspaceId, repositoryId, providerAccountId, attempt]);
+
+  if (view?.project)
+    return (
+      <ProjectSession
+        project={view.project}
+        tasksEnabled
+        onBack={onBack}
+        backLabel="Project terminal"
+      />
+    );
+  return (
+    <div className="space-y-3">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        Project terminal
+      </Button>
+      {view?.error ? (
+        <>
+          <p role="alert" className="text-sm text-destructive">
+            {view.error}
+          </p>
+          <Button variant="outline" onClick={() => setAttempt((value) => value + 1)}>
+            Retry
+          </Button>
+        </>
+      ) : (
+        <LoadingStatus>Checking GitHub access…</LoadingStatus>
+      )}
+    </div>
+  );
+}
+
 const labels = {
   awaitingTask: "Ready for a task",
   preparing: "Preparing project",
   awaitingRegistration: "Connecting project",
   awaitingFirstPrompt: "Starting task",
-  running: "Task running",
+  running: "Session ready",
   blocked: "Task needs attention",
 };
 export function ProjectWorkspacePanel({
@@ -88,24 +179,12 @@ export function ProjectWorkspacePanel({
     setLoading(true);
     setError(null);
     try {
-      const result = openedProjectSchema.parse(
-        await post(
-          "/api/projects/open",
-          {
-            workspaceId,
-            repositoryId: repository.providerRepositoryId,
-            providerAccountId,
-            requestId: crypto.randomUUID(),
-          },
-          request.signal,
-        ),
+      const result = await openSelectedProject(
+        workspaceId,
+        repository.providerRepositoryId,
+        providerAccountId,
+        request.signal,
       );
-      if (
-        result.workspaceId !== workspaceId ||
-        result.repository.providerRepositoryId !== repository.providerRepositoryId ||
-        result.providerAccountId !== providerAccountId
-      )
-        throw new Error("Project access changed. Refresh the repository list.");
       if (current === sequence.current) setSelected(result);
     } catch (e) {
       if (!request.signal.aborted && current === sequence.current)
@@ -155,8 +234,10 @@ function ProjectSession({
   project,
   onBack,
   tasksEnabled,
+  backLabel = "Projects",
 }: {
   project: OpenedProject;
+  backLabel?: string;
   onBack: () => void;
   tasksEnabled: boolean;
 }) {
@@ -179,6 +260,8 @@ function ProjectSession({
   const [mode, setMode] = useState<"conversation" | "terminal">("conversation");
   const [terminalOpened, setTerminalOpened] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cleanupRequested, setCleanupRequested] = useState(false);
+  const cleanupRequestId = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pollGeneration, setPollGeneration] = useState(0);
   const textId = useId();
@@ -285,6 +368,32 @@ function ProjectSession({
       if (!lifetime.current.signal.aborted) setBusy(false);
     }
   };
+  const requestCleanup = async () => {
+    if (!tasksEnabled || busy || cleanupRequested || !task?.nativeThreadId) return;
+    cleanupRequestId.current ??= crypto.randomUUID();
+    setError(null);
+    setBusy(true);
+    try {
+      const result = projectCleanupStatusSchema.parse(
+        await post(
+          `/api/projects/${project.projectId}/tasks/cleanup`,
+          {
+            workspaceId: project.workspaceId,
+            taskId: task.taskId,
+            requestId: cleanupRequestId.current,
+          },
+          lifetime.current.signal,
+        ),
+      );
+      if (result.requestId !== cleanupRequestId.current)
+        throw new Error("Cleanup request changed.");
+      if (!lifetime.current.signal.aborted) setCleanupRequested(true);
+    } catch {
+      if (!lifetime.current.signal.aborted) setError("Could not confirm the cleanup request.");
+    } finally {
+      if (!lifetime.current.signal.aborted) setBusy(false);
+    }
+  };
   const start = async () => {
     if (!tasksEnabled || busy || !text.trim()) return;
     if (new TextEncoder().encode(text.trim()).length > 32768) {
@@ -326,13 +435,30 @@ function ProjectSession({
     >
       <header className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" onClick={onBack}>
-          Projects
+          {backLabel}
         </Button>
         <h2 className="break-all font-medium">{project.repository.fullName}</h2>
         <span role="status" className="text-xs text-muted-foreground">
           {labels[task?.phase ?? project.phase]}
         </span>
       </header>
+      {tasksEnabled && task?.nativeThreadId ? (
+        cleanupRequested ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Cleanup requested. The checkout is saved until completion can be verified.
+          </p>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            disabled={busy}
+            onClick={() => void requestCleanup()}
+          >
+            Request cleanup
+          </Button>
+        )
+      ) : null}
       {error ? (
         <div role="alert" className="flex items-center gap-3 text-sm text-destructive">
           <span>{error}</span>

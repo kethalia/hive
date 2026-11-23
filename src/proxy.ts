@@ -37,7 +37,11 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/discovery/") ||
     pathname === "/api/projects" ||
     pathname === "/api/projects/open" ||
-    /^\/api\/projects\/[0-9a-f-]+\/(?:session-grant|terminal-grant)$/i.test(pathname) ||
+    /^\/api\/delivery\/(?:host|native)$/.test(pathname) ||
+    /^\/api\/projects\/[0-9a-f-]+\/(?:session-grant|terminal-grant|tasks\/(?:start|status|retry|cleanup))$/i.test(
+      pathname,
+    ) ||
+    /^\/api\/codex-host\/guardians(?:\/recover-empty)?$/.test(pathname) ||
     /^\/api\/codex-host\/registrations(?:\/[0-9a-f-]+\/heartbeat)?$/i.test(pathname) ||
     /^\/api\/workspaces\/[^/]+\/(?:codex-account|claude-account|build-logs)$/.test(pathname) ||
     pathname === "/api/github/connection" ||

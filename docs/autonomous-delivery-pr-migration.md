@@ -222,10 +222,16 @@ repositories. Enter opens the repository terminal, cloning into
 `~/projects/<owner>/<repository>` when the checkout is absent.
 
 The remaining P05 extraction is in [draft PR458](https://github.com/kethalia/hive/pull/458),
-based on main at `5b09c6c3`. The draft includes the shared session views, signed
-host registration and relay, repository enrollment, durable task intents, and
-managed checkout safeguards. Local verification covers the PostgreSQL upgrade
-and restricted grants, the native guardian, and a delegated turn using the pinned
-Codex CLI against a local test server. Wiring these components into Start task,
-persisting manager results, recovery, and controller-authorized cleanup still
-need integration and end-to-end preview acceptance.
+based on main at `5b09c6c3`. On an enrolled software workspace, the repository
+terminal offers **Managed task** in the same window. Hive saves the accepted
+intent before authorizing checkout preparation for the current Coder build.
+The managed session exposes Conversation and Terminal views and records signed
+manager and native results. Explicit retry uses the existing task identity.
+A cleanup request preserves the checkout until the controller can verify the
+completed and preserved result. Production-backed deletion authorization is
+part of P08.
+
+Local verification covers signed guardian admission, PostgreSQL migrations and
+restricted grants, task replay, signed manager results, and a delegated turn
+using the pinned Codex CLI. The hosted acceptance still requires a matching
+isolated workspace image, template and preview deployment.

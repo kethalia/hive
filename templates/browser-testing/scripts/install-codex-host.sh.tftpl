@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+set +x
+test "$HIVE_WORKSPACE_PROFILE" = software
+exec /usr/bin/python3 -I -B /usr/local/libexec/hive-template-bootstrap host < /opt/hive-codex-host-template/request.json

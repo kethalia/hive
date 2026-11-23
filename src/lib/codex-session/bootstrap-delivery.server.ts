@@ -81,6 +81,7 @@ export type HostProjectPath =
   | "/projects/tasks/start"
   | "/projects/tasks/status"
   | "/projects/tasks/retry"
+  | "/projects/tasks/cleanup"
   | "/projects/tasks/recovery-inspect"
   | "/projects/tasks/recovery-consume";
 async function exchangeAppCookie(
@@ -258,6 +259,7 @@ export async function postToVerifiedWorkspaceApp(
       "/projects/tasks/start",
       "/projects/tasks/status",
       "/projects/tasks/retry",
+      "/projects/tasks/cleanup",
       "/projects/tasks/recovery-inspect",
       "/projects/tasks/recovery-consume",
     ].includes(request.path) ||

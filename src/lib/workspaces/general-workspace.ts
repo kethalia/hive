@@ -101,6 +101,12 @@ const terminal = z
     workspaceId: identifier,
     sessionName: z.string().regex(/^[a-zA-Z0-9._-]{1,200}$/),
     label: z.string().min(1).max(512),
+    project: z
+      .object({
+        repositoryId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+        providerAccountId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+      })
+      .optional(),
     cloneSessionKey: z.string().max(512).refine(isExpectedCloneSessionKey).optional(),
     relativePath: z.string().max(512).refine(isSafeCloneRelativePath).optional(),
   })

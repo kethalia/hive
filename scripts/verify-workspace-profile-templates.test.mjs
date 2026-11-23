@@ -1,7 +1,15 @@
 /* eslint-disable security/detect-non-literal-fs-filename -- Test paths are constrained to the repository template catalog. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -270,18 +278,28 @@ test("profile synchronization detects and removes obsolete shared scripts", () =
   cpSync(join(repositoryRoot, "templates/ai-dev-k8s/assets"), join(canonical, "assets"), {
     recursive: true,
   });
-  for (const name of [
-    "agent-tools.py",
-    "codex-managed-auth-lock.mjs",
-    "install-agent-bridge.py",
-    "install-codex-runtime.py",
-  ])
-    cpSync(
-      join(repositoryRoot, "templates/ai-dev-k8s/scripts", name),
-      join(canonical, "scripts", name),
-    );
+  cpSync(
+    join(repositoryRoot, "templates/ai-dev-k8s/hive-host.tf"),
+    join(canonical, "hive-host.tf"),
+  );
+  cpSync(join(repositoryRoot, "templates/ai-dev-k8s/scripts"), join(canonical, "scripts"), {
+    recursive: true,
+  });
+  cpSync(
+    join(repositoryRoot, "tools/native-guardian"),
+    join(fixtureRoot, "tools/native-guardian"),
+    {
+      recursive: true,
+    },
+  );
+  symlinkSync(join(repositoryRoot, "node_modules"), join(fixtureRoot, "node_modules"), "dir");
   mkdirSync(join(fixtureRoot, "scripts"), { recursive: true });
-  for (const name of ["agent-bridge", "notifications"])
+  for (const name of [
+    "agent-bridge",
+    "notifications",
+    "build-codex-host-bundle.mjs",
+    "build-native-guardian.mjs",
+  ])
     cpSync(join(repositoryRoot, "scripts", name), join(fixtureRoot, "scripts", name), {
       recursive: true,
     });

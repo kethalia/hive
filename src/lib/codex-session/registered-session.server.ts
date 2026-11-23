@@ -71,7 +71,9 @@ export function registeredSessionConfig(): RegisteredSessionConfig {
     privateKeyPem: required("HIVE_CODEX_ISSUER_PRIVATE_KEY"),
     keyId: required("HIVE_CODEX_ISSUER_KEY_ID"),
     hiveOrigin,
-    softwareTemplateIds: required("HIVE_CODEX_SOFTWARE_TEMPLATE_IDS").split(","),
+    softwareTemplateIds: required("HIVE_CODEX_SOFTWARE_TEMPLATE_IDS")
+      .split(",")
+      .map((id) => id.trim()),
     appSlug: required("HIVE_CODEX_APP_SLUG"),
     gatewayPort: Number(required("HIVE_CODEX_GATEWAY_PORT")),
     cookieDomains: process.env.COOKIE_DOMAIN ? [process.env.COOKIE_DOMAIN] : [],
