@@ -4,6 +4,7 @@ import { Bell, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { isEmbeddedAppPreview } from "@/lib/app-preview-origin.mjs";
 import {
   DEVICE_DISABLED_KEY,
   PUSH_DEVICE_CHANGE_EVENT,
@@ -23,7 +24,8 @@ export function PushPermissionPrompt() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
+    if (isEmbeddedAppPreview() || !("Notification" in window) || !("serviceWorker" in navigator))
+      return;
 
     const synchronize = (event: Event) => {
       const subscription = (event as CustomEvent<PushSubscription | null>).detail;

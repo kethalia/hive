@@ -1,6 +1,7 @@
 import { coderAuthCookieValues, verifyCookie } from "@hive/auth";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { appPreviewBuildPath } from "./lib/app-preview-origin.mjs";
 import { validCoderAuthCookie } from "./lib/auth/better-auth-cookie";
 import { getSessionCookieValuesFromHeader } from "./lib/auth/session-cookie";
 import {
@@ -33,8 +34,10 @@ export async function proxy(request: NextRequest) {
   }
 
   if (
-    // These APIs handle authentication in their routes and return JSON errors.
+    // These APIs enforce their own access policy and return JSON errors.
     pathname.startsWith("/api/discovery/") ||
+    pathname === "/api/app-previews" ||
+    pathname === appPreviewBuildPath ||
     pathname === "/api/projects" ||
     /^\/api\/workspaces\/[^/]+\/(?:codex-account|claude-account|build-logs)$/.test(pathname) ||
     pathname === "/api/github/connection" ||

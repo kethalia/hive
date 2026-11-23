@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetVapidPublicKeyAction = vi.hoisted(() => vi.fn());
 const mockTestPushAction = vi.hoisted(() => vi.fn());
 const mockSubscribePushAction = vi.hoisted(() => vi.fn());
+const mockIsEmbeddedAppPreview = vi.hoisted(() => vi.fn(() => false));
+
+vi.mock("@/lib/app-preview-origin.mjs", () => ({
+  isEmbeddedAppPreview: mockIsEmbeddedAppPreview,
+}));
 
 vi.mock("@/lib/push/actions", () => ({
   getVapidPublicKeyAction: (...args: unknown[]) => mockGetVapidPublicKeyAction(...args),
@@ -80,6 +85,7 @@ function createDeferred<T>() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockIsEmbeddedAppPreview.mockReturnValue(false);
   Object.defineProperty(window, "isSecureContext", { value: true, configurable: true });
   Object.defineProperty(window, "PushManager", { value: class {}, configurable: true });
   mockGetPreferences.mockResolvedValue({ data: notificationPreferencesSchema.parse({}) });
@@ -133,6 +139,24 @@ afterEach(() => {
 });
 
 describe("PushPermissionPrompt", () => {
+  it("keeps push setup unavailable inside an embedded preview", async () => {
+    mockIsEmbeddedAppPreview.mockReturnValue(true);
+    setNotificationPermission("granted");
+    render(
+      <>
+        <PushPermissionPrompt />
+        <NotificationSettings connectedWorkspaceIds={[]} workspaces={[]} workspaceError={false} />
+      </>,
+    );
+
+    await screen.findByText("Open this preview in your browser to set up push notifications.");
+    expect(
+      (screen.getByRole("button", { name: "Enable notifications" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.queryByText("Stay notified")).toBeNull();
+    expect(mockGetVapidPublicKeyAction).not.toHaveBeenCalled();
+  });
+
   it("renders enable button when permission is default", async () => {
     render(<PushPermissionPrompt />);
 
