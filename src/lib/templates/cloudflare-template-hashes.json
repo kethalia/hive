@@ -1,7 +1,7 @@
 {
-  "ai-dev-k8s": "040598046d0700deead774bd6972f2106a82f6e9af1ba9d94de2339b3486651d",
-  "browser-testing": "bd0e30e1d974210dc5fb0d56f591770f5dd6735c6585add33ade9e0720ea3e07",
-  "game-dev": "9c386f1a13b8ab3863c20eece6979876533615ebf4eabbeb7681073bd4cd6376",
-  "electronics": "48d0bd78f2b53d8f7808c69714269573cfe489cd107da4c7d7e31cd524a06f3a",
-  "infrastructure": "00098ae1335bc922824da4c40e801f71e1ede756bbe0b6afebe0b31935452d97"
+  "ai-dev-k8s": "a2cac91618f643e54fcce3d4b762d61b13faa356ef8fec7cf6f1b67930f8cd7d",
+  "browser-testing": "3341637d08a57456059e9db320dbad8c16c603b66deb52f7f15ce6e67dbd4a9f",
+  "game-dev": "e7e0d9410122594e3789d090c45ae0a9d6a01f559d3098cec2b30fd10db44b28",
+  "electronics": "5ba72fc441c7a5a063ca7c6d09c8ce2beef76227260f685ab99682c41bb5e89d",
+  "infrastructure": "7149ec47ce9faa70834a782db7ab503b93cac025fbd1d0ed54f7b834f4346fd2"
 }
